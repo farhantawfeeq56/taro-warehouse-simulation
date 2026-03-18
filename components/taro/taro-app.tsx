@@ -20,6 +20,7 @@ export function TaroApp() {
   const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
   const animationRef = useRef<number | null>(null);
 
   const getActiveRoute = useCallback((): StrategyResult | null => {
@@ -76,9 +77,10 @@ export function TaroApp() {
     setActiveStrategy(strategy);
     setAnimationProgress(0);
     
-    // Start animation
+    // Start animation with replay speed multiplier
     const startTime = performance.now();
-    const duration = 3000; // 3 seconds for full route
+    const baseDuration = 3000; // 3 seconds baseline
+    const duration = baseDuration / replaySpeed;
 
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
@@ -91,7 +93,7 @@ export function TaroApp() {
     };
 
     animationRef.current = requestAnimationFrame(animate);
-  }, []);
+  }, [replaySpeed]);
 
   // Cleanup animation on unmount
   useEffect(() => {
@@ -110,38 +112,43 @@ export function TaroApp() {
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="h-12 border-b border-border flex items-center justify-between px-4 bg-background shrink-0">
-        <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold tracking-tight">Taro</h1>
-          <span className="text-xs text-muted-foreground">Warehouse Picking Simulator</span>
+      <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-base font-bold tracking-tight">Taro</h1>
+            <p className="text-xs text-muted-foreground leading-tight">Warehouse Picking Simulator</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={resetWarehouse}
-            className="h-7 text-xs"
+            className="h-8 text-xs"
+            title="Clear all items and reset simulation"
           >
-            <RotateCcw className="h-3 w-3 mr-1.5" />
+            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
             Reset
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={generateDemo}
-            className="h-7 text-xs"
+            className="h-8 text-xs"
+            title="Generate a demo warehouse layout"
           >
-            <Wand2 className="h-3 w-3 mr-1.5" />
+            <Wand2 className="h-3.5 w-3.5 mr-1.5" />
             Demo Layout
           </Button>
           <Button
             size="sm"
             onClick={runSimulationHandler}
             disabled={!canSimulate || isSimulating}
-            className="h-7 text-xs"
+            className="h-8 text-xs"
+            title="Run picking strategy simulation"
           >
-            <Play className="h-3 w-3 mr-1.5" />
+            <Play className="h-3.5 w-3.5 mr-1.5" />
             Simulate Strategies
           </Button>
         </div>
@@ -157,9 +164,9 @@ export function TaroApp() {
         />
 
         {/* Center - Canvas */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden gap-0">
           {/* Toolbar */}
-          <div className="p-2 border-b border-border bg-muted/30 shrink-0">
+          <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
             <Toolbar
               selectedTool={selectedTool}
               onToolChange={setSelectedTool}
@@ -181,15 +188,28 @@ export function TaroApp() {
           />
 
           {/* Status Bar */}
-          <div className="h-7 border-t border-border flex items-center px-3 text-xs text-muted-foreground bg-muted/30 shrink-0">
-            <div className="flex items-center gap-4">
-              <span>Grid: {warehouse.width} x {warehouse.height}</span>
-              <span>Items: {warehouse.items.length}</span>
-              <span>Worker: {warehouse.workerStart ? `(${warehouse.workerStart.x}, ${warehouse.workerStart.y})` : 'Not placed'}</span>
+          <div className="h-8 border-t border-border flex items-center px-4 text-xs text-muted-foreground bg-muted/20 shrink-0">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Grid:</span>
+                <span className="font-mono">{warehouse.width} × {warehouse.height}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Items:</span>
+                <span className="font-mono">{warehouse.items.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Worker:</span>
+                <span className="font-mono">{warehouse.workerStart ? `(${warehouse.workerStart.x}, ${warehouse.workerStart.y})` : '–'}</span>
+              </div>
               {activeStrategy && (
-                <span className="text-foreground">
-                  Showing: <span className="font-medium capitalize">{activeStrategy}</span> strategy
-                </span>
+                <>
+                  <div className="border-l border-border ml-2 pl-6" />
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Route:</span>
+                    <span className="font-mono capitalize">{activeStrategy}</span>
+                  </div>
+                </>
               )}
             </div>
           </div>

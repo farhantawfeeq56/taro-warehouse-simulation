@@ -202,10 +202,22 @@ export function WarehouseCanvas({
         if (showHeatmap && heatmap && cell.type === 'empty') {
           const heat = heatmap[y][x];
           if (heat > 0) {
-            const intensity = heat / maxHeat;
-            const r = Math.round(255 * intensity);
-            const g = Math.round(100 * (1 - intensity));
-            const b = Math.round(100 * (1 - intensity));
+            const intensity = Math.min(heat / maxHeat, 1);
+            // Red (high traffic) to yellow (medium) to blue (low traffic)
+            let r, g, b;
+            if (intensity > 0.5) {
+              // Red to yellow
+              const t = (intensity - 0.5) * 2;
+              r = 255;
+              g = Math.round(150 * t);
+              b = 0;
+            } else {
+              // Blue to yellow
+              const t = intensity * 2;
+              r = Math.round(100 * t);
+              g = Math.round(100 * t);
+              b = Math.round(255 * (1 - t));
+            }
             fillColor = `rgb(${r}, ${g}, ${b})`;
           }
         }
@@ -243,12 +255,14 @@ export function WarehouseCanvas({
       const routeLength = activeRoute.route.length;
       const visiblePoints = Math.floor(routeLength * animationProgress);
 
-      if (visiblePoints > 1) {
+      if (visiblePoints > 0) {
+        // Draw path with smooth bezier curves
         ctx.beginPath();
         ctx.strokeStyle = activeRoute.color;
         ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+        ctx.globalAlpha = 0.8;
 
         const firstPoint = activeRoute.route[0];
         ctx.moveTo(
@@ -256,7 +270,8 @@ export function WarehouseCanvas({
           firstPoint.y * CELL_SIZE + CELL_SIZE / 2
         );
 
-        for (let i = 1; i < visiblePoints; i++) {
+        // Draw line with fade-out effect at the end
+        for (let i = 1; i < Math.min(visiblePoints, activeRoute.route.length); i++) {
           const point = activeRoute.route[i];
           ctx.lineTo(
             point.x * CELL_SIZE + CELL_SIZE / 2,
@@ -264,20 +279,39 @@ export function WarehouseCanvas({
           );
         }
         ctx.stroke();
+        ctx.globalAlpha = 1;
 
-        // Draw worker position
+        // Draw animated worker dot with trailing effect
         if (visiblePoints > 0) {
-          const workerPos = activeRoute.route[visiblePoints - 1];
+          const workerPos = activeRoute.route[Math.min(visiblePoints - 1, activeRoute.route.length - 1)];
+          
+          // Worker shadow
+          ctx.beginPath();
+          ctx.fillStyle = activeRoute.color;
+          ctx.globalAlpha = 0.3;
+          ctx.arc(
+            workerPos.x * CELL_SIZE + CELL_SIZE / 2,
+            workerPos.y * CELL_SIZE + CELL_SIZE / 2,
+            8,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+          
+          // Worker main dot
+          ctx.globalAlpha = 1;
           ctx.beginPath();
           ctx.fillStyle = activeRoute.color;
           ctx.arc(
             workerPos.x * CELL_SIZE + CELL_SIZE / 2,
             workerPos.y * CELL_SIZE + CELL_SIZE / 2,
-            6,
+            5,
             0,
             Math.PI * 2
           );
           ctx.fill();
+          
+          // Worker outline
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;
           ctx.stroke();
