@@ -65,3 +65,10 @@ export interface SimulationResults {
 }
 
 export type ToolType = 'shelf' | 'item' | 'worker' | 'erase';
+
+export interface PickTask {
+  workerId: number;
+  step: number;
+  location: string;
+  item: string;
+}

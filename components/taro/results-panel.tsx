@@ -3,8 +3,9 @@
 import type { SimulationResults, StrategyResult, StrategyType } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, Clock, Route, Users, DollarSign, Activity, Play, Pause, Zap } from 'lucide-react';
+import { TrendingUp, Clock, Route, Users, DollarSign, Activity, Play, Pause, Zap, Download, Clipboard, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { generateTaskCSV, downloadCSV } from '@/lib/taro/csv';
 
 interface ResultsPanelProps {
   results: SimulationResults | null;
@@ -25,6 +26,7 @@ export function ResultsPanel({
 }: ResultsPanelProps) {
   const [replayProgress, setReplayProgress] = useState(0);
   const [isReplaying, setIsReplaying] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Sync replayProgress with the animationProgress driven from the parent
   useEffect(() => {
@@ -223,6 +225,62 @@ export function ResultsPanel({
             </div>
           </div>
         )}
+
+        {/* Export Tasks */}
+        {activeStrategy && (() => {
+          const activeResult = results!.strategies.find(s => s.strategy === activeStrategy);
+          const workerRoutes = activeResult?.workerRoutes;
+          if (!workerRoutes || workerRoutes.length === 0) return null;
+
+          const handleDownload = () => {
+            const csv = generateTaskCSV(workerRoutes);
+            downloadCSV(csv, `tasks-${activeStrategy}.csv`);
+          };
+
+          const handleCopy = () => {
+            const csv = generateTaskCSV(workerRoutes);
+            navigator.clipboard.writeText(csv).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          };
+
+          return (
+            <div className="border border-border rounded-lg p-3 space-y-2">
+              <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                Export Tasks
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Export the current worker task list as a CSV file to share with workers.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDownload}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground text-xs rounded hover:bg-primary/90 transition-colors"
+                >
+                  <Download className="h-3 w-3" />
+                  Download CSV
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-border bg-muted/30 text-foreground text-xs rounded hover:bg-muted transition-colors"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-3 w-3 text-green-600" />
+                      <span className="text-green-600">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clipboard className="h-3 w-3" />
+                      Copy CSV
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Route Replay Controls */}
         {activeStrategy && (
