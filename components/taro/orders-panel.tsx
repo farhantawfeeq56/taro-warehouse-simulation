@@ -11,9 +11,10 @@ interface OrdersPanelProps {
   orders: Order[];
   onOrdersChange: (orders: Order[]) => void;
   availableItems: Item[];
+  workerCount: number;
 }
 
-export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPanelProps) {
+export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCount }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
 
   const addOrder = () => {
@@ -22,6 +23,7 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPa
     const newOrder: Order = {
       id: `Order ${nextLabel}`,
       items: [],
+      assignedWorkerId: null,
     };
     onOrdersChange([...orders, newOrder]);
   };
@@ -30,12 +32,17 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPa
     onOrdersChange(orders.filter(o => o.id !== orderId));
   };
 
+  const setAssignment = (orderId: string, value: string) => {
+    const assignedWorkerId = value === 'auto' ? null : parseInt(value, 10);
+    onOrdersChange(
+      orders.map(o => o.id === orderId ? { ...o, assignedWorkerId } : o)
+    );
+  };
+
   const addItemToOrder = (orderId: string, itemId: number) => {
     onOrdersChange(
-      orders.map(o => 
-        o.id === orderId 
-          ? { ...o, items: [...o.items, itemId] }
-          : o
+      orders.map(o =>
+        o.id === orderId ? { ...o, items: [...o.items, itemId] } : o
       )
     );
     setNewItemInput(prev => ({ ...prev, [orderId]: '' }));
@@ -54,17 +61,21 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPa
   const handleItemInputKeyDown = (orderId: string, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const value = parseInt(newItemInput[orderId] || '', 10);
-      if (!isNaN(value) && value > 0) {
-        addItemToOrder(orderId, value);
-      }
+      if (!isNaN(value) && value > 0) addItemToOrder(orderId, value);
     }
   };
 
   const generateRandom = () => {
     if (availableItems.length === 0) return;
-    const randomOrders = generateRandomOrders(availableItems, Math.min(5, Math.max(3, Math.floor(availableItems.length / 3))));
-    onOrdersChange(randomOrders);
+    const randomOrders = generateRandomOrders(
+      availableItems,
+      Math.min(5, Math.max(3, Math.floor(availableItems.length / 3)))
+    );
+    // Preserve assignedWorkerId=null on generated orders
+    onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
   };
+
+  const WORKER_COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
 
   return (
     <div className="w-72 border-r border-border bg-background flex flex-col">
@@ -74,9 +85,9 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPa
           <span className="text-xs text-muted-foreground">{orders.length} orders</span>
         </div>
         <div className="flex gap-1">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={addOrder}
             className="flex-1 h-7 text-xs"
           >
@@ -104,10 +115,11 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPa
           </div>
         ) : (
           orders.map(order => (
-            <div 
-              key={order.id} 
+            <div
+              key={order.id}
               className="border border-border rounded-lg bg-card p-3 space-y-2 hover:border-muted-foreground/50 transition-colors"
             >
+              {/* Header row */}
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-foreground">{order.id}</span>
                 <Button
@@ -121,8 +133,40 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPa
                 </Button>
               </div>
 
+              {/* Assignment dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground shrink-0">Assigned to</span>
+                <div className="relative flex-1">
+                  {order.assignedWorkerId !== null && (
+                    <span
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
+                      style={{ backgroundColor: WORKER_COLORS[(order.assignedWorkerId - 1) % WORKER_COLORS.length] }}
+                    />
+                  )}
+                  <select
+                    value={order.assignedWorkerId === null ? 'auto' : String(order.assignedWorkerId)}
+                    onChange={e => setAssignment(order.id, e.target.value)}
+                    className={[
+                      'w-full h-7 text-xs rounded border border-border bg-background text-foreground',
+                      'focus:outline-none focus:ring-1 focus:ring-primary appearance-none',
+                      order.assignedWorkerId !== null ? 'pl-5 pr-2' : 'px-2',
+                    ].join(' ')}
+                  >
+                    <option value="auto">Auto</option>
+                    {Array.from({ length: workerCount }, (_, i) => (
+                      <option key={i + 1} value={String(i + 1)}>
+                        Worker {i + 1}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Items */}
               <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Items ({order.items.length})</div>
+                <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                  Items ({order.items.length})
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {order.items.length === 0 ? (
                     <span className="text-xs text-muted-foreground italic">No items</span>
@@ -146,13 +190,14 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPa
                 </div>
               </div>
 
+              {/* Add item */}
               <div className="flex gap-1.5 pt-1">
                 <Input
                   type="number"
                   placeholder="Item #"
                   value={newItemInput[order.id] || ''}
-                  onChange={(e) => setNewItemInput(prev => ({ ...prev, [order.id]: e.target.value }))}
-                  onKeyDown={(e) => handleItemInputKeyDown(order.id, e)}
+                  onChange={e => setNewItemInput(prev => ({ ...prev, [order.id]: e.target.value }))}
+                  onKeyDown={e => handleItemInputKeyDown(order.id, e)}
                   className="h-7 text-xs flex-1"
                   min={1}
                 />
@@ -161,9 +206,7 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPa
                   size="sm"
                   onClick={() => {
                     const value = parseInt(newItemInput[order.id] || '', 10);
-                    if (!isNaN(value) && value > 0) {
-                      addItemToOrder(order.id, value);
-                    }
+                    if (!isNaN(value) && value > 0) addItemToOrder(order.id, value);
                   }}
                   className="h-7 px-3 text-xs"
                 >
@@ -179,11 +222,15 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems }: OrdersPa
         <div className="text-xs text-muted-foreground space-y-1">
           <div className="flex justify-between">
             <span className="font-medium">Total Items:</span>
-            <span className="font-mono font-semibold text-foreground">{orders.reduce((sum, o) => sum + o.items.length, 0)}</span>
+            <span className="font-mono font-semibold text-foreground">
+              {orders.reduce((sum, o) => sum + o.items.length, 0)}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="font-medium">Unique Items:</span>
-            <span className="font-mono font-semibold text-foreground">{new Set(orders.flatMap(o => o.items)).size}</span>
+            <span className="font-mono font-semibold text-foreground">
+              {new Set(orders.flatMap(o => o.items)).size}
+            </span>
           </div>
         </div>
       </div>

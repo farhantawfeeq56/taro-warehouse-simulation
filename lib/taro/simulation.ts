@@ -33,34 +33,68 @@ function getItemPosition(warehouse: Warehouse, itemId: number): { x: number; y: 
 
 /**
  * Generate independent parallel routes — one per worker.
- * Each worker gets a subset of pick locations and navigates
- * from the SAME start point through their own assigned items.
+ *
+ * Assignment logic (4 steps):
+ * 1. Items explicitly assigned to a worker go directly into that worker's bucket.
+ * 2. Remaining "Auto" items are distributed round-robin across all workers.
+ * 3. Each worker's final pick list = explicit items + auto-distributed items.
+ * 4. An independent nearest-neighbour route is generated per worker.
  */
 function generateParallelWorkerRoutes(
   warehouse: Warehouse,
-  pickLocations: { id: number; pos: { x: number; y: number } }[],
+  orders: Order[],
   numWorkers: number
 ): WorkerRoute[] {
   const clampedWorkers = Math.max(1, Math.min(3, numWorkers));
   const start = warehouse.workerStart!;
 
-  // Distribute picks round-robin across workers so loads are even
-  const buckets: { id: number; pos: { x: number; y: number } }[][] = Array.from(
-    { length: clampedWorkers },
-    () => []
+  // Build item→position map for quick lookup
+  const itemPosMap = new Map<number, { x: number; y: number }>();
+  for (const item of warehouse.items) {
+    itemPosMap.set(item.id, { x: item.x, y: item.y });
+  }
+
+  // Step 1 & 2: bucket items by assignment
+  const explicitBuckets: Map<number, Set<number>> = new Map(
+    Array.from({ length: clampedWorkers }, (_, i) => [i + 1, new Set<number>()])
   );
-  pickLocations.forEach((item, i) => {
-    buckets[i % clampedWorkers].push(item);
+  const autoItems: number[] = [];
+
+  for (const order of orders) {
+    for (const itemId of order.items) {
+      if (!itemPosMap.has(itemId)) continue;
+      if (order.assignedWorkerId !== null) {
+        const wid = Math.max(1, Math.min(clampedWorkers, order.assignedWorkerId));
+        explicitBuckets.get(wid)!.add(itemId);
+      } else {
+        autoItems.push(itemId);
+      }
+    }
+  }
+
+  // Deduplicate auto items (same item may appear in multiple orders)
+  const uniqueAutoItems = Array.from(new Set(autoItems));
+
+  // Round-robin distribute auto items
+  uniqueAutoItems.forEach((itemId, i) => {
+    const wid = (i % clampedWorkers) + 1;
+    explicitBuckets.get(wid)!.add(itemId);
   });
 
-  return buckets.map((picks, i) => {
+  // Step 3 & 4: build routes per worker
+  return Array.from({ length: clampedWorkers }, (_, i) => {
+    const wid = i + 1;
+    const picks = Array.from(explicitBuckets.get(wid)!)
+      .map(id => ({ id, pos: itemPosMap.get(id)! }))
+      .filter(p => p.pos !== undefined);
+
     const route: { x: number; y: number }[] = [];
 
     if (picks.length > 0) {
       let currentPos = start;
-
-      // Nearest-neighbour ordering within each worker's subset
       const remaining = [...picks];
+
+      // Nearest-neighbour ordering
       while (remaining.length > 0) {
         let nearestIdx = 0;
         let nearestDist = Infinity;
@@ -68,17 +102,11 @@ function generateParallelWorkerRoutes(
           const d =
             Math.abs(remaining[j].pos.x - currentPos.x) +
             Math.abs(remaining[j].pos.y - currentPos.y);
-          if (d < nearestDist) {
-            nearestDist = d;
-            nearestIdx = j;
-          }
+          if (d < nearestDist) { nearestDist = d; nearestIdx = j; }
         }
         const next = remaining.splice(nearestIdx, 1)[0];
         const path = findPath(warehouse, currentPos, next.pos);
-        if (path.length > 0) {
-          route.push(...path);
-          currentPos = next.pos;
-        }
+        if (path.length > 0) { route.push(...path); currentPos = next.pos; }
       }
 
       // Return to start
@@ -87,10 +115,10 @@ function generateParallelWorkerRoutes(
     }
 
     return {
-      workerId: i + 1,
+      workerId: wid,
       route,
       color: WORKER_COLORS[i % WORKER_COLORS.length],
-      zone: picks.length > 0 ? `Worker ${i + 1}` : `Worker ${i + 1} (idle)`,
+      zone: picks.length > 0 ? `Worker ${wid}` : `Worker ${wid} (idle)`,
       assignedPickCount: picks.length,
       progress: 0,
     };
@@ -324,53 +352,34 @@ export function runSimulation(warehouse: Warehouse, orders: Order[], workerCount
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
   const allRoutes: { x: number; y: number }[][] = [];
-  
+
   // Calculate baseline (single order picking) for efficiency comparison
   const singleResult = simulateSingleOrderPicking(warehouse, orders);
   const baselineDistance = singleResult.distance || 1;
-  
-  // Collect all unique pick locations once (shared across strategies for parallel routing)
-  const allItems = new Set<number>();
-  for (const order of orders) {
-    for (const itemId of order.items) {
-      allItems.add(itemId);
-    }
-  }
-  const itemsWithPos = Array.from(allItems)
-    .map(id => ({ id, pos: getItemPosition(warehouse, id) }))
-    .filter((item): item is { id: number; pos: { x: number; y: number } } => item.pos !== null);
 
   for (const strategy of strategies) {
     let result: { route: { x: number; y: number }[]; distance: number };
-    
+
     switch (strategy) {
-      case 'single':
-        result = singleResult;
-        break;
-      case 'batch':
-        result = simulateBatchPicking(warehouse, orders);
-        break;
-      case 'zone':
-        result = simulateZonePicking(warehouse, orders);
-        break;
-      case 'wave':
-        result = simulateWavePicking(warehouse, orders);
-        break;
+      case 'single':  result = singleResult; break;
+      case 'batch':   result = simulateBatchPicking(warehouse, orders); break;
+      case 'zone':    result = simulateZonePicking(warehouse, orders); break;
+      case 'wave':    result = simulateWavePicking(warehouse, orders); break;
     }
-    
+
     allRoutes.push(result.route);
-    
-    // Generate parallel worker routes from the pick locations
-    const workerRoutes = generateParallelWorkerRoutes(warehouse, itemsWithPos, workerCount);
-    
+
+    // Generate parallel worker routes using order-level assignment data
+    const workerRoutes = generateParallelWorkerRoutes(warehouse, orders, workerCount);
+
     const distanceMeters = result.distance * CELL_SIZE_METERS;
     const timeMinutes = distanceMeters / WALKING_SPEED;
-    const efficiency = strategy === 'single' 
-      ? 0 
+    const efficiency = strategy === 'single'
+      ? 0
       : Math.round(((baselineDistance - result.distance) / baselineDistance) * 100);
     const utilization = Math.min(95, 60 + Math.random() * 30);
     const cost = timeMinutes * COST_PER_MINUTE;
-    
+
     results.push({
       strategy,
       strategyName: STRATEGY_NAMES[strategy],
@@ -384,14 +393,12 @@ export function runSimulation(warehouse: Warehouse, orders: Order[], workerCount
       workerRoutes,
     });
   }
-  
-  // Find best strategy (lowest distance, excluding single)
+
   const bestStrategy = results
     .filter(r => r.strategy !== 'single')
-    .reduce((best, current) => 
-      current.distance < best.distance ? current : best
-    ).strategy;
-  
+    .reduce((best, current) => current.distance < best.distance ? current : best)
+    .strategy;
+
   return {
     strategies: results,
     heatmap: generateHeatmap(warehouse, allRoutes),

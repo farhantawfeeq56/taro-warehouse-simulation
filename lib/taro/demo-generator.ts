@@ -91,6 +91,7 @@ export function generateRandomOrders(items: Item[], count: number): Order[] {
     orders.push({
       id: `Order ${orderLabels[i] || i + 1}`,
       items: orderItems,
+      assignedWorkerId: null,
     });
   }
   

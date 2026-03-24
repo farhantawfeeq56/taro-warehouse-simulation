@@ -187,6 +187,7 @@ export function TaroApp() {
           orders={orders}
           onOrdersChange={setOrders}
           availableItems={warehouse.items}
+          workerCount={workerCount}
         />
 
         {/* Center - Canvas */}

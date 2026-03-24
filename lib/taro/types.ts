@@ -18,6 +18,7 @@ export interface Item {
 export interface Order {
   id: string;
   items: number[];
+  assignedWorkerId: number | null; // null = Auto
 }
 
 export interface WorkerPosition {

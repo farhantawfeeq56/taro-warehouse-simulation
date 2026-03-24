@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { ToolType } from '@/lib/taro/types';
-import { Grid3X3, Package, Eraser, Flame } from 'lucide-react';
+import { Grid3X3, Package, User, Eraser, Flame } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
@@ -15,6 +15,7 @@ interface ToolbarProps {
 const tools: { type: ToolType; label: string; icon: typeof Grid3X3 }[] = [
   { type: 'shelf', label: 'Shelf', icon: Grid3X3 },
   { type: 'item', label: 'Item', icon: Package },
+  { type: 'worker', label: 'Worker', icon: User },
   { type: 'erase', label: 'Erase', icon: Eraser },
 ];
 
