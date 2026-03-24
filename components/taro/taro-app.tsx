@@ -9,7 +9,7 @@ import { OrdersPanel } from './orders-panel';
 import { ResultsPanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Wand2, Play } from 'lucide-react';
+import { RotateCcw, Wand2, Play, Minus, Plus } from 'lucide-react';
 
 export function TaroApp() {
   const [warehouse, setWarehouse] = useState<Warehouse>(() => createEmptyWarehouse(30, 24));
@@ -20,6 +20,7 @@ export function TaroApp() {
   const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [workerCount, setWorkerCount] = useState(2);
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
   const animationRef = useRef<number | null>(null);
 
@@ -58,7 +59,7 @@ export function TaroApp() {
 
     // Small delay to show loading state
     setTimeout(() => {
-      const results = runSimulation(warehouse, orders);
+      const results = runSimulation(warehouse, orders, workerCount);
       setSimulationResults(results);
       setIsSimulating(false);
       
@@ -141,6 +142,31 @@ export function TaroApp() {
             <Wand2 className="h-3.5 w-3.5 mr-1.5" />
             Demo Layout
           </Button>
+
+          {/* Worker count stepper */}
+          <div className="flex items-center gap-1.5 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
+            <span className="text-xs text-muted-foreground font-medium">Workers</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setWorkerCount(c => Math.max(1, c - 1))}
+                disabled={workerCount <= 1}
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Decrease worker count"
+              >
+                <Minus className="h-3 w-3" />
+              </button>
+              <span className="text-xs font-mono font-semibold w-4 text-center">{workerCount}</span>
+              <button
+                onClick={() => setWorkerCount(c => Math.min(3, c + 1))}
+                disabled={workerCount >= 3}
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Increase worker count"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+
           <Button
             size="sm"
             onClick={runSimulationHandler}
@@ -222,6 +248,7 @@ export function TaroApp() {
           activeStrategy={activeStrategy}
           onStrategySelect={handleStrategySelect}
           animationProgress={animationProgress}
+          workerCount={workerCount}
         />
       </div>
     </div>

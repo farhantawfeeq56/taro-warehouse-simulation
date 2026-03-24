@@ -36,8 +36,10 @@ function splitRouteIntoWorkers(
   warehouse: Warehouse,
   numWorkers: number = 2
 ): WorkerRoute[] {
+  const clampedWorkers = Math.max(1, Math.min(3, numWorkers));
+
   if (route.length === 0) {
-    return Array(numWorkers).fill(null).map((_, i) => ({
+    return Array.from({ length: clampedWorkers }, (_, i) => ({
       workerId: i + 1,
       route: [],
       color: WORKER_COLORS[i % WORKER_COLORS.length],
@@ -46,40 +48,32 @@ function splitRouteIntoWorkers(
     }));
   }
 
-  const midX = Math.floor(warehouse.width / 2);
-  const workerRoutes: WorkerRoute[] = [];
-
-  // Partition route points by x coordinate
-  const leftZonePoints: { x: number; y: number }[] = [];
-  const rightZonePoints: { x: number; y: number }[] = [];
+  // Divide warehouse width into N equal column zones
+  const zoneWidth = Math.ceil(warehouse.width / clampedWorkers);
+  const zoneBuckets: { x: number; y: number }[][] = Array.from(
+    { length: clampedWorkers },
+    () => []
+  );
 
   for (const point of route) {
-    if (point.x < midX) {
-      leftZonePoints.push(point);
-    } else {
-      rightZonePoints.push(point);
-    }
+    const zoneIndex = Math.min(
+      Math.floor(point.x / zoneWidth),
+      clampedWorkers - 1
+    );
+    zoneBuckets[zoneIndex].push(point);
   }
 
-  // Assign left zone to worker 1
-  workerRoutes.push({
-    workerId: 1,
-    route: leftZonePoints.length > 0 ? leftZonePoints : [],
-    color: WORKER_COLORS[0],
-    zone: `Aisle 1-${Math.floor(midX / 2)}`,
-    progress: 0,
+  return Array.from({ length: clampedWorkers }, (_, i) => {
+    const startCol = i * zoneWidth + 1;
+    const endCol = Math.min((i + 1) * zoneWidth, warehouse.width);
+    return {
+      workerId: i + 1,
+      route: zoneBuckets[i],
+      color: WORKER_COLORS[i % WORKER_COLORS.length],
+      zone: `Aisle ${startCol}–${endCol}`,
+      progress: 0,
+    };
   });
-
-  // Assign right zone to worker 2
-  workerRoutes.push({
-    workerId: 2,
-    route: rightZonePoints.length > 0 ? rightZonePoints : [],
-    color: WORKER_COLORS[1],
-    zone: `Aisle ${Math.floor(midX / 2) + 1}-${warehouse.width}`,
-    progress: 0,
-  });
-
-  return workerRoutes;
 }
 
 function simulateSingleOrderPicking(
@@ -305,7 +299,7 @@ function generateHeatmap(warehouse: Warehouse, routes: { x: number; y: number }[
   return heatmap;
 }
 
-export function runSimulation(warehouse: Warehouse, orders: Order[]): SimulationResults {
+export function runSimulation(warehouse: Warehouse, orders: Order[], workerCount: number = 2): SimulationResults {
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
   const allRoutes: { x: number; y: number }[][] = [];
@@ -334,8 +328,8 @@ export function runSimulation(warehouse: Warehouse, orders: Order[]): Simulation
     
     allRoutes.push(result.route);
     
-    // Split main route into worker routes
-    const workerRoutes = splitRouteIntoWorkers(result.route, warehouse, 2);
+    // Split main route into worker routes based on dynamic workerCount
+    const workerRoutes = splitRouteIntoWorkers(result.route, warehouse, workerCount);
     
     const distanceMeters = result.distance * CELL_SIZE_METERS;
     const timeMinutes = distanceMeters / WALKING_SPEED;

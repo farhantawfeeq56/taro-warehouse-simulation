@@ -12,6 +12,7 @@ interface ResultsPanelProps {
   activeStrategy: StrategyType | null;
   onStrategySelect: (strategy: StrategyType) => void;
   animationProgress: number;
+  workerCount: number;
 }
 
 export function ResultsPanel({ 
@@ -19,7 +20,8 @@ export function ResultsPanel({
   isSimulating, 
   activeStrategy,
   onStrategySelect,
-  animationProgress 
+  animationProgress,
+  workerCount,
 }: ResultsPanelProps) {
   const [replayProgress, setReplayProgress] = useState(0);
   const [isReplaying, setIsReplaying] = useState(false);
@@ -157,8 +159,13 @@ export function ResultsPanel({
         {/* Worker Allocation Panel */}
         {activeStrategy && (
           <div className="space-y-2">
-            <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-              Worker Allocation
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                Worker Allocation
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">
+                {workerCount} worker{workerCount !== 1 ? 's' : ''}
+              </span>
             </div>
             <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-3">
               {(() => {
