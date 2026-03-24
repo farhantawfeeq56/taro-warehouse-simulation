@@ -221,6 +221,7 @@ export function TaroApp() {
           isSimulating={isSimulating}
           activeStrategy={activeStrategy}
           onStrategySelect={handleStrategySelect}
+          animationProgress={animationProgress}
         />
       </div>
     </div>

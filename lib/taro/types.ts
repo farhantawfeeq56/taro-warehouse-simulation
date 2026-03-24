@@ -35,6 +35,14 @@ export interface Warehouse {
 
 export type StrategyType = 'single' | 'batch' | 'zone' | 'wave';
 
+export interface WorkerRoute {
+  workerId: number;
+  route: { x: number; y: number }[];
+  color: string;
+  zone: string;
+  progress: number;
+}
+
 export interface StrategyResult {
   strategy: StrategyType;
   strategyName: string;
@@ -45,6 +53,7 @@ export interface StrategyResult {
   costPerOrder: number;
   route: { x: number; y: number }[];
   color: string;
+  workerRoutes?: WorkerRoute[];
 }
 
 export interface SimulationResults {
@@ -53,4 +62,4 @@ export interface SimulationResults {
   bestStrategy: StrategyType;
 }
 
-export type ToolType = 'shelf' | 'item' | 'worker' | 'erase';
+export type ToolType = 'shelf' | 'item' | 'erase';

@@ -1,6 +1,6 @@
 // Simulation engine for picking strategies
 
-import type { Warehouse, Order, StrategyResult, SimulationResults, StrategyType } from './types';
+import type { Warehouse, Order, StrategyResult, SimulationResults, StrategyType, WorkerRoute } from './types';
 import { findPath, calculatePathDistance } from './pathfinding';
 
 const STRATEGY_COLORS: Record<StrategyType, string> = {
@@ -17,6 +17,8 @@ const STRATEGY_NAMES: Record<StrategyType, string> = {
   wave: 'Wave Picking',
 };
 
+const WORKER_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']; // blue, emerald, amber, red
+
 // Meters per grid cell
 const CELL_SIZE_METERS = 2;
 // Walking speed in meters per minute
@@ -27,6 +29,57 @@ const COST_PER_MINUTE = 0.50;
 function getItemPosition(warehouse: Warehouse, itemId: number): { x: number; y: number } | null {
   const item = warehouse.items.find(i => i.id === itemId);
   return item ? { x: item.x, y: item.y } : null;
+}
+
+function splitRouteIntoWorkers(
+  route: { x: number; y: number }[],
+  warehouse: Warehouse,
+  numWorkers: number = 2
+): WorkerRoute[] {
+  if (route.length === 0) {
+    return Array(numWorkers).fill(null).map((_, i) => ({
+      workerId: i + 1,
+      route: [],
+      color: WORKER_COLORS[i % WORKER_COLORS.length],
+      zone: '',
+      progress: 0,
+    }));
+  }
+
+  const midX = Math.floor(warehouse.width / 2);
+  const workerRoutes: WorkerRoute[] = [];
+
+  // Partition route points by x coordinate
+  const leftZonePoints: { x: number; y: number }[] = [];
+  const rightZonePoints: { x: number; y: number }[] = [];
+
+  for (const point of route) {
+    if (point.x < midX) {
+      leftZonePoints.push(point);
+    } else {
+      rightZonePoints.push(point);
+    }
+  }
+
+  // Assign left zone to worker 1
+  workerRoutes.push({
+    workerId: 1,
+    route: leftZonePoints.length > 0 ? leftZonePoints : [],
+    color: WORKER_COLORS[0],
+    zone: `Aisle 1-${Math.floor(midX / 2)}`,
+    progress: 0,
+  });
+
+  // Assign right zone to worker 2
+  workerRoutes.push({
+    workerId: 2,
+    route: rightZonePoints.length > 0 ? rightZonePoints : [],
+    color: WORKER_COLORS[1],
+    zone: `Aisle ${Math.floor(midX / 2) + 1}-${warehouse.width}`,
+    progress: 0,
+  });
+
+  return workerRoutes;
 }
 
 function simulateSingleOrderPicking(
@@ -281,6 +334,9 @@ export function runSimulation(warehouse: Warehouse, orders: Order[]): Simulation
     
     allRoutes.push(result.route);
     
+    // Split main route into worker routes
+    const workerRoutes = splitRouteIntoWorkers(result.route, warehouse, 2);
+    
     const distanceMeters = result.distance * CELL_SIZE_METERS;
     const timeMinutes = distanceMeters / WALKING_SPEED;
     const efficiency = strategy === 'single' 
@@ -299,6 +355,7 @@ export function runSimulation(warehouse: Warehouse, orders: Order[]): Simulation
       costPerOrder: Math.round((cost / Math.max(orders.length, 1)) * 100) / 100,
       route: result.route,
       color: STRATEGY_COLORS[strategy],
+      workerRoutes,
     });
   }
   

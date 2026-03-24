@@ -11,15 +11,16 @@ interface ResultsPanelProps {
   isSimulating: boolean;
   activeStrategy: StrategyType | null;
   onStrategySelect: (strategy: StrategyType) => void;
+  animationProgress: number;
 }
 
 export function ResultsPanel({ 
   results, 
   isSimulating, 
   activeStrategy,
-  onStrategySelect 
+  onStrategySelect,
+  animationProgress 
 }: ResultsPanelProps) {
-  const [replayProgress, setReplayProgress] = useState(0);
   const [isReplaying, setIsReplaying] = useState(false);
 
   useEffect(() => {
@@ -34,7 +35,6 @@ export function ResultsPanel({
     const animate = (currentTime: number) => {
       const elapsed = (currentTime - startTime) / 1000;
       const progress = Math.min((elapsed * speed) / 4, 1);
-      setReplayProgress(progress);
 
       if (progress < 1) {
         animationId = requestAnimationFrame(animate);
@@ -147,6 +147,61 @@ export function ResultsPanel({
             />
           ))}
         </div>
+
+        {/* Worker Allocation Panel */}
+        {activeStrategy && (
+          <div className="space-y-2">
+            <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+              Worker Allocation
+            </div>
+            <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-3">
+              {(() => {
+                const activeResult = results!.strategies.find(s => s.strategy === activeStrategy);
+                if (!activeResult?.workerRoutes || activeResult.workerRoutes.length === 0) {
+                  return <div className="text-xs text-muted-foreground">No worker allocation</div>;
+                }
+                
+                return activeResult.workerRoutes.map((worker) => (
+                  <div key={worker.workerId} className="space-y-1.5 pb-3 border-b border-border/50 last:border-b-0 last:pb-0">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: worker.color }}
+                      />
+                      <span className="text-xs font-semibold text-foreground">
+                        Worker {worker.workerId}
+                      </span>
+                    </div>
+                    <div className="ml-3.5 space-y-1.5 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Zone:</span>
+                        <span className="font-mono text-foreground">{worker.zone}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Progress:</span>
+                          <span className="font-mono text-foreground">{Math.round(replayProgress * 100)}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border/50">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ 
+                              width: `${Math.round(replayProgress * 100)}%`,
+                              backgroundColor: worker.color
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-muted-foreground">
+                        <span className="text-xs">{worker.route.length} positions</span>
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* Route Replay Controls */}
         {activeStrategy && (

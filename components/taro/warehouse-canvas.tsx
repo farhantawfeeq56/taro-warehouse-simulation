@@ -79,19 +79,6 @@ export function WarehouseCanvas({
           }
         }
         break;
-      case 'worker':
-        // Remove old worker start
-        if (newWarehouse.workerStart) {
-          const oldCell = newWarehouse.grid[newWarehouse.workerStart.y][newWarehouse.workerStart.x];
-          if (oldCell.type === 'worker-start') {
-            oldCell.type = 'empty';
-          }
-        }
-        if (cell.type === 'empty') {
-          cell.type = 'worker-start';
-          newWarehouse.workerStart = { x: cellX, y: cellY };
-        }
-        break;
       case 'erase':
         if (cell.type === 'item') {
           newWarehouse.items = newWarehouse.items.filter(i => !(i.x === cellX && i.y === cellY));
@@ -250,71 +237,138 @@ export function WarehouseCanvas({
       }
     }
 
-    // Draw route animation
-    if (activeRoute && activeRoute.route.length > 1) {
-      const routeLength = activeRoute.route.length;
-      const visiblePoints = Math.floor(routeLength * animationProgress);
+    // Draw route animation - support for multiple worker routes
+    if (activeRoute) {
+      // If worker routes exist (multi-worker), draw them
+      if (activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0) {
+        for (const workerRoute of activeRoute.workerRoutes) {
+          if (workerRoute.route.length > 0) {
+            const routeLength = workerRoute.route.length;
+            const visiblePoints = Math.floor(routeLength * animationProgress);
 
-      if (visiblePoints > 0) {
-        // Draw path with smooth bezier curves
-        ctx.beginPath();
-        ctx.strokeStyle = activeRoute.color;
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.globalAlpha = 0.8;
+            if (visiblePoints > 0) {
+              // Draw path
+              ctx.beginPath();
+              ctx.strokeStyle = workerRoute.color;
+              ctx.lineWidth = 3;
+              ctx.lineCap = 'round';
+              ctx.lineJoin = 'round';
+              ctx.globalAlpha = 0.8;
 
-        const firstPoint = activeRoute.route[0];
-        ctx.moveTo(
-          firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
-          firstPoint.y * CELL_SIZE + CELL_SIZE / 2
-        );
+              const firstPoint = workerRoute.route[0];
+              ctx.moveTo(
+                firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
+                firstPoint.y * CELL_SIZE + CELL_SIZE / 2
+              );
 
-        // Draw line with fade-out effect at the end
-        for (let i = 1; i < Math.min(visiblePoints, activeRoute.route.length); i++) {
-          const point = activeRoute.route[i];
-          ctx.lineTo(
-            point.x * CELL_SIZE + CELL_SIZE / 2,
-            point.y * CELL_SIZE + CELL_SIZE / 2
-          );
+              for (let i = 1; i < Math.min(visiblePoints, workerRoute.route.length); i++) {
+                const point = workerRoute.route[i];
+                ctx.lineTo(
+                  point.x * CELL_SIZE + CELL_SIZE / 2,
+                  point.y * CELL_SIZE + CELL_SIZE / 2
+                );
+              }
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+
+              // Draw worker dot
+              if (visiblePoints > 0) {
+                const workerPos = workerRoute.route[Math.min(visiblePoints - 1, workerRoute.route.length - 1)];
+                
+                // Shadow
+                ctx.beginPath();
+                ctx.fillStyle = workerRoute.color;
+                ctx.globalAlpha = 0.3;
+                ctx.arc(
+                  workerPos.x * CELL_SIZE + CELL_SIZE / 2,
+                  workerPos.y * CELL_SIZE + CELL_SIZE / 2,
+                  8,
+                  0,
+                  Math.PI * 2
+                );
+                ctx.fill();
+                
+                // Main dot
+                ctx.globalAlpha = 1;
+                ctx.beginPath();
+                ctx.fillStyle = workerRoute.color;
+                ctx.arc(
+                  workerPos.x * CELL_SIZE + CELL_SIZE / 2,
+                  workerPos.y * CELL_SIZE + CELL_SIZE / 2,
+                  5,
+                  0,
+                  Math.PI * 2
+                );
+                ctx.fill();
+                
+                // Outline
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+              }
+            }
+          }
         }
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+      } else if (activeRoute.route.length > 1) {
+        // Fallback: single route (backward compatibility)
+        const routeLength = activeRoute.route.length;
+        const visiblePoints = Math.floor(routeLength * animationProgress);
 
-        // Draw animated worker dot with trailing effect
         if (visiblePoints > 0) {
-          const workerPos = activeRoute.route[Math.min(visiblePoints - 1, activeRoute.route.length - 1)];
-          
-          // Worker shadow
           ctx.beginPath();
-          ctx.fillStyle = activeRoute.color;
-          ctx.globalAlpha = 0.3;
-          ctx.arc(
-            workerPos.x * CELL_SIZE + CELL_SIZE / 2,
-            workerPos.y * CELL_SIZE + CELL_SIZE / 2,
-            8,
-            0,
-            Math.PI * 2
+          ctx.strokeStyle = activeRoute.color;
+          ctx.lineWidth = 3;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.globalAlpha = 0.8;
+
+          const firstPoint = activeRoute.route[0];
+          ctx.moveTo(
+            firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
+            firstPoint.y * CELL_SIZE + CELL_SIZE / 2
           );
-          ctx.fill();
-          
-          // Worker main dot
-          ctx.globalAlpha = 1;
-          ctx.beginPath();
-          ctx.fillStyle = activeRoute.color;
-          ctx.arc(
-            workerPos.x * CELL_SIZE + CELL_SIZE / 2,
-            workerPos.y * CELL_SIZE + CELL_SIZE / 2,
-            5,
-            0,
-            Math.PI * 2
-          );
-          ctx.fill();
-          
-          // Worker outline
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
+
+          for (let i = 1; i < Math.min(visiblePoints, activeRoute.route.length); i++) {
+            const point = activeRoute.route[i];
+            ctx.lineTo(
+              point.x * CELL_SIZE + CELL_SIZE / 2,
+              point.y * CELL_SIZE + CELL_SIZE / 2
+            );
+          }
           ctx.stroke();
+          ctx.globalAlpha = 1;
+
+          if (visiblePoints > 0) {
+            const workerPos = activeRoute.route[Math.min(visiblePoints - 1, activeRoute.route.length - 1)];
+            
+            ctx.beginPath();
+            ctx.fillStyle = activeRoute.color;
+            ctx.globalAlpha = 0.3;
+            ctx.arc(
+              workerPos.x * CELL_SIZE + CELL_SIZE / 2,
+              workerPos.y * CELL_SIZE + CELL_SIZE / 2,
+              8,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+            
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.fillStyle = activeRoute.color;
+            ctx.arc(
+              workerPos.x * CELL_SIZE + CELL_SIZE / 2,
+              workerPos.y * CELL_SIZE + CELL_SIZE / 2,
+              5,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
         }
       }
     }
