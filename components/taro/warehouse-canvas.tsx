@@ -79,6 +79,17 @@ export function WarehouseCanvas({
           }
         }
         break;
+      case 'worker':
+        // Remove old worker-start cell first
+        if (newWarehouse.workerStart) {
+          const old = newWarehouse.grid[newWarehouse.workerStart.y][newWarehouse.workerStart.x];
+          if (old.type === 'worker-start') old.type = 'empty';
+        }
+        if (cell.type === 'empty') {
+          cell.type = 'worker-start';
+          newWarehouse.workerStart = { x: cellX, y: cellY };
+        }
+        break;
       case 'erase':
         if (cell.type === 'item') {
           newWarehouse.items = newWarehouse.items.filter(i => !(i.x === cellX && i.y === cellY));
@@ -237,25 +248,14 @@ export function WarehouseCanvas({
       }
     }
 
-    // Draw route animation - multiple worker routes, each in its own time window
+    // Draw route animation — all workers animate in parallel
     if (activeRoute) {
       if (activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0) {
-        const numWorkers = activeRoute.workerRoutes.length;
-
-        for (let idx = 0; idx < numWorkers; idx++) {
-          const workerRoute = activeRoute.workerRoutes[idx];
+        for (const workerRoute of activeRoute.workerRoutes) {
           if (workerRoute.route.length === 0) continue;
 
-          // Each worker owns 1/N of the global timeline
-          const workerStart = idx / numWorkers;
-          const workerEnd = (idx + 1) / numWorkers;
-          const localProgress = Math.min(
-            Math.max((animationProgress - workerStart) / (workerEnd - workerStart), 0),
-            1
-          );
-
-          const visiblePoints = Math.floor(workerRoute.route.length * localProgress);
-          if (visiblePoints === 0) continue;
+          // All workers use the same animationProgress — true parallel execution
+          const visiblePoints = Math.max(1, Math.floor(workerRoute.route.length * animationProgress));
 
           // Draw path
           ctx.beginPath();
@@ -266,16 +266,10 @@ export function WarehouseCanvas({
           ctx.globalAlpha = 0.8;
 
           const firstPoint = workerRoute.route[0];
-          ctx.moveTo(
-            firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
-            firstPoint.y * CELL_SIZE + CELL_SIZE / 2
-          );
+          ctx.moveTo(firstPoint.x * CELL_SIZE + CELL_SIZE / 2, firstPoint.y * CELL_SIZE + CELL_SIZE / 2);
           for (let i = 1; i < visiblePoints; i++) {
             const point = workerRoute.route[i];
-            ctx.lineTo(
-              point.x * CELL_SIZE + CELL_SIZE / 2,
-              point.y * CELL_SIZE + CELL_SIZE / 2
-            );
+            ctx.lineTo(point.x * CELL_SIZE + CELL_SIZE / 2, point.y * CELL_SIZE + CELL_SIZE / 2);
           }
           ctx.stroke();
           ctx.globalAlpha = 1;
@@ -284,21 +278,13 @@ export function WarehouseCanvas({
           const workerPos = workerRoute.route[visiblePoints - 1];
           ctx.beginPath();
           ctx.fillStyle = workerRoute.color;
-          ctx.globalAlpha = 0.3;
-          ctx.arc(
-            workerPos.x * CELL_SIZE + CELL_SIZE / 2,
-            workerPos.y * CELL_SIZE + CELL_SIZE / 2,
-            8, 0, Math.PI * 2
-          );
+          ctx.globalAlpha = 0.25;
+          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
           ctx.fill();
           ctx.globalAlpha = 1;
           ctx.beginPath();
           ctx.fillStyle = workerRoute.color;
-          ctx.arc(
-            workerPos.x * CELL_SIZE + CELL_SIZE / 2,
-            workerPos.y * CELL_SIZE + CELL_SIZE / 2,
-            5, 0, Math.PI * 2
-          );
+          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
           ctx.fill();
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;

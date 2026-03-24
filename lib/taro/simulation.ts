@@ -31,26 +31,67 @@ function getItemPosition(warehouse: Warehouse, itemId: number): { x: number; y: 
   return item ? { x: item.x, y: item.y } : null;
 }
 
-function splitRouteIntoWorkers(
-  route: { x: number; y: number }[],
-  numWorkers: number = 2
+/**
+ * Generate independent parallel routes — one per worker.
+ * Each worker gets a subset of pick locations and navigates
+ * from the SAME start point through their own assigned items.
+ */
+function generateParallelWorkerRoutes(
+  warehouse: Warehouse,
+  pickLocations: { id: number; pos: { x: number; y: number } }[],
+  numWorkers: number
 ): WorkerRoute[] {
   const clampedWorkers = Math.max(1, Math.min(3, numWorkers));
+  const start = warehouse.workerStart!;
 
-  // Even sequential split: divide route steps into N consecutive segments
-  const totalSteps = route.length;
-  const segmentSize = Math.ceil(totalSteps / clampedWorkers);
+  // Distribute picks round-robin across workers so loads are even
+  const buckets: { id: number; pos: { x: number; y: number } }[][] = Array.from(
+    { length: clampedWorkers },
+    () => []
+  );
+  pickLocations.forEach((item, i) => {
+    buckets[i % clampedWorkers].push(item);
+  });
 
-  return Array.from({ length: clampedWorkers }, (_, i) => {
-    const start = i * segmentSize;
-    const end = Math.min(start + segmentSize, totalSteps);
-    const segment = route.slice(start, end);
+  return buckets.map((picks, i) => {
+    const route: { x: number; y: number }[] = [];
+
+    if (picks.length > 0) {
+      let currentPos = start;
+
+      // Nearest-neighbour ordering within each worker's subset
+      const remaining = [...picks];
+      while (remaining.length > 0) {
+        let nearestIdx = 0;
+        let nearestDist = Infinity;
+        for (let j = 0; j < remaining.length; j++) {
+          const d =
+            Math.abs(remaining[j].pos.x - currentPos.x) +
+            Math.abs(remaining[j].pos.y - currentPos.y);
+          if (d < nearestDist) {
+            nearestDist = d;
+            nearestIdx = j;
+          }
+        }
+        const next = remaining.splice(nearestIdx, 1)[0];
+        const path = findPath(warehouse, currentPos, next.pos);
+        if (path.length > 0) {
+          route.push(...path);
+          currentPos = next.pos;
+        }
+      }
+
+      // Return to start
+      const returnPath = findPath(warehouse, currentPos, start);
+      if (returnPath.length > 0) route.push(...returnPath);
+    }
 
     return {
       workerId: i + 1,
-      route: segment,
+      route,
       color: WORKER_COLORS[i % WORKER_COLORS.length],
-      zone: `Segment ${i + 1} of ${clampedWorkers}`,
+      zone: picks.length > 0 ? `Worker ${i + 1}` : `Worker ${i + 1} (idle)`,
+      assignedPickCount: picks.length,
       progress: 0,
     };
   });
@@ -288,6 +329,17 @@ export function runSimulation(warehouse: Warehouse, orders: Order[], workerCount
   const singleResult = simulateSingleOrderPicking(warehouse, orders);
   const baselineDistance = singleResult.distance || 1;
   
+  // Collect all unique pick locations once (shared across strategies for parallel routing)
+  const allItems = new Set<number>();
+  for (const order of orders) {
+    for (const itemId of order.items) {
+      allItems.add(itemId);
+    }
+  }
+  const itemsWithPos = Array.from(allItems)
+    .map(id => ({ id, pos: getItemPosition(warehouse, id) }))
+    .filter((item): item is { id: number; pos: { x: number; y: number } } => item.pos !== null);
+
   for (const strategy of strategies) {
     let result: { route: { x: number; y: number }[]; distance: number };
     
@@ -308,8 +360,8 @@ export function runSimulation(warehouse: Warehouse, orders: Order[], workerCount
     
     allRoutes.push(result.route);
     
-    // Split the full route into N sequential segments, one per worker
-    const workerRoutes = splitRouteIntoWorkers(result.route, workerCount);
+    // Generate parallel worker routes from the pick locations
+    const workerRoutes = generateParallelWorkerRoutes(warehouse, itemsWithPos, workerCount);
     
     const distanceMeters = result.distance * CELL_SIZE_METERS;
     const timeMinutes = distanceMeters / WALKING_SPEED;

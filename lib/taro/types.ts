@@ -40,6 +40,7 @@ export interface WorkerRoute {
   route: { x: number; y: number }[];
   color: string;
   zone: string;
+  assignedPickCount: number;
   progress: number;
 }
 
@@ -62,4 +63,4 @@ export interface SimulationResults {
   bestStrategy: StrategyType;
 }
 
-export type ToolType = 'shelf' | 'item' | 'erase';
+export type ToolType = 'shelf' | 'item' | 'worker' | 'erase';
