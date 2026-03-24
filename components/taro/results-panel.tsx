@@ -21,20 +21,26 @@ export function ResultsPanel({
   onStrategySelect,
   animationProgress 
 }: ResultsPanelProps) {
+  const [replayProgress, setReplayProgress] = useState(0);
   const [isReplaying, setIsReplaying] = useState(false);
+
+  // Sync replayProgress with the animationProgress driven from the parent
+  useEffect(() => {
+    setReplayProgress(animationProgress);
+  }, [animationProgress]);
 
   useEffect(() => {
     if (!isReplaying) return;
 
     let animationId: number;
     const startTime = performance.now();
-    const speeds = [1, 5, 10];
-    const currentSpeedIndex = 0;
-    const speed = speeds[currentSpeedIndex];
+    const speed = 1;
+    const duration = 3000;
 
     const animate = (currentTime: number) => {
-      const elapsed = (currentTime - startTime) / 1000;
-      const progress = Math.min((elapsed * speed) / 4, 1);
+      const elapsed = currentTime - startTime;
+      const progress = Math.min((elapsed * speed) / duration, 1);
+      setReplayProgress(progress);
 
       if (progress < 1) {
         animationId = requestAnimationFrame(animate);
