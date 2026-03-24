@@ -237,83 +237,76 @@ export function WarehouseCanvas({
       }
     }
 
-    // Draw route animation - support for multiple worker routes
+    // Draw route animation - multiple worker routes, each in its own time window
     if (activeRoute) {
-      // If worker routes exist (multi-worker), draw them
       if (activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0) {
-        for (const workerRoute of activeRoute.workerRoutes) {
-          if (workerRoute.route.length > 0) {
-            const routeLength = workerRoute.route.length;
-            const visiblePoints = Math.floor(routeLength * animationProgress);
+        const numWorkers = activeRoute.workerRoutes.length;
 
-            if (visiblePoints > 0) {
-              // Draw path
-              ctx.beginPath();
-              ctx.strokeStyle = workerRoute.color;
-              ctx.lineWidth = 3;
-              ctx.lineCap = 'round';
-              ctx.lineJoin = 'round';
-              ctx.globalAlpha = 0.8;
+        for (let idx = 0; idx < numWorkers; idx++) {
+          const workerRoute = activeRoute.workerRoutes[idx];
+          if (workerRoute.route.length === 0) continue;
 
-              const firstPoint = workerRoute.route[0];
-              ctx.moveTo(
-                firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
-                firstPoint.y * CELL_SIZE + CELL_SIZE / 2
-              );
+          // Each worker owns 1/N of the global timeline
+          const workerStart = idx / numWorkers;
+          const workerEnd = (idx + 1) / numWorkers;
+          const localProgress = Math.min(
+            Math.max((animationProgress - workerStart) / (workerEnd - workerStart), 0),
+            1
+          );
 
-              for (let i = 1; i < Math.min(visiblePoints, workerRoute.route.length); i++) {
-                const point = workerRoute.route[i];
-                ctx.lineTo(
-                  point.x * CELL_SIZE + CELL_SIZE / 2,
-                  point.y * CELL_SIZE + CELL_SIZE / 2
-                );
-              }
-              ctx.stroke();
-              ctx.globalAlpha = 1;
+          const visiblePoints = Math.floor(workerRoute.route.length * localProgress);
+          if (visiblePoints === 0) continue;
 
-              // Draw worker dot
-              if (visiblePoints > 0) {
-                const workerPos = workerRoute.route[Math.min(visiblePoints - 1, workerRoute.route.length - 1)];
-                
-                // Shadow
-                ctx.beginPath();
-                ctx.fillStyle = workerRoute.color;
-                ctx.globalAlpha = 0.3;
-                ctx.arc(
-                  workerPos.x * CELL_SIZE + CELL_SIZE / 2,
-                  workerPos.y * CELL_SIZE + CELL_SIZE / 2,
-                  8,
-                  0,
-                  Math.PI * 2
-                );
-                ctx.fill();
-                
-                // Main dot
-                ctx.globalAlpha = 1;
-                ctx.beginPath();
-                ctx.fillStyle = workerRoute.color;
-                ctx.arc(
-                  workerPos.x * CELL_SIZE + CELL_SIZE / 2,
-                  workerPos.y * CELL_SIZE + CELL_SIZE / 2,
-                  5,
-                  0,
-                  Math.PI * 2
-                );
-                ctx.fill();
-                
-                // Outline
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-              }
-            }
+          // Draw path
+          ctx.beginPath();
+          ctx.strokeStyle = workerRoute.color;
+          ctx.lineWidth = 3;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.globalAlpha = 0.8;
+
+          const firstPoint = workerRoute.route[0];
+          ctx.moveTo(
+            firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
+            firstPoint.y * CELL_SIZE + CELL_SIZE / 2
+          );
+          for (let i = 1; i < visiblePoints; i++) {
+            const point = workerRoute.route[i];
+            ctx.lineTo(
+              point.x * CELL_SIZE + CELL_SIZE / 2,
+              point.y * CELL_SIZE + CELL_SIZE / 2
+            );
           }
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+
+          // Animated worker dot
+          const workerPos = workerRoute.route[visiblePoints - 1];
+          ctx.beginPath();
+          ctx.fillStyle = workerRoute.color;
+          ctx.globalAlpha = 0.3;
+          ctx.arc(
+            workerPos.x * CELL_SIZE + CELL_SIZE / 2,
+            workerPos.y * CELL_SIZE + CELL_SIZE / 2,
+            8, 0, Math.PI * 2
+          );
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.beginPath();
+          ctx.fillStyle = workerRoute.color;
+          ctx.arc(
+            workerPos.x * CELL_SIZE + CELL_SIZE / 2,
+            workerPos.y * CELL_SIZE + CELL_SIZE / 2,
+            5, 0, Math.PI * 2
+          );
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
         }
       } else if (activeRoute.route.length > 1) {
-        // Fallback: single route (backward compatibility)
-        const routeLength = activeRoute.route.length;
-        const visiblePoints = Math.floor(routeLength * animationProgress);
-
+        // Fallback: single route
+        const visiblePoints = Math.floor(activeRoute.route.length * animationProgress);
         if (visiblePoints > 0) {
           ctx.beginPath();
           ctx.strokeStyle = activeRoute.color;
@@ -321,14 +314,12 @@ export function WarehouseCanvas({
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
           ctx.globalAlpha = 0.8;
-
           const firstPoint = activeRoute.route[0];
           ctx.moveTo(
             firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
             firstPoint.y * CELL_SIZE + CELL_SIZE / 2
           );
-
-          for (let i = 1; i < Math.min(visiblePoints, activeRoute.route.length); i++) {
+          for (let i = 1; i < visiblePoints; i++) {
             const point = activeRoute.route[i];
             ctx.lineTo(
               point.x * CELL_SIZE + CELL_SIZE / 2,
@@ -338,37 +329,20 @@ export function WarehouseCanvas({
           ctx.stroke();
           ctx.globalAlpha = 1;
 
-          if (visiblePoints > 0) {
-            const workerPos = activeRoute.route[Math.min(visiblePoints - 1, activeRoute.route.length - 1)];
-            
-            ctx.beginPath();
-            ctx.fillStyle = activeRoute.color;
-            ctx.globalAlpha = 0.3;
-            ctx.arc(
-              workerPos.x * CELL_SIZE + CELL_SIZE / 2,
-              workerPos.y * CELL_SIZE + CELL_SIZE / 2,
-              8,
-              0,
-              Math.PI * 2
-            );
-            ctx.fill();
-            
-            ctx.globalAlpha = 1;
-            ctx.beginPath();
-            ctx.fillStyle = activeRoute.color;
-            ctx.arc(
-              workerPos.x * CELL_SIZE + CELL_SIZE / 2,
-              workerPos.y * CELL_SIZE + CELL_SIZE / 2,
-              5,
-              0,
-              Math.PI * 2
-            );
-            ctx.fill();
-            
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-          }
+          const workerPos = activeRoute.route[visiblePoints - 1];
+          ctx.beginPath();
+          ctx.fillStyle = activeRoute.color;
+          ctx.globalAlpha = 0.3;
+          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.beginPath();
+          ctx.fillStyle = activeRoute.color;
+          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
         }
       }
     }

@@ -33,44 +33,24 @@ function getItemPosition(warehouse: Warehouse, itemId: number): { x: number; y: 
 
 function splitRouteIntoWorkers(
   route: { x: number; y: number }[],
-  warehouse: Warehouse,
   numWorkers: number = 2
 ): WorkerRoute[] {
   const clampedWorkers = Math.max(1, Math.min(3, numWorkers));
 
-  if (route.length === 0) {
-    return Array.from({ length: clampedWorkers }, (_, i) => ({
-      workerId: i + 1,
-      route: [],
-      color: WORKER_COLORS[i % WORKER_COLORS.length],
-      zone: '',
-      progress: 0,
-    }));
-  }
-
-  // Divide warehouse width into N equal column zones
-  const zoneWidth = Math.ceil(warehouse.width / clampedWorkers);
-  const zoneBuckets: { x: number; y: number }[][] = Array.from(
-    { length: clampedWorkers },
-    () => []
-  );
-
-  for (const point of route) {
-    const zoneIndex = Math.min(
-      Math.floor(point.x / zoneWidth),
-      clampedWorkers - 1
-    );
-    zoneBuckets[zoneIndex].push(point);
-  }
+  // Even sequential split: divide route steps into N consecutive segments
+  const totalSteps = route.length;
+  const segmentSize = Math.ceil(totalSteps / clampedWorkers);
 
   return Array.from({ length: clampedWorkers }, (_, i) => {
-    const startCol = i * zoneWidth + 1;
-    const endCol = Math.min((i + 1) * zoneWidth, warehouse.width);
+    const start = i * segmentSize;
+    const end = Math.min(start + segmentSize, totalSteps);
+    const segment = route.slice(start, end);
+
     return {
       workerId: i + 1,
-      route: zoneBuckets[i],
+      route: segment,
       color: WORKER_COLORS[i % WORKER_COLORS.length],
-      zone: `Aisle ${startCol}–${endCol}`,
+      zone: `Segment ${i + 1} of ${clampedWorkers}`,
       progress: 0,
     };
   });
@@ -328,8 +308,8 @@ export function runSimulation(warehouse: Warehouse, orders: Order[], workerCount
     
     allRoutes.push(result.route);
     
-    // Split main route into worker routes based on dynamic workerCount
-    const workerRoutes = splitRouteIntoWorkers(result.route, warehouse, workerCount);
+    // Split the full route into N sequential segments, one per worker
+    const workerRoutes = splitRouteIntoWorkers(result.route, workerCount);
     
     const distanceMeters = result.distance * CELL_SIZE_METERS;
     const timeMinutes = distanceMeters / WALKING_SPEED;

@@ -66,7 +66,7 @@ export function TaroApp() {
       // Auto-select best strategy and start animation
       setActiveStrategy(results.bestStrategy);
     }, 500);
-  }, [warehouse, orders]);
+  }, [warehouse, orders, workerCount]);
 
   const handleStrategySelect = useCallback((strategy: StrategyType) => {
     // Cancel any ongoing animation

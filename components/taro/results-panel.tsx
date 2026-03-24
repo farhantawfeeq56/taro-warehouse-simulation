@@ -174,43 +174,55 @@ export function ResultsPanel({
                   return <div className="text-xs text-muted-foreground">No worker allocation</div>;
                 }
                 
-                return activeResult.workerRoutes.map((worker) => (
-                  <div key={worker.workerId} className="space-y-1.5 pb-3 border-b border-border/50 last:border-b-0 last:pb-0">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: worker.color }}
-                      />
-                      <span className="text-xs font-semibold text-foreground">
-                        Worker {worker.workerId}
-                      </span>
-                    </div>
-                    <div className="ml-3.5 space-y-1.5 text-xs">
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Zone:</span>
-                        <span className="font-mono text-foreground">{worker.zone}</span>
+                return activeResult.workerRoutes.map((worker, idx) => {
+                  const numWorkers = activeResult.workerRoutes!.length;
+                  // Each worker occupies 1/N of the total timeline
+                  const workerStart = idx / numWorkers;
+                  const workerEnd = (idx + 1) / numWorkers;
+                  // Clamp local progress within this worker's time window
+                  const localProgress = Math.min(
+                    Math.max((replayProgress - workerStart) / (workerEnd - workerStart), 0),
+                    1
+                  );
+
+                  return (
+                    <div key={worker.workerId} className="space-y-1.5 pb-3 border-b border-border/50 last:border-b-0 last:pb-0">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: worker.color }}
+                        />
+                        <span className="text-xs font-semibold text-foreground">
+                          Worker {worker.workerId}
+                        </span>
                       </div>
-                      <div className="space-y-1">
+                      <div className="ml-3.5 space-y-1.5 text-xs">
                         <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Progress:</span>
-                          <span className="font-mono text-foreground">{Math.round(replayProgress * 100)}%</span>
+                          <span className="text-muted-foreground">Zone:</span>
+                          <span className="font-mono text-foreground">{worker.zone}</span>
                         </div>
-                        <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border/50">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ 
-                              width: `${Math.round(replayProgress * 100)}%`,
-                              backgroundColor: worker.color
-                            }}
-                          />
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Progress:</span>
+                            <span className="font-mono text-foreground">{Math.round(localProgress * 100)}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border/50">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ 
+                                width: `${Math.round(localProgress * 100)}%`,
+                                backgroundColor: worker.color
+                              }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-muted-foreground">
-                        <span className="text-xs">{worker.route.length} positions</span>
+                        <div className="text-muted-foreground">
+                          <span className="text-xs">{worker.route.length} steps</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ));
+                  );
+                });
               })()}
             </div>
           </div>
