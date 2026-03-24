@@ -117,6 +117,7 @@ function generateParallelWorkerRoutes(
     return {
       workerId: wid,
       route,
+      picks: picks.map(p => ({ itemId: p.id, x: p.pos.x, y: p.pos.y })),
       color: WORKER_COLORS[i % WORKER_COLORS.length],
       zone: picks.length > 0 ? `Worker ${wid}` : `Worker ${wid} (idle)`,
       assignedPickCount: picks.length,

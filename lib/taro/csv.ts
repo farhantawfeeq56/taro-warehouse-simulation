@@ -3,6 +3,7 @@ import type { PickTask } from './types';
 
 /**
  * Generate a CSV string from worker routes.
+ * Exports only actual pick locations — not intermediate path steps.
  * Format: workerId,step,location,item
  */
 export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
@@ -10,17 +11,27 @@ export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
   const rows: string[] = [header];
 
   for (const worker of workerRoutes) {
-    if (worker.route.length === 0) continue;
-    worker.route.forEach((point, index) => {
-      const step = index + 1;
-      // Derive a human-readable location from the grid coordinate
-      const aisle = String.fromCharCode(65 + (point.y % 26)); // A–Z
-      const rack = Math.floor(point.x / 2) + 1;
-      const bin = (point.x % 2 === 0 ? 'L' : 'R') + (point.y + 1);
-      const location = `Aisle ${aisle} Rack ${rack} Bin ${bin}`;
-      const item = `Item (${point.x},${point.y})`;
+    if (!worker.picks || worker.picks.length === 0) continue;
+
+    // Deduplicate picks by itemId (safety guard)
+    const seen = new Set<number>();
+    let step = 1;
+
+    for (const pick of worker.picks) {
+      if (seen.has(pick.itemId)) continue;
+      seen.add(pick.itemId);
+
+      // Derive a human-readable bin location from the grid coordinate
+      const aisleChar = String.fromCharCode(65 + (pick.y % 26));           // A–Z
+      const rack = Math.floor(pick.x / 2) + 1;
+      const side = pick.x % 2 === 0 ? 'L' : 'R';
+      const bin = `${side}${pick.y + 1}`;
+      const location = `Aisle ${aisleChar} Rack ${rack} Bin ${bin}`;
+      const item = `Item ${pick.itemId}`;
+
       rows.push(`${worker.workerId},${step},${location},${item}`);
-    });
+      step++;
+    }
   }
 
   return rows.join('\n');

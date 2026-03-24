@@ -39,6 +39,7 @@ export type StrategyType = 'single' | 'batch' | 'zone' | 'wave';
 export interface WorkerRoute {
   workerId: number;
   route: { x: number; y: number }[];
+  picks: { itemId: number; x: number; y: number }[]; // actual pick locations only
   color: string;
   zone: string;
   assignedPickCount: number;
