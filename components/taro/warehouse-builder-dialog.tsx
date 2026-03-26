@@ -87,7 +87,7 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
       .map(l => {
         const parts = l.split(',');
         return {
-          aisle: parts[0]?.trim() ?? 'A',
+          aisle: parts[0]?.trim().toUpperCase() ?? 'A1',
           rack: parseInt(parts[1] ?? '1', 10),
           bin: parseInt(parts[2] ?? '1', 10),
           sku: parts[3]?.trim() ?? 'Item',
@@ -97,37 +97,74 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
 
     if (entries.length === 0) return null;
 
-    const aisles = Array.from(new Set(entries.map(e => e.aisle))).sort();
+    // Step 1: Determine unique sorted aisle labels and max rack index
+    // Aisle labels like A1, A2, B1 are sorted alphabetically → numeric index
+    const aisleLabels = Array.from(new Set(entries.map(e => e.aisle))).sort();
+    const aisleIndex = new Map(aisleLabels.map((a, i) => [a, i]));
     const maxRack = Math.max(...entries.map(e => e.rack));
 
-    const RACK_SPACING = 2;
-    const AISLE_HEIGHT = 3;
-    const width = Math.max(maxRack * RACK_SPACING + 2, 10);
-    const height = Math.max(aisles.length * AISLE_HEIGHT + 2, 10);
+    // Layout constants:
+    // Each aisle occupies 2 rows: row 0 = shelf cells, row 1 = walking aisle
+    // Each rack occupies 2 columns: col 0 = shelf cell, col 1 = gap
+    const AISLE_HEIGHT = 3;  // 1 shelf row + 2 walking rows
+    const RACK_SPACING = 2;  // 1 shelf col + 1 gap col
 
-    const grid: Warehouse['grid'] = Array.from({ length: height }, () =>
-      Array.from({ length: width }, () => ({ type: 'empty' as const }))
+    const width = Math.max(maxRack * RACK_SPACING + 2, 10);
+    const height = Math.max(aisleLabels.length * AISLE_HEIGHT + 2, 10);
+
+    const grid: Warehouse['grid'] = Array.from({ length: height }, (_, y) =>
+      Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y }))
     );
+
     const items: Warehouse['items'] = [];
+    const shelves: Warehouse['shelves'] = [];
     let itemId = 1;
 
-    for (let ai = 0; ai < aisles.length; ai++) {
-      const aisleEntries = entries.filter(e => e.aisle === aisles[ai]);
-      const row = 1 + ai * AISLE_HEIGHT;
+    // Step 2: Group entries by (aisle, rack) to create one shelf per unique pair
+    const shelfMap = new Map<string, BinEntry[]>();
+    for (const entry of entries) {
+      const key = `${entry.aisle}:${entry.rack}`;
+      if (!shelfMap.has(key)) shelfMap.set(key, []);
+      shelfMap.get(key)!.push(entry);
+    }
 
-      for (const entry of aisleEntries) {
-        const col = 1 + (entry.rack - 1) * RACK_SPACING;
-        if (col >= width || row >= height) continue;
-        grid[row][col] = { type: 'item', itemId };
-        items.push({ id: itemId, x: col, y: row });
+    // Step 3: Create shelves first, then place items inside them
+    for (const [key, binEntries] of shelfMap) {
+      const [aisleLabel, rackStr] = key.split(':');
+      const ai = aisleIndex.get(aisleLabel) ?? 0;
+      const rackNum = parseInt(rackStr, 10);
+
+      // Shelf cell position
+      const shelfRow = 1 + ai * AISLE_HEIGHT;
+      const shelfCol = 1 + (rackNum - 1) * RACK_SPACING;
+
+      if (shelfRow >= height || shelfCol >= width) continue;
+
+      // Place the shelf block
+      grid[shelfRow][shelfCol] = { type: 'shelf', x: shelfCol, y: shelfRow };
+      shelves.push({ x: shelfCol, y: shelfRow });
+
+      // Step 4: Place items on the cell directly below the shelf (aisle-facing, accessible)
+      // Each bin within the rack gets its own item. Bins overflow to adjacent columns if needed.
+      for (let b = 0; b < binEntries.length; b++) {
+        const itemCol = shelfCol + b; // bins spread rightward along the rack
+        const itemRow = shelfRow + 1; // one row below shelf = walking aisle side
+
+        if (itemCol >= width || itemRow >= height) break;
+        // Don't overwrite an existing item
+        if (grid[itemRow][itemCol].type !== 'empty') continue;
+
+        grid[itemRow][itemCol] = { type: 'item', itemId, x: itemCol, y: itemRow };
+        items.push({ id: itemId, x: itemCol, y: itemRow });
         itemId++;
       }
     }
 
+    // Worker start at bottom-left corner
     const workerStart = { x: 0, y: height - 1 };
-    grid[workerStart.y][workerStart.x] = { type: 'worker-start' };
+    grid[workerStart.y][workerStart.x] = { type: 'worker-start', x: 0, y: height - 1 };
 
-    return { width, height, grid, items, shelves: [], workerStart };
+    return { width, height, grid, items, shelves, workerStart };
   } catch {
     return null;
   }
