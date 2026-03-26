@@ -18,6 +18,7 @@ export function createEmptyWarehouse(width: number, height: number): Warehouse {
     height,
     grid,
     items: [],
+    shelves: [],
     workerStart: null,
   };
 }

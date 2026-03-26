@@ -2,34 +2,52 @@ import type { WorkerRoute } from './types';
 import type { PickTask } from './types';
 
 /**
+ * Convert grid coordinates to a human-readable warehouse location label.
+ * Maps: y-position → Aisle letter (A, B, C...), x-position → Rack number, bin slot within rack.
+ */
+export function coordToLocation(x: number, y: number): string {
+  const aisleIndex = Math.floor(y / 3); // every 3 rows = 1 aisle (matches builder layout)
+  const aisleLabel = String.fromCharCode(65 + (aisleIndex % 26));
+  const rack = Math.floor(x / 2) + 1;
+  const bin = (x % 2) + 1;
+  return `Aisle ${aisleLabel}, Rack ${rack}, Bin ${bin}`;
+}
+
+/**
  * Generate a CSV string from worker routes.
  * Exports only actual pick locations — not intermediate path steps.
- * Format: workerId,step,location,item
+ * Format: workerId,step,zone,location,item
  */
 export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
-  const header = 'workerId,step,location,item';
+  const header = 'workerId,step,zone,location,item';
   const rows: string[] = [header];
 
   for (const worker of workerRoutes) {
     if (!worker.picks || worker.picks.length === 0) continue;
 
-    // Deduplicate picks by itemId (safety guard)
+    // Group picks by aisle zone for zone-based instructions
     const seen = new Set<number>();
     let step = 1;
 
-    for (const pick of worker.picks) {
+    // Sort picks by aisle (y) then rack (x) for natural walking order
+    const sorted = [...worker.picks].sort((a, b) => {
+      const aisleA = Math.floor(a.y / 3);
+      const aisleB = Math.floor(b.y / 3);
+      if (aisleA !== aisleB) return aisleA - aisleB;
+      return a.x - b.x;
+    });
+
+    for (const pick of sorted) {
       if (seen.has(pick.itemId)) continue;
       seen.add(pick.itemId);
 
-      // Derive a human-readable bin location from the grid coordinate
-      const aisleChar = String.fromCharCode(65 + (pick.y % 26));           // A–Z
-      const rack = Math.floor(pick.x / 2) + 1;
-      const side = pick.x % 2 === 0 ? 'L' : 'R';
-      const bin = `${side}${pick.y + 1}`;
-      const location = `Aisle ${aisleChar} Rack ${rack} Bin ${bin}`;
+      const aisleIndex = Math.floor(pick.y / 3);
+      const aisleLabel = String.fromCharCode(65 + (aisleIndex % 26));
+      const zone = `Aisle ${aisleLabel}`;
+      const location = coordToLocation(pick.x, pick.y);
       const item = `Item ${pick.itemId}`;
 
-      rows.push(`${worker.workerId},${step},${location},${item}`);
+      rows.push(`${worker.workerId},${step},${zone},${location},${item}`);
       step++;
     }
   }
@@ -52,24 +70,32 @@ export function downloadCSV(csvString: string, filename = 'tasks.csv'): void {
 
 /**
  * Parse a CSV string back into structured PickTask objects.
- * Assumes valid CSV with header: workerId,step,location,item
+ * Handles both 4-column (workerId,step,location,item) and
+ * 5-column (workerId,step,zone,location,item) formats.
  */
 export function parseTaskCSV(csvText: string): PickTask[] {
   const lines = csvText.trim().split('\n');
-  // Skip header line
-  const dataLines = lines[0].toLowerCase().startsWith('workerid') ? lines.slice(1) : lines;
+  const headerLine = lines[0].toLowerCase();
+  const dataLines = headerLine.startsWith('workerid') ? lines.slice(1) : lines;
+  const hasZone = headerLine.includes('zone');
 
   return dataLines
     .map(line => line.trim())
     .filter(line => line.length > 0)
     .map(line => {
-      // Split on first 3 commas only so location/item can contain commas
       const parts = line.split(',');
       const workerId = parseInt(parts[0], 10);
       const step = parseInt(parts[1], 10);
-      const location = parts[2]?.trim() ?? '';
-      const item = parts.slice(3).join(',').trim();
-      return { workerId, step, location, item };
+      if (hasZone) {
+        const zone = parts[2]?.trim() ?? '';
+        const location = parts[3]?.trim() ?? '';
+        const item = parts.slice(4).join(',').trim();
+        return { workerId, step, zone, location, item };
+      } else {
+        const location = parts[2]?.trim() ?? '';
+        const item = parts.slice(3).join(',').trim();
+        return { workerId, step, zone: '', location, item };
+      }
     })
     .filter(task => !isNaN(task.workerId) && !isNaN(task.step));
 }

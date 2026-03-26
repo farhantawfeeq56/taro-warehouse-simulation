@@ -1,17 +1,23 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult } from '@/lib/taro/types';
+import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult, PickTask } from '@/lib/taro/types';
 import { generateDemoWarehouse, createEmptyWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/lib/taro/simulation';
+import { generateTaskCSV, parseTaskCSV } from '@/lib/taro/csv';
 import { WarehouseCanvas } from './warehouse-canvas';
 import { OrdersPanel } from './orders-panel';
 import { ResultsPanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Wand2, Play, Minus, Plus } from 'lucide-react';
+import { RotateCcw, Wand2, Play, Minus, Plus, LayoutDashboard, Rocket } from 'lucide-react';
+import { WarehouseBuilderDialog } from './warehouse-builder-dialog';
 
-export function TaroApp() {
+interface TaroAppProps {
+  onDeployStrategy?: (tasks: PickTask[]) => void;
+}
+
+export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [warehouse, setWarehouse] = useState<Warehouse>(() => createEmptyWarehouse(30, 24));
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
@@ -22,6 +28,7 @@ export function TaroApp() {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [workerCount, setWorkerCount] = useState(2);
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
+  const [showBuilderDialog, setShowBuilderDialog] = useState(false);
   const animationRef = useRef<number | null>(null);
 
   const getActiveRoute = useCallback((): StrategyResult | null => {
@@ -135,12 +142,22 @@ export function TaroApp() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setShowBuilderDialog(true)}
+            className="h-8 text-xs"
+            title="Setup warehouse using guided builder or CSV import"
+          >
+            <LayoutDashboard className="h-3.5 w-3.5 mr-1.5" />
+            Setup Warehouse
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={generateDemo}
             className="h-8 text-xs"
             title="Generate a demo warehouse layout"
           >
             <Wand2 className="h-3.5 w-3.5 mr-1.5" />
-            Demo Layout
+            Demo
           </Button>
 
           {/* Worker count stepper */}
@@ -177,6 +194,24 @@ export function TaroApp() {
             <Play className="h-3.5 w-3.5 mr-1.5" />
             Simulate Strategies
           </Button>
+
+          {simulationResults && onDeployStrategy && (
+            <Button
+              size="sm"
+              onClick={() => {
+                const best = simulationResults.strategies.find(s => s.strategy === simulationResults.bestStrategy);
+                if (!best?.workerRoutes) return;
+                const csv = generateTaskCSV(best.workerRoutes);
+                const tasks = parseTaskCSV(csv);
+                onDeployStrategy(tasks);
+              }}
+              className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+              title="Deploy best strategy tasks to workers"
+            >
+              <Rocket className="h-3.5 w-3.5 mr-1.5" />
+              Deploy Strategy
+            </Button>
+          )}
         </div>
       </header>
 
@@ -252,6 +287,19 @@ export function TaroApp() {
           workerCount={workerCount}
         />
       </div>
+
+      {showBuilderDialog && (
+        <WarehouseBuilderDialog
+          onGenerate={(wh) => {
+            setWarehouse(wh);
+            setOrders([]);
+            setSimulationResults(null);
+            setActiveStrategy(null);
+            setAnimationProgress(0);
+          }}
+          onClose={() => setShowBuilderDialog(false)}
+        />
+      )}
     </div>
   );
 }

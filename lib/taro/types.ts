@@ -31,6 +31,7 @@ export interface Warehouse {
   height: number;
   grid: Cell[][];
   items: Item[];
+  shelves: { x: number; y: number }[];
   workerStart: WorkerPosition | null;
 }
 
@@ -70,6 +71,7 @@ export type ToolType = 'shelf' | 'item' | 'worker' | 'erase';
 export interface PickTask {
   workerId: number;
   step: number;
+  zone: string;
   location: string;
   item: string;
 }
