@@ -10,8 +10,7 @@ import { OrdersPanel } from './orders-panel';
 import { ResultsPanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Wand2, Play, Minus, Plus, LayoutDashboard, Rocket } from 'lucide-react';
-import { WarehouseBuilderDialog } from './warehouse-builder-dialog';
+import { RotateCcw, Wand2, Play, Minus, Plus, Rocket } from 'lucide-react';
 
 interface TaroAppProps {
   onDeployStrategy?: (tasks: PickTask[]) => void;
@@ -28,7 +27,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [workerCount, setWorkerCount] = useState(2);
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
-  const [showBuilderDialog, setShowBuilderDialog] = useState(false);
   const animationRef = useRef<number | null>(null);
 
   const getActiveRoute = useCallback((): StrategyResult | null => {
@@ -138,16 +136,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
           >
             <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
             Reset
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowBuilderDialog(true)}
-            className="h-8 text-xs"
-            title="Setup warehouse using guided builder or CSV import"
-          >
-            <LayoutDashboard className="h-3.5 w-3.5 mr-1.5" />
-            Setup Warehouse
           </Button>
           <Button
             variant="outline"
@@ -287,19 +275,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
           workerCount={workerCount}
         />
       </div>
-
-      {showBuilderDialog && (
-        <WarehouseBuilderDialog
-          onGenerate={(wh) => {
-            setWarehouse(wh);
-            setOrders([]);
-            setSimulationResults(null);
-            setActiveStrategy(null);
-            setAnimationProgress(0);
-          }}
-          onClose={() => setShowBuilderDialog(false)}
-        />
-      )}
     </div>
   );
 }
