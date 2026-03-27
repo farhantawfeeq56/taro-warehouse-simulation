@@ -122,7 +122,7 @@ export function WorkerMode({ deployedTasks = [], deployedAt = 0 }: WorkerModePro
   };
 
   return (
-    <div className="min-h-full bg-background flex flex-col overflow-auto">
+    <div className="h-full bg-background flex flex-col overflow-y-auto">
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center px-5 bg-background shrink-0">
         <div className="flex-1">
