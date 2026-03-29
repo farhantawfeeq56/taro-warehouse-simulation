@@ -19,6 +19,13 @@ const tools: { type: ToolType; label: string; icon: typeof Grid3X3 }[] = [
   { type: 'erase', label: 'Erase', icon: Eraser },
 ];
 
+const toolColors: Record<ToolType, { bg: string; textClass: string }> = {
+  shelf: { bg: '#374151', textClass: 'text-white' },
+  item: { bg: '#3B82F6', textClass: 'text-white' },
+  worker: { bg: '#22C55E', textClass: 'text-white' },
+  erase: { bg: '#EEEFF2', textClass: 'text-gray-900' },
+};
+
 export function Toolbar({ 
   selectedTool, 
   onToolChange, 
@@ -37,9 +44,10 @@ export function Toolbar({
             className={cn(
               'h-8 px-3 rounded transition-all flex items-center gap-1.5 text-xs font-medium',
               selectedTool === type
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? `${toolColors[type].textClass} shadow-sm`
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80'
             )}
+            style={selectedTool === type ? { backgroundColor: toolColors[type].bg } : undefined}
           >
             <Icon className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{label}</span>
