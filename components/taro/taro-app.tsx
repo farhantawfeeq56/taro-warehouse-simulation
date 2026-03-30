@@ -10,7 +10,25 @@ import { OrdersPanel } from './orders-panel';
 import { ResultsPanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Wand2, Play, Minus, Plus, Rocket } from 'lucide-react';
+import { RotateCcw, Wand2, Play, Minus, Plus, Rocket, Type } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const FONT_OPTIONS = [
+  { label: 'DM Sans', value: 'var(--font-dm-sans)' },
+  { label: 'Lexend', value: 'var(--font-lexend)' },
+  { label: 'Geist', value: 'var(--font-geist)' },
+  { label: 'Inter', value: 'var(--font-inter)' },
+  { label: 'Manrope', value: 'var(--font-manrope)' },
+  { label: 'Figtree', value: 'var(--font-figtree)' },
+  { label: 'Karla', value: 'var(--font-karla)' },
+  { label: 'Product Sans', value: "'Product Sans', 'Google Sans', var(--font-inter), sans-serif" },
+];
 
 interface TaroAppProps {
   onDeployStrategy?: (tasks: PickTask[]) => void;
@@ -27,6 +45,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [workerCount, setWorkerCount] = useState(2);
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
+  const [activeFont, setActiveFont] = useState(FONT_OPTIONS[0].value);
   const animationRef = useRef<number | null>(null);
 
   const getActiveRoute = useCallback((): StrategyResult | null => {
@@ -116,7 +135,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
                       orders.some(o => o.items.length > 0);
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background font-sans" style={{ '--font-sans': activeFont } as any}>
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
         <div className="flex items-center gap-4">
@@ -127,6 +146,19 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
+          <Select value={activeFont} onValueChange={setActiveFont}>
+            <SelectTrigger size="sm" className="w-[130px] text-xs">
+              <Type className="h-3.5 w-3.5 mr-1.5" />
+              <SelectValue placeholder="Select font" />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_OPTIONS.map((font) => (
+                <SelectItem key={font.value} value={font.value} className="text-xs">
+                  {font.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             size="sm"
