@@ -1,41 +1,11 @@
 import type { Metadata } from 'next'
-import { DM_Sans, Lexend, Inter, Manrope, Figtree, Karla, Geist } from 'next/font/google'
+import { Manrope } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
-
-const dmSans = DM_Sans({ 
-  subsets: ["latin"],
-  variable: '--font-dm-sans',
-});
-
-const lexend = Lexend({
-  subsets: ["latin"],
-  variable: '--font-lexend',
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: '--font-inter',
-});
 
 const manrope = Manrope({
   subsets: ["latin"],
   variable: '--font-manrope',
-});
-
-const figtree = Figtree({
-  subsets: ["latin"],
-  variable: '--font-figtree',
-});
-
-const karla = Karla({
-  subsets: ["latin"],
-  variable: '--font-karla',
-});
-
-const geist = Geist({
-  subsets: ["latin"],
-  variable: '--font-geist',
 });
 
 export const metadata: Metadata = {
@@ -68,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${dmSans.variable} ${lexend.variable} ${inter.variable} ${manrope.variable} ${figtree.variable} ${karla.variable} ${geist.variable} font-sans antialiased`}>
+      <body className={`${manrope.variable} font-sans antialiased`}>
         {children}
         <Analytics />
       </body>
