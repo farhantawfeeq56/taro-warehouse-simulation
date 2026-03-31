@@ -9,6 +9,7 @@ import { WarehouseCanvas } from './warehouse-canvas';
 import { OrdersPanel } from './orders-panel';
 import { ResultsPanel } from './results-panel';
 import { Toolbar } from './toolbar';
+import { EntryOverlay } from './entry-overlay';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Wand2, Play, Minus, Plus, Rocket } from 'lucide-react';
 interface TaroAppProps {
@@ -26,6 +27,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [workerCount, setWorkerCount] = useState(2);
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
+  const [showEntryOverlay, setShowEntryOverlay] = useState(true);
   const animationRef = useRef<number | null>(null);
 
   const getActiveRoute = useCallback((): StrategyResult | null => {
@@ -40,6 +42,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setActiveStrategy(null);
     setAnimationProgress(0);
     setShowHeatmap(false);
+    setShowEntryOverlay(true);
   }, []);
 
   const generateDemo = useCallback(() => {
@@ -50,6 +53,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setSimulationResults(null);
     setActiveStrategy(null);
     setAnimationProgress(0);
+    setShowEntryOverlay(false);
   }, []);
 
   const runSimulationHandler = useCallback(() => {
@@ -109,13 +113,34 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     };
   }, []);
 
-  const canSimulate = warehouse.workerStart !== null && 
-                      orders.length > 0 && 
+  const canSimulate = warehouse.workerStart !== null &&
+                      orders.length > 0 &&
                       warehouse.items.length > 0 &&
                       orders.some(o => o.items.length > 0);
 
+  const handleImport = useCallback(() => {
+    setShowEntryOverlay(false);
+    alert('Import functionality will be added soon. Please use the demo or build manually.');
+  }, []);
+
+  const handleBuildManually = useCallback(() => {
+    setShowEntryOverlay(false);
+  }, []);
+
+  const hasContent = warehouse.items.length > 0 ||
+                     warehouse.shelves.length > 0 ||
+                     warehouse.workerStart !== null ||
+                     orders.length > 0;
+
   return (
-    <div className="h-full flex flex-col bg-background font-sans">
+    <div className="h-full flex flex-col bg-background font-sans relative">
+      {showEntryOverlay && !hasContent && (
+        <EntryOverlay
+          onTryDemo={generateDemo}
+          onImport={handleImport}
+          onBuildManually={handleBuildManually}
+        />
+      )}
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
         <div className="flex items-center gap-4">
