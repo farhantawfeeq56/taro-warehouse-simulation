@@ -23,7 +23,7 @@ export function EntryOverlay({ onTryDemo, onImport, onBuildManually }: EntryOver
           How do you want to get started?
         </h2>
         <p className="text-sm text-muted-foreground">
-          Warehouse Picking Simulator
+          Select from one of our options
         </p>
       </div>
 
