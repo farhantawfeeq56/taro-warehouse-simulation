@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult, PickTask } from '@/lib/taro/types';
-import { generateDemoWarehouse, createEmptyWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
+import { createEmptyWarehouse, generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/lib/taro/simulation';
 import { generateTaskCSV, parseTaskCSV } from '@/lib/taro/csv';
 import { WarehouseCanvas } from './warehouse-canvas';
@@ -11,7 +11,7 @@ import { ResultsPanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { EntryOverlay } from './entry-overlay';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Wand2, Play, Minus, Plus, Rocket } from 'lucide-react';
+import { RotateCcw, Play, Minus, Plus, Rocket, Wand2 } from 'lucide-react';
 interface TaroAppProps {
   onDeployStrategy?: (tasks: PickTask[]) => void;
 }
@@ -120,7 +120,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
 
   const handleImport = useCallback(() => {
     setShowEntryOverlay(false);
-    alert('Import functionality will be added soon. Please use the demo or build manually.');
+    alert('Import functionality will be added soon. Please build manually.');
   }, []);
 
   const handleBuildManually = useCallback(() => {
@@ -160,16 +160,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
           >
             <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
             Reset
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={generateDemo}
-            className="h-8 text-xs"
-            title="Generate a demo warehouse layout"
-          >
-            <Wand2 className="h-3.5 w-3.5 mr-1.5" />
-            Demo
           </Button>
 
           {/* Worker count stepper */}
