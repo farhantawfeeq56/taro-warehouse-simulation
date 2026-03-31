@@ -1,35 +1,22 @@
-# taro-warehouse-simulation
+Taro is a simulation-first tool that helps warehouse teams test, compare, and choose the most efficient picking strategy before executing it. 
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+In most warehouses:
 
-## Built with v0
+* 50–70% of picking time is just walking
+* Strategies are chosen based on intuition, not data
+* Systems optimize execution, not decisions
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+This results in: 
+* unnecessary travel
+* higher labor costs
+* slower fulfillment
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_iQmkr4VDwmshkSRL3uXPx6XXFp3X)
+That's why we introduced Taro. 
 
-## Getting Started
+Taro helps you find the best way to pick the orders in a warehouse.
 
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-## Learn More
-
-To learn more, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
-
-<a href="https://v0.app/chat/api/kiro/clone/farhantawfeeq56/taro-warehouse-simulation" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+What Taro let teams do:
+* recreate their warehouse layout
+* simulate real order scenarios
+* test multiple picking strategies
+* compare outcomes before implementation
