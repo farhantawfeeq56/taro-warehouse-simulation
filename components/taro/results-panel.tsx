@@ -146,7 +146,7 @@ export function ResultsPanel({
               className={cn(
                 'w-full text-left border rounded p-2 transition-all',
                 isSelected
-  								? 'border-[#D8D8D8] bg-primary/5 shadow-sm'
+  								? 'border-primary bg-primary/5 shadow-sm'
   								: 'border-border bg-card hover:border-muted-foreground/50',
                 isBaseline && 'opacity-70'
               )}
