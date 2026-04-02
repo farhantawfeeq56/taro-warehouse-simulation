@@ -51,6 +51,8 @@ export interface StrategyResult {
   strategy: StrategyType;
   strategyName: string;
   distance: number;
+  totalDistance: number;
+  criticalPathDistance: number;
   estimatedTime: number;
   efficiency: number;
   workerUtilization: number;

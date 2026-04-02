@@ -103,15 +103,15 @@ export function ResultsPanel({
   // At this point, results is guaranteed to be non-null
   const resultsData = results;
 
-  // Sort strategies with strict hierarchy: baseline always at bottom, then efficiency desc, then distance asc, time asc, cost asc
+  // Sort strategies with strict hierarchy: baseline always at bottom, then efficiency desc, then critical distance asc, time asc, cost asc
   const sortedStrategies = [...resultsData.strategies].sort((a, b) => {
     // Always put baseline ('single') at the bottom
     if (a.strategy === 'single') return 1;
     if (b.strategy === 'single') return -1;
     // Primary: efficiency descending
     if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
-    // Tie-breaker 1: distance ascending
-    if (a.distance !== b.distance) return a.distance - b.distance;
+    // Tie-breaker 1: critical path distance ascending
+    if (a.criticalPathDistance !== b.criticalPathDistance) return a.criticalPathDistance - b.criticalPathDistance;
     // Tie-breaker 2: time ascending
     if (a.estimatedTime !== b.estimatedTime) return a.estimatedTime - b.estimatedTime;
     // Tie-breaker 3: cost ascending
@@ -191,9 +191,11 @@ export function ResultsPanel({
                 )}
               </div>
 
-              {/* Line 2: Compact metrics - distance • time • cost */}
+              {/* Line 2: Compact metrics - total • critical • time • cost */}
               <div className="flex items-center gap-1.5 mt-0.5 ml-5 text-xs text-muted-foreground">
-                <span className="font-mono">{strategy.distance}m</span>
+                <span className="font-mono text-foreground">Total: {strategy.totalDistance}m</span>
+                <span className="text-[10px] opacity-50">•</span>
+                <span className="font-mono text-foreground">Critical: {strategy.criticalPathDistance}m</span>
                 <span className="text-[10px] opacity-50">•</span>
                 <span className="font-mono">{strategy.estimatedTime} min</span>
                 <span className="text-[10px] opacity-50">•</span>
@@ -209,6 +211,34 @@ export function ResultsPanel({
   const renderWorkerAllocation = () => {
     if (!activeStrategy) return null;
 
+    const activeResult = resultsData.strategies.find(s => s.strategy === activeStrategy);
+    if (!activeResult?.workerRoutes || activeResult.workerRoutes.length === 0) {
+      return (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+            Worker Allocation
+          </div>
+          <div className="border border-border rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground">
+            No worker allocation
+          </div>
+        </div>
+      );
+    }
+
+    // Calculate worker distances to find critical path (slowest worker)
+    const workerDistances = activeResult.workerRoutes.map(w => {
+      let d = 0;
+      for (let i = 1; i < w.route.length; i++) {
+        d += Math.abs(w.route[i].x - w.route[i-1].x) + Math.abs(w.route[i].y - w.route[i-1].y);
+      }
+      return d * 2; // CELL_SIZE_METERS
+    });
+    
+    const maxDist = Math.max(...workerDistances);
+    const criticalWorkerId = activeResult.workerRoutes[
+      workerDistances.indexOf(maxDist)
+    ]?.workerId;
+
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -216,70 +246,81 @@ export function ResultsPanel({
             Worker Allocation
           </div>
           <span className="text-xs font-mono text-muted-foreground">
-            {workerCount} worker{workerCount !== 1 ? 's' : ''}
+            {activeResult.workerRoutes.length} worker{activeResult.workerRoutes.length !== 1 ? 's' : ''}
           </span>
         </div>
         <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-3">
-          {(() => {
-            const activeResult = resultsData.strategies.find(s => s.strategy === activeStrategy);
-            if (!activeResult?.workerRoutes || activeResult.workerRoutes.length === 0) {
-              return <div className="text-xs text-muted-foreground">No worker allocation</div>;
-            }
+          {activeResult.workerRoutes.map((worker, idx) => {
+            // Calculate per-worker progress based on completed picks
+            const isIdle = worker.assignedPickCount === 0;
+            const completedPicks = isIdle ? 0 : Math.floor(replayProgress * worker.assignedPickCount);
+            const workerProgress = isIdle ? 0 : (completedPicks / worker.assignedPickCount) * 100;
+            const isDone = replayProgress >= 1 && !isIdle;
+            const isCritical = worker.workerId === criticalWorkerId && !isIdle;
+            const workerDist = workerDistances[idx];
 
-            return activeResult.workerRoutes.map((worker) => {
-              // Calculate per-worker progress based on completed picks
-              const isIdle = worker.assignedPickCount === 0;
-              const completedPicks = isIdle ? 0 : Math.floor(replayProgress * worker.assignedPickCount);
-              const workerProgress = isIdle ? 0 : (completedPicks / worker.assignedPickCount) * 100;
-              const isDone = replayProgress >= 1 && !isIdle;
-
-              return (
-                <div key={worker.workerId} className="space-y-1.5 pb-3 border-b border-border/50 last:border-b-0 last:pb-0">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: worker.color }}
-                    />
-                    <span className="text-xs font-semibold text-foreground">
-                      Worker {worker.workerId}
+            return (
+              <div key={worker.workerId} className={cn(
+                "space-y-1.5 pb-3 border-b border-border/50 last:border-b-0 last:pb-0",
+                isCritical && "bg-yellow-50/50 dark:bg-yellow-900/10 -mx-1.5 px-1.5 rounded"
+              )}>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: worker.color }}
+                  />
+                  <span className="text-xs font-semibold text-foreground">
+                    Worker {worker.workerId}
+                  </span>
+                  {isCritical && (
+                    <Badge className="text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 shrink-0">
+                      Critical Path
+                    </Badge>
+                  )}
+                  {isIdle && (
+                    <span className="text-xs text-muted-foreground italic">(idle)</span>
+                  )}
+                  {isDone && !isCritical && (
+                    <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 shrink-0">
+                      Done
+                    </Badge>
+                  )}
+                </div>
+                <div className="ml-3.5 space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Progress:</span>
+                    <span className="font-mono text-foreground">
+                      {completedPicks}/{worker.assignedPickCount} picks
                     </span>
-                    {isIdle && (
-                      <span className="text-xs text-muted-foreground italic">(idle)</span>
-                    )}
-                    {isDone && (
-                      <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 shrink-0">
-                        Done
-                      </Badge>
-                    )}
                   </div>
-                  <div className="ml-3.5 space-y-1.5 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Progress:</span>
-                      <span className="font-mono text-foreground">
-                        {completedPicks}/{worker.assignedPickCount} picks
-                      </span>
+                  <div className="space-y-1">
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border/50">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${workerProgress}%`,
+                          backgroundColor: worker.color,
+                        }}
+                      />
                     </div>
-                    <div className="space-y-1">
-                      <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border/50">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${workerProgress}%`,
-                            backgroundColor: worker.color,
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <span className="text-xs font-mono">{worker.assignedPickCount} picks</span>
-                      <span className="text-[10px] opacity-50">•</span>
-                      <span className="text-xs font-mono">~{Math.round(worker.route.length * 2)}m route</span>
-                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span className="text-xs font-mono">{worker.assignedPickCount} picks</span>
+                    <span className="text-[10px] opacity-50">•</span>
+                    <span className="text-xs font-mono">~{Math.round(workerDist)}m route</span>
+                    {isCritical && (
+                      <>
+                        <span className="text-[10px] opacity-50">•</span>
+                        <span className="text-xs font-mono text-yellow-700 dark:text-yellow-400">
+                          Critical
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
-              );
-            });
-          })()}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
