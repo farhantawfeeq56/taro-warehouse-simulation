@@ -227,7 +227,11 @@ export function ResultsPanel({
             }
 
             return activeResult.workerRoutes.map((worker) => {
-              const progress = replayProgress;
+              // Calculate per-worker progress based on completed picks
+              const isIdle = worker.assignedPickCount === 0;
+              const completedPicks = isIdle ? 0 : Math.floor(replayProgress * worker.assignedPickCount);
+              const workerProgress = isIdle ? 0 : (completedPicks / worker.assignedPickCount) * 100;
+              const isDone = replayProgress >= 1 && !isIdle;
 
               return (
                 <div key={worker.workerId} className="space-y-1.5 pb-3 border-b border-border/50 last:border-b-0 last:pb-0">
@@ -239,32 +243,37 @@ export function ResultsPanel({
                     <span className="text-xs font-semibold text-foreground">
                       Worker {worker.workerId}
                     </span>
-                    {worker.assignedPickCount === 0 && (
+                    {isIdle && (
                       <span className="text-xs text-muted-foreground italic">(idle)</span>
+                    )}
+                    {isDone && (
+                      <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 shrink-0">
+                        Done
+                      </Badge>
                     )}
                   </div>
                   <div className="ml-3.5 space-y-1.5 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Assigned Picks:</span>
-                      <span className="font-mono text-foreground">{worker.assignedPickCount} items</span>
+                      <span className="text-muted-foreground">Progress:</span>
+                      <span className="font-mono text-foreground">
+                        {completedPicks}/{worker.assignedPickCount} picks
+                      </span>
                     </div>
                     <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Progress:</span>
-                        <span className="font-mono text-foreground">{Math.round(progress * 100)}%</span>
-                      </div>
                       <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border/50">
                         <div
                           className="h-full rounded-full transition-all"
                           style={{
-                            width: `${Math.round(progress * 100)}%`,
+                            width: `${workerProgress}%`,
                             backgroundColor: worker.color,
                           }}
                         />
                       </div>
                     </div>
-                    <div className="text-muted-foreground">
-                      <span className="text-xs">{worker.route.length} steps</span>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <span className="text-xs font-mono">{worker.assignedPickCount} picks</span>
+                      <span className="text-[10px] opacity-50">•</span>
+                      <span className="text-xs font-mono">~{Math.round(worker.route.length * 2)}m route</span>
                     </div>
                   </div>
                 </div>
