@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult, PickTask, StrategyUIVariant } from '@/lib/taro/types';
+import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult, PickTask } from '@/lib/taro/types';
 import { createEmptyWarehouse, generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/lib/taro/simulation';
 import { generateTaskCSV, parseTaskCSV } from '@/lib/taro/csv';
@@ -11,8 +11,7 @@ import { ResultsPanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { EntryOverlay } from './entry-overlay';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RotateCcw, Play, Minus, Plus, Rocket, Wand2, Layout, Table, ListOrdered, Zap, Columns } from 'lucide-react';
+import { RotateCcw, Play, Minus, Plus, Rocket, Wand2 } from 'lucide-react';
 interface TaroAppProps {
   onDeployStrategy?: (tasks: PickTask[]) => void;
 }
@@ -29,7 +28,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [workerCount, setWorkerCount] = useState(2);
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
   const [showEntryOverlay, setShowEntryOverlay] = useState(true);
-  const [uiVariant, setUiVariant] = useState<StrategyUIVariant>('hybrid');
   const animationRef = useRef<number | null>(null);
 
   const getActiveRoute = useCallback((): StrategyResult | null => {
@@ -188,45 +186,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
             </div>
           </div>
 
-          {/* UI Variant Switcher */}
-          <Select value={uiVariant} onValueChange={(value) => setUiVariant(value as StrategyUIVariant)}>
-            <SelectTrigger size="sm" className="h-8 text-xs w-[140px]">
-              <SelectValue placeholder="View Mode" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="hybrid">
-                <div className="flex items-center gap-2">
-                  <Layout className="h-3.5 w-3.5" />
-                  <span>Hybrid</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="selectableTable">
-                <div className="flex items-center gap-2">
-                  <Table className="h-3.5 w-3.5" />
-                  <span>Table</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="rankedList">
-                <div className="flex items-center gap-2">
-                  <ListOrdered className="h-3.5 w-3.5" />
-                  <span>Ranked List</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="autoSelect">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-3.5 w-3.5" />
-                  <span>Auto-Select</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="splitView">
-                <div className="flex items-center gap-2">
-                  <Columns className="h-3.5 w-3.5" />
-                  <span>Split View</span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
           <Button
             size="sm"
             onClick={runSimulationHandler}
@@ -328,7 +287,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
           onStrategySelect={handleStrategySelect}
           animationProgress={animationProgress}
           workerCount={workerCount}
-          uiVariant={uiVariant}
         />
       </div>
     </div>

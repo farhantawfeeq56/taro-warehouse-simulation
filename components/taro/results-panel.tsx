@@ -1,6 +1,6 @@
 'use client';
 
-import type { SimulationResults, StrategyResult, StrategyType, StrategyUIVariant } from '@/lib/taro/types';
+import type { SimulationResults, StrategyResult, StrategyType } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, Clock, Route, Users, DollarSign, Activity, Play, Pause, Zap, Download, Clipboard, Check, ChevronDown, ChevronUp } from 'lucide-react';
@@ -14,7 +14,6 @@ interface ResultsPanelProps {
   onStrategySelect: (strategy: StrategyType) => void;
   animationProgress: number;
   workerCount: number;
-  uiVariant: StrategyUIVariant;
 }
 
 export function ResultsPanel({
