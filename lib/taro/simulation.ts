@@ -11,7 +11,7 @@ const STRATEGY_COLORS: Record<StrategyType, string> = {
 };
 
 const STRATEGY_NAMES: Record<StrategyType, string> = {
-  single: 'Single Order',
+  single: 'Single Order (Baseline)',
   batch: 'Batch Picking',
   zone: 'Zone Picking',
   wave: 'Wave Picking',

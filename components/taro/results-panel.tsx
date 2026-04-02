@@ -3,7 +3,7 @@
 import type { SimulationResults, StrategyResult, StrategyType } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Activity, Play, Pause, Zap, Download, Clipboard, Check } from 'lucide-react';
+import { Activity, Play, Pause, Download, Clipboard, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { generateTaskCSV, downloadCSV } from '@/lib/taro/csv';
 
@@ -103,18 +103,19 @@ export function ResultsPanel({
   // At this point, results is guaranteed to be non-null
   const resultsData = results;
 
-  // Calculate insights
-  const bestResult = resultsData.strategies.find(s => s.strategy === resultsData.bestStrategy);
-  const baselineResult = resultsData.strategies.find(s => s.strategy === 'single');
-  const savingsDistance = baselineResult ? baselineResult.distance - (bestResult?.distance || 0) : 0;
-
-  // Sort strategies by efficiency descending, with baseline at the bottom
+  // Sort strategies with strict hierarchy: baseline always at bottom, then efficiency desc, then distance asc, time asc, cost asc
   const sortedStrategies = [...resultsData.strategies].sort((a, b) => {
     // Always put baseline ('single') at the bottom
     if (a.strategy === 'single') return 1;
     if (b.strategy === 'single') return -1;
-    // Sort others by efficiency descending
-    return b.efficiency - a.efficiency;
+    // Primary: efficiency descending
+    if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
+    // Tie-breaker 1: distance ascending
+    if (a.distance !== b.distance) return a.distance - b.distance;
+    // Tie-breaker 2: time ascending
+    if (a.estimatedTime !== b.estimatedTime) return a.estimatedTime - b.estimatedTime;
+    // Tie-breaker 3: cost ascending
+    return a.costPerOrder - b.costPerOrder;
   });
 
   const renderHeader = () => {
@@ -126,134 +127,79 @@ export function ResultsPanel({
             {resultsData.strategies.length} strategies
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Ranked by walking reduction vs baseline
-        </p>
       </div>
     );
-  };
-
-  const renderInsight = () => {
-    if (savingsDistance <= 0) return null;
-    return (
-      <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded p-3 space-y-1">
-        <div className="flex items-start gap-2">
-          <div className="mt-1">
-            <Zap className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
-          </div>
-          <div className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-            <span className="font-medium capitalize">{resultsData.bestStrategy}</span> reduces walking distance by <span className="font-semibold">{savingsDistance}m</span> compared to single order picking.
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const getStrategyExplanation = (strategy: StrategyType): string => {
-    switch (strategy) {
-      case 'single':
-        return 'Each order picked individually. Simple but least efficient.';
-      case 'batch':
-        return 'Groups orders by proximity, reducing backtracking.';
-      case 'zone':
-        return 'Divides warehouse into zones for parallel picking.';
-      case 'wave':
-        return 'Dynamic nearest-neighbor optimization for minimal travel.';
-      default:
-        return '';
-    }
   };
 
   const renderStrategyList = () => {
     return (
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {sortedStrategies.map((strategy) => {
           const isSelected = activeStrategy === strategy.strategy;
           const isBest = strategy.strategy === resultsData.bestStrategy;
           const isBaseline = strategy.strategy === 'single';
 
           return (
-            <div key={strategy.strategy} className="space-y-0">
-              <button
-                onClick={() => onStrategySelect(strategy.strategy)}
-                className={cn(
-                  'w-full text-left border rounded-lg p-3 transition-all',
-                  isSelected
-                    ? 'border-primary bg-primary/5 shadow-sm'
-                    : 'border-border bg-card hover:border-muted-foreground/50'
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  {/* Radio button */}
-                  <div className={cn(
-                    'w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0',
-                    isSelected
-                      ? 'border-primary bg-primary'
-                      : 'border-muted-foreground/30'
-                  )}>
-                    {isSelected && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground" />
-                    )}
-                  </div>
-
-                  {/* Strategy name and badges */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold truncate">
-                        {strategy.strategyName}
-                      </span>
-                      {isBest && (
-                        <Badge className="text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 shrink-0">
-                          Best
-                        </Badge>
-                      )}
-                    </div>
-                    {/* Distance • Time • Cost */}
-                    <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                      <span className="font-mono">{strategy.distance}m</span>
-                      <span>•</span>
-                      <span className="font-mono">{strategy.estimatedTime}m</span>
-                      <span>•</span>
-                      <span className="font-mono">${strategy.costPerOrder}</span>
-                    </div>
-                  </div>
-
-                  {/* Efficiency percentage */}
-                  <div className={cn(
-                    'text-lg font-bold shrink-0',
-                    isBaseline ? 'text-muted-foreground' : 'text-green-600 dark:text-green-400'
-                  )}>
-                    {isBaseline ? 'Baseline' : `${strategy.efficiency}%`}
-                  </div>
-                </div>
-              </button>
-
-              {/* Expanded details for selected strategy */}
-              {isSelected && (
-                <div className="mx-3 p-3 bg-muted/30 border-x border-b border-border rounded-b-lg -mt-1 pt-4">
-                  <div className="space-y-3">
-                    {/* Explanation */}
-                    <p className="text-xs text-muted-foreground">
-                      {getStrategyExplanation(strategy.strategy)}
-                    </p>
-
-                    {/* Worker utilization */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Worker Utilization</span>
-                        <span className="font-mono font-medium">{strategy.workerUtilization}%</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full"
-                          style={{ width: `${strategy.workerUtilization}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <button
+              key={strategy.strategy}
+              onClick={() => onStrategySelect(strategy.strategy)}
+              className={cn(
+                'w-full text-left border rounded p-2 transition-all',
+                isSelected
+                  ? 'border-primary bg-primary/5 shadow-sm'
+                  : 'border-border bg-card hover:border-muted-foreground/50',
+                isBaseline && 'opacity-70'
               )}
-            </div>
+            >
+              {/* Line 1: Radio + Name + Efficiency + Best tag */}
+              <div className="flex items-center gap-2">
+                {/* Radio button */}
+                <div className={cn(
+                  'w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0',
+                  isSelected
+                    ? 'border-primary bg-primary'
+                    : 'border-muted-foreground/40'
+                )}>
+                  {isSelected && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground" />
+                  )}
+                </div>
+
+                {/* Strategy name */}
+                <span className={cn(
+                  'text-sm truncate',
+                  isBaseline ? 'text-muted-foreground font-medium' : 'font-semibold text-foreground'
+                )}>
+                  {strategy.strategyName}
+                </span>
+
+                {/* Efficiency % - prominent for non-baseline */}
+                {!isBaseline && (
+                  <span className="text-sm font-bold text-green-600 dark:text-green-400 shrink-0">
+                    {strategy.efficiency}%
+                  </span>
+                )}
+
+                {/* Spacer */}
+                <div className="flex-1" />
+
+                {/* Best tag */}
+                {isBest && !isBaseline && (
+                  <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 shrink-0">
+                    Best
+                  </Badge>
+                )}
+              </div>
+
+              {/* Line 2: Compact metrics - distance • time • cost */}
+              <div className="flex items-center gap-1.5 mt-0.5 ml-5 text-xs text-muted-foreground">
+                <span className="font-mono">{strategy.distance}m</span>
+                <span className="text-[10px] opacity-50">•</span>
+                <span className="font-mono">{strategy.estimatedTime} min</span>
+                <span className="text-[10px] opacity-50">•</span>
+                <span className="font-mono">${strategy.costPerOrder}</span>
+              </div>
+            </button>
           );
         })}
       </div>
@@ -427,7 +373,6 @@ export function ResultsPanel({
     <div className="w-80 border-l border-border bg-background flex flex-col">
       {renderHeader()}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {renderInsight()}
         {renderStrategyList()}
         {renderWorkerAllocation()}
         {renderExportTasks()}
