@@ -75,5 +75,3 @@ export interface PickTask {
   location: string;
   item: string;
 }
-
-export type StrategyUIVariant = 'hybrid' | 'selectableTable' | 'rankedList' | 'autoSelect' | 'splitView';
