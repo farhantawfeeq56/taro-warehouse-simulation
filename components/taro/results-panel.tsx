@@ -191,11 +191,9 @@ export function ResultsPanel({
                 )}
               </div>
 
-              {/* Line 2: Compact metrics - total • critical • time • cost */}
+              {/* Line 2: Compact metrics - distance • time • cost */}
               <div className="flex items-center gap-1.5 mt-0.5 ml-5 text-xs text-muted-foreground">
-                <span className="font-mono text-foreground">Total: {strategy.totalDistance}m</span>
-                <span className="text-[10px] opacity-50">•</span>
-                <span className="font-mono text-foreground">Critical: {strategy.criticalPathDistance}m</span>
+                <span className="font-mono">{strategy.totalDistance}m</span>
                 <span className="text-[10px] opacity-50">•</span>
                 <span className="font-mono">{strategy.estimatedTime} min</span>
                 <span className="text-[10px] opacity-50">•</span>
@@ -225,20 +223,6 @@ export function ResultsPanel({
       );
     }
 
-    // Calculate worker distances to find critical path (slowest worker)
-    const workerDistances = activeResult.workerRoutes.map(w => {
-      let d = 0;
-      for (let i = 1; i < w.route.length; i++) {
-        d += Math.abs(w.route[i].x - w.route[i-1].x) + Math.abs(w.route[i].y - w.route[i-1].y);
-      }
-      return d * 2; // CELL_SIZE_METERS
-    });
-    
-    const maxDist = Math.max(...workerDistances);
-    const criticalWorkerId = activeResult.workerRoutes[
-      workerDistances.indexOf(maxDist)
-    ]?.workerId;
-
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -250,20 +234,14 @@ export function ResultsPanel({
           </span>
         </div>
         <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-3">
-          {activeResult.workerRoutes.map((worker, idx) => {
-            // Calculate per-worker progress based on completed picks
+          {activeResult.workerRoutes.map((worker) => {
             const isIdle = worker.assignedPickCount === 0;
             const completedPicks = isIdle ? 0 : Math.floor(replayProgress * worker.assignedPickCount);
             const workerProgress = isIdle ? 0 : (completedPicks / worker.assignedPickCount) * 100;
             const isDone = replayProgress >= 1 && !isIdle;
-            const isCritical = worker.workerId === criticalWorkerId && !isIdle;
-            const workerDist = workerDistances[idx];
 
             return (
-              <div key={worker.workerId} className={cn(
-                "space-y-1.5 pb-3 border-b border-border/50 last:border-b-0 last:pb-0",
-                isCritical && "bg-yellow-50/50 dark:bg-yellow-900/10 -mx-1.5 px-1.5 rounded"
-              )}>
+              <div key={worker.workerId} className="space-y-1.5 pb-3 border-b border-border/50 last:border-b-0 last:pb-0">
                 <div className="flex items-center gap-2">
                   <div
                     className="w-2.5 h-2.5 rounded-full shrink-0"
@@ -272,15 +250,10 @@ export function ResultsPanel({
                   <span className="text-xs font-semibold text-foreground">
                     Worker {worker.workerId}
                   </span>
-                  {isCritical && (
-                    <Badge className="text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 shrink-0">
-                      Critical Path
-                    </Badge>
-                  )}
                   {isIdle && (
                     <span className="text-xs text-muted-foreground italic">(idle)</span>
                   )}
-                  {isDone && !isCritical && (
+                  {isDone && (
                     <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 shrink-0">
                       Done
                     </Badge>
@@ -307,15 +280,7 @@ export function ResultsPanel({
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <span className="text-xs font-mono">{worker.assignedPickCount} picks</span>
                     <span className="text-[10px] opacity-50">•</span>
-                    <span className="text-xs font-mono">~{Math.round(workerDist)}m route</span>
-                    {isCritical && (
-                      <>
-                        <span className="text-[10px] opacity-50">•</span>
-                        <span className="text-xs font-mono text-yellow-700 dark:text-yellow-400">
-                          Critical
-                        </span>
-                      </>
-                    )}
+                    <span className="text-xs font-mono">~{Math.round(worker.route.length * 2)}m route</span>
                   </div>
                 </div>
               </div>
