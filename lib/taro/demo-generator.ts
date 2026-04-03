@@ -49,11 +49,19 @@ export function generateDemoWarehouse(): Warehouse {
   // z=1: SKU_A, qty 100
   // z=2: SKU_B, qty 50
   // z=3: SKU_C, qty 30
+  const items: Item[] = [];
+  let itemId = 1;
+  
   const testLocations: StorageLocation[] = [
-    { x: 5, y: 5, z: 1, sku: 'SKU_A', quantity: 100 },
-    { x: 5, y: 5, z: 2, sku: 'SKU_B', quantity: 50 },
-    { x: 5, y: 5, z: 3, sku: 'SKU_C', quantity: 30 },
+    { x: 5, y: 5, z: 1, sku: 'SKU_A', quantity: 100, itemId: itemId++ },
+    { x: 5, y: 5, z: 2, sku: 'SKU_B', quantity: 50, itemId: itemId++ },
+    { x: 5, y: 5, z: 3, sku: 'SKU_C', quantity: 30, itemId: itemId++ },
   ];
+  
+  // Add legacy Item entries for dual-representation
+  items.push({ id: 1, x: 5, y: 5, z: 1, sku: 'SKU_A' });
+  items.push({ id: 2, x: 5, y: 5, z: 2, sku: 'SKU_B' });
+  items.push({ id: 3, x: 5, y: 5, z: 3, sku: 'SKU_C' });
   
   // Place locations at (5, 5)
   warehouse.grid[5][5].type = 'shelf';
@@ -61,8 +69,6 @@ export function generateDemoWarehouse(): Warehouse {
   warehouse.shelves.push({ x: 5, y: 5 });
   
   // Add some additional items at shelf edges with locations
-  const items: Item[] = [];
-  let itemId = 1;
   
   // Place items on bottom edges of shelf pairs
   const itemRows = [3, 7, 11, 15, 19];
@@ -79,7 +85,7 @@ export function generateDemoWarehouse(): Warehouse {
           for (let z = 1; z <= numZLevels; z++) {
             const sku = `SKU_${String(itemId).padStart(3, '0')}`;
             const quantity = Math.floor(Math.random() * 90) + 10;
-            cellLocations.push({ x: col, y: row + 1, z, sku, quantity });
+            cellLocations.push({ x: col, y: row + 1, z, sku, quantity, itemId });
             items.push({ id: itemId, x: col, y: row + 1, z, sku });
             itemId++;
           }

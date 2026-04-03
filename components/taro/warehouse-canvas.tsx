@@ -162,10 +162,13 @@ export function WarehouseCanvas({
     if (cell) {
       const warehouseCell = warehouse.grid[cell.y][cell.x];
       if (warehouseCell.type === 'shelf' && warehouseCell.locations.length > 0) {
-        console.log(`Cell (${cell.x}, ${cell.y}) locations:`);
-        warehouseCell.locations.forEach(loc => {
-          console.log(`  z=${loc.z}: ${loc.sku} (qty: ${loc.quantity})`);
-        });
+        console.log(`Cell (${cell.x}, ${cell.y}) - ${warehouseCell.locations.length} location(s):`);
+        console.table(warehouseCell.locations.map(loc => ({
+          z: loc.z,
+          sku: loc.sku,
+          quantity: loc.quantity,
+          itemId: loc.itemId ?? 'N/A'
+        })));
       }
     }
   }, [getCellFromMouse, warehouse.grid]);
@@ -249,20 +252,34 @@ export function WarehouseCanvas({
         // Draw shelf locations based on z-visualization mode
         if (cell.type === 'shelf') {
           if (zVisualizationMode === 'collapsed') {
-            // Collapsed mode: show count badge and z-level indicators
+            // Collapsed mode: show aggregated info (z-count, SKU count, total quantity)
             if (cell.locations.length > 0) {
-              // Draw small z-level count badge
+              // Calculate aggregated metrics
+              const uniqueSkuCount = new Set(cell.locations.map(loc => loc.sku)).size;
+              const totalQuantity = cell.locations.reduce((sum, loc) => sum + loc.quantity, 0);
+              
+              // Draw z-level count badge at top
               ctx.fillStyle = '#ffffff';
               ctx.font = 'bold 9px monospace';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.fillText(`z:${cell.locations.length}`, px + CELL_SIZE / 2, py + CELL_SIZE / 2);
+              ctx.fillText(`z:${cell.locations.length}`, px + CELL_SIZE / 2, py + 5);
               
-              // Draw tiny colored dots for each z-level
+              // Draw SKU count in middle
+              ctx.fillStyle = '#fbbf24'; // amber-400
+              ctx.font = '8px monospace';
+              ctx.fillText(`${uniqueSkuCount} SKUs`, px + CELL_SIZE / 2, py + CELL_SIZE / 2);
+              
+              // Draw total quantity at bottom
+              ctx.fillStyle = '#a5f3fc'; // cyan-200
+              ctx.font = '7px monospace';
+              ctx.fillText(`${totalQuantity} qty`, px + CELL_SIZE / 2, py + CELL_SIZE - 4);
+              
+              // Draw tiny colored dots for each z-level (visual indicator)
               const dotSize = 2;
-              const spacing = 4;
-              const startX = px + 3;
-              const startY = py + 3;
+              const spacing = 3;
+              const startX = px + 2;
+              const startY = py + 13;
               
               cell.locations.slice(0, 4).forEach((loc, idx) => {
                 ctx.fillStyle = Z_LEVEL_COLORS[loc.z] || '#9ca3af';

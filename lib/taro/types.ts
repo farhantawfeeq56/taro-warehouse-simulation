@@ -8,6 +8,7 @@ export interface StorageLocation {
   z: number; // z-level (1-4 typically)
   sku: string;
   quantity: number;
+  itemId?: number; // Optional link to legacy Item model for dual-representation
 }
 
 export interface Cell {
