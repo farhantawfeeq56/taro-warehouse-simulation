@@ -436,6 +436,26 @@ function generateHeatmap(warehouse: Warehouse, routes: { x: number; y: number }[
     }
   }
   
+  // Apply z-weighting to heatmap values
+  // Higher z-levels are harder to reach, so we slightly reduce their heat values
+  for (let y = 0; y < warehouse.height; y++) {
+    for (let x = 0; x < warehouse.width; x++) {
+      const cell = warehouse.grid[y][x];
+      if (cell.type === 'shelf' && cell.locations.length > 0) {
+        // Calculate average z-level at this cell
+        const avgZLevel = cell.locations.reduce((sum, loc) => sum + loc.z, 0) / cell.locations.length;
+        // Weight: slightly reduce heat for higher z-levels (harder to reach)
+        // Formula: value * (1 + (1 - avgZLevel) * 0.2)
+        // For avgZLevel=1: value * 1.2 (brighter, easier to reach)
+        // For avgZLevel=2: value * 1.0
+        // For avgZLevel=3: value * 0.8 (dimmer, harder to reach)
+        // For avgZLevel=4: value * 0.6
+        const weightFactor = 1 + (1 - avgZLevel) * 0.2;
+        heatmap[y][x] *= weightFactor;
+      }
+    }
+  }
+  
   return heatmap;
 }
 
