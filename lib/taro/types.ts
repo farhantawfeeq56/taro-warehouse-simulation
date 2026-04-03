@@ -1,23 +1,33 @@
 // Core data types for Taro warehouse simulation
 
-export type CellType = 'empty' | 'shelf' | 'item' | 'worker-start';
+export type CellType = 'empty' | 'shelf' | 'worker-start';
+
+export interface StorageLocation {
+  x: number;
+  y: number;
+  z: number; // z-level (1-4 typically)
+  sku: string;
+  quantity: number;
+}
 
 export interface Cell {
   x: number;
   y: number;
   type: CellType;
-  itemId?: number;
+  locations: StorageLocation[];
 }
 
 export interface Item {
   id: number;
   x: number;
   y: number;
+  z: number;
+  sku: string;
 }
 
 export interface Order {
   id: string;
-  items: number[];
+  items: number[]; // Item IDs (legacy) or SKU references
   assignedWorkerId: number | null; // null = Auto
 }
 
@@ -40,7 +50,7 @@ export type StrategyType = 'single' | 'batch' | 'zone' | 'wave';
 export interface WorkerRoute {
   workerId: number;
   route: { x: number; y: number }[];
-  picks: { itemId: number; x: number; y: number }[]; // actual pick locations only
+  picks: { itemId: number; x: number; y: number; z: number; sku: string }[]; // actual pick locations only
   color: string;
   zone: string;
   assignedPickCount: number;
@@ -68,7 +78,9 @@ export interface SimulationResults {
   bestStrategy: StrategyType;
 }
 
-export type ToolType = 'shelf' | 'item' | 'worker' | 'erase';
+export type ToolType = 'shelf' | 'worker' | 'erase';
+
+export type ZVisualizationMode = 'collapsed' | 'level1' | 'level2' | 'level3' | 'level4';
 
 export interface PickTask {
   workerId: number;

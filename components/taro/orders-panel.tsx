@@ -77,6 +77,15 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCoun
 
   const WORKER_COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
 
+  // Get item display info (SKU if available)
+  const getItemDisplay = (itemId: number): string => {
+    const item = availableItems.find(i => i.id === itemId);
+    if (item?.sku) {
+      return `${itemId}:${item.sku}`;
+    }
+    return String(itemId);
+  };
+
   return (
     <div className="w-72 border-r border-border bg-background flex flex-col">
       <div className="p-3 border-b border-border">
@@ -175,6 +184,7 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCoun
                       <span
                         key={`${order.id}-${index}`}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs font-mono font-medium rounded border border-primary/20 group"
+                        title={getItemDisplay(itemId)}
                       >
                         {itemId}
                         <button

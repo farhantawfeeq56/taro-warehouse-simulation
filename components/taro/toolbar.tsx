@@ -1,8 +1,8 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { ToolType } from '@/lib/taro/types';
-import { Grid3X3, Package, User, Eraser, Flame } from 'lucide-react';
+import type { ToolType, ZVisualizationMode } from '@/lib/taro/types';
+import { Grid3X3, User, Eraser, Flame, Layers } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
@@ -10,31 +10,41 @@ interface ToolbarProps {
   showHeatmap: boolean;
   onHeatmapToggle: () => void;
   hasHeatmap: boolean;
+  zVisualizationMode: ZVisualizationMode;
+  onZVisualizationChange: (mode: ZVisualizationMode) => void;
 }
 
 const tools: { type: ToolType; label: string; icon: typeof Grid3X3 }[] = [
   { type: 'shelf', label: 'Shelf', icon: Grid3X3 },
-  { type: 'item', label: 'Item', icon: Package },
   { type: 'worker', label: 'Worker', icon: User },
   { type: 'erase', label: 'Erase', icon: Eraser },
 ];
 
 const toolColors: Record<ToolType, { bg: string; textClass: string }> = {
   shelf: { bg: '#374151', textClass: 'text-white' },
-  item: { bg: '#3B82F6', textClass: 'text-white' },
   worker: { bg: '#22C55E', textClass: 'text-white' },
   erase: { bg: '#EEEFF2', textClass: 'text-gray-900' },
 };
+
+const zModeOptions: { value: ZVisualizationMode; label: string }[] = [
+  { value: 'collapsed', label: 'Collapsed (all levels)' },
+  { value: 'level1', label: 'Show Level 1' },
+  { value: 'level2', label: 'Show Level 2' },
+  { value: 'level3', label: 'Show Level 3' },
+  { value: 'level4', label: 'Show Level 4' },
+];
 
 export function Toolbar({ 
   selectedTool, 
   onToolChange, 
   showHeatmap, 
   onHeatmapToggle,
-  hasHeatmap 
+  hasHeatmap,
+  zVisualizationMode,
+  onZVisualizationChange,
 }: ToolbarProps) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <div className="flex items-center gap-0.5 p-1 bg-muted/50 rounded-lg border border-border">
         {tools.map(({ type, label, icon: Icon }) => (
           <button
@@ -53,6 +63,25 @@ export function Toolbar({
             <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
+      </div>
+
+      <div className="w-px h-6 bg-border" />
+
+      {/* Z Visualization Mode Dropdown */}
+      <div className="flex items-center gap-1.5">
+        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+        <select
+          value={zVisualizationMode}
+          onChange={(e) => onZVisualizationChange(e.target.value as ZVisualizationMode)}
+          className="h-8 text-xs rounded border border-border bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+          title="Z-Level Visualization Mode"
+        >
+          {zModeOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {hasHeatmap && (

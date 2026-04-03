@@ -1,8 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import type { Warehouse, ToolType, StrategyResult } from '@/lib/taro/types';
-import { getNextItemId } from '@/lib/taro/demo-generator';
+import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
 
 interface WarehouseCanvasProps {
   warehouse: Warehouse;
@@ -12,14 +11,22 @@ interface WarehouseCanvasProps {
   heatmap: number[][] | null;
   showHeatmap: boolean;
   animationProgress: number;
+  zVisualizationMode: ZVisualizationMode;
 }
 
 const CELL_SIZE = 20;
 const GRID_COLOR = '#e5e7eb';
 const SHELF_COLOR = '#374151';
-const ITEM_COLOR = '#3b82f6';
 const WORKER_COLOR = '#22c55e';
 const EMPTY_COLOR = '#ffffff';
+
+// Colors for different z-levels
+const Z_LEVEL_COLORS: Record<number, string> = {
+  1: '#3b82f6', // blue
+  2: '#8b5cf6', // purple
+  3: '#f59e0b', // amber
+  4: '#ef4444', // red
+};
 
 export function WarehouseCanvas({
   warehouse,
@@ -29,6 +36,7 @@ export function WarehouseCanvas({
   heatmap,
   showHeatmap,
   animationProgress,
+  zVisualizationMode,
 }: WarehouseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,8 +65,9 @@ export function WarehouseCanvas({
 
   const applyTool = useCallback((cellX: number, cellY: number) => {
     const newWarehouse = { ...warehouse };
-    newWarehouse.grid = warehouse.grid.map(row => row.map(cell => ({ ...cell })));
+    newWarehouse.grid = warehouse.grid.map(row => row.map(cell => ({ ...cell, locations: [...cell.locations] })));
     newWarehouse.items = [...warehouse.items];
+    newWarehouse.shelves = [...warehouse.shelves];
 
     const cell = newWarehouse.grid[cellY][cellX];
 
@@ -66,39 +75,37 @@ export function WarehouseCanvas({
       case 'shelf':
         if (cell.type === 'empty') {
           cell.type = 'shelf';
-        }
-        break;
-      case 'item':
-        if (cell.type === 'empty' || cell.type === 'item') {
-          const existingItem = newWarehouse.items.find(i => i.x === cellX && i.y === cellY);
-          if (!existingItem) {
-            const newId = getNextItemId(newWarehouse);
-            cell.type = 'item';
-            cell.itemId = newId;
-            newWarehouse.items.push({ id: newId, x: cellX, y: cellY });
-          }
+          cell.locations = [];
+          newWarehouse.shelves.push({ x: cellX, y: cellY });
         }
         break;
       case 'worker':
         // Remove old worker-start cell first
         if (newWarehouse.workerStart) {
           const old = newWarehouse.grid[newWarehouse.workerStart.y][newWarehouse.workerStart.x];
-          if (old.type === 'worker-start') old.type = 'empty';
+          if (old.type === 'worker-start') {
+            old.type = 'empty';
+            old.locations = [];
+          }
         }
         if (cell.type === 'empty') {
           cell.type = 'worker-start';
+          cell.locations = [];
           newWarehouse.workerStart = { x: cellX, y: cellY };
         }
         break;
       case 'erase':
-        if (cell.type === 'item') {
+        if (cell.type === 'shelf') {
+          // Remove from shelves array
+          newWarehouse.shelves = newWarehouse.shelves.filter(s => !(s.x === cellX && s.y === cellY));
+          // Remove associated items
           newWarehouse.items = newWarehouse.items.filter(i => !(i.x === cellX && i.y === cellY));
         }
         if (cell.type === 'worker-start') {
           newWarehouse.workerStart = null;
         }
         cell.type = 'empty';
-        cell.itemId = undefined;
+        cell.locations = [];
         break;
     }
 
@@ -149,6 +156,20 @@ export function WarehouseCanvas({
     setZoom(prev => Math.min(Math.max(prev * delta, 0.5), 3));
   }, []);
 
+  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Log location info when clicking on a cell (not during drawing)
+    const cell = getCellFromMouse(e);
+    if (cell) {
+      const warehouseCell = warehouse.grid[cell.y][cell.x];
+      if (warehouseCell.type === 'shelf' && warehouseCell.locations.length > 0) {
+        console.log(`Cell (${cell.x}, ${cell.y}) locations:`);
+        warehouseCell.locations.forEach(loc => {
+          console.log(`  z=${loc.z}: ${loc.sku} (qty: ${loc.quantity})`);
+        });
+      }
+    }
+  }, [getCellFromMouse, warehouse.grid]);
+
   // Draw the canvas
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -188,9 +209,6 @@ export function WarehouseCanvas({
           case 'shelf':
             fillColor = SHELF_COLOR;
             break;
-          case 'item':
-            fillColor = ITEM_COLOR;
-            break;
           case 'worker-start':
             fillColor = WORKER_COLOR;
             break;
@@ -228,13 +246,52 @@ export function WarehouseCanvas({
         ctx.lineWidth = 0.5;
         ctx.strokeRect(px, py, CELL_SIZE, CELL_SIZE);
 
-        // Draw item ID
-        if (cell.type === 'item' && cell.itemId !== undefined) {
-          ctx.fillStyle = '#ffffff';
-          ctx.font = '10px monospace';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(String(cell.itemId), px + CELL_SIZE / 2, py + CELL_SIZE / 2);
+        // Draw shelf locations based on z-visualization mode
+        if (cell.type === 'shelf') {
+          if (zVisualizationMode === 'collapsed') {
+            // Collapsed mode: show count badge and z-level indicators
+            if (cell.locations.length > 0) {
+              // Draw small z-level count badge
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 9px monospace';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(`z:${cell.locations.length}`, px + CELL_SIZE / 2, py + CELL_SIZE / 2);
+              
+              // Draw tiny colored dots for each z-level
+              const dotSize = 2;
+              const spacing = 4;
+              const startX = px + 3;
+              const startY = py + 3;
+              
+              cell.locations.slice(0, 4).forEach((loc, idx) => {
+                ctx.fillStyle = Z_LEVEL_COLORS[loc.z] || '#9ca3af';
+                ctx.fillRect(startX + (idx * (dotSize + spacing)), startY, dotSize, dotSize);
+              });
+            }
+          } else {
+            // Level mode: show only items at selected z-level
+            const levelNum = parseInt(zVisualizationMode.replace('level', ''), 10);
+            const locationAtLevel = cell.locations.find(loc => loc.z === levelNum);
+            
+            if (locationAtLevel) {
+              // Highlight cell with z-level color
+              ctx.fillStyle = Z_LEVEL_COLORS[levelNum] || '#3b82f6';
+              ctx.globalAlpha = 0.3;
+              ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+              ctx.globalAlpha = 1;
+              
+              // Draw SKU
+              ctx.fillStyle = '#ffffff';
+              ctx.font = '7px monospace';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              const shortSku = locationAtLevel.sku.length > 6 
+                ? locationAtLevel.sku.slice(0, 6) 
+                : locationAtLevel.sku;
+              ctx.fillText(shortSku, px + CELL_SIZE / 2, py + CELL_SIZE / 2);
+            }
+          }
         }
 
         // Draw worker icon
@@ -339,7 +396,7 @@ export function WarehouseCanvas({
     ctx.strokeRect(0, 0, width, height);
 
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, animationProgress, heatmap, showHeatmap]);
+  }, [warehouse, panOffset, zoom, activeRoute, animationProgress, heatmap, showHeatmap, zVisualizationMode]);
 
   return (
     <div 
@@ -355,6 +412,7 @@ export function WarehouseCanvas({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
+        onClick={handleClick}
         className="cursor-crosshair"
         style={{ touchAction: 'none' }}
       />
@@ -362,6 +420,8 @@ export function WarehouseCanvas({
         <span>Zoom: {Math.round(zoom * 100)}%</span>
         <span className="text-border">|</span>
         <span>Alt+drag to pan</span>
+        <span className="text-border">|</span>
+        <span>Click shelf to see locations</span>
       </div>
     </div>
   );

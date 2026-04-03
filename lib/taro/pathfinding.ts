@@ -15,13 +15,13 @@ function heuristic(a: { x: number; y: number }, b: { x: number; y: number }): nu
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
-function isWalkable(warehouse: Warehouse, x: number, y: number): boolean {
+export function isWalkable(warehouse: Warehouse, x: number, y: number): boolean {
   if (x < 0 || x >= warehouse.width || y < 0 || y >= warehouse.height) {
     return false;
   }
   const cell = warehouse.grid[y][x];
-  // Can walk through empty cells, items (on shelves edge), and worker start
-  // Cannot walk through shelf centers
+  // Can walk through empty cells and worker start
+  // Cannot walk through shelf cells (they contain storage locations at z-levels)
   return cell.type !== 'shelf';
 }
 

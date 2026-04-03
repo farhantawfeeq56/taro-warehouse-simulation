@@ -4,13 +4,30 @@ import type { PickTask } from './types';
 /**
  * Convert grid coordinates to a human-readable warehouse location label.
  * Maps: y-position → Aisle letter (A, B, C...), x-position → Rack number, bin slot within rack.
+ * Includes z-level if provided: "Aisle A, Rack 1, Bin 1, Level 2"
  */
-export function coordToLocation(x: number, y: number): string {
+export function coordToLocation(x: number, y: number, z?: number): string {
   const aisleIndex = Math.floor(y / 3); // every 3 rows = 1 aisle (matches builder layout)
   const aisleLabel = String.fromCharCode(65 + (aisleIndex % 26));
   const rack = Math.floor(x / 2) + 1;
   const bin = (x % 2) + 1;
-  return `Aisle ${aisleLabel}, Rack ${rack}, Bin ${bin}`;
+  const baseLocation = `Aisle ${aisleLabel}, Rack ${rack}, Bin ${bin}`;
+  if (z !== undefined && z > 0) {
+    return `${baseLocation}, Level ${z}`;
+  }
+  return baseLocation;
+}
+
+/**
+ * Parse z-level from location string.
+ * Returns z level if found, undefined otherwise.
+ */
+export function parseLocationZ(location: string): number | undefined {
+  const match = location.match(/Level\s+(\d+)/i);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+  return undefined;
 }
 
 /**
@@ -26,7 +43,7 @@ export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
     if (!worker.picks || worker.picks.length === 0) continue;
 
     // Group picks by aisle zone for zone-based instructions
-    const seen = new Set<number>();
+    const seen = new Set<string>();
     let step = 1;
 
     // Sort picks by aisle (y) then rack (x) for natural walking order
@@ -38,14 +55,15 @@ export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
     });
 
     for (const pick of sorted) {
-      if (seen.has(pick.itemId)) continue;
-      seen.add(pick.itemId);
+      const pickKey = `${pick.x},${pick.y},${pick.z}`;
+      if (seen.has(pickKey)) continue;
+      seen.add(pickKey);
 
       const aisleIndex = Math.floor(pick.y / 3);
       const aisleLabel = String.fromCharCode(65 + (aisleIndex % 26));
       const zone = `Aisle ${aisleLabel}`;
-      const location = coordToLocation(pick.x, pick.y);
-      const item = `Item ${pick.itemId}`;
+      const location = coordToLocation(pick.x, pick.y, pick.z);
+      const item = pick.sku || `Item ${pick.itemId}`;
 
       rows.push(`${worker.workerId},${step},${zone},${location},${item}`);
       step++;
