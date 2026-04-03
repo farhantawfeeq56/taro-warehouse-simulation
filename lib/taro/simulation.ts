@@ -1,6 +1,6 @@
 // Simulation engine for picking strategies
 
-import type { Warehouse, Order, StrategyResult, SimulationResults, StrategyType, WorkerRoute } from './types';
+import type { Warehouse, Order, StrategyResult, SimulationResults, StrategyType, WorkerRoute, Item } from './types';
 import { findPath, calculatePathDistance } from './pathfinding';
 
 const STRATEGY_COLORS: Record<StrategyType, string> = {
@@ -26,9 +26,37 @@ const WALKING_SPEED = 60;
 // Cost per minute of worker time
 const COST_PER_MINUTE = 0.50;
 
-function getItemPosition(warehouse: Warehouse, itemId: number): { x: number; y: number } | null {
-  const item = warehouse.items.find(i => i.id === itemId);
-  return item ? { x: item.x, y: item.y } : null;
+// Get all pickable items from warehouse locations
+function getAllPickableItems(warehouse: Warehouse): Item[] {
+  const items: Item[] = [];
+  let itemId = 1;
+  
+  for (let y = 0; y < warehouse.height; y++) {
+    for (let x = 0; x < warehouse.width; x++) {
+      const cell = warehouse.grid[y][x];
+      if (cell.type === 'shelf' && cell.locations.length > 0) {
+        for (const loc of cell.locations) {
+          items.push({
+            id: itemId,
+            x: loc.x,
+            y: loc.y,
+            z: loc.z,
+            sku: loc.sku,
+          });
+          itemId++;
+        }
+      }
+    }
+  }
+  
+  return items;
+}
+
+function getItemPosition(warehouse: Warehouse, itemId: number): { x: number; y: number; z: number; sku: string } | null {
+  // Find item by ID from all locations
+  const allItems = getAllPickableItems(warehouse);
+  const item = allItems.find(i => i.id === itemId);
+  return item ? { x: item.x, y: item.y, z: item.z, sku: item.sku } : null;
 }
 
 /**
@@ -50,10 +78,11 @@ function generateStrategyAwareWorkerRoutes(
   const numWorkers = strategy === 'single' ? 1 : Math.max(1, Math.min(3, workerCount));
   const start = warehouse.workerStart!;
 
-  // Build item→position map
-  const itemPosMap = new Map<number, { x: number; y: number }>();
-  for (const item of warehouse.items) {
-    itemPosMap.set(item.id, { x: item.x, y: item.y });
+  // Build item→position map from all locations in the warehouse
+  const allItems = getAllPickableItems(warehouse);
+  const itemPosMap = new Map<number, { x: number; y: number; z: number; sku: string }>();
+  for (const item of allItems) {
+    itemPosMap.set(item.id, { x: item.x, y: item.y, z: item.z, sku: item.sku });
   }
 
   // Collect all unique items from all orders
@@ -74,7 +103,7 @@ function generateStrategyAwareWorkerRoutes(
     // SINGLE: Single worker picks items order by order, returning to start after each
     const route: { x: number; y: number }[] = [];
     let currentPos = start;
-    const picks: { itemId: number; x: number; y: number }[] = [];
+    const picks: { itemId: number; x: number; y: number; z: number; sku: string }[] = [];
 
     for (const order of orders) {
       for (const itemId of order.items) {
@@ -84,7 +113,7 @@ function generateStrategyAwareWorkerRoutes(
           if (path.length > 0) {
             route.push(...path);
             currentPos = pos;
-            picks.push({ itemId, x: pos.x, y: pos.y });
+            picks.push({ itemId, x: pos.x, y: pos.y, z: pos.z, sku: pos.sku });
           }
         }
       }
@@ -172,7 +201,13 @@ function generateStrategyAwareWorkerRoutes(
     return {
       workerId: wid,
       route,
-      picks: picks.map(p => ({ itemId: p.id, x: p.pos.x, y: p.pos.y })),
+      picks: picks.map(p => ({ 
+        itemId: p.id, 
+        x: p.pos.x, 
+        y: p.pos.y, 
+        z: p.pos.z,
+        sku: p.pos.sku,
+      })),
       color: WORKER_COLORS[i % WORKER_COLORS.length],
       zone: picks.length > 0 ? `Worker ${wid}` : `Worker ${wid} (idle)`,
       assignedPickCount: picks.length,
@@ -237,7 +272,7 @@ function simulateBatchPicking(
   // Sort items by position (left to right, top to bottom) for efficient picking
   const sortedItems = Array.from(allItems)
     .map(id => ({ id, pos: getItemPosition(warehouse, id) }))
-    .filter((item): item is { id: number; pos: { x: number; y: number } } => item.pos !== null)
+    .filter((item): item is { id: number; pos: { x: number; y: number; z: number; sku: string } } => item.pos !== null)
     .sort((a, b) => {
       if (a.pos.y !== b.pos.y) return a.pos.y - b.pos.y;
       return a.pos.x - b.pos.x;
@@ -285,8 +320,8 @@ function simulateZonePicking(
     }
   }
   
-  const leftZoneItems: { id: number; pos: { x: number; y: number } }[] = [];
-  const rightZoneItems: { id: number; pos: { x: number; y: number } }[] = [];
+  const leftZoneItems: { id: number; pos: { x: number; y: number; z: number; sku: string } }[] = [];
+  const rightZoneItems: { id: number; pos: { x: number; y: number; z: number; sku: string } }[] = [];
   
   for (const id of allItems) {
     const pos = getItemPosition(warehouse, id);
@@ -345,7 +380,7 @@ function simulateWavePicking(
   
   const itemsWithPos = Array.from(allItems)
     .map(id => ({ id, pos: getItemPosition(warehouse, id) }))
-    .filter((item): item is { id: number; pos: { x: number; y: number } } => item.pos !== null);
+    .filter((item): item is { id: number; pos: { x: number; y: number; z: number; sku: string } } => item.pos !== null);
   
   const fullRoute: { x: number; y: number }[] = [];
   let currentPos = warehouse.workerStart;
@@ -354,7 +389,7 @@ function simulateWavePicking(
   
   // Nearest neighbor algorithm
   while (visited.size < itemsWithPos.length) {
-    let nearestItem: { id: number; pos: { x: number; y: number } } | null = null;
+    let nearestItem: { id: number; pos: { x: number; y: number; z: number; sku: string } } | null = null;
     let nearestDistance = Infinity;
     
     for (const item of itemsWithPos) {

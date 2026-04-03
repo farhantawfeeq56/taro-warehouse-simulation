@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Warehouse } from '@/lib/taro/types';
+import type { Warehouse, StorageLocation } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { X, Wand2, Upload } from 'lucide-react';
 
@@ -28,13 +28,13 @@ function buildWarehouseFromParams(
   const width = Math.max(racksPerAisle * RACK_SPACING + 2, 10);
   const height = Math.max(aisles * AISLE_HEIGHT + 2, 10);
 
-  const grid: Warehouse['grid'] = Array.from({ length: height }, () =>
-    Array.from({ length: width }, () => ({ type: 'empty' as const }))
+  const grid: Warehouse['grid'] = Array.from({ length: height }, (_, y) =>
+    Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y, locations: [] }))
   );
 
   const items: Warehouse['items'] = [];
+  const shelves: Warehouse['shelves'] = [];
   let itemId = 1;
-  let shelfCount = 0;
 
   for (let a = 0; a < aisles; a++) {
     const row = 1 + a * AISLE_HEIGHT; // shelf row
@@ -43,34 +43,39 @@ function buildWarehouseFromParams(
       const col = 1 + r * RACK_SPACING;
       if (col >= width) break;
 
-      // Place shelf block
-      grid[row][col] = { type: 'shelf' };
-      shelfCount++;
-
-      // Place items (one per bin slot) on adjacent accessible cell
-      const itemRow = row; // items placed on shelf cell itself
+      // Place shelf block with storage locations
+      const locations: StorageLocation[] = [];
+      
       for (let b = 0; b < binsPerRack; b++) {
         if (itemId > aisles * racksPerAisle * binsPerRack) break;
-        if (b === 0) {
-          // First bin: item on the shelf cell
-          grid[itemRow][col] = { type: 'item', itemId };
-          items.push({ id: itemId, x: col, y: itemRow });
-          itemId++;
+        
+        // Create z-levels for this bin (1-3 levels per bin)
+        const numZLevels = Math.min(3, Math.floor(Math.random() * 3) + 1);
+        
+        for (let z = 1; z <= numZLevels; z++) {
+          const sku = `SKU_${String(itemId).padStart(3, '0')}`;
+          const quantity = Math.floor(Math.random() * 90) + 10;
+          locations.push({ x: col, y: row, z, sku, quantity });
+          items.push({ id: itemId, x: col, y: row, z, sku });
         }
+        itemId++;
       }
+
+      grid[row][col] = { type: 'shelf', x: col, y: row, locations };
+      shelves.push({ x: col, y: row });
     }
   }
 
   // Worker start at bottom-left accessible cell
   const workerStart = { x: 0, y: height - 1 };
-  grid[workerStart.y][workerStart.x] = { type: 'worker-start' };
+  grid[workerStart.y][workerStart.x] = { type: 'worker-start', x: 0, y: height - 1, locations: [] };
 
   return {
     width,
     height,
     grid,
     items,
-    shelves: [],
+    shelves,
     workerStart,
   };
 }
@@ -80,17 +85,20 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     const lines = csvText.trim().split('\n');
     const dataLines = lines[0].toLowerCase().includes('aisle') ? lines.slice(1) : lines;
 
-    interface BinEntry { aisle: string; rack: number; bin: number; sku: string }
+    interface BinEntry { aisle: string; rack: number; bin: number; sku: string; z?: number }
     const entries: BinEntry[] = dataLines
       .map(l => l.trim())
       .filter(l => l.length > 0)
       .map(l => {
         const parts = l.split(',');
+        // Support: Aisle,Rack,Bin,SKU or Aisle,Rack,Bin,Level,SKU
+        const hasLevel = parts.length >= 5;
         return {
           aisle: parts[0]?.trim().toUpperCase() ?? 'A1',
           rack: parseInt(parts[1] ?? '1', 10),
           bin: parseInt(parts[2] ?? '1', 10),
-          sku: parts[3]?.trim() ?? 'Item',
+          z: hasLevel ? parseInt(parts[3] ?? '1', 10) : undefined,
+          sku: hasLevel ? parts[4]?.trim() : parts[3]?.trim() ?? 'Item',
         };
       })
       .filter(e => !isNaN(e.rack) && !isNaN(e.bin));
@@ -98,14 +106,11 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     if (entries.length === 0) return null;
 
     // Step 1: Determine unique sorted aisle labels and max rack index
-    // Aisle labels like A1, A2, B1 are sorted alphabetically → numeric index
     const aisleLabels = Array.from(new Set(entries.map(e => e.aisle))).sort();
     const aisleIndex = new Map(aisleLabels.map((a, i) => [a, i]));
     const maxRack = Math.max(...entries.map(e => e.rack));
 
-    // Layout constants:
-    // Each aisle occupies 2 rows: row 0 = shelf cells, row 1 = walking aisle
-    // Each rack occupies 2 columns: col 0 = shelf cell, col 1 = gap
+    // Layout constants
     const AISLE_HEIGHT = 3;  // 1 shelf row + 2 walking rows
     const RACK_SPACING = 2;  // 1 shelf col + 1 gap col
 
@@ -113,7 +118,7 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     const height = Math.max(aisleLabels.length * AISLE_HEIGHT + 2, 10);
 
     const grid: Warehouse['grid'] = Array.from({ length: height }, (_, y) =>
-      Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y }))
+      Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y, locations: [] }))
     );
 
     const items: Warehouse['items'] = [];
@@ -128,7 +133,7 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
       shelfMap.get(key)!.push(entry);
     }
 
-    // Step 3: Create shelves first, then place items inside them
+    // Step 3: Create shelves first, then place locations inside them
     for (const [key, binEntries] of shelfMap) {
       const [aisleLabel, rackStr] = key.split(':');
       const ai = aisleIndex.get(aisleLabel) ?? 0;
@@ -140,29 +145,36 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
 
       if (shelfRow >= height || shelfCol >= width) continue;
 
-      // Place the shelf block
-      grid[shelfRow][shelfCol] = { type: 'shelf', x: shelfCol, y: shelfRow };
-      shelves.push({ x: shelfCol, y: shelfRow });
-
-      // Step 4: Place items on the cell directly below the shelf (aisle-facing, accessible)
-      // Each bin within the rack gets its own item. Bins overflow to adjacent columns if needed.
-      for (let b = 0; b < binEntries.length; b++) {
-        const itemCol = shelfCol + b; // bins spread rightward along the rack
-        const itemRow = shelfRow + 1; // one row below shelf = walking aisle side
-
-        if (itemCol >= width || itemRow >= height) break;
-        // Don't overwrite an existing item
-        if (grid[itemRow][itemCol].type !== 'empty') continue;
-
-        grid[itemRow][itemCol] = { type: 'item', itemId, x: itemCol, y: itemRow };
-        items.push({ id: itemId, x: itemCol, y: itemRow });
-        itemId++;
+      // Build storage locations for this shelf
+      const locations: StorageLocation[] = [];
+      
+      for (const entry of binEntries) {
+        // Default to z=1 if not specified
+        const zLevel = entry.z ?? 1;
+        locations.push({
+          x: shelfCol,
+          y: shelfRow,
+          z: zLevel,
+          sku: entry.sku,
+          quantity: Math.floor(Math.random() * 90) + 10,
+        });
+        items.push({
+          id: itemId++,
+          x: shelfCol,
+          y: shelfRow,
+          z: zLevel,
+          sku: entry.sku,
+        });
       }
+
+      // Place the shelf block with locations
+      grid[shelfRow][shelfCol] = { type: 'shelf', x: shelfCol, y: shelfRow, locations };
+      shelves.push({ x: shelfCol, y: shelfRow });
     }
 
     // Worker start at bottom-left corner
     const workerStart = { x: 0, y: height - 1 };
-    grid[workerStart.y][workerStart.x] = { type: 'worker-start', x: 0, y: height - 1 };
+    grid[workerStart.y][workerStart.x] = { type: 'worker-start', x: 0, y: height - 1, locations: [] };
 
     return { width, height, grid, items, shelves, workerStart };
   } catch {
@@ -191,7 +203,7 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
     }
     const wh = parseCSVWarehouse(csvText);
     if (!wh) {
-      setCsvError('Could not parse CSV. Expected columns: Aisle, Rack, Bin, SKU');
+      setCsvError('Could not parse CSV. Expected columns: Aisle, Rack, Bin, [Level], SKU');
       return;
     }
     onGenerate(wh);
@@ -234,7 +246,7 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
           {tab === 'guided' ? (
             <div className="space-y-5">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Enter your warehouse dimensions and the system will auto-generate the layout with aisles, racks, and item locations.
+                Enter your warehouse dimensions and the system will auto-generate the layout with aisles, racks, and storage locations at multiple z-levels.
               </p>
 
               {[
@@ -265,7 +277,7 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
               <div className="bg-muted/30 rounded-lg px-4 py-3 text-xs text-muted-foreground space-y-0.5">
                 <div className="font-medium text-foreground">Preview</div>
                 <div>{aisles} aisles × {racks} racks = {aisles * racks} rack units</div>
-                <div>{aisles * racks * bins} total bin slots</div>
+                <div>{aisles * racks * bins} bin slots with z-levels</div>
               </div>
 
               <button
@@ -279,14 +291,15 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
           ) : (
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Paste your warehouse location data as CSV. Expected columns: <span className="font-mono text-foreground">Aisle, Rack, Bin, SKU</span>
+                Paste your warehouse location data as CSV. Expected columns: <span className="font-mono text-foreground">Aisle, Rack, Bin, [Level], SKU</span>
               </p>
               <div className="bg-muted/30 rounded p-3 font-mono text-xs text-muted-foreground space-y-0.5">
                 <div className="text-foreground font-medium mb-1">Example format:</div>
                 <div>Aisle,Rack,Bin,SKU</div>
                 <div>A1,1,1,ITEM-001</div>
                 <div>A1,1,2,ITEM-002</div>
-                <div>A2,3,1,ITEM-015</div>
+                <div>A2,3,1,LEVEL,ITEM-015</div>
+                <div className="text-xs text-muted-foreground/70 mt-2">Level column is optional (defaults to 1)</div>
               </div>
               <textarea
                 value={csvText}
