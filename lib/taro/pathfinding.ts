@@ -80,6 +80,13 @@ export function findPath(
 
   while (!openSet.isEmpty) {
     const current = openSet.dequeue()!;
+    const currentKey = `${current.x},${current.y}`;
+    const bestOpenNode = openSetNodes.get(currentKey);
+
+    // Skip stale nodes that were superseded by a better path
+    if (bestOpenNode !== current) {
+      continue;
+    }
 
     // Check if we reached the goal
     if (current.x === actualEnd.x && current.y === actualEnd.y) {
@@ -92,7 +99,6 @@ export function findPath(
       return path;
     }
 
-    const currentKey = `${current.x},${current.y}`;
     closedSet.add(currentKey);
     openSetNodes.delete(currentKey);
 
@@ -111,11 +117,15 @@ export function findPath(
 
       if (existingNode) {
         if (g < existingNode.g) {
-          existingNode.g = g;
-          existingNode.f = f;
-          existingNode.parent = current;
-          // Priority queue doesn't support priority updates directly
-          // The node will be in correct position since we're always extracting min
+          const updatedNode: Node = {
+            ...existingNode,
+            g,
+            h,
+            f,
+            parent: current,
+          };
+          openSet.enqueue(updatedNode, f);
+          openSetNodes.set(neighborKey, updatedNode);
         }
       } else {
         const newNode: Node = {
