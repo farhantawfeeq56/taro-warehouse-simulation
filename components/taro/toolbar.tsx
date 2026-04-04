@@ -1,15 +1,12 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { ToolType, ZVisualizationMode, VisualizationMode } from '@/lib/taro/types';
-import { Grid3X3, User, Eraser, Flame, Layers, Eye } from 'lucide-react';
+import type { ToolType, ZVisualizationMode } from '@/lib/taro/types';
+import { Grid3X3, User, Eraser, Layers } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
   onToolChange: (tool: ToolType) => void;
-  visualizationMode: VisualizationMode;
-  onVisualizationModeChange: (mode: VisualizationMode) => void;
-  hasHeatmap: boolean;
   zVisualizationMode: ZVisualizationMode;
   onZVisualizationChange: (mode: ZVisualizationMode) => void;
 }
@@ -27,26 +24,16 @@ const toolColors: Record<ToolType, { bg: string; textClass: string }> = {
 };
 
 const zModeOptions: { value: ZVisualizationMode; label: string }[] = [
-  { value: 'collapsed', label: 'Collapsed (all levels)' },
-  { value: 'level1', label: 'Show Level 1' },
-  { value: 'level2', label: 'Show Level 2' },
-  { value: 'level3', label: 'Show Level 3' },
-  { value: 'level4', label: 'Show Level 4' },
-];
-
-const viewModes: { value: VisualizationMode; label: string; disabled?: boolean }[] = [
-  { value: 'collapsed', label: 'Collapsed (Summary)' },
-  { value: 'heatmap', label: 'Heatmap' },
-  { value: 'z-level', label: 'Z-Level Filter' },
-  { value: 'debug-picks', label: 'Debug: Pick Points' },
+  { value: 'all', label: 'All' },
+  { value: 'level1', label: 'Level 1' },
+  { value: 'level2', label: 'Level 2' },
+  { value: 'level3', label: 'Level 3' },
+  { value: 'level4', label: 'Level 4' },
 ];
 
 export function Toolbar({ 
   selectedTool, 
   onToolChange, 
-  visualizationMode, 
-  onVisualizationModeChange,
-  hasHeatmap,
   zVisualizationMode,
   onZVisualizationChange,
 }: ToolbarProps) {
@@ -74,44 +61,22 @@ export function Toolbar({
 
       <div className="w-px h-6 bg-border" />
 
-      {/* View Mode Dropdown */}
       <div className="flex items-center gap-1.5">
-        <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground hidden sm:inline">View Mode:</span>
+        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground hidden sm:inline">Z-Level:</span>
         <select
-          value={visualizationMode}
-          onChange={(e) => onVisualizationModeChange(e.target.value as VisualizationMode)}
+          value={zVisualizationMode}
+          onChange={(e) => onZVisualizationChange(e.target.value as ZVisualizationMode)}
           className="h-8 text-xs rounded border border-border bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary"
-          title="Warehouse View Mode"
+          title="Z-Level Selector"
         >
-          {viewModes.map((opt) => (
-            <option key={opt.value} value={opt.value} disabled={opt.value === 'heatmap' && !hasHeatmap}>
+          {zModeOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
           ))}
         </select>
       </div>
-
-      {visualizationMode === 'z-level' && (
-        <>
-          <div className="w-px h-6 bg-border" />
-          <div className="flex items-center gap-1.5">
-            <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-            <select
-              value={zVisualizationMode}
-              onChange={(e) => onZVisualizationChange(e.target.value as ZVisualizationMode)}
-              className="h-8 text-xs rounded border border-border bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary"
-              title="Z-Level Visualization Mode"
-            >
-              {zModeOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </>
-      )}
     </div>
   );
 }
