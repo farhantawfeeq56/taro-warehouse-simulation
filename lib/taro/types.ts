@@ -82,9 +82,7 @@ export interface SimulationResults {
 
 export type ToolType = 'shelf' | 'worker' | 'erase';
 
-export type ZVisualizationMode = 'collapsed' | 'level1' | 'level2' | 'level3' | 'level4';
-
-export type VisualizationMode = 'collapsed' | 'heatmap' | 'z-level' | 'debug-picks';
+export type ZVisualizationMode = 'all' | 'level1' | 'level2' | 'level3' | 'level4';
 
 export interface PickTask {
   workerId: number;

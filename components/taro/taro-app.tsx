@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult, PickTask, ZVisualizationMode, VisualizationMode } from '@/lib/taro/types';
+import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult, PickTask, ZVisualizationMode } from '@/lib/taro/types';
 import { createEmptyWarehouse, generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/lib/taro/simulation';
 import { generateTaskCSV, parseTaskCSV } from '@/lib/taro/csv';
@@ -20,8 +20,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [warehouse, setWarehouse] = useState<Warehouse>(() => createEmptyWarehouse(30, 24));
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
-  const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('collapsed');
-  const [visualizationMode, setVisualizationMode] = useState<VisualizationMode>('collapsed');
+  const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
@@ -42,7 +41,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setSimulationResults(null);
     setActiveStrategy(null);
     setAnimationProgress(0);
-    setVisualizationMode('collapsed');
+    setZVisualizationMode('all');
     setShowEntryOverlay(true);
   }, []);
 
@@ -233,9 +232,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
             <Toolbar
               selectedTool={selectedTool}
               onToolChange={setSelectedTool}
-              visualizationMode={visualizationMode}
-              onVisualizationModeChange={setVisualizationMode}
-              hasHeatmap={simulationResults !== null}
               zVisualizationMode={zVisualizationMode}
               onZVisualizationChange={setZVisualizationMode}
             />
@@ -247,8 +243,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
             onWarehouseChange={setWarehouse}
             selectedTool={selectedTool}
             activeRoute={getActiveRoute()}
-            heatmap={simulationResults?.heatmap || null}
-            visualizationMode={visualizationMode}
             animationProgress={animationProgress}
             zVisualizationMode={zVisualizationMode}
           />
