@@ -49,7 +49,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const generateDemo = useCallback(() => {
     const demoWarehouse = generateDemoWarehouse();
     setWarehouse(demoWarehouse);
-    const demoOrders = generateRandomOrders(demoWarehouse.items, 4);
+    const demoOrders = generateRandomOrders(demoWarehouse, 4);
     setOrders(demoOrders);
     setSimulationResults(null);
     setActiveStrategy(null);
