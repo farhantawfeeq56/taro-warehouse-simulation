@@ -111,16 +111,35 @@ export function parseTaskCSV(csvText: string): PickTask[] {
         return { workerId: 0, step: 0, zone: '', location: '', item: '' };
       }
 
+      const parseLocationAndItem = (rawText: string): { location: string; item: string } => {
+        const locationPattern =
+          /(Aisle\s+[^,]+,\s*Rack\s+\d+,\s*Bin\s+\d+(?:,\s*Level\s+\d+)?)(?:,(.*))?$/i;
+        const match = rawText.match(locationPattern);
+
+        if (match) {
+          return {
+            location: match[1].trim(),
+            item: (match[2] ?? '').trim(),
+          };
+        }
+
+        const fallbackParts = rawText.split(',');
+        return {
+          location: fallbackParts[0]?.trim() ?? '',
+          item: fallbackParts.slice(1).join(',').trim(),
+        };
+      };
+
       if (hasZone) {
         const zone = parts[2]?.trim() ?? '';
-        const location = parts[3]?.trim() ?? '';
-        const item = parts.slice(4).join(',').trim();
+        const remainingText = parts.slice(3).join(',').trim();
+        const { location, item } = parseLocationAndItem(remainingText);
         return { workerId, step, zone, location, item };
-      } else {
-        const location = parts[2]?.trim() ?? '';
-        const item = parts.slice(3).join(',').trim();
-        return { workerId, step, zone: '', location, item };
       }
+
+      const remainingText = parts.slice(2).join(',').trim();
+      const { location, item } = parseLocationAndItem(remainingText);
+      return { workerId, step, zone: '', location, item };
     })
     .filter(task => task.workerId > 0 && task.step > 0);
 }

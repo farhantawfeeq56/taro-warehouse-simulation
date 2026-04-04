@@ -147,12 +147,13 @@ export function generateRandomOrders(warehouse: Warehouse, count: number): Order
 
 export function getNextSku(warehouse: Warehouse): string {
   const allLocations = getAllPickableLocations(warehouse);
-  const existingSkus = Array.from(allLocations.values()).map(l => l.sku);
-  let skuNum = 1;
-  let sku = `SKU_${String(skuNum).padStart(3, '0')}`;
-  while (existingSkus.includes(sku)) {
-    skuNum++;
-    sku = `SKU_${String(skuNum).padStart(3, '0')}`;
-  }
-  return sku;
+  const maxSkuNumber = Array.from(allLocations.values()).reduce((maxValue, location) => {
+    const match = location.sku.match(/^SKU_(\d+)$/);
+    if (!match) return maxValue;
+    const parsed = parseInt(match[1], 10);
+    if (isNaN(parsed)) return maxValue;
+    return Math.max(maxValue, parsed);
+  }, 0);
+
+  return `SKU_${String(maxSkuNumber + 1).padStart(3, '0')}`;
 }
