@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
-import { getAllPickableLocations } from '@/lib/taro/simulation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Shuffle, X } from 'lucide-react';
@@ -20,8 +19,20 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
 
   // Get all available SKUs from warehouse
   const availableSkus = useMemo(() => {
-    const locations = getAllPickableLocations(warehouse);
-    return Array.from(new Set(Array.from(locations.values()).map(l => l.sku)));
+    const skus = new Set<string>();
+
+    for (let y = 0; y < warehouse.height; y++) {
+      for (let x = 0; x < warehouse.width; x++) {
+        const cell = warehouse.grid[y][x];
+        if (cell.type === 'shelf' && cell.locations.length > 0) {
+          for (const loc of cell.locations) {
+            skus.add(loc.sku);
+          }
+        }
+      }
+    }
+
+    return Array.from(skus);
   }, [warehouse]);
 
   const addOrder = () => {
