@@ -58,7 +58,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   }, []);
 
   const runSimulationHandler = useCallback(() => {
-    if (!warehouse.workerStart || orders.length === 0 || warehouse.items.length === 0) {
+    if (!warehouse.workerStart || orders.length === 0) {
       return;
     }
 
@@ -71,7 +71,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
       const results = runSimulation(warehouse, orders, workerCount);
       setSimulationResults(results);
       setIsSimulating(false);
-      
+
       // Auto-select best strategy and start animation
       setActiveStrategy(results.bestStrategy);
     }, 500);
@@ -116,7 +116,6 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
 
   const canSimulate = warehouse.workerStart !== null &&
                       orders.length > 0 &&
-                      warehouse.items.length > 0 &&
                       orders.some(o => o.items.length > 0);
 
   const handleImport = useCallback(() => {
@@ -128,8 +127,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setShowEntryOverlay(false);
   }, []);
 
-  const hasContent = warehouse.items.length > 0 ||
-                     warehouse.shelves.length > 0 ||
+  const hasContent = warehouse.shelves.length > 0 ||
                      warehouse.workerStart !== null ||
                      orders.length > 0;
 
@@ -224,7 +222,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
         <OrdersPanel
           orders={orders}
           onOrdersChange={setOrders}
-          availableItems={warehouse.items}
+          warehouse={warehouse}
           workerCount={workerCount}
         />
 
@@ -263,8 +261,10 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
                 <span className="font-mono">{warehouse.width} × {warehouse.height}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-medium">Items:</span>
-                <span className="font-mono">{warehouse.items.length}</span>
+                <span className="font-medium">Locations:</span>
+                <span className="font-mono">
+                  {warehouse.grid.flat().filter(cell => cell.type === 'shelf').reduce((sum, cell) => sum + cell.locations.length, 0)}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">Worker:</span>

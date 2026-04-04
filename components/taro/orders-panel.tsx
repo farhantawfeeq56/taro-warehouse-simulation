@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import type { Order, Item } from '@/lib/taro/types';
+import { useState, useMemo } from 'react';
+import type { Order, Warehouse } from '@/lib/taro/types';
+import { getAllPickableLocations } from '@/lib/taro/simulation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Shuffle, X } from 'lucide-react';
@@ -10,12 +11,18 @@ import { generateRandomOrders } from '@/lib/taro/demo-generator';
 interface OrdersPanelProps {
   orders: Order[];
   onOrdersChange: (orders: Order[]) => void;
-  availableItems: Item[];
+  warehouse: Warehouse;
   workerCount: number;
 }
 
-export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCount }: OrdersPanelProps) {
+export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
+
+  // Get all available SKUs from warehouse
+  const availableSkus = useMemo(() => {
+    const locations = getAllPickableLocations(warehouse);
+    return Array.from(new Set(Array.from(locations.values()).map(l => l.sku)));
+  }, [warehouse]);
 
   const addOrder = () => {
     const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -39,10 +46,10 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCoun
     );
   };
 
-  const addItemToOrder = (orderId: string, itemId: number) => {
+  const addItemToOrder = (orderId: string, sku: string) => {
     onOrdersChange(
       orders.map(o =>
-        o.id === orderId ? { ...o, items: [...o.items, itemId] } : o
+        o.id === orderId ? { ...o, items: [...o.items, sku] } : o
       )
     );
     setNewItemInput(prev => ({ ...prev, [orderId]: '' }));
@@ -60,31 +67,21 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCoun
 
   const handleItemInputKeyDown = (orderId: string, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      const value = parseInt(newItemInput[orderId] || '', 10);
-      if (!isNaN(value) && value > 0) addItemToOrder(orderId, value);
+      const value = newItemInput[orderId] || '';
+      if (value.trim() !== '' && availableSkus.includes(value)) {
+        addItemToOrder(orderId, value);
+      }
     }
   };
 
   const generateRandom = () => {
-    if (availableItems.length === 0) return;
-    const randomOrders = generateRandomOrders(
-      availableItems,
-      Math.min(5, Math.max(3, Math.floor(availableItems.length / 3)))
-    );
+    if (availableSkus.length === 0) return;
+    const randomOrders = generateRandomOrders(warehouse, Math.min(5, Math.max(3, Math.floor(availableSkus.length / 3))));
     // Preserve assignedWorkerId=null on generated orders
     onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
   };
 
   const WORKER_COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
-
-  // Get item display info (SKU if available)
-  const getItemDisplay = (itemId: number): string => {
-    const item = availableItems.find(i => i.id === itemId);
-    if (item?.sku) {
-      return `${itemId}:${item.sku}`;
-    }
-    return String(itemId);
-  };
 
   return (
     <div className="w-72 border-r border-border bg-background flex flex-col">
@@ -107,7 +104,7 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCoun
             variant="outline"
             size="sm"
             onClick={generateRandom}
-            disabled={availableItems.length === 0}
+            disabled={availableSkus.length === 0}
             className="h-7 text-xs px-2"
             title="Generate random orders"
           >
@@ -180,13 +177,13 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCoun
                   {order.items.length === 0 ? (
                     <span className="text-xs text-muted-foreground italic">No items</span>
                   ) : (
-                    order.items.map((itemId, index) => (
+                    order.items.map((sku, index) => (
                       <span
                         key={`${order.id}-${index}`}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs font-mono font-medium rounded border border-primary/20 group"
-                        title={getItemDisplay(itemId)}
+                        title={sku}
                       >
-                        {itemId}
+                        {sku}
                         <button
                           onClick={() => removeItemFromOrder(order.id, index)}
                           className="text-primary/50 hover:text-primary group-hover:opacity-100 opacity-0 transition-opacity"
@@ -203,20 +200,27 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCoun
               {/* Add item */}
               <div className="flex gap-1.5 pt-1">
                 <Input
-                  type="number"
-                  placeholder="Item #"
+                  type="text"
+                  placeholder="SKU"
+                  list="available-skus"
                   value={newItemInput[order.id] || ''}
                   onChange={e => setNewItemInput(prev => ({ ...prev, [order.id]: e.target.value }))}
                   onKeyDown={e => handleItemInputKeyDown(order.id, e)}
                   className="h-7 text-xs flex-1"
-                  min={1}
                 />
+                <datalist id="available-skus">
+                  {availableSkus.slice(0, 20).map(sku => (
+                    <option key={sku} value={sku} />
+                  ))}
+                </datalist>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const value = parseInt(newItemInput[order.id] || '', 10);
-                    if (!isNaN(value) && value > 0) addItemToOrder(order.id, value);
+                    const value = newItemInput[order.id] || '';
+                    if (value.trim() !== '' && availableSkus.includes(value)) {
+                      addItemToOrder(order.id, value);
+                    }
                   }}
                   className="h-7 px-3 text-xs"
                 >
@@ -237,7 +241,7 @@ export function OrdersPanel({ orders, onOrdersChange, availableItems, workerCoun
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="font-medium">Unique Items:</span>
+            <span className="font-medium">Unique SKUs:</span>
             <span className="font-mono font-semibold text-foreground">
               {new Set(orders.flatMap(o => o.items)).size}
             </span>

@@ -4,7 +4,7 @@ import type { SimulationResults, StrategyResult, StrategyType } from '@/lib/taro
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Activity, Play, Pause, Download, Clipboard, Check } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { generateTaskCSV, downloadCSV } from '@/lib/taro/csv';
 
 interface ResultsPanelProps {
@@ -24,38 +24,13 @@ export function ResultsPanel({
   animationProgress,
   workerCount,
 }: ResultsPanelProps) {
-  const [replayProgress, setReplayProgress] = useState(0);
   const [isReplaying, setIsReplaying] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Sync replayProgress with the animationProgress driven from the parent
-  useEffect(() => {
-    setReplayProgress(animationProgress);
-  }, [animationProgress]);
-
-  useEffect(() => {
-    if (!isReplaying) return;
-
-    let animationId: number;
-    const startTime = performance.now();
-    const speed = 1;
-    const duration = 3000;
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min((elapsed * speed) / duration, 1);
-      setReplayProgress(progress);
-
-      if (progress < 1) {
-        animationId = requestAnimationFrame(animate);
-      } else {
-        setIsReplaying(false);
-      }
-    };
-
-    animationId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationId);
-  }, [isReplaying]);
+  // Toggle replay mode - uses the parent's animationProgress
+  const toggleReplay = useCallback(() => {
+    setIsReplaying(prev => !prev);
+  }, []);
 
   if (!results && !isSimulating) {
     return (
@@ -104,19 +79,21 @@ export function ResultsPanel({
   const resultsData = results;
 
   // Sort strategies with strict hierarchy: baseline always at bottom, then efficiency desc, then critical distance asc, time asc, cost asc
-  const sortedStrategies = [...resultsData.strategies].sort((a, b) => {
-    // Always put baseline ('single') at the bottom
-    if (a.strategy === 'single') return 1;
-    if (b.strategy === 'single') return -1;
-    // Primary: efficiency descending
-    if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
-    // Tie-breaker 1: critical path distance ascending
-    if (a.criticalPathDistance !== b.criticalPathDistance) return a.criticalPathDistance - b.criticalPathDistance;
-    // Tie-breaker 2: time ascending
-    if (a.estimatedTime !== b.estimatedTime) return a.estimatedTime - b.estimatedTime;
-    // Tie-breaker 3: cost ascending
-    return a.costPerOrder - b.costPerOrder;
-  });
+  const sortedStrategies = useMemo(() => {
+    return [...resultsData.strategies].sort((a, b) => {
+      // Always put baseline ('single') at the bottom
+      if (a.strategy === 'single') return 1;
+      if (b.strategy === 'single') return -1;
+      // Primary: efficiency descending
+      if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
+      // Tie-breaker 1: critical path distance ascending
+      if (a.criticalPathDistance !== b.criticalPathDistance) return a.criticalPathDistance - b.criticalPathDistance;
+      // Tie-breaker 2: time ascending
+      if (a.estimatedTime !== b.estimatedTime) return a.estimatedTime - b.estimatedTime;
+      // Tie-breaker 3: cost ascending
+      return a.costPerOrder - b.costPerOrder;
+    });
+  }, [resultsData.strategies]);
 
   const renderHeader = () => {
     return (
@@ -223,6 +200,9 @@ export function ResultsPanel({
       );
     }
 
+    // Calculate total route length for all workers to normalize progress
+    const totalRouteLength = activeResult.workerRoutes.reduce((sum, w) => sum + w.route.length, 0);
+
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -236,9 +216,15 @@ export function ResultsPanel({
         <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-3">
           {activeResult.workerRoutes.map((worker) => {
             const isIdle = worker.assignedPickCount === 0;
-            const completedPicks = isIdle ? 0 : Math.floor(replayProgress * worker.assignedPickCount);
-            const workerProgress = isIdle ? 0 : (completedPicks / worker.assignedPickCount) * 100;
-            const isDone = replayProgress >= 1 && !isIdle;
+
+            // Per-worker progress based on individual route length, not shared progress
+            // Workers with shorter routes should complete earlier
+            const workerRouteLength = worker.route.length;
+            const workerProgress = workerRouteLength > 0
+              ? Math.min((animationProgress * totalRouteLength) / workerRouteLength, 1)
+              : 0;
+            const completedPicks = isIdle ? 0 : Math.floor(workerProgress * worker.assignedPickCount);
+            const isDone = workerProgress >= 1 && !isIdle;
 
             return (
               <div key={worker.workerId} className="space-y-1.5 pb-3 border-b border-border/50 last:border-b-0 last:pb-0">
@@ -271,7 +257,7 @@ export function ResultsPanel({
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
-                          width: `${workerProgress}%`,
+                          width: `${workerProgress * 100}%`,
                           backgroundColor: worker.color,
                         }}
                       />
@@ -358,7 +344,7 @@ export function ResultsPanel({
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setIsReplaying(!isReplaying)}
+            onClick={toggleReplay}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded hover:bg-primary/90 transition-colors"
           >
             {isReplaying ? (
@@ -376,7 +362,7 @@ export function ResultsPanel({
           <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-primary transition-all"
-              style={{ width: `${replayProgress * 100}%` }}
+              style={{ width: `${animationProgress * 100}%` }}
             />
           </div>
         </div>

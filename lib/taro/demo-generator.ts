@@ -1,10 +1,29 @@
 // Demo data generators for Taro
 
-import type { Warehouse, Cell, Order, Item, StorageLocation } from './types';
+import type { Warehouse, Cell, Order, StorageLocation } from './types';
+import { RACK_SPACING, AISLE_HEIGHT } from './constants';
+
+// Get all pickable locations from warehouse (local copy for demo-generator)
+function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
+  const locations = new Map<string, { x: number; y: number; z: number; sku: string }>();
+
+  for (let y = 0; y < warehouse.height; y++) {
+    for (let x = 0; x < warehouse.width; x++) {
+      const cell = warehouse.grid[y][x];
+      if (cell.type === 'shelf' && cell.locations.length > 0) {
+        for (const loc of cell.locations) {
+          locations.set(`${loc.x},${loc.y},${loc.z}-${loc.sku}`, { x: loc.x, y: loc.y, z: loc.z, sku: loc.sku });
+        }
+      }
+    }
+  }
+
+  return locations;
+}
 
 export function createEmptyWarehouse(width: number, height: number): Warehouse {
   const grid: Cell[][] = [];
-  
+
   for (let y = 0; y < height; y++) {
     const row: Cell[] = [];
     for (let x = 0; x < width; x++) {
@@ -12,12 +31,11 @@ export function createEmptyWarehouse(width: number, height: number): Warehouse {
     }
     grid.push(row);
   }
-  
+
   return {
     width,
     height,
     grid,
-    items: [],
     shelves: [],
     workerStart: null,
   };
@@ -27,7 +45,7 @@ export function generateDemoWarehouse(): Warehouse {
   const width = 30;
   const height = 24;
   const warehouse = createEmptyWarehouse(width, height);
-  
+
   // Create shelf rows with aisles between them
   const shelfRows = [2, 3, 6, 7, 10, 11, 14, 15, 18, 19];
   const shelfCols: [number, number][] = [
@@ -35,7 +53,7 @@ export function generateDemoWarehouse(): Warehouse {
     [13, 20],
     [23, 27],
   ];
-  
+
   for (const row of shelfRows) {
     for (const [startCol, endCol] of shelfCols) {
       for (let col = startCol; col <= endCol; col++) {
@@ -44,32 +62,24 @@ export function generateDemoWarehouse(): Warehouse {
       }
     }
   }
-  
+
   // Add test data at (5, 5) with z-levels
   // z=1: SKU_A, qty 100
   // z=2: SKU_B, qty 50
   // z=3: SKU_C, qty 30
-  const items: Item[] = [];
-  let itemId = 1;
-  
   const testLocations: StorageLocation[] = [
-    { x: 5, y: 5, z: 1, sku: 'SKU_A', quantity: 100, itemId: itemId++ },
-    { x: 5, y: 5, z: 2, sku: 'SKU_B', quantity: 50, itemId: itemId++ },
-    { x: 5, y: 5, z: 3, sku: 'SKU_C', quantity: 30, itemId: itemId++ },
+    { x: 5, y: 5, z: 1, sku: 'SKU_A', quantity: 100 },
+    { x: 5, y: 5, z: 2, sku: 'SKU_B', quantity: 50 },
+    { x: 5, y: 5, z: 3, sku: 'SKU_C', quantity: 30 },
   ];
-  
-  // Add legacy Item entries for dual-representation
-  items.push({ id: 1, x: 5, y: 5, z: 1, sku: 'SKU_A' });
-  items.push({ id: 2, x: 5, y: 5, z: 2, sku: 'SKU_B' });
-  items.push({ id: 3, x: 5, y: 5, z: 3, sku: 'SKU_C' });
-  
+
   // Place locations at (5, 5)
   warehouse.grid[5][5].type = 'shelf';
   warehouse.grid[5][5].locations = testLocations;
   warehouse.shelves.push({ x: 5, y: 5 });
-  
+
   // Add some additional items at shelf edges with locations
-  
+  let itemId = 4; // Start after test SKUs
   // Place items on bottom edges of shelf pairs
   const itemRows = [3, 7, 11, 15, 19];
   for (const row of itemRows) {
@@ -81,15 +91,14 @@ export function generateDemoWarehouse(): Warehouse {
           // Create 1-3 z-levels at this position
           const numZLevels = Math.floor(Math.random() * 3) + 1;
           const cellLocations: StorageLocation[] = [];
-          
+
           for (let z = 1; z <= numZLevels; z++) {
             const sku = `SKU_${String(itemId).padStart(3, '0')}`;
             const quantity = Math.floor(Math.random() * 90) + 10;
-            cellLocations.push({ x: col, y: row + 1, z, sku, quantity, itemId });
-            items.push({ id: itemId, x: col, y: row + 1, z, sku });
+            cellLocations.push({ x: col, y: row + 1, z, sku, quantity });
             itemId++;
           }
-          
+
           warehouse.grid[row + 1][col].type = 'shelf';
           warehouse.grid[row + 1][col].locations = cellLocations;
           warehouse.shelves.push({ x: col, y: row + 1 });
@@ -97,48 +106,48 @@ export function generateDemoWarehouse(): Warehouse {
       }
     }
   }
-  
-  warehouse.items = items;
-  
+
   // Set worker start position at entrance
   warehouse.workerStart = { x: 1, y: height - 2 };
   warehouse.grid[height - 2][1].type = 'worker-start';
-  
+
   return warehouse;
 }
 
-export function generateRandomOrders(items: Item[], count: number): Order[] {
+export function generateRandomOrders(warehouse: Warehouse, count: number): Order[] {
   const orders: Order[] = [];
   const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  
+
+  // Get all available SKUs from warehouse
+  const allLocations = getAllPickableLocations(warehouse);
+  const availableSkus = Array.from(new Set(Array.from(allLocations.values()).map(l => l.sku)));
+
+  if (availableSkus.length === 0) return orders;
+
   for (let i = 0; i < count; i++) {
     const itemCount = Math.floor(Math.random() * 4) + 2; // 2-5 items per order
-    const orderItems: number[] = [];
-    const availableItems = [...items];
-    
-    for (let j = 0; j < itemCount && availableItems.length > 0; j++) {
-      const idx = Math.floor(Math.random() * availableItems.length);
-      orderItems.push(availableItems[idx].id);
-      availableItems.splice(idx, 1);
+    const orderItems: string[] = [];
+    const availableSkusCopy = [...availableSkus];
+
+    for (let j = 0; j < itemCount && availableSkusCopy.length > 0; j++) {
+      const idx = Math.floor(Math.random() * availableSkusCopy.length);
+      orderItems.push(availableSkusCopy[idx]);
+      availableSkusCopy.splice(idx, 1);
     }
-    
+
     orders.push({
       id: `Order ${orderLabels[i] || i + 1}`,
       items: orderItems,
       assignedWorkerId: null,
     });
   }
-  
+
   return orders;
 }
 
-export function getNextItemId(warehouse: Warehouse): number {
-  if (warehouse.items.length === 0) return 1;
-  return Math.max(...warehouse.items.map(i => i.id)) + 1;
-}
-
 export function getNextSku(warehouse: Warehouse): string {
-  const existingSkus = warehouse.items.map(i => i.sku);
+  const allLocations = getAllPickableLocations(warehouse);
+  const existingSkus = Array.from(allLocations.values()).map(l => l.sku);
   let skuNum = 1;
   let sku = `SKU_${String(skuNum).padStart(3, '0')}`;
   while (existingSkus.includes(sku)) {
@@ -146,28 +155,4 @@ export function getNextSku(warehouse: Warehouse): string {
     sku = `SKU_${String(skuNum).padStart(3, '0')}`;
   }
   return sku;
-}
-
-// Get all pickable items from warehouse (flat list from all locations)
-export function getAllPickableItems(warehouse: Warehouse): Item[] {
-  const items: Item[] = [];
-  
-  for (let y = 0; y < warehouse.height; y++) {
-    for (let x = 0; x < warehouse.width; x++) {
-      const cell = warehouse.grid[y][x];
-      if (cell.type === 'shelf' && cell.locations.length > 0) {
-        for (const loc of cell.locations) {
-          // Find or create item ID for this location
-          const existingItem = warehouse.items.find(i => 
-            i.x === loc.x && i.y === loc.y && i.z === loc.z
-          );
-          if (existingItem) {
-            items.push(existingItem);
-          }
-        }
-      }
-    }
-  }
-  
-  return items;
 }
