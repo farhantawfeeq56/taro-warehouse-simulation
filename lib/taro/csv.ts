@@ -93,6 +93,18 @@ export function downloadCSV(csvString: string, filename = 'tasks.csv'): void {
  * 5-column (workerId,step,zone,location,item) formats.
  */
 export function parseTaskCSV(csvText: string): PickTask[] {
+  const parseLocationAndItem = (parts: string[], startIndex: number): { location: string; item: string } => {
+    if (parts.length <= startIndex + 1) {
+      return { location: parts[startIndex]?.trim() ?? '', item: '' };
+    }
+
+    const hasLevel = /^\s*Level\s+\d+/i.test(parts[startIndex + 3] ?? '');
+    const locationPartCount = hasLevel ? 4 : 3;
+    const location = parts.slice(startIndex, startIndex + locationPartCount).join(',').trim();
+    const item = parts.slice(startIndex + locationPartCount).join(',').trim();
+    return { location, item };
+  };
+
   const lines = csvText.trim().split('\n');
   const headerLine = lines[0].toLowerCase();
   const dataLines = headerLine.startsWith('workerid') ? lines.slice(1) : lines;
@@ -113,12 +125,10 @@ export function parseTaskCSV(csvText: string): PickTask[] {
 
       if (hasZone) {
         const zone = parts[2]?.trim() ?? '';
-        const location = parts[3]?.trim() ?? '';
-        const item = parts.slice(4).join(',').trim();
+        const { location, item } = parseLocationAndItem(parts, 3);
         return { workerId, step, zone, location, item };
       } else {
-        const location = parts[2]?.trim() ?? '';
-        const item = parts.slice(3).join(',').trim();
+        const { location, item } = parseLocationAndItem(parts, 2);
         return { workerId, step, zone: '', location, item };
       }
     })
