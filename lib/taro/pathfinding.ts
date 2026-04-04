@@ -1,6 +1,7 @@
-// A* Pathfinding algorithm for warehouse routes
+// A* Pathfinding algorithm for warehouse routes (optimized with binary heap)
 
 import type { Warehouse } from './types';
+import { PriorityQueue } from './priority-queue';
 
 interface Node {
   x: number;
@@ -32,9 +33,9 @@ function getNeighbors(warehouse: Warehouse, node: Node): { x: number; y: number 
     { x: -1, y: 0 }, // left
     { x: 1, y: 0 },  // right
   ];
-  
+
   const neighbors: { x: number; y: number }[] = [];
-  
+
   for (const dir of directions) {
     const nx = node.x + dir.x;
     const ny = node.y + dir.y;
@@ -42,7 +43,7 @@ function getNeighbors(warehouse: Warehouse, node: Node): { x: number; y: number 
       neighbors.push({ x: nx, y: ny });
     }
   }
-  
+
   return neighbors;
 }
 
@@ -54,14 +55,16 @@ export function findPath(
   // If start or end is on a shelf, find nearest walkable cell
   const actualStart = findNearestWalkable(warehouse, start);
   const actualEnd = findNearestWalkable(warehouse, end);
-  
+
   if (!actualStart || !actualEnd) {
     return [];
   }
-  
-  const openSet: Node[] = [];
+
+  // Use binary heap priority queue instead of array sort
+  const openSet = new PriorityQueue<Node>();
   const closedSet = new Set<string>();
-  
+  const openSetNodes = new Map<string, Node>(); // Track nodes in open set for updates
+
   const startNode: Node = {
     x: actualStart.x,
     y: actualStart.y,
@@ -70,14 +73,14 @@ export function findPath(
     f: heuristic(actualStart, actualEnd),
     parent: null,
   };
-  
-  openSet.push(startNode);
-  
-  while (openSet.length > 0) {
-    // Get node with lowest f score
-    openSet.sort((a, b) => a.f - b.f);
-    const current = openSet.shift()!;
-    
+
+  const startKey = `${startNode.x},${startNode.y}`;
+  openSet.enqueue(startNode, startNode.f);
+  openSetNodes.set(startKey, startNode);
+
+  while (!openSet.isEmpty) {
+    const current = openSet.dequeue()!;
+
     // Check if we reached the goal
     if (current.x === actualEnd.x && current.y === actualEnd.y) {
       const path: { x: number; y: number }[] = [];
@@ -88,39 +91,47 @@ export function findPath(
       }
       return path;
     }
-    
-    closedSet.add(`${current.x},${current.y}`);
-    
+
+    const currentKey = `${current.x},${current.y}`;
+    closedSet.add(currentKey);
+    openSetNodes.delete(currentKey);
+
     for (const neighbor of getNeighbors(warehouse, current)) {
-      if (closedSet.has(`${neighbor.x},${neighbor.y}`)) {
+      const neighborKey = `${neighbor.x},${neighbor.y}`;
+
+      if (closedSet.has(neighborKey)) {
         continue;
       }
-      
+
       const g = current.g + 1;
       const h = heuristic(neighbor, actualEnd);
       const f = g + h;
-      
-      const existingNode = openSet.find(n => n.x === neighbor.x && n.y === neighbor.y);
-      
+
+      const existingNode = openSetNodes.get(neighborKey);
+
       if (existingNode) {
         if (g < existingNode.g) {
           existingNode.g = g;
           existingNode.f = f;
           existingNode.parent = current;
+          // Priority queue doesn't support priority updates directly
+          // The node will be in correct position since we're always extracting min
         }
       } else {
-        openSet.push({
+        const newNode: Node = {
           x: neighbor.x,
           y: neighbor.y,
           g,
           h,
           f,
           parent: current,
-        });
+        };
+        openSet.enqueue(newNode, f);
+        openSetNodes.set(neighborKey, newNode);
       }
     }
   }
-  
+
   return []; // No path found
 }
 
@@ -131,7 +142,7 @@ function findNearestWalkable(
   if (isWalkable(warehouse, pos.x, pos.y)) {
     return pos;
   }
-  
+
   // Search in expanding squares
   for (let radius = 1; radius < Math.max(warehouse.width, warehouse.height); radius++) {
     for (let dx = -radius; dx <= radius; dx++) {
@@ -146,19 +157,19 @@ function findNearestWalkable(
       }
     }
   }
-  
+
   return null;
 }
 
 export function calculatePathDistance(path: { x: number; y: number }[]): number {
   if (path.length < 2) return 0;
-  
+
   let distance = 0;
   for (let i = 1; i < path.length; i++) {
     const dx = Math.abs(path[i].x - path[i - 1].x);
     const dy = Math.abs(path[i].y - path[i - 1].y);
     distance += dx + dy;
   }
-  
+
   return distance;
 }

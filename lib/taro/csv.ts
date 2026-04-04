@@ -25,7 +25,8 @@ export function coordToLocation(x: number, y: number, z?: number): string {
 export function parseLocationZ(location: string): number | undefined {
   const match = location.match(/Level\s+(\d+)/i);
   if (match) {
-    return parseInt(match[1], 10);
+    const parsed = parseInt(match[1], 10);
+    return isNaN(parsed) ? undefined : parsed;
   }
   return undefined;
 }
@@ -63,7 +64,7 @@ export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
       const aisleLabel = String.fromCharCode(65 + (aisleIndex % 26));
       const zone = `Aisle ${aisleLabel}`;
       const location = coordToLocation(pick.x, pick.y, pick.z);
-      const item = pick.sku || `Item ${pick.itemId}`;
+      const item = pick.sku;
 
       rows.push(`${worker.workerId},${step},${zone},${location},${item}`);
       step++;
@@ -104,6 +105,12 @@ export function parseTaskCSV(csvText: string): PickTask[] {
       const parts = line.split(',');
       const workerId = parseInt(parts[0], 10);
       const step = parseInt(parts[1], 10);
+
+      // Validate parsed integers
+      if (isNaN(workerId) || isNaN(step)) {
+        return { workerId: 0, step: 0, zone: '', location: '', item: '' };
+      }
+
       if (hasZone) {
         const zone = parts[2]?.trim() ?? '';
         const location = parts[3]?.trim() ?? '';
@@ -115,5 +122,5 @@ export function parseTaskCSV(csvText: string): PickTask[] {
         return { workerId, step, zone: '', location, item };
       }
     })
-    .filter(task => !isNaN(task.workerId) && !isNaN(task.step));
+    .filter(task => task.workerId > 0 && task.step > 0);
 }

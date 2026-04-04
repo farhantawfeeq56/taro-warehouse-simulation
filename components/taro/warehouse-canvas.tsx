@@ -1,7 +1,8 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, VisualizationMode } from '@/lib/taro/types';
+import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 
 interface WarehouseCanvasProps {
   warehouse: Warehouse;
@@ -13,20 +14,6 @@ interface WarehouseCanvasProps {
   animationProgress: number;
   zVisualizationMode: ZVisualizationMode;
 }
-
-const CELL_SIZE = 20;
-const GRID_COLOR = '#e5e7eb';
-const SHELF_COLOR = '#374151';
-const WORKER_COLOR = '#22c55e';
-const EMPTY_COLOR = '#ffffff';
-
-// Colors for different z-levels
-const Z_LEVEL_COLORS: Record<number, string> = {
-  1: '#3b82f6', // blue
-  2: '#8b5cf6', // purple
-  3: '#f59e0b', // amber
-  4: '#ef4444', // red
-};
 
 export function WarehouseCanvas({
   warehouse,
@@ -40,12 +27,48 @@ export function WarehouseCanvas({
 }: WarehouseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const animationRef = useRef<number | null>(null);
+
   const [isPanning, setIsPanning] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [hoveredPickPoint, setHoveredPickPoint] = useState<{ x: number, y: number, z: number, sku: string, id: number } | null>(null);
+  const [hoveredPickPoint, setHoveredPickPoint] = useState<{ x: number, y: number, z: number, sku: string, key: string } | null>(null);
+
+  // Memoize heatmap max value to avoid recalculating on every render
+  const maxHeat = useMemo(() => {
+    if (!heatmap || visualizationMode !== 'heatmap') return 1;
+    let max = 1;
+    for (const row of heatmap) {
+      for (const val of row) {
+        if (val > max) max = val;
+      }
+    }
+    return max;
+  }, [heatmap, visualizationMode]);
+
+  // Memoize all pickable locations from warehouse
+  const pickableLocations = useMemo(() => {
+    const locations: { x: number; y: number; z: number; sku: string; key: string }[] = [];
+    for (let y = 0; y < warehouse.height; y++) {
+      for (let x = 0; x < warehouse.width; x++) {
+        const cell = warehouse.grid[y][x];
+        if (cell.type === 'shelf' && cell.locations.length > 0) {
+          for (const loc of cell.locations) {
+            locations.push({
+              x: loc.x,
+              y: loc.y,
+              z: loc.z,
+              sku: loc.sku,
+              key: `${loc.x},${loc.y},${loc.z}-${loc.sku}`,
+            });
+          }
+        }
+      }
+    }
+    return locations;
+  }, [warehouse]);
 
   const getCellFromMouse = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -67,7 +90,6 @@ export function WarehouseCanvas({
   const applyTool = useCallback((cellX: number, cellY: number) => {
     const newWarehouse = { ...warehouse };
     newWarehouse.grid = warehouse.grid.map(row => row.map(cell => ({ ...cell, locations: [...cell.locations] })));
-    newWarehouse.items = [...warehouse.items];
     newWarehouse.shelves = [...warehouse.shelves];
 
     const cell = newWarehouse.grid[cellY][cellX];
@@ -99,8 +121,6 @@ export function WarehouseCanvas({
         if (cell.type === 'shelf') {
           // Remove from shelves array
           newWarehouse.shelves = newWarehouse.shelves.filter(s => !(s.x === cellX && s.y === cellY));
-          // Remove associated items
-          newWarehouse.items = newWarehouse.items.filter(i => !(i.x === cellX && i.y === cellY));
         }
         if (cell.type === 'worker-start') {
           newWarehouse.workerStart = null;
@@ -151,20 +171,20 @@ export function WarehouseCanvas({
         const rect = canvas.getBoundingClientRect();
         const mouseX = (e.clientX - rect.left - panOffset.x) / zoom;
         const mouseY = (e.clientY - rect.top - panOffset.y) / zoom;
-        
-        const found = warehouse.items.find(item => {
+
+        const found = pickableLocations.find(item => {
           const px = item.x * CELL_SIZE + CELL_SIZE / 2;
           const py = item.y * CELL_SIZE + CELL_SIZE / 2;
           const dist = Math.sqrt((mouseX - px)**2 + (mouseY - py)**2);
           return dist < 6; // Radius for pick point
         });
-        
+
         setHoveredPickPoint(found || null);
       }
     } else if (hoveredPickPoint) {
       setHoveredPickPoint(null);
     }
-  }, [isPanning, isDrawing, lastPanPoint, getCellFromMouse, applyTool, visualizationMode, panOffset, zoom, warehouse.items, hoveredPickPoint]);
+  }, [isPanning, isDrawing, lastPanPoint, getCellFromMouse, applyTool, visualizationMode, panOffset, zoom, pickableLocations, hoveredPickPoint]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
@@ -177,25 +197,13 @@ export function WarehouseCanvas({
     setZoom(prev => Math.min(Math.max(prev * delta, 0.5), 3));
   }, []);
 
-  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Log location info when clicking on a cell (not during drawing)
-    const cell = getCellFromMouse(e);
-    if (cell) {
-      const warehouseCell = warehouse.grid[cell.y][cell.x];
-      if (warehouseCell.type === 'shelf' && warehouseCell.locations.length > 0) {
-        console.log(`Cell (${cell.x}, ${cell.y}) - ${warehouseCell.locations.length} location(s):`);
-        console.table(warehouseCell.locations.map(loc => ({
-          z: loc.z,
-          sku: loc.sku,
-          quantity: loc.quantity,
-          itemId: loc.itemId ?? 'N/A'
-        })));
-      }
-    }
-  }, [getCellFromMouse, warehouse.grid]);
+  // Removed console.log to prevent memory leak
+  const handleClick = useCallback(() => {
+    // Click handler for future features
+  }, []);
 
-  // Draw the canvas
-  useEffect(() => {
+  // Draw the canvas - memoized draw function to avoid recreation
+  const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -209,16 +217,6 @@ export function WarehouseCanvas({
     ctx.save();
     ctx.translate(panOffset.x, panOffset.y);
     ctx.scale(zoom, zoom);
-
-    // Calculate max heatmap value for normalization
-    let maxHeat = 1;
-    if (heatmap && visualizationMode === 'heatmap') {
-      for (const row of heatmap) {
-        for (const val of row) {
-          maxHeat = Math.max(maxHeat, val);
-        }
-      }
-    }
 
     // Draw cells
     for (let y = 0; y < warehouse.height; y++) {
@@ -292,7 +290,7 @@ export function WarehouseCanvas({
             if (zVisualizationMode !== 'collapsed') {
               const levelNum = parseInt(zVisualizationMode.replace('level', ''), 10);
               const locationAtLevel = cell.locations.find(loc => loc.z === levelNum);
-              
+
               if (locationAtLevel) {
                 // Highlight with a dot as requested
                 ctx.beginPath();
@@ -303,10 +301,6 @@ export function WarehouseCanvas({
                 ctx.lineWidth = 1;
                 ctx.stroke();
               }
-            } else {
-              // If zVisualizationMode is 'collapsed' but viewMode is 'z-level', 
-              // show the same as 'collapsed' view mode or nothing? 
-              // The ticket says "Full shelf layout + highlight markers (dots) for locations at selected z (works with existing zVisualizationMode prop)"
             }
           }
         }
@@ -324,10 +318,10 @@ export function WarehouseCanvas({
 
     // Draw debug-picks mode points
     if (visualizationMode === 'debug-picks') {
-      warehouse.items.forEach(item => {
+      pickableLocations.forEach(item => {
         const px = item.x * CELL_SIZE + CELL_SIZE / 2;
         const py = item.y * CELL_SIZE + CELL_SIZE / 2;
-        
+
         ctx.beginPath();
         ctx.fillStyle = Z_LEVEL_COLORS[item.z] || '#9ca3af';
         ctx.arc(px, py, 4, 0, Math.PI * 2);
@@ -335,8 +329,8 @@ export function WarehouseCanvas({
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1;
         ctx.stroke();
-        
-        if (hoveredPickPoint && hoveredPickPoint.id === item.id) {
+
+        if (hoveredPickPoint && hoveredPickPoint.key === item.key) {
           ctx.beginPath();
           ctx.strokeStyle = '#000000';
           ctx.lineWidth = 2;
@@ -349,10 +343,10 @@ export function WarehouseCanvas({
       if (hoveredPickPoint) {
         const tooltipX = hoveredPickPoint.x * CELL_SIZE + CELL_SIZE;
         const tooltipY = hoveredPickPoint.y * CELL_SIZE;
-        
+
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         ctx.fillRect(tooltipX, tooltipY, 100, 60);
-        
+
         ctx.fillStyle = '#ffffff';
         ctx.font = '10px monospace';
         ctx.textAlign = 'left';
@@ -360,7 +354,7 @@ export function WarehouseCanvas({
         ctx.fillText(`SKU: ${hoveredPickPoint.sku}`, tooltipX + 5, tooltipY + 5);
         ctx.fillText(`Pos: ${hoveredPickPoint.x}, ${hoveredPickPoint.y}`, tooltipX + 5, tooltipY + 20);
         ctx.fillText(`Level: ${hoveredPickPoint.z}`, tooltipX + 5, tooltipY + 35);
-        
+
         // Check if there is location info for qty
         const cell = warehouse.grid[hoveredPickPoint.y][hoveredPickPoint.x];
         const loc = cell.locations.find(l => l.z === hoveredPickPoint.z && l.sku === hoveredPickPoint.sku);
@@ -461,10 +455,29 @@ export function WarehouseCanvas({
     ctx.strokeRect(0, 0, width, height);
 
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, animationProgress, heatmap, visualizationMode, zVisualizationMode, hoveredPickPoint]);
+  }, [warehouse, panOffset, zoom, activeRoute, animationProgress, heatmap, visualizationMode, zVisualizationMode, hoveredPickPoint, pickableLocations, maxHeat]);
+
+  // Use RAF for smooth animation, avoid 60fps React re-renders
+  useEffect(() => {
+    drawCanvas();
+
+    if (activeRoute && animationProgress < 1) {
+      const animate = () => {
+        drawCanvas();
+        animationRef.current = requestAnimationFrame(animate);
+      };
+      animationRef.current = requestAnimationFrame(animate);
+    }
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [drawCanvas, activeRoute, animationProgress]);
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="flex-1 bg-muted/30 overflow-hidden relative border border-border rounded"
     >

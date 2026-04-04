@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { Warehouse, StorageLocation } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { X, Wand2, Upload } from 'lucide-react';
+import { RACK_SPACING, AISLE_HEIGHT } from '@/lib/taro/constants';
 
 interface WarehouseBuilderDialogProps {
   onGenerate: (warehouse: Warehouse) => void;
@@ -22,9 +23,6 @@ function buildWarehouseFromParams(
   // Grid width = racksPerAisle * 2 (shelf + gap)
   // Grid height = aisles * 3 (shelf row + 2 path rows)
 
-  const RACK_SPACING = 2;  // cells per rack slot (shelf + aisle gap)
-  const AISLE_HEIGHT = 3;  // rows per aisle (1 shelf + 2 path)
-
   const width = Math.max(racksPerAisle * RACK_SPACING + 2, 10);
   const height = Math.max(aisles * AISLE_HEIGHT + 2, 10);
 
@@ -32,7 +30,6 @@ function buildWarehouseFromParams(
     Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y, locations: [] }))
   );
 
-  const items: Warehouse['items'] = [];
   const shelves: Warehouse['shelves'] = [];
   let itemId = 1;
 
@@ -45,18 +42,17 @@ function buildWarehouseFromParams(
 
       // Place shelf block with storage locations
       const locations: StorageLocation[] = [];
-      
+
       for (let b = 0; b < binsPerRack; b++) {
         if (itemId > aisles * racksPerAisle * binsPerRack) break;
-        
+
         // Create z-levels for this bin (1-3 levels per bin)
         const numZLevels = Math.min(3, Math.floor(Math.random() * 3) + 1);
-        
+
         for (let z = 1; z <= numZLevels; z++) {
           const sku = `SKU_${String(itemId).padStart(3, '0')}`;
           const quantity = Math.floor(Math.random() * 90) + 10;
           locations.push({ x: col, y: row, z, sku, quantity });
-          items.push({ id: itemId, x: col, y: row, z, sku });
         }
         itemId++;
       }
@@ -74,7 +70,6 @@ function buildWarehouseFromParams(
     width,
     height,
     grid,
-    items,
     shelves,
     workerStart,
   };
@@ -110,10 +105,6 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     const aisleIndex = new Map(aisleLabels.map((a, i) => [a, i]));
     const maxRack = Math.max(...entries.map(e => e.rack));
 
-    // Layout constants
-    const AISLE_HEIGHT = 3;  // 1 shelf row + 2 walking rows
-    const RACK_SPACING = 2;  // 1 shelf col + 1 gap col
-
     const width = Math.max(maxRack * RACK_SPACING + 2, 10);
     const height = Math.max(aisleLabels.length * AISLE_HEIGHT + 2, 10);
 
@@ -121,7 +112,6 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
       Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y, locations: [] }))
     );
 
-    const items: Warehouse['items'] = [];
     const shelves: Warehouse['shelves'] = [];
     let itemId = 1;
 
@@ -147,24 +137,19 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
 
       // Build storage locations for this shelf
       const locations: StorageLocation[] = [];
-      
+
       for (const entry of binEntries) {
         // Default to z=1 if not specified
         const zLevel = entry.z ?? 1;
+        const sku = entry.sku || `SKU_${String(itemId).padStart(3, '0')}`;
         locations.push({
           x: shelfCol,
           y: shelfRow,
           z: zLevel,
-          sku: entry.sku,
+          sku,
           quantity: Math.floor(Math.random() * 90) + 10,
         });
-        items.push({
-          id: itemId++,
-          x: shelfCol,
-          y: shelfRow,
-          z: zLevel,
-          sku: entry.sku,
-        });
+        itemId++;
       }
 
       // Place the shelf block with locations
@@ -176,7 +161,7 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     const workerStart = { x: 0, y: height - 1 };
     grid[workerStart.y][workerStart.x] = { type: 'worker-start', x: 0, y: height - 1, locations: [] };
 
-    return { width, height, grid, items, shelves, workerStart };
+    return { width, height, grid, shelves, workerStart };
   } catch {
     return null;
   }

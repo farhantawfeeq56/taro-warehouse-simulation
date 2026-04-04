@@ -1,14 +1,23 @@
 // Core data types for Taro warehouse simulation
 
+// Branded types for grid coordinates to prevent mixing coordinates
+export type GridX = number & { readonly __brand: 'GridX' };
+export type GridY = number & { readonly __brand: 'GridY' };
+
+// Helper functions to create branded types
+export const gridX = (value: number): GridX => value as GridX;
+export const gridY = (value: number): GridY => value as GridY;
+
 export type CellType = 'empty' | 'shelf' | 'worker-start';
 
+// Storage location represents the canonical data model
+// Key: ${x},${y},${z}-${sku} for stable references
 export interface StorageLocation {
   x: number;
   y: number;
   z: number; // z-level (1-4 typically)
   sku: string;
   quantity: number;
-  itemId?: number; // Optional link to legacy Item model for dual-representation
 }
 
 export interface Cell {
@@ -18,17 +27,10 @@ export interface Cell {
   locations: StorageLocation[];
 }
 
-export interface Item {
-  id: number;
-  x: number;
-  y: number;
-  z: number;
-  sku: string;
-}
-
+// Order now uses location keys (SKU-based) instead of legacy item IDs
 export interface Order {
   id: string;
-  items: number[]; // Item IDs (legacy) or SKU references
+  items: string[]; // SKU-based item references
   assignedWorkerId: number | null; // null = Auto
 }
 
@@ -41,7 +43,6 @@ export interface Warehouse {
   width: number;
   height: number;
   grid: Cell[][];
-  items: Item[];
   shelves: { x: number; y: number }[];
   workerStart: WorkerPosition | null;
 }
@@ -51,7 +52,7 @@ export type StrategyType = 'single' | 'batch' | 'zone' | 'wave';
 export interface WorkerRoute {
   workerId: number;
   route: { x: number; y: number }[];
-  picks: { itemId: number; x: number; y: number; z: number; sku: string }[]; // actual pick locations only
+  picks: { locationKey: string; x: number; y: number; z: number; sku: string }[];
   color: string;
   zone: string;
   assignedPickCount: number;
