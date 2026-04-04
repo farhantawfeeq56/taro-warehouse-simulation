@@ -30,21 +30,6 @@ export function WarehouseCanvas({
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [shelfDensityMax, setShelfDensityMax] = useState(1);
-
-  useEffect(() => {
-    let maxLocations = 1;
-    for (let y = 0; y < warehouse.height; y++) {
-      for (let x = 0; x < warehouse.width; x++) {
-        const cell = warehouse.grid[y][x];
-        if (cell.type === 'shelf') {
-          maxLocations = Math.max(maxLocations, cell.locations.length);
-        }
-      }
-    }
-    setShelfDensityMax(maxLocations);
-  }, [warehouse]);
-
   const getCellFromMouse = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -203,13 +188,6 @@ export function WarehouseCanvas({
             break;
         }
 
-        if (cell.type === 'shelf') {
-          // Subtle density signal in default "All" mode.
-          const density = Math.min(cell.locations.length / shelfDensityMax, 1);
-          const alpha = 0.12 + density * 0.28;
-          fillColor = `rgba(55, 65, 81, ${alpha})`;
-        }
-
         ctx.fillStyle = fillColor;
         ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
         ctx.globalAlpha = 1.0;
@@ -349,7 +327,7 @@ export function WarehouseCanvas({
     ctx.strokeRect(0, 0, width, height);
 
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, animationProgress, zVisualizationMode, shelfDensityMax]);
+  }, [warehouse, panOffset, zoom, activeRoute, animationProgress, zVisualizationMode]);
 
   // Use RAF for smooth animation, avoid 60fps React re-renders
   useEffect(() => {
