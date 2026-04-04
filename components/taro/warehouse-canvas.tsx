@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
+import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, VisualizationMode } from '@/lib/taro/types';
 
 interface WarehouseCanvasProps {
   warehouse: Warehouse;
@@ -9,7 +9,7 @@ interface WarehouseCanvasProps {
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
   heatmap: number[][] | null;
-  showHeatmap: boolean;
+  visualizationMode: VisualizationMode;
   animationProgress: number;
   zVisualizationMode: ZVisualizationMode;
 }
@@ -34,7 +34,7 @@ export function WarehouseCanvas({
   selectedTool,
   activeRoute,
   heatmap,
-  showHeatmap,
+  visualizationMode,
   animationProgress,
   zVisualizationMode,
 }: WarehouseCanvasProps) {
@@ -45,6 +45,7 @@ export function WarehouseCanvas({
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [hoveredPickPoint, setHoveredPickPoint] = useState<{ x: number, y: number, z: number, sku: string, id: number } | null>(null);
 
   const getCellFromMouse = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -143,7 +144,27 @@ export function WarehouseCanvas({
         applyTool(cell.x, cell.y);
       }
     }
-  }, [isPanning, isDrawing, lastPanPoint, getCellFromMouse, applyTool]);
+
+    if (visualizationMode === 'debug-picks') {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left - panOffset.x) / zoom;
+        const mouseY = (e.clientY - rect.top - panOffset.y) / zoom;
+        
+        const found = warehouse.items.find(item => {
+          const px = item.x * CELL_SIZE + CELL_SIZE / 2;
+          const py = item.y * CELL_SIZE + CELL_SIZE / 2;
+          const dist = Math.sqrt((mouseX - px)**2 + (mouseY - py)**2);
+          return dist < 6; // Radius for pick point
+        });
+        
+        setHoveredPickPoint(found || null);
+      }
+    } else if (hoveredPickPoint) {
+      setHoveredPickPoint(null);
+    }
+  }, [isPanning, isDrawing, lastPanPoint, getCellFromMouse, applyTool, visualizationMode, panOffset, zoom, warehouse.items, hoveredPickPoint]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
@@ -191,7 +212,7 @@ export function WarehouseCanvas({
 
     // Calculate max heatmap value for normalization
     let maxHeat = 1;
-    if (heatmap && showHeatmap) {
+    if (heatmap && visualizationMode === 'heatmap') {
       for (const row of heatmap) {
         for (const val of row) {
           maxHeat = Math.max(maxHeat, val);
@@ -217,8 +238,13 @@ export function WarehouseCanvas({
             break;
         }
 
+        // Apply faint opacity for shelves in debug mode
+        if (visualizationMode === 'debug-picks' && cell.type === 'shelf') {
+          ctx.globalAlpha = 0.3;
+        }
+
         // Apply heatmap overlay if enabled
-        if (showHeatmap && heatmap && cell.type === 'empty') {
+        if (visualizationMode === 'heatmap' && heatmap && cell.type === 'empty') {
           const heat = heatmap[y][x];
           if (heat > 0) {
             const intensity = Math.min(heat / maxHeat, 1);
@@ -243,70 +269,44 @@ export function WarehouseCanvas({
 
         ctx.fillStyle = fillColor;
         ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
+        ctx.globalAlpha = 1.0;
 
         // Draw grid lines
         ctx.strokeStyle = GRID_COLOR;
         ctx.lineWidth = 0.5;
         ctx.strokeRect(px, py, CELL_SIZE, CELL_SIZE);
 
-        // Draw shelf locations based on z-visualization mode
+        // Draw shelf locations based on view mode
         if (cell.type === 'shelf') {
-          if (zVisualizationMode === 'collapsed') {
-            // Collapsed mode: show aggregated info (z-count, SKU count, total quantity)
+          if (visualizationMode === 'collapsed') {
+            // Collapsed mode: show only z:N badge
             if (cell.locations.length > 0) {
-              // Calculate aggregated metrics
-              const uniqueSkuCount = new Set(cell.locations.map(loc => loc.sku)).size;
-              const totalQuantity = cell.locations.reduce((sum, loc) => sum + loc.quantity, 0);
-              
-              // Draw z-level count badge at top
               ctx.fillStyle = '#ffffff';
               ctx.font = 'bold 9px monospace';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.fillText(`z:${cell.locations.length}`, px + CELL_SIZE / 2, py + 5);
-              
-              // Draw SKU count in middle
-              ctx.fillStyle = '#fbbf24'; // amber-400
-              ctx.font = '8px monospace';
-              ctx.fillText(`${uniqueSkuCount} SKUs`, px + CELL_SIZE / 2, py + CELL_SIZE / 2);
-              
-              // Draw total quantity at bottom
-              ctx.fillStyle = '#a5f3fc'; // cyan-200
-              ctx.font = '7px monospace';
-              ctx.fillText(`${totalQuantity} qty`, px + CELL_SIZE / 2, py + CELL_SIZE - 4);
-              
-              // Draw tiny colored dots for each z-level (visual indicator)
-              const dotSize = 2;
-              const spacing = 3;
-              const startX = px + 2;
-              const startY = py + 13;
-              
-              cell.locations.slice(0, 4).forEach((loc, idx) => {
-                ctx.fillStyle = Z_LEVEL_COLORS[loc.z] || '#9ca3af';
-                ctx.fillRect(startX + (idx * (dotSize + spacing)), startY, dotSize, dotSize);
-              });
+              ctx.fillText(`z:${cell.locations.length}`, px + CELL_SIZE / 2, py + CELL_SIZE / 2);
             }
-          } else {
-            // Level mode: show only items at selected z-level
-            const levelNum = parseInt(zVisualizationMode.replace('level', ''), 10);
-            const locationAtLevel = cell.locations.find(loc => loc.z === levelNum);
-            
-            if (locationAtLevel) {
-              // Highlight cell with z-level color
-              ctx.fillStyle = Z_LEVEL_COLORS[levelNum] || '#3b82f6';
-              ctx.globalAlpha = 0.3;
-              ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
-              ctx.globalAlpha = 1;
+          } else if (visualizationMode === 'z-level') {
+            // Level mode: highlight locations at selected z-level with markers (dots)
+            if (zVisualizationMode !== 'collapsed') {
+              const levelNum = parseInt(zVisualizationMode.replace('level', ''), 10);
+              const locationAtLevel = cell.locations.find(loc => loc.z === levelNum);
               
-              // Draw SKU
-              ctx.fillStyle = '#ffffff';
-              ctx.font = '7px monospace';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              const shortSku = locationAtLevel.sku.length > 6 
-                ? locationAtLevel.sku.slice(0, 6) 
-                : locationAtLevel.sku;
-              ctx.fillText(shortSku, px + CELL_SIZE / 2, py + CELL_SIZE / 2);
+              if (locationAtLevel) {
+                // Highlight with a dot as requested
+                ctx.beginPath();
+                ctx.fillStyle = Z_LEVEL_COLORS[levelNum] || '#3b82f6';
+                ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+              }
+            } else {
+              // If zVisualizationMode is 'collapsed' but viewMode is 'z-level', 
+              // show the same as 'collapsed' view mode or nothing? 
+              // The ticket says "Full shelf layout + highlight markers (dots) for locations at selected z (works with existing zVisualizationMode prop)"
             }
           }
         }
@@ -318,6 +318,54 @@ export function WarehouseCanvas({
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText('S', px + CELL_SIZE / 2, py + CELL_SIZE / 2);
+        }
+      }
+    }
+
+    // Draw debug-picks mode points
+    if (visualizationMode === 'debug-picks') {
+      warehouse.items.forEach(item => {
+        const px = item.x * CELL_SIZE + CELL_SIZE / 2;
+        const py = item.y * CELL_SIZE + CELL_SIZE / 2;
+        
+        ctx.beginPath();
+        ctx.fillStyle = Z_LEVEL_COLORS[item.z] || '#9ca3af';
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        if (hoveredPickPoint && hoveredPickPoint.id === item.id) {
+          ctx.beginPath();
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2;
+          ctx.arc(px, py, 6, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      });
+
+      // Tooltip for debug-picks
+      if (hoveredPickPoint) {
+        const tooltipX = hoveredPickPoint.x * CELL_SIZE + CELL_SIZE;
+        const tooltipY = hoveredPickPoint.y * CELL_SIZE;
+        
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(tooltipX, tooltipY, 100, 60);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`SKU: ${hoveredPickPoint.sku}`, tooltipX + 5, tooltipY + 5);
+        ctx.fillText(`Pos: ${hoveredPickPoint.x}, ${hoveredPickPoint.y}`, tooltipX + 5, tooltipY + 20);
+        ctx.fillText(`Level: ${hoveredPickPoint.z}`, tooltipX + 5, tooltipY + 35);
+        
+        // Check if there is location info for qty
+        const cell = warehouse.grid[hoveredPickPoint.y][hoveredPickPoint.x];
+        const loc = cell.locations.find(l => l.z === hoveredPickPoint.z && l.sku === hoveredPickPoint.sku);
+        if (loc) {
+          ctx.fillText(`Qty: ${loc.quantity}`, tooltipX + 5, tooltipY + 50);
         }
       }
     }
@@ -413,7 +461,7 @@ export function WarehouseCanvas({
     ctx.strokeRect(0, 0, width, height);
 
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, animationProgress, heatmap, showHeatmap, zVisualizationMode]);
+  }, [warehouse, panOffset, zoom, activeRoute, animationProgress, heatmap, visualizationMode, zVisualizationMode, hoveredPickPoint]);
 
   return (
     <div 

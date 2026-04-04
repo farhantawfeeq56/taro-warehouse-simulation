@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult, PickTask, ZVisualizationMode } from '@/lib/taro/types';
+import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult, PickTask, ZVisualizationMode, VisualizationMode } from '@/lib/taro/types';
 import { createEmptyWarehouse, generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/lib/taro/simulation';
 import { generateTaskCSV, parseTaskCSV } from '@/lib/taro/csv';
@@ -21,11 +21,11 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('collapsed');
+  const [visualizationMode, setVisualizationMode] = useState<VisualizationMode>('collapsed');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
   const [animationProgress, setAnimationProgress] = useState(0);
-  const [showHeatmap, setShowHeatmap] = useState(false);
   const [workerCount, setWorkerCount] = useState(2);
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
   const [showEntryOverlay, setShowEntryOverlay] = useState(true);
@@ -42,7 +42,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setSimulationResults(null);
     setActiveStrategy(null);
     setAnimationProgress(0);
-    setShowHeatmap(false);
+    setVisualizationMode('collapsed');
     setShowEntryOverlay(true);
   }, []);
 
@@ -235,8 +235,8 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
             <Toolbar
               selectedTool={selectedTool}
               onToolChange={setSelectedTool}
-              showHeatmap={showHeatmap}
-              onHeatmapToggle={() => setShowHeatmap(prev => !prev)}
+              visualizationMode={visualizationMode}
+              onVisualizationModeChange={setVisualizationMode}
               hasHeatmap={simulationResults !== null}
               zVisualizationMode={zVisualizationMode}
               onZVisualizationChange={setZVisualizationMode}
@@ -250,7 +250,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
             selectedTool={selectedTool}
             activeRoute={getActiveRoute()}
             heatmap={simulationResults?.heatmap || null}
-            showHeatmap={showHeatmap}
+            visualizationMode={visualizationMode}
             animationProgress={animationProgress}
             zVisualizationMode={zVisualizationMode}
           />
