@@ -1,14 +1,14 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { ToolType, ZVisualizationMode } from '@/lib/taro/types';
-import { Grid3X3, User, Eraser, Flame, Layers } from 'lucide-react';
+import type { ToolType, ZVisualizationMode, VisualizationMode } from '@/lib/taro/types';
+import { Grid3X3, User, Eraser, Flame, Layers, Eye } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
   onToolChange: (tool: ToolType) => void;
-  showHeatmap: boolean;
-  onHeatmapToggle: () => void;
+  visualizationMode: VisualizationMode;
+  onVisualizationModeChange: (mode: VisualizationMode) => void;
   hasHeatmap: boolean;
   zVisualizationMode: ZVisualizationMode;
   onZVisualizationChange: (mode: ZVisualizationMode) => void;
@@ -34,11 +34,18 @@ const zModeOptions: { value: ZVisualizationMode; label: string }[] = [
   { value: 'level4', label: 'Show Level 4' },
 ];
 
+const viewModes: { value: VisualizationMode; label: string; disabled?: boolean }[] = [
+  { value: 'collapsed', label: 'Collapsed (Summary)' },
+  { value: 'heatmap', label: 'Heatmap' },
+  { value: 'z-level', label: 'Z-Level Filter' },
+  { value: 'debug-picks', label: 'Debug: Pick Points' },
+];
+
 export function Toolbar({ 
   selectedTool, 
   onToolChange, 
-  showHeatmap, 
-  onHeatmapToggle,
+  visualizationMode, 
+  onVisualizationModeChange,
   hasHeatmap,
   zVisualizationMode,
   onZVisualizationChange,
@@ -67,39 +74,42 @@ export function Toolbar({
 
       <div className="w-px h-6 bg-border" />
 
-      {/* Z Visualization Mode Dropdown */}
+      {/* View Mode Dropdown */}
       <div className="flex items-center gap-1.5">
-        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+        <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground hidden sm:inline">View Mode:</span>
         <select
-          value={zVisualizationMode}
-          onChange={(e) => onZVisualizationChange(e.target.value as ZVisualizationMode)}
+          value={visualizationMode}
+          onChange={(e) => onVisualizationModeChange(e.target.value as VisualizationMode)}
           className="h-8 text-xs rounded border border-border bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary"
-          title="Z-Level Visualization Mode"
+          title="Warehouse View Mode"
         >
-          {zModeOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
+          {viewModes.map((opt) => (
+            <option key={opt.value} value={opt.value} disabled={opt.value === 'heatmap' && !hasHeatmap}>
               {opt.label}
             </option>
           ))}
         </select>
       </div>
 
-      {hasHeatmap && (
+      {visualizationMode === 'z-level' && (
         <>
           <div className="w-px h-6 bg-border" />
-          <button
-            onClick={onHeatmapToggle}
-            title="Toggle traffic heatmap visualization"
-            className={cn(
-              'h-8 px-3 rounded-lg transition-all flex items-center gap-1.5 text-xs font-medium',
-              showHeatmap
-                ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 shadow-sm'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80'
-            )}
-          >
-            <Flame className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Heatmap</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+            <select
+              value={zVisualizationMode}
+              onChange={(e) => onZVisualizationChange(e.target.value as ZVisualizationMode)}
+              className="h-8 text-xs rounded border border-border bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+              title="Z-Level Visualization Mode"
+            >
+              {zModeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </>
       )}
     </div>
