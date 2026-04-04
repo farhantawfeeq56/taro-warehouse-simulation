@@ -10,7 +10,7 @@ import { generateRandomOrders } from '@/lib/taro/demo-generator';
 interface OrdersPanelProps {
   orders: Order[];
   onOrdersChange: (orders: Order[]) => void;
-  warehouse: Warehouse;
+  warehouse?: Warehouse;
   workerCount: number;
 }
 
@@ -19,11 +19,14 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
 
   // Get all available SKUs from warehouse
   const availableSkus = useMemo(() => {
+    if (!warehouse) return [];
+
     const skus = new Set<string>();
 
     for (let y = 0; y < warehouse.height; y++) {
       for (let x = 0; x < warehouse.width; x++) {
-        const cell = warehouse.grid[y][x];
+        const cell = warehouse.grid[y]?.[x];
+        if (!cell) continue;
         if (cell.type === 'shelf' && cell.locations.length > 0) {
           for (const loc of cell.locations) {
             skus.add(loc.sku);
@@ -86,7 +89,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
   };
 
   const generateRandom = () => {
-    if (availableSkus.length === 0) return;
+    if (!warehouse || availableSkus.length === 0) return;
     const randomOrders = generateRandomOrders(warehouse, Math.min(5, Math.max(3, Math.floor(availableSkus.length / 3))));
     // Preserve assignedWorkerId=null on generated orders
     onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
