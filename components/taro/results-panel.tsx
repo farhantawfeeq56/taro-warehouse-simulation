@@ -32,6 +32,28 @@ export function ResultsPanel({
     setIsReplaying(prev => !prev);
   }, []);
 
+  const strategies = results?.strategies ?? [];
+  const resultsData = results;
+
+  // Keep hook order stable across loading/empty/result states.
+  // Sort strategies with strict hierarchy: baseline always at bottom,
+  // then efficiency desc, critical distance asc, time asc, cost asc.
+  const sortedStrategies = useMemo(() => {
+    return [...strategies].sort((a, b) => {
+      // Always put baseline ('single') at the bottom
+      if (a.strategy === 'single') return 1;
+      if (b.strategy === 'single') return -1;
+      // Primary: efficiency descending
+      if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
+      // Tie-breaker 1: critical path distance ascending
+      if (a.criticalPathDistance !== b.criticalPathDistance) return a.criticalPathDistance - b.criticalPathDistance;
+      // Tie-breaker 2: time ascending
+      if (a.estimatedTime !== b.estimatedTime) return a.estimatedTime - b.estimatedTime;
+      // Tie-breaker 3: cost ascending
+      return a.costPerOrder - b.costPerOrder;
+    });
+  }, [strategies]);
+
   if (!results && !isSimulating) {
     return (
       <div className="w-80 border-l border-border bg-background flex flex-col">
@@ -74,26 +96,6 @@ export function ResultsPanel({
   if (!results) {
     return null;
   }
-
-  // At this point, results is guaranteed to be non-null
-  const resultsData = results;
-
-  // Sort strategies with strict hierarchy: baseline always at bottom, then efficiency desc, then critical distance asc, time asc, cost asc
-  const sortedStrategies = useMemo(() => {
-    return [...resultsData.strategies].sort((a, b) => {
-      // Always put baseline ('single') at the bottom
-      if (a.strategy === 'single') return 1;
-      if (b.strategy === 'single') return -1;
-      // Primary: efficiency descending
-      if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
-      // Tie-breaker 1: critical path distance ascending
-      if (a.criticalPathDistance !== b.criticalPathDistance) return a.criticalPathDistance - b.criticalPathDistance;
-      // Tie-breaker 2: time ascending
-      if (a.estimatedTime !== b.estimatedTime) return a.estimatedTime - b.estimatedTime;
-      // Tie-breaker 3: cost ascending
-      return a.costPerOrder - b.costPerOrder;
-    });
-  }, [resultsData.strategies]);
 
   const renderHeader = () => {
     return (
