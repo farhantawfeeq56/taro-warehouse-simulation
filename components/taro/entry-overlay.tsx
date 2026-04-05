@@ -2,15 +2,15 @@
 
 import { Wand2, Upload, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 interface EntryOverlayProps {
   onTryDemo: () => void;
   onImport: () => void;
   onBuildManually: () => void;
+  onDownloadTemplate: () => void;
 }
 
-export function EntryOverlay({ onTryDemo, onImport, onBuildManually }: EntryOverlayProps) {
+export function EntryOverlay({ onTryDemo, onImport, onBuildManually, onDownloadTemplate }: EntryOverlayProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
   <div className="absolute inset-0 backdrop-blur-md bg-background/60 animate-in fade-in duration-300" />
@@ -61,6 +61,16 @@ export function EntryOverlay({ onTryDemo, onImport, onBuildManually }: EntryOver
           <span>Explore sample warehouse</span>
         </Button>
 
+      </div>
+
+      <div className="mt-4 text-center">
+        <button
+          onClick={onDownloadTemplate}
+          className="text-xs text-primary hover:underline"
+          type="button"
+        >
+          Download sample CSV template
+        </button>
       </div>
 
       <div className="mt-6 pt-6 border-t border-border">
