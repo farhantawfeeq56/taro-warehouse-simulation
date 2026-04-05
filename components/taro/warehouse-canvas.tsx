@@ -275,6 +275,28 @@ export function WarehouseCanvas({
     setIsAddingItem(false);
   }, [newQuantity, newSku, onWarehouseChange, shelfDetails, warehouse]);
 
+  const activeRouteHeatmap = useCallback((): number[][] | null => {
+    if (!activeRoute) return null;
+
+    const heatmap: number[][] = Array(warehouse.height)
+      .fill(null)
+      .map(() => Array(warehouse.width).fill(0));
+
+    const routeGroups = activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0
+      ? activeRoute.workerRoutes.map(workerRoute => workerRoute.route)
+      : [activeRoute.route];
+
+    for (const route of routeGroups) {
+      for (const pos of route) {
+        if (pos.y >= 0 && pos.y < warehouse.height && pos.x >= 0 && pos.x < warehouse.width) {
+          heatmap[pos.y][pos.x]++;
+        }
+      }
+    }
+
+    return heatmap;
+  }, [activeRoute, warehouse.height, warehouse.width]);
+
   useEffect(() => {
     if (!shelfDetails) return;
 
@@ -424,6 +446,26 @@ export function WarehouseCanvas({
     }
 
     // Draw route animation — all workers animate in parallel
+    const heatmap = activeRouteHeatmap();
+    if (heatmap) {
+      const maxHeat = heatmap.reduce((max, row) => Math.max(max, ...row), 0);
+      if (maxHeat > 0) {
+        for (let y = 0; y < warehouse.height; y++) {
+          for (let x = 0; x < warehouse.width; x++) {
+            const heat = heatmap[y][x];
+            if (heat <= 0) continue;
+            const px = x * CELL_SIZE;
+            const py = y * CELL_SIZE;
+            const intensity = heat / maxHeat;
+            const alpha = 0.12 + intensity * 0.43;
+            ctx.fillStyle = `rgba(239, 68, 68, ${alpha.toFixed(3)})`;
+            ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+          }
+        }
+      }
+    }
+
+    // Draw route animation — all workers animate in parallel
     if (activeRoute) {
       if (activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0) {
         for (const workerRoute of activeRoute.workerRoutes) {
@@ -514,7 +556,7 @@ export function WarehouseCanvas({
     ctx.strokeRect(0, 0, width, height);
 
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, animationProgress, zVisualizationMode]);
+  }, [warehouse, panOffset, zoom, activeRoute, activeRouteHeatmap, animationProgress, zVisualizationMode]);
 
   // Use RAF for smooth animation, avoid 60fps React re-renders
   useEffect(() => {
