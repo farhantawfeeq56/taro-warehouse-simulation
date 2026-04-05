@@ -3,8 +3,8 @@
 import type { SimulationResults, StrategyResult, StrategyType } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Activity, Play, Pause, Download, Clipboard, Check } from 'lucide-react';
-import { useState, useCallback, useMemo } from 'react';
+import { Activity, Download, Clipboard, Check } from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { generateTaskCSV, downloadCSV } from '@/lib/taro/csv';
 
 interface ResultsPanelProps {
@@ -24,16 +24,9 @@ export function ResultsPanel({
   animationProgress,
   workerCount,
 }: ResultsPanelProps) {
-  const [isReplaying, setIsReplaying] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Toggle replay mode - uses the parent's animationProgress
-  const toggleReplay = useCallback(() => {
-    setIsReplaying(prev => !prev);
-  }, []);
-
   const strategies = results?.strategies ?? [];
-  const resultsData = results;
 
   // Keep hook order stable across loading/empty/result states.
   // Sort strategies with strict hierarchy: baseline always at bottom,
@@ -85,7 +78,8 @@ export function ResultsPanel({
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="text-center text-muted-foreground text-sm">
             <div className="animate-spin h-8 w-8 border-2 border-muted-foreground border-t-transparent rounded-full mx-auto mb-3" />
-            <p>Running simulation...</p>
+            <p>Running all strategies…</p>
+            <p className="text-xs mt-1">Preparing route animation and results.</p>
           </div>
         </div>
       </div>
@@ -96,6 +90,8 @@ export function ResultsPanel({
   if (!results) {
     return null;
   }
+
+  const resultsData = results;
 
   const renderHeader = () => {
     return (
@@ -336,42 +332,6 @@ export function ResultsPanel({
     );
   };
 
-  const renderRouteReplay = () => {
-    if (!activeStrategy) return null;
-
-    return (
-      <div className="border border-border rounded-lg p-3 space-y-3">
-        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-          Route Replay
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleReplay}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded hover:bg-primary/90 transition-colors"
-          >
-            {isReplaying ? (
-              <>
-                <Pause className="h-3 w-3" />
-                Pause
-              </>
-            ) : (
-              <>
-                <Play className="h-3 w-3" />
-                Play
-              </>
-            )}
-          </button>
-          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{ width: `${animationProgress * 100}%` }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="w-80 border-l border-border bg-background flex flex-col">
       {renderHeader()}
@@ -379,10 +339,9 @@ export function ResultsPanel({
         {renderStrategyList()}
         {renderWorkerAllocation()}
         {renderExportTasks()}
-        {renderRouteReplay()}
       </div>
       <div className="p-3 border-t border-border text-xs text-muted-foreground">
-        Click a strategy to visualize its route on the canvas.
+        Best strategy auto-plays on run. Click any strategy to compare its route.
       </div>
     </div>
   );

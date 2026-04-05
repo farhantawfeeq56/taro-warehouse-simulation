@@ -48,6 +48,32 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [importSummary, setImportSummary] = useState<string>('');
 
+  const startStrategyAnimation = useCallback((strategy: StrategyType) => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+
+    setActiveStrategy(strategy);
+    setAnimationProgress(0);
+
+    const startTime = performance.now();
+    const baseDuration = 3000;
+    const duration = baseDuration / replaySpeed;
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      setAnimationProgress(progress);
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+  }, [replaySpeed]);
+
   const getActiveRoute = useCallback((): StrategyResult | null => {
     if (!simulationResults || !activeStrategy) return null;
     return simulationResults.strategies.find(s => s.strategy === activeStrategy) || null;
@@ -85,47 +111,21 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setActiveStrategy(null);
     setAnimationProgress(0);
 
-    // Small delay to show loading state
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       const results = runSimulation(warehouse, orders, workerCount, {
         warehouseProfile,
         laborProfile,
       });
+
       setSimulationResults(results);
       setIsSimulating(false);
-
-      // Auto-select best strategy and start animation
-      setActiveStrategy(results.bestStrategy);
-    }, 500);
-  }, [warehouse, orders, workerCount, warehouseProfile, laborProfile]);
+      startStrategyAnimation(results.bestStrategy);
+    });
+  }, [warehouse, orders, workerCount, warehouseProfile, laborProfile, startStrategyAnimation]);
 
   const handleStrategySelect = useCallback((strategy: StrategyType) => {
-    // Cancel any ongoing animation
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-    
-    setActiveStrategy(strategy);
-    setAnimationProgress(0);
-    
-    // Start animation with replay speed multiplier
-    const startTime = performance.now();
-    const baseDuration = 3000; // 3 seconds baseline
-    const duration = baseDuration / replaySpeed;
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      setAnimationProgress(progress);
-
-      if (progress < 1) {
-        animationRef.current = requestAnimationFrame(animate);
-      }
-    };
-
-    animationRef.current = requestAnimationFrame(animate);
-  }, [replaySpeed]);
+    startStrategyAnimation(strategy);
+  }, [startStrategyAnimation]);
 
   // Cleanup animation on unmount
   useEffect(() => {
