@@ -60,6 +60,9 @@ export function WarehouseCanvas({
   
   // Shelf details panel state for click
   const [shelfDetails, setShelfDetails] = useState<ShelfDetailsState | null>(null);
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [newSku, setNewSku] = useState('');
+  const [newQuantity, setNewQuantity] = useState(1);
 
   const getCellFromMouse = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -226,6 +229,71 @@ export function WarehouseCanvas({
       locations: cell.locations,
     });
   }, [getCellFromMouse, warehouse]);
+
+  const addItemToShelf = useCallback(() => {
+    if (!shelfDetails) return;
+
+    const sku = newSku.trim();
+    if (!sku) return;
+
+    const nextQuantity = Number.isFinite(newQuantity) && newQuantity > 0 ? Math.floor(newQuantity) : 1;
+    const cellX = shelfDetails.cellX;
+    const cellY = shelfDetails.cellY;
+
+    const newWarehouse = { ...warehouse };
+    newWarehouse.grid = warehouse.grid.map(row => row.map(cell => ({
+      ...cell,
+      locations: [...cell.locations],
+    })));
+    newWarehouse.shelves = [...warehouse.shelves];
+
+    const cell = newWarehouse.grid[cellY][cellX];
+    if (cell.type !== 'shelf') return;
+
+    const nextItem: StorageLocation = {
+      id: `${sku}@${cellX},${cellY},1-${Date.now()}`,
+      locationId: `shelf-${cellX}-${cellY}`,
+      x: cellX,
+      y: cellY,
+      z: 1,
+      sku,
+      quantity: nextQuantity,
+    };
+
+    cell.locations.push(nextItem);
+    newWarehouse.locations = buildCoordinateLocations(newWarehouse);
+
+    onWarehouseChange(newWarehouse);
+    setShelfDetails({
+      visible: true,
+      cellX,
+      cellY,
+      locations: cell.locations,
+    });
+    setNewSku('');
+    setNewQuantity(1);
+    setIsAddingItem(false);
+  }, [newQuantity, newSku, onWarehouseChange, shelfDetails, warehouse]);
+
+  useEffect(() => {
+    if (!shelfDetails) return;
+
+    const latestCell = warehouse.grid[shelfDetails.cellY]?.[shelfDetails.cellX];
+    if (!latestCell || latestCell.type !== 'shelf') {
+      setShelfDetails(null);
+      return;
+    }
+
+    if (shelfDetails.locations !== latestCell.locations) {
+      setShelfDetails(prev => prev
+        ? {
+            ...prev,
+            locations: latestCell.locations,
+          }
+        : prev
+      );
+    }
+  }, [warehouse, shelfDetails?.cellX, shelfDetails?.cellY, shelfDetails?.locations, shelfDetails]);
 
   // Draw the canvas - memoized draw function to avoid recreation
   const drawCanvas = useCallback(() => {
@@ -564,6 +632,39 @@ export function WarehouseCanvas({
           
           <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
             Total items: {shelfDetails.locations.length}
+          </div>
+
+          <div className="mt-3">
+            <button
+              onClick={() => setIsAddingItem(prev => !prev)}
+              className="w-full px-2.5 py-2 text-xs font-medium border border-border rounded-md hover:bg-muted/60 transition-colors"
+            >
+              + Add Item
+            </button>
+
+            {isAddingItem && (
+              <div className="mt-2 space-y-2">
+                <input
+                  value={newSku}
+                  onChange={(e) => setNewSku(e.target.value)}
+                  placeholder="SKU"
+                  className="w-full h-8 px-2 text-xs border border-border rounded bg-background"
+                />
+                <input
+                  type="number"
+                  min={1}
+                  value={newQuantity}
+                  onChange={(e) => setNewQuantity(Number(e.target.value))}
+                  className="w-full h-8 px-2 text-xs border border-border rounded bg-background"
+                />
+                <button
+                  onClick={addItemToShelf}
+                  className="w-full h-8 text-xs font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
