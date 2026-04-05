@@ -2,6 +2,7 @@
 
 import type { Warehouse } from './types';
 import { PriorityQueue } from './priority-queue';
+import { buildCoordinateLocations } from './layout';
 
 interface Node {
   x: number;
@@ -21,12 +22,35 @@ export function isWalkable(warehouse: Warehouse, x: number, y: number): boolean 
     return false;
   }
   const cell = warehouse.grid[y][x];
-  // Can walk through empty cells and worker start
-  // Cannot walk through shelf cells (they contain storage locations at z-levels)
   return cell.type !== 'shelf';
 }
 
-function getNeighbors(warehouse: Warehouse, node: Node): { x: number; y: number }[] {
+function getNeighborGraph(warehouse: Warehouse): Map<string, { x: number; y: number }[]> {
+  const nodes = buildCoordinateLocations(warehouse);
+  const walkable = nodes.filter(loc => loc.type === 'aisle' || loc.type === 'packing');
+  const walkableSet = new Set(walkable.map(loc => `${loc.x},${loc.y}`));
+  const neighbors = new Map<string, { x: number; y: number }[]>();
+
+  for (const loc of walkable) {
+    const list: { x: number; y: number }[] = [];
+    const candidates = [
+      { x: loc.x, y: loc.y - 1 },
+      { x: loc.x, y: loc.y + 1 },
+      { x: loc.x - 1, y: loc.y },
+      { x: loc.x + 1, y: loc.y },
+    ];
+    for (const candidate of candidates) {
+      if (walkableSet.has(`${candidate.x},${candidate.y}`)) {
+        list.push(candidate);
+      }
+    }
+    neighbors.set(`${loc.x},${loc.y}`, list);
+  }
+
+  return neighbors;
+}
+
+function getNeighbors(graph: Map<string, { x: number; y: number }[]>, node: Node): { x: number; y: number }[] {
   const directions = [
     { x: 0, y: -1 }, // up
     { x: 0, y: 1 },  // down
@@ -34,17 +58,9 @@ function getNeighbors(warehouse: Warehouse, node: Node): { x: number; y: number 
     { x: 1, y: 0 },  // right
   ];
 
-  const neighbors: { x: number; y: number }[] = [];
-
-  for (const dir of directions) {
-    const nx = node.x + dir.x;
-    const ny = node.y + dir.y;
-    if (isWalkable(warehouse, nx, ny)) {
-      neighbors.push({ x: nx, y: ny });
-    }
-  }
-
-  return neighbors;
+  const neighbors = graph.get(`${node.x},${node.y}`);
+  if (neighbors) return neighbors;
+  return directions.map(dir => ({ x: node.x + dir.x, y: node.y + dir.y }));
 }
 
 export function findPath(
@@ -52,6 +68,7 @@ export function findPath(
   start: { x: number; y: number },
   end: { x: number; y: number }
 ): { x: number; y: number }[] {
+  const neighborGraph = getNeighborGraph(warehouse);
   // If start or end is on a shelf, find nearest walkable cell
   const actualStart = findNearestWalkable(warehouse, start);
   const actualEnd = findNearestWalkable(warehouse, end);
@@ -96,7 +113,7 @@ export function findPath(
     closedSet.add(currentKey);
     openSetNodes.delete(currentKey);
 
-    for (const neighbor of getNeighbors(warehouse, current)) {
+    for (const neighbor of getNeighbors(neighborGraph, current)) {
       const neighborKey = `${neighbor.x},${neighbor.y}`;
 
       if (closedSet.has(neighborKey)) {
@@ -143,22 +160,20 @@ function findNearestWalkable(
     return pos;
   }
 
-  // Search in expanding squares
-  for (let radius = 1; radius < Math.max(warehouse.width, warehouse.height); radius++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
-          const nx = pos.x + dx;
-          const ny = pos.y + dy;
-          if (isWalkable(warehouse, nx, ny)) {
-            return { x: nx, y: ny };
-          }
-        }
-      }
+  const nodes = buildCoordinateLocations(warehouse);
+  const walkableNodes = nodes.filter(node => node.type === 'aisle' || node.type === 'packing');
+  let nearest: { x: number; y: number } | null = null;
+  let bestDistance = Infinity;
+
+  for (const node of walkableNodes) {
+    const distance = Math.abs(node.x - pos.x) + Math.abs(node.y - pos.y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      nearest = { x: node.x, y: node.y };
     }
   }
 
-  return null;
+  return nearest;
 }
 
 export function calculatePathDistance(path: { x: number; y: number }[]): number {

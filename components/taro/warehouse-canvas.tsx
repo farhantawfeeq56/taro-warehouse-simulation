@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
+import { buildCoordinateLocations } from '@/lib/taro/layout';
 
 interface WarehouseCanvasProps {
   warehouse: Warehouse;
@@ -120,6 +121,7 @@ export function WarehouseCanvas({
         break;
     }
 
+    newWarehouse.locations = buildCoordinateLocations(newWarehouse);
     onWarehouseChange(newWarehouse);
   }, [warehouse, selectedTool, onWarehouseChange]);
 

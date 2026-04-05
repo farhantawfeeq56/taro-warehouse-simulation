@@ -84,20 +84,19 @@ const zoneAllocation: AllocationStrategy['allocateItems'] = (itemKeys, allLocati
     workerBuckets.set(i, []);
   }
 
+  const coordinateX = warehouse.locations.length > 0
+    ? warehouse.locations.map(loc => loc.x)
+    : [0, warehouse.width];
+  const minX = Math.min(...coordinateX);
+  const maxX = Math.max(...coordinateX);
+  const zoneSpan = Math.max(1, (maxX - minX + 1) / numWorkers);
+
   for (const key of itemKeys) {
     const pos = allLocations.get(key);
     if (!pos) continue;
 
-    let workerId = 1;
-    if (numWorkers === 2) {
-      const midX = Math.floor(warehouse.width / 2);
-      workerId = pos.x < midX ? 1 : 2;
-    } else if (numWorkers === 3) {
-      const zoneWidth = warehouse.width / 3;
-      if (pos.x < zoneWidth) workerId = 1;
-      else if (pos.x < zoneWidth * 2) workerId = 2;
-      else workerId = 3;
-    }
+    let workerId = Math.floor((pos.x - minX) / zoneSpan) + 1;
+    workerId = Math.max(1, Math.min(numWorkers, workerId));
 
     workerBuckets.get(workerId)!.push(key);
   }
@@ -369,8 +368,12 @@ function simulateZonePicking(
 
   const allLocations = getAllPickableLocations(warehouse);
 
-  // Divide warehouse into zones (left and right halves)
-  const midX = Math.floor(warehouse.width / 2);
+  const coordinateX = warehouse.locations.length > 0
+    ? warehouse.locations.map(loc => loc.x)
+    : [0, warehouse.width];
+  const minX = Math.min(...coordinateX);
+  const maxX = Math.max(...coordinateX);
+  const midX = minX + (maxX - minX) / 2;
 
   // Collect all items and group by zone
   const allSkuKeys = new Set<string>();

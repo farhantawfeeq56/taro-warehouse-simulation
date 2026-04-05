@@ -1,6 +1,7 @@
 // Demo data generators for Taro
 
 import type { Warehouse, Cell, Order, StorageLocation } from './types';
+import { buildCoordinateLocations } from './layout';
 
 // Get all pickable locations from warehouse (local copy for demo-generator)
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
@@ -31,13 +32,16 @@ export function createEmptyWarehouse(width: number, height: number): Warehouse {
     grid.push(row);
   }
 
-  return {
+  const warehouse: Warehouse = {
     width,
     height,
     grid,
     shelves: [],
     workerStart: null,
+    locations: [],
   };
+  warehouse.locations = buildCoordinateLocations(warehouse);
+  return warehouse;
 }
 
 export function generateDemoWarehouse(): Warehouse {
@@ -109,6 +113,7 @@ export function generateDemoWarehouse(): Warehouse {
   // Set worker start position at entrance
   warehouse.workerStart = { x: 1, y: height - 2 };
   warehouse.grid[height - 2][1].type = 'worker-start';
+  warehouse.locations = buildCoordinateLocations(warehouse);
 
   return warehouse;
 }
