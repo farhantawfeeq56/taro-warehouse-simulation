@@ -15,9 +15,9 @@ export const EMPTY_COLOR = '#ffffff';
 // Z-level colors
 export const Z_LEVEL_COLORS: Record<number, string> = {
   1: '#FFEC51', // Banana cream
-  2: '#E08E45', // toasted orange
-  3: '#9B8816', // Olive
-  4: '#CB769E', // sweet pink
+  2: '#32E875', // malachite green
+  3: '#B24C63', // rosewood
+  4: '#DE9151', // toasted almond
 };
 
 // Strategy visualization
@@ -36,7 +36,7 @@ export const STRATEGY_NAMES = {
 } as const;
 
 // Worker colors
-export const WORKER_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']; // blue, emerald, amber, red
+export const WORKER_COLORS = ['#606C38', '#BC6C25', '#ECA400', '#AD343E']; // olive, copper, amber, cherry
 
 // Animation
 export const REPLAY_DURATION_MS = 3000; // 3 seconds baseline for animation
