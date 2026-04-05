@@ -2,7 +2,6 @@
 
 import type { Warehouse } from './types';
 import { PriorityQueue } from './priority-queue';
-import { buildCoordinateLocations } from './layout';
 
 interface Node {
   x: number;
@@ -26,8 +25,15 @@ export function isWalkable(warehouse: Warehouse, x: number, y: number): boolean 
 }
 
 function getNeighborGraph(warehouse: Warehouse): Map<string, { x: number; y: number }[]> {
-  const nodes = buildCoordinateLocations(warehouse);
-  const walkable = nodes.filter(loc => loc.type === 'aisle' || loc.type === 'packing');
+  const walkable: { x: number; y: number }[] = [];
+  for (let y = 0; y < warehouse.height; y++) {
+    for (let x = 0; x < warehouse.width; x++) {
+      if (isWalkable(warehouse, x, y)) {
+        walkable.push({ x, y });
+      }
+    }
+  }
+
   const walkableSet = new Set(walkable.map(loc => `${loc.x},${loc.y}`));
   const neighbors = new Map<string, { x: number; y: number }[]>();
 
@@ -160,8 +166,14 @@ function findNearestWalkable(
     return pos;
   }
 
-  const nodes = buildCoordinateLocations(warehouse);
-  const walkableNodes = nodes.filter(node => node.type === 'aisle' || node.type === 'packing');
+  const walkableNodes: { x: number; y: number }[] = [];
+  for (let y = 0; y < warehouse.height; y++) {
+    for (let x = 0; x < warehouse.width; x++) {
+      if (isWalkable(warehouse, x, y)) {
+        walkableNodes.push({ x, y });
+      }
+    }
+  }
   let nearest: { x: number; y: number } | null = null;
   let bestDistance = Infinity;
 

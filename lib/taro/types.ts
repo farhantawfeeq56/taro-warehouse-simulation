@@ -13,6 +13,8 @@ export type CellType = 'empty' | 'shelf' | 'worker-start';
 // Storage location represents the canonical data model
 // Key: ${x},${y},${z}-${sku} for stable references
 export interface StorageLocation {
+  id: string;
+  locationId: string;
   x: number;
   y: number;
   z: number; // z-level (1-4 typically)
@@ -27,10 +29,10 @@ export interface Cell {
   locations: StorageLocation[];
 }
 
-// Order now uses location keys (SKU-based) instead of legacy item IDs
+// Order items reference shelf location IDs.
 export interface Order {
   id: string;
-  items: string[]; // SKU-based item references
+  items: string[]; // locationId references
   assignedWorkerId: number | null; // null = Auto
 }
 
@@ -43,8 +45,9 @@ export interface WarehouseLocation {
   id: string;
   x: number;
   y: number;
-  z?: number;
-  type: 'shelf' | 'aisle' | 'packing';
+  z: number;
+  type: 'shelf';
+  items: string[];
 }
 
 export interface Warehouse {

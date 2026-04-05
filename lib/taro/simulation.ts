@@ -40,31 +40,19 @@ export function parseLocationKey(key: string): { x: number; y: number; z: number
 // Get all pickable items from warehouse locations
 // Single source of truth for location mapping
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
-  const locations = new Map<string, { x: number; y: number; z: number; sku: string }>();
+  const locationMap = new Map<string, { x: number; y: number; z: number; sku: string }>();
 
-  for (let y = 0; y < warehouse.height; y++) {
-    for (let x = 0; x < warehouse.width; x++) {
-      const cell = warehouse.grid[y][x];
-      if (cell.type === 'shelf' && cell.locations.length > 0) {
-        for (const loc of cell.locations) {
-          const key = getLocationKey(loc.x, loc.y, loc.z, loc.sku);
-          locations.set(key, { x: loc.x, y: loc.y, z: loc.z, sku: loc.sku });
-        }
-      }
-    }
+  for (const location of warehouse.locations) {
+    if (location.items.length === 0) continue;
+    locationMap.set(location.id, {
+      x: location.x,
+      y: location.y,
+      z: location.z,
+      sku: location.items[0],
+    });
   }
 
-  return locations;
-}
-
-// Get position from SKU (find first location with matching SKU)
-function getSkuPosition(warehouse: Warehouse, sku: string, allLocations: Map<string, { x: number; y: number; z: number; sku: string }>): { x: number; y: number; z: number; sku: string } | null {
-  for (const [key, pos] of allLocations) {
-    if (pos.sku === sku) {
-      return pos;
-    }
-  }
-  return null;
+  return locationMap;
 }
 
 // Strategy allocation functions (extracted for maintainability)
@@ -146,17 +134,15 @@ function generateStrategyAwareWorkerRoutes(
   // Force single worker for single strategy
   const numWorkers = strategy === 'single' ? 1 : Math.max(1, Math.min(3, workerCount));
 
-  // Build SKU→position map from all locations in the warehouse
+  // Build locationId→position map from shelf locations.
   const allLocations = getAllPickableLocations(warehouse);
 
-  // Collect all unique SKUs from all orders (deduplicate by SKU)
+  // Collect all unique location IDs from all orders.
   const allSkuKeys = new Set<string>();
   for (const order of orders) {
-    for (const sku of order.items) {
-      // Find the first location with this SKU
-      const pos = getSkuPosition(warehouse, sku, allLocations);
-      if (pos) {
-        allSkuKeys.add(getLocationKey(pos.x, pos.y, pos.z, pos.sku));
+    for (const locationId of order.items) {
+      if (allLocations.has(locationId)) {
+        allSkuKeys.add(locationId);
       }
     }
   }
@@ -170,15 +156,15 @@ function generateStrategyAwareWorkerRoutes(
     const picks: { locationKey: string; x: number; y: number; z: number; sku: string }[] = [];
 
     for (const order of orders) {
-      for (const sku of order.items) {
-        const pos = getSkuPosition(warehouse, sku, allLocations);
+      for (const locationId of order.items) {
+        const pos = allLocations.get(locationId);
         if (pos) {
           const path = findPath(warehouse, currentPos, pos);
           if (path.length > 0) {
             route.push(...path);
             currentPos = pos;
             picks.push({
-              locationKey: getLocationKey(pos.x, pos.y, pos.z, pos.sku),
+              locationKey: locationId,
               x: pos.x,
               y: pos.y,
               z: pos.z,
@@ -283,8 +269,8 @@ function simulateSingleOrderPicking(
   for (const order of orders) {
     let currentPos = warehouse.workerStart;
 
-    for (const sku of order.items) {
-      const itemPos = getSkuPosition(warehouse, sku, allLocations);
+    for (const locationId of order.items) {
+      const itemPos = allLocations.get(locationId);
       if (itemPos) {
         const path = findPath(warehouse, currentPos, itemPos);
         if (path.length > 0) {
@@ -316,13 +302,12 @@ function simulateBatchPicking(
 
   const allLocations = getAllPickableLocations(warehouse);
 
-  // Collect all unique SKUs across all orders
+  // Collect all unique location IDs across all orders
   const allSkuKeys = new Set<string>();
   for (const order of orders) {
-    for (const sku of order.items) {
-      const pos = getSkuPosition(warehouse, sku, allLocations);
-      if (pos) {
-        allSkuKeys.add(getLocationKey(pos.x, pos.y, pos.z, pos.sku));
+    for (const locationId of order.items) {
+      if (allLocations.has(locationId)) {
+        allSkuKeys.add(locationId);
       }
     }
   }
@@ -351,7 +336,6 @@ function simulateBatchPicking(
   // Return to start
   const returnPath = findPath(warehouse, currentPos, warehouse.workerStart);
   if (returnPath.length > 0) {
-    fullRoute.push(...returnPath);
     totalDistance += calculatePathDistance(returnPath);
   }
 
@@ -375,13 +359,12 @@ function simulateZonePicking(
   const maxX = Math.max(...coordinateX);
   const midX = minX + (maxX - minX) / 2;
 
-  // Collect all items and group by zone
+  // Collect all locations and group by zone
   const allSkuKeys = new Set<string>();
   for (const order of orders) {
-    for (const sku of order.items) {
-      const pos = getSkuPosition(warehouse, sku, allLocations);
-      if (pos) {
-        allSkuKeys.add(getLocationKey(pos.x, pos.y, pos.z, pos.sku));
+    for (const locationId of order.items) {
+      if (allLocations.has(locationId)) {
+        allSkuKeys.add(locationId);
       }
     }
   }
@@ -441,10 +424,9 @@ function simulateWavePicking(
   // Wave picking: optimize route using nearest neighbor heuristic
   const allSkuKeys = new Set<string>();
   for (const order of orders) {
-    for (const sku of order.items) {
-      const pos = getSkuPosition(warehouse, sku, allLocations);
-      if (pos) {
-        allSkuKeys.add(getLocationKey(pos.x, pos.y, pos.z, pos.sku));
+    for (const locationId of order.items) {
+      if (allLocations.has(locationId)) {
+        allSkuKeys.add(locationId);
       }
     }
   }

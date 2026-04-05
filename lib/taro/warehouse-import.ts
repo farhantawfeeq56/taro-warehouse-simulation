@@ -1,4 +1,4 @@
-import { buildCoordinateLocations } from './layout';
+import { buildCoordinateLocations, getShelfLocationId } from './layout';
 import type { Cell, StorageLocation, Warehouse } from './types';
 
 const REQUIRED_COLUMNS = ['originallocation', 'x', 'y', 'z'] as const;
@@ -138,6 +138,8 @@ function buildWarehouse(locations: ImportedWarehouseLocation[]): Warehouse {
     }
 
     shelfMap.get(key)!.push({
+      id: `${location.id}@${location.x},${location.y},${location.z}`,
+      locationId: getShelfLocationId(location.x, location.y),
       x: location.x,
       y: location.y,
       z: location.z,

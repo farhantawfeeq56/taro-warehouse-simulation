@@ -17,25 +17,11 @@ interface OrdersPanelProps {
 export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
 
-  // Get all available SKUs from warehouse
-  const availableSkus = useMemo(() => {
+  // Get all available shelf locations that contain items.
+  const availableLocations = useMemo(() => {
     if (!warehouse) return [];
 
-    const skus = new Set<string>();
-
-    for (let y = 0; y < warehouse.height; y++) {
-      for (let x = 0; x < warehouse.width; x++) {
-        const cell = warehouse.grid[y]?.[x];
-        if (!cell) continue;
-        if (cell.type === 'shelf' && cell.locations.length > 0) {
-          for (const loc of cell.locations) {
-            skus.add(loc.sku);
-          }
-        }
-      }
-    }
-
-    return Array.from(skus);
+    return warehouse.locations.filter(location => location.items.length > 0);
   }, [warehouse]);
 
   const addOrder = () => {
@@ -60,10 +46,10 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     );
   };
 
-  const addItemToOrder = (orderId: string, sku: string) => {
+  const addItemToOrder = (orderId: string, locationId: string) => {
     onOrdersChange(
       orders.map(o =>
-        o.id === orderId ? { ...o, items: [...o.items, sku] } : o
+        o.id === orderId ? { ...o, items: [...o.items, locationId] } : o
       )
     );
     setNewItemInput(prev => ({ ...prev, [orderId]: '' }));
@@ -82,15 +68,16 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
   const handleItemInputKeyDown = (orderId: string, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const value = newItemInput[orderId] || '';
-      if (value.trim() !== '' && availableSkus.includes(value)) {
+      const isValidLocationId = availableLocations.some(location => location.id === value);
+      if (value.trim() !== '' && isValidLocationId) {
         addItemToOrder(orderId, value);
       }
     }
   };
 
   const generateRandom = () => {
-    if (!warehouse || availableSkus.length === 0) return;
-    const randomOrders = generateRandomOrders(warehouse, Math.min(5, Math.max(3, Math.floor(availableSkus.length / 3))));
+    if (!warehouse || availableLocations.length === 0) return;
+    const randomOrders = generateRandomOrders(warehouse, Math.min(5, Math.max(3, Math.floor(availableLocations.length / 3))));
     // Preserve assignedWorkerId=null on generated orders
     onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
   };
@@ -118,7 +105,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
             variant="outline"
             size="sm"
             onClick={generateRandom}
-            disabled={availableSkus.length === 0}
+            disabled={availableLocations.length === 0}
             className="h-7 text-xs px-2"
             title="Generate random orders"
           >
@@ -191,13 +178,13 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                   {order.items.length === 0 ? (
                     <span className="text-xs text-muted-foreground italic">No items</span>
                   ) : (
-                    order.items.map((sku, index) => (
+                    order.items.map((locationId, index) => (
                       <span
                         key={`${order.id}-${index}`}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs font-mono font-medium rounded border border-primary/20 group"
-                        title={sku}
+                        title={locationId}
                       >
-                        {sku}
+                        {locationId}
                         <button
                           onClick={() => removeItemFromOrder(order.id, index)}
                           className="text-primary/50 hover:text-primary group-hover:opacity-100 opacity-0 transition-opacity"
@@ -215,16 +202,16 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
               <div className="flex gap-1.5 pt-1">
                 <Input
                   type="text"
-                  placeholder="SKU"
-                  list="available-skus"
+                  placeholder="Shelf location ID"
+                  list="available-locations"
                   value={newItemInput[order.id] || ''}
                   onChange={e => setNewItemInput(prev => ({ ...prev, [order.id]: e.target.value }))}
                   onKeyDown={e => handleItemInputKeyDown(order.id, e)}
                   className="h-7 text-xs flex-1"
                 />
-                <datalist id="available-skus">
-                  {availableSkus.slice(0, 20).map(sku => (
-                    <option key={sku} value={sku} />
+                <datalist id="available-locations">
+                  {availableLocations.slice(0, 20).map(location => (
+                    <option key={location.id} value={location.id} />
                   ))}
                 </datalist>
                 <Button
@@ -232,7 +219,8 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                   size="sm"
                   onClick={() => {
                     const value = newItemInput[order.id] || '';
-                    if (value.trim() !== '' && availableSkus.includes(value)) {
+                    const isValidLocationId = availableLocations.some(location => location.id === value);
+                    if (value.trim() !== '' && isValidLocationId) {
                       addItemToOrder(order.id, value);
                     }
                   }}
@@ -255,7 +243,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="font-medium">Unique SKUs:</span>
+            <span className="font-medium">Unique Locations:</span>
             <span className="font-mono font-semibold text-foreground">
               {new Set(orders.flatMap(o => o.items)).size}
             </span>
