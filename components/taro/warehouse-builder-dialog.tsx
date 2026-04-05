@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Warehouse, StorageLocation } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { X, Wand2, Upload } from 'lucide-react';
-import { RACK_SPACING, AISLE_HEIGHT } from '@/lib/taro/constants';
+import { WAREHOUSE_LAYOUT_DEFAULTS } from '@/lib/taro/constants';
 
 interface WarehouseBuilderDialogProps {
   onGenerate: (warehouse: Warehouse) => void;
@@ -23,8 +23,8 @@ function buildWarehouseFromParams(
   // Grid width = racksPerAisle * 2 (shelf + gap)
   // Grid height = aisles * 3 (shelf row + 2 path rows)
 
-  const width = Math.max(racksPerAisle * RACK_SPACING + 2, 10);
-  const height = Math.max(aisles * AISLE_HEIGHT + 2, 10);
+  const width = Math.max(racksPerAisle * WAREHOUSE_LAYOUT_DEFAULTS.rackSpacing + 2, 10);
+  const height = Math.max(aisles * WAREHOUSE_LAYOUT_DEFAULTS.aisleHeight + 2, 10);
 
   const grid: Warehouse['grid'] = Array.from({ length: height }, (_, y) =>
     Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y, locations: [] }))
@@ -34,10 +34,10 @@ function buildWarehouseFromParams(
   let itemId = 1;
 
   for (let a = 0; a < aisles; a++) {
-    const row = 1 + a * AISLE_HEIGHT; // shelf row
+    const row = 1 + a * WAREHOUSE_LAYOUT_DEFAULTS.aisleHeight; // shelf row
 
     for (let r = 0; r < racksPerAisle; r++) {
-      const col = 1 + r * RACK_SPACING;
+      const col = 1 + r * WAREHOUSE_LAYOUT_DEFAULTS.rackSpacing;
       if (col >= width) break;
 
       // Place shelf block with storage locations
@@ -105,8 +105,8 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     const aisleIndex = new Map(aisleLabels.map((a, i) => [a, i]));
     const maxRack = Math.max(...entries.map(e => e.rack));
 
-    const width = Math.max(maxRack * RACK_SPACING + 2, 10);
-    const height = Math.max(aisleLabels.length * AISLE_HEIGHT + 2, 10);
+    const width = Math.max(maxRack * WAREHOUSE_LAYOUT_DEFAULTS.rackSpacing + 2, 10);
+    const height = Math.max(aisleLabels.length * WAREHOUSE_LAYOUT_DEFAULTS.aisleHeight + 2, 10);
 
     const grid: Warehouse['grid'] = Array.from({ length: height }, (_, y) =>
       Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y, locations: [] }))
@@ -130,8 +130,8 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
       const rackNum = parseInt(rackStr, 10);
 
       // Shelf cell position
-      const shelfRow = 1 + ai * AISLE_HEIGHT;
-      const shelfCol = 1 + (rackNum - 1) * RACK_SPACING;
+      const shelfRow = 1 + ai * WAREHOUSE_LAYOUT_DEFAULTS.aisleHeight;
+      const shelfCol = 1 + (rackNum - 1) * WAREHOUSE_LAYOUT_DEFAULTS.rackSpacing;
 
       if (shelfRow >= height || shelfCol >= width) continue;
 

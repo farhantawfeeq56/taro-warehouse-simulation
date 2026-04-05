@@ -1,10 +1,22 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Warehouse, Order, ToolType, SimulationResults, StrategyType, StrategyResult, PickTask, ZVisualizationMode } from '@/lib/taro/types';
+import type {
+  Warehouse,
+  Order,
+  ToolType,
+  SimulationResults,
+  StrategyType,
+  StrategyResult,
+  PickTask,
+  ZVisualizationMode,
+  WarehouseProfile,
+  LaborProfile,
+} from '@/lib/taro/types';
 import { createEmptyWarehouse, generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/lib/taro/simulation';
 import { generateTaskCSV, parseTaskCSV } from '@/lib/taro/csv';
+import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
 import { OrdersPanel } from './orders-panel';
 import { ResultsPanel } from './results-panel';
@@ -26,6 +38,8 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [workerCount, setWorkerCount] = useState(2);
+  const [warehouseProfile, setWarehouseProfile] = useState<WarehouseProfile>({ ...DEFAULT_WAREHOUSE_PROFILE });
+  const [laborProfile, setLaborProfile] = useState<LaborProfile>({ ...DEFAULT_LABOR_PROFILE });
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
   const [showEntryOverlay, setShowEntryOverlay] = useState(true);
   const animationRef = useRef<number | null>(null);
@@ -67,14 +81,17 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
 
     // Small delay to show loading state
     setTimeout(() => {
-      const results = runSimulation(warehouse, orders, workerCount);
+      const results = runSimulation(warehouse, orders, workerCount, {
+        warehouseProfile,
+        laborProfile,
+      });
       setSimulationResults(results);
       setIsSimulating(false);
 
       // Auto-select best strategy and start animation
       setActiveStrategy(results.bestStrategy);
     }, 500);
-  }, [warehouse, orders, workerCount]);
+  }, [warehouse, orders, workerCount, warehouseProfile, laborProfile]);
 
   const handleStrategySelect = useCallback((strategy: StrategyType) => {
     // Cancel any ongoing animation
@@ -182,6 +199,58 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
                 <Plus className="h-3 w-3" />
               </button>
             </div>
+          </div>
+
+          <div className="hidden xl:flex items-center gap-2 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
+            <label className="text-xs text-muted-foreground font-medium">Scale</label>
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={warehouseProfile.scale}
+              onChange={(e) => setWarehouseProfile(prev => ({ ...prev, scale: Number(e.target.value) || DEFAULT_WAREHOUSE_PROFILE.scale }))}
+              className="w-14 h-5 text-xs bg-background border border-border rounded px-1"
+              title="Meters per grid cell"
+            />
+          </div>
+
+          <div className="hidden xl:flex items-center gap-2 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
+            <label className="text-xs text-muted-foreground font-medium">Speed</label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={warehouseProfile.workerSpeed}
+              onChange={(e) => setWarehouseProfile(prev => ({ ...prev, workerSpeed: Number(e.target.value) || DEFAULT_WAREHOUSE_PROFILE.workerSpeed }))}
+              className="w-14 h-5 text-xs bg-background border border-border rounded px-1"
+              title="Worker speed (meters per minute)"
+            />
+          </div>
+
+          <div className="hidden xl:flex items-center gap-2 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
+            <label className="text-xs text-muted-foreground font-medium">Pick s</label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={warehouseProfile.pickTimePerItem}
+              onChange={(e) => setWarehouseProfile(prev => ({ ...prev, pickTimePerItem: Number(e.target.value) || DEFAULT_WAREHOUSE_PROFILE.pickTimePerItem }))}
+              className="w-12 h-5 text-xs bg-background border border-border rounded px-1"
+              title="Seconds per pick"
+            />
+          </div>
+
+          <div className="hidden xl:flex items-center gap-2 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
+            <label className="text-xs text-muted-foreground font-medium">$/hr</label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={laborProfile.costPerHour}
+              onChange={(e) => setLaborProfile({ costPerHour: Number(e.target.value) || DEFAULT_LABOR_PROFILE.costPerHour })}
+              className="w-14 h-5 text-xs bg-background border border-border rounded px-1"
+              title="Labor cost per hour"
+            />
           </div>
 
           <Button

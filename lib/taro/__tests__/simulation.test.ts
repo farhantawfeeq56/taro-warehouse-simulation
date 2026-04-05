@@ -84,4 +84,30 @@ describe('simulation', () => {
       expect(strategy.estimatedTime).toBe(0);
     }
   });
+
+  it('should allow overriding simulation profiles from input', () => {
+    const warehouse = generateDemoWarehouse();
+    const orders = generateRandomOrders(warehouse, 2);
+
+    const defaultResults = runSimulation(warehouse, orders, 2);
+    const overriddenResults = runSimulation(warehouse, orders, 2, {
+      warehouseProfile: {
+        scale: 5,
+        workerSpeed: 30,
+        pickTimePerItem: 12,
+      },
+      laborProfile: {
+        costPerHour: 60,
+      },
+    });
+
+    const defaultBatch = defaultResults.strategies.find(s => s.strategy === 'batch');
+    const overriddenBatch = overriddenResults.strategies.find(s => s.strategy === 'batch');
+
+    expect(defaultBatch).toBeDefined();
+    expect(overriddenBatch).toBeDefined();
+    expect(overriddenBatch!.totalDistance).toBeGreaterThanOrEqual(defaultBatch!.totalDistance);
+    expect(overriddenBatch!.estimatedTime).toBeGreaterThanOrEqual(defaultBatch!.estimatedTime);
+    expect(overriddenBatch!.costPerOrder).toBeGreaterThanOrEqual(defaultBatch!.costPerOrder);
+  });
 });

@@ -1,14 +1,23 @@
 // Simulation engine for picking strategies
 
-import type { Warehouse, Order, StrategyResult, SimulationResults, StrategyType, WorkerRoute, StorageLocation } from './types';
+import type {
+  Warehouse,
+  Order,
+  StrategyResult,
+  SimulationResults,
+  StrategyType,
+  WorkerRoute,
+  SimulationProfiles,
+  WarehouseProfile,
+  LaborProfile,
+} from './types';
 import { findPath, calculatePathDistance } from './pathfinding';
 import {
   STRATEGY_COLORS,
   STRATEGY_NAMES,
   WORKER_COLORS,
-  CELL_SIZE_METERS,
-  WALKING_SPEED,
-  COST_PER_MINUTE,
+  DEFAULT_WAREHOUSE_PROFILE,
+  DEFAULT_LABOR_PROFILE,
 } from './constants';
 
 // Generate a stable location key for StorageLocation
@@ -517,7 +526,28 @@ function generateHeatmap(warehouse: Warehouse, routes: { x: number; y: number }[
   return heatmap;
 }
 
-export function runSimulation(warehouse: Warehouse, orders: Order[], workerCount: number = 2): SimulationResults {
+function resolveWarehouseProfile(profile?: Partial<WarehouseProfile>): WarehouseProfile {
+  return {
+    scale: profile?.scale ?? DEFAULT_WAREHOUSE_PROFILE.scale,
+    workerSpeed: profile?.workerSpeed ?? DEFAULT_WAREHOUSE_PROFILE.workerSpeed,
+    pickTimePerItem: profile?.pickTimePerItem ?? DEFAULT_WAREHOUSE_PROFILE.pickTimePerItem,
+  };
+}
+
+function resolveLaborProfile(profile?: Partial<LaborProfile>): LaborProfile {
+  return {
+    costPerHour: profile?.costPerHour ?? DEFAULT_LABOR_PROFILE.costPerHour,
+  };
+}
+
+export function runSimulation(
+  warehouse: Warehouse,
+  orders: Order[],
+  workerCount: number = 2,
+  profiles: SimulationProfiles = {}
+): SimulationResults {
+  const warehouseProfile = resolveWarehouseProfile(profiles.warehouseProfile);
+  const laborProfile = resolveLaborProfile(profiles.laborProfile);
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
   const allRoutes: { x: number; y: number }[][] = [];
@@ -547,19 +577,25 @@ export function runSimulation(warehouse: Warehouse, orders: Order[], workerCount
       for (let i = 1; i < w.route.length; i++) {
         d += Math.abs(w.route[i].x - w.route[i-1].x) + Math.abs(w.route[i].y - w.route[i-1].y);
       }
-      return d * CELL_SIZE_METERS;
+      return d * warehouseProfile.scale;
     });
 
     const totalDistance = workerDistances.reduce((sum, d) => sum + d, 0);
     const criticalPathDistance = Math.max(...workerDistances, 0);
-    const timeMinutes = criticalPathDistance / WALKING_SPEED;
+    const workerTimes = workerRoutes.map((route, idx) => {
+      const walkingMinutes = workerDistances[idx] / warehouseProfile.workerSpeed;
+      const pickingMinutes = (route.assignedPickCount * warehouseProfile.pickTimePerItem) / 60;
+      return walkingMinutes + pickingMinutes;
+    });
+    const timeMinutes = Math.max(...workerTimes, 0);
 
     const efficiency = strategy === 'single'
       ? 0
-      : Math.round(((baselineDistance - (totalDistance / CELL_SIZE_METERS)) / baselineDistance) * 100);
+      : Math.round(((baselineDistance - (totalDistance / warehouseProfile.scale)) / baselineDistance) * 100);
 
     const utilization = Math.min(95, 60 + Math.random() * 30);
-    const cost = timeMinutes * COST_PER_MINUTE;
+    const totalLaborMinutes = workerTimes.reduce((sum, minutes) => sum + minutes, 0);
+    const cost = (totalLaborMinutes / 60) * laborProfile.costPerHour;
 
     results.push({
       strategy,
