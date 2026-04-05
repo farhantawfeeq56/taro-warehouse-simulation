@@ -14,18 +14,18 @@ export const EMPTY_COLOR = '#ffffff';
 
 // Z-level colors
 export const Z_LEVEL_COLORS: Record<number, string> = {
-  1: '#3b82f6', // blue
-  2: '#8b5cf6', // purple
-  3: '#f59e0b', // amber
-  4: '#ef4444', // red
+  1: '#FFEC51', // Banana cream
+  2: '#E08E45', // toasted orange
+  3: '#9B8816', // Olive
+  4: '#CB769E', // sweet pink
 };
 
 // Strategy visualization
 export const STRATEGY_COLORS = {
-  single: '#3b82f6', // blue
-  batch: '#22c55e',  // green
-  zone: '#a855f7',   // purple
-  wave: '#f97316',   // orange,
+  single: '#A72608', // oxidized iron (red)
+  batch: '#D30C7B',  // hot rose
+  zone: '#FEC601',   // school bus yellow
+  wave: '#8B5D33',   // toffee brown
 } as const;
 
 export const STRATEGY_NAMES = {
