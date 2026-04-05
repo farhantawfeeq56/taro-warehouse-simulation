@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import type { ChangeEvent } from 'react';
 import type {
   Warehouse,
   Order,
@@ -16,6 +17,7 @@ import type {
 import { createEmptyWarehouse, generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/lib/taro/simulation';
 import { generateTaskCSV, parseTaskCSV } from '@/lib/taro/csv';
+import { parseWarehouseCsv, SAMPLE_WAREHOUSE_CSV_TEMPLATE } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
 import { OrdersPanel } from './orders-panel';
@@ -43,6 +45,8 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
   const [showEntryOverlay, setShowEntryOverlay] = useState(true);
   const animationRef = useRef<number | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const [importSummary, setImportSummary] = useState<string>('');
 
   const getActiveRoute = useCallback((): StrategyResult | null => {
     if (!simulationResults || !activeStrategy) return null;
@@ -57,6 +61,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setAnimationProgress(0);
     setZVisualizationMode('all');
     setShowEntryOverlay(true);
+    setImportSummary('');
   }, []);
 
   const generateDemo = useCallback(() => {
@@ -68,6 +73,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setActiveStrategy(null);
     setAnimationProgress(0);
     setShowEntryOverlay(false);
+    setImportSummary('');
   }, []);
 
   const runSimulationHandler = useCallback(() => {
@@ -134,13 +140,45 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
                       orders.length > 0 &&
                       orders.some(o => o.items.length > 0);
 
+  const downloadCsvTemplate = useCallback(() => {
+    const blob = new Blob([SAMPLE_WAREHOUSE_CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'warehouse-template.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   const handleImport = useCallback(() => {
-    setShowEntryOverlay(false);
-    alert('Import functionality will be added soon. Please build manually.');
+    csvInputRef.current?.click();
+  }, []);
+
+  const handleCsvSelected = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const csvText = await file.text();
+      const { warehouse: importedWarehouse, summary } = parseWarehouseCsv(csvText);
+      setWarehouse(importedWarehouse);
+      setOrders([]);
+      setSimulationResults(null);
+      setActiveStrategy(null);
+      setAnimationProgress(0);
+      setShowEntryOverlay(false);
+      setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
+      alert(`CSV import failed: ${message}`);
+    } finally {
+      event.target.value = '';
+    }
   }, []);
 
   const handleBuildManually = useCallback(() => {
     setShowEntryOverlay(false);
+    setImportSummary('');
   }, []);
 
   const hasContent = warehouse.shelves.length > 0 ||
@@ -154,15 +192,26 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
           onTryDemo={generateDemo}
           onImport={handleImport}
           onBuildManually={handleBuildManually}
+          onDownloadTemplate={downloadCsvTemplate}
         />
       )}
+      <input
+        ref={csvInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        onChange={handleCsvSelected}
+        className="hidden"
+      />
+
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
         <div className="flex items-center gap-4">
-          <div>
+                    <div>
             <h1 className="text-base font-bold tracking-tight">Taro</h1>
             <p className="text-xs text-muted-foreground leading-tight">Warehouse Picking Simulator</p>
+            {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
           </div>
+
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
