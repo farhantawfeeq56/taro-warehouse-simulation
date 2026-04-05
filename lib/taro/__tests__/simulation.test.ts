@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { runSimulation } from '../simulation';
+import { runSimulation, buildRouteFrequencyHeatmap } from '../simulation';
 import { generateDemoWarehouse, generateRandomOrders } from '../demo-generator';
 
 describe('simulation', () => {
+  const flattenRoutes = (routes: { x: number; y: number }[][]): number =>
+    routes.reduce((total, route) => total + route.length, 0);
+
   it('should run simulation with demo warehouse', () => {
     const warehouse = generateDemoWarehouse();
     const orders = generateRandomOrders(warehouse, 3);
@@ -72,6 +75,39 @@ describe('simulation', () => {
     for (const row of results.heatmap) {
       expect(row).toHaveLength(warehouse.width);
     }
+  });
+
+  it('should reflect exact path frequency counts without weighting', () => {
+    const warehouse = generateDemoWarehouse();
+    const routes = [[
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 2, y: 1 },
+      { x: 1, y: 1 },
+    ]];
+
+    const heatmap = buildRouteFrequencyHeatmap(warehouse, routes);
+    expect(heatmap[1][1]).toBe(2);
+    expect(heatmap[1][2]).toBe(2);
+    expect(heatmap[0][0]).toBe(0);
+    expect(flattenRoutes(routes)).toBe(4);
+    expect(heatmap.flat().reduce((sum, value) => sum + value, 0)).toBe(4);
+  });
+
+  it('should generate heatmap from the best strategy route data', () => {
+    const warehouse = generateDemoWarehouse();
+    const orders = generateRandomOrders(warehouse, 3);
+    const results = runSimulation(warehouse, orders, 2);
+
+    const best = results.strategies.find(strategy => strategy.strategy === results.bestStrategy);
+    expect(best).toBeDefined();
+
+    const bestRoutes = best!.workerRoutes && best!.workerRoutes.length > 0
+      ? best!.workerRoutes.map(workerRoute => workerRoute.route)
+      : [best!.route];
+
+    const expectedHeatmap = buildRouteFrequencyHeatmap(warehouse, bestRoutes);
+    expect(results.heatmap).toEqual(expectedHeatmap);
   });
 
   it('should handle empty orders', () => {

@@ -475,7 +475,10 @@ function simulateWavePicking(
   return { route: fullRoute, distance: totalDistance };
 }
 
-function generateHeatmap(warehouse: Warehouse, routes: { x: number; y: number }[][]): number[][] {
+export function buildRouteFrequencyHeatmap(
+  warehouse: Warehouse,
+  routes: { x: number; y: number }[][]
+): number[][] {
   const heatmap: number[][] = Array(warehouse.height)
     .fill(null)
     .map(() => Array(warehouse.width).fill(0));
@@ -484,26 +487,6 @@ function generateHeatmap(warehouse: Warehouse, routes: { x: number; y: number }[
     for (const pos of route) {
       if (pos.y >= 0 && pos.y < warehouse.height && pos.x >= 0 && pos.x < warehouse.width) {
         heatmap[pos.y][pos.x]++;
-      }
-    }
-  }
-
-  // Apply z-weighting to heatmap values
-  // Higher z-levels are harder to reach, so we slightly reduce their heat values
-  for (let y = 0; y < warehouse.height; y++) {
-    for (let x = 0; x < warehouse.width; x++) {
-      const cell = warehouse.grid[y][x];
-      if (cell.type === 'shelf' && cell.locations.length > 0) {
-        // Calculate average z-level at this cell
-        const avgZLevel = cell.locations.reduce((sum, loc) => sum + loc.z, 0) / cell.locations.length;
-        // Weight: slightly reduce heat for higher z-levels (harder to reach)
-        // Formula: value * (1 + (1 - avgZLevel) * 0.2)
-        // For avgZLevel=1: value * 1.2 (brighter, easier to reach)
-        // For avgZLevel=2: value * 1.0
-        // For avgZLevel=3: value * 0.8 (dimmer, harder to reach)
-        // For avgZLevel=4: value * 0.6
-        const weightFactor = 1 + (1 - avgZLevel) * 0.2;
-        heatmap[y][x] *= weightFactor;
       }
     }
   }
@@ -535,7 +518,6 @@ export function runSimulation(
   const laborProfile = resolveLaborProfile(profiles.laborProfile);
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
-  const allRoutes: { x: number; y: number }[][] = [];
 
   // Calculate baseline (single order picking) for efficiency comparison
   const singleResult = simulateSingleOrderPicking(warehouse, orders);
@@ -550,8 +532,6 @@ export function runSimulation(
       case 'zone':    result = simulateZonePicking(warehouse, orders); break;
       case 'wave':    result = simulateWavePicking(warehouse, orders); break;
     }
-
-    allRoutes.push(result.route);
 
     // Generate parallel worker routes using strategy-aware allocation
     const workerRoutes = generateStrategyAwareWorkerRoutes(warehouse, orders, strategy, workerCount);
@@ -603,9 +583,15 @@ export function runSimulation(
     .reduce((best, current) => current.criticalPathDistance < best.criticalPathDistance ? current : best)
     .strategy;
 
+  const bestStrategyResult = results.find(result => result.strategy === bestStrategy) ?? results[0];
+  const bestStrategyRoutes =
+    bestStrategyResult.workerRoutes && bestStrategyResult.workerRoutes.length > 0
+      ? bestStrategyResult.workerRoutes.map(workerRoute => workerRoute.route)
+      : [bestStrategyResult.route];
+
   return {
     strategies: results,
-    heatmap: generateHeatmap(warehouse, allRoutes),
+    heatmap: buildRouteFrequencyHeatmap(warehouse, bestStrategyRoutes),
     bestStrategy,
   };
 }
