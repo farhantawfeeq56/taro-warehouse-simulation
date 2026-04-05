@@ -45,8 +45,13 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
   const [showEntryOverlay, setShowEntryOverlay] = useState(true);
   const animationRef = useRef<number | null>(null);
+  const replaySpeedRef = useRef(replaySpeed);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [importSummary, setImportSummary] = useState<string>('');
+
+  useEffect(() => {
+    replaySpeedRef.current = replaySpeed;
+  }, [replaySpeed]);
 
   const startStrategyAnimation = useCallback((strategy: StrategyType) => {
     if (animationRef.current) {
@@ -57,13 +62,16 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setActiveStrategy(strategy);
     setAnimationProgress(0);
 
-    const startTime = performance.now();
     const baseDuration = 3000;
-    const duration = baseDuration / replaySpeed;
+    let lastTime: number | null = null;
+    let elapsed = 0;
 
     const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
+      const delta = lastTime !== null ? currentTime - lastTime : 0;
+      lastTime = currentTime;
+      elapsed += delta * replaySpeedRef.current;
+
+      const progress = Math.min(elapsed / baseDuration, 1);
       setAnimationProgress(progress);
 
       if (progress < 1) {
@@ -72,7 +80,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     };
 
     animationRef.current = requestAnimationFrame(animate);
-  }, [replaySpeed]);
+  }, []);
 
   const getActiveRoute = useCallback((): StrategyResult | null => {
     if (!simulationResults || !activeStrategy) return null;
