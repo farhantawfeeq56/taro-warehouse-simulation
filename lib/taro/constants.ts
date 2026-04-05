@@ -1,9 +1,15 @@
 // Centralized constants for Taro warehouse simulation
 
-// Physical measurements
-export const CELL_SIZE_METERS = 2; // Meters per grid cell
-export const WALKING_SPEED = 60; // Walking speed in meters per minute
-export const COST_PER_MINUTE = 0.50; // Cost per minute of worker time
+// Simulation defaults (can be overridden by user-provided profiles)
+export const DEFAULT_WAREHOUSE_PROFILE = {
+  scale: 2, // meters per grid cell
+  workerSpeed: 60, // meters per minute
+  pickTimePerItem: 6, // seconds per pick
+} as const;
+
+export const DEFAULT_LABOR_PROFILE = {
+  costPerHour: 30, // dollars per labor hour
+} as const;
 
 // Canvas rendering
 export const CELL_SIZE = 20;
@@ -41,6 +47,8 @@ export const WORKER_COLORS = ['#606C38', '#BC6C25', '#ECA400', '#AD343E']; // ol
 // Animation
 export const REPLAY_DURATION_MS = 3000; // 3 seconds baseline for animation
 
-// Warehouse layout constants
-export const RACK_SPACING = 2; // cells per rack slot (shelf + aisle gap)
-export const AISLE_HEIGHT = 3; // rows per aisle (1 shelf + 2 path rows)
+// Warehouse layout defaults
+export const WAREHOUSE_LAYOUT_DEFAULTS = {
+  rackSpacing: 2, // cells per rack slot (shelf + aisle gap)
+  aisleHeight: 3, // rows per aisle (1 shelf + 2 path rows)
+} as const;

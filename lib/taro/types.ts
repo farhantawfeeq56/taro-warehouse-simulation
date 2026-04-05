@@ -47,6 +47,21 @@ export interface Warehouse {
   workerStart: WorkerPosition | null;
 }
 
+export interface WarehouseProfile {
+  scale: number; // meters per grid cell
+  workerSpeed: number; // meters per minute
+  pickTimePerItem: number; // seconds per pick
+}
+
+export interface LaborProfile {
+  costPerHour: number;
+}
+
+export interface SimulationProfiles {
+  warehouseProfile?: Partial<WarehouseProfile>;
+  laborProfile?: Partial<LaborProfile>;
+}
+
 export type StrategyType = 'single' | 'batch' | 'zone' | 'wave';
 
 export interface WorkerRoute {

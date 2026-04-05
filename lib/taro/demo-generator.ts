@@ -1,7 +1,6 @@
 // Demo data generators for Taro
 
 import type { Warehouse, Cell, Order, StorageLocation } from './types';
-import { RACK_SPACING, AISLE_HEIGHT } from './constants';
 
 // Get all pickable locations from warehouse (local copy for demo-generator)
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
