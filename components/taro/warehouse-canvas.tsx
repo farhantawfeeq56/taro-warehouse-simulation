@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
+import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 
 interface WarehouseCanvasProps {
@@ -11,6 +11,22 @@ interface WarehouseCanvasProps {
   activeRoute: StrategyResult | null;
   animationProgress: number;
   zVisualizationMode: ZVisualizationMode;
+}
+
+interface TooltipState {
+  visible: boolean;
+  x: number;
+  y: number;
+  cellX: number;
+  cellY: number;
+  locations: StorageLocation[];
+}
+
+interface ShelfDetailsState {
+  visible: boolean;
+  cellX: number;
+  cellY: number;
+  locations: StorageLocation[];
 }
 
 export function WarehouseCanvas({
@@ -30,6 +46,20 @@ export function WarehouseCanvas({
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [isDrawing, setIsDrawing] = useState(false);
+  
+  // Tooltip state for hover
+  const [tooltip, setTooltip] = useState<TooltipState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    cellX: 0,
+    cellY: 0,
+    locations: [],
+  });
+  
+  // Shelf details panel state for click
+  const [shelfDetails, setShelfDetails] = useState<ShelfDetailsState | null>(null);
+
   const getCellFromMouse = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -115,6 +145,8 @@ export function WarehouseCanvas({
       const dy = e.clientY - lastPanPoint.y;
       setPanOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
       setLastPanPoint({ x: e.clientX, y: e.clientY });
+      // Hide tooltip while panning
+      setTooltip(prev => ({ ...prev, visible: false }));
       return;
     }
 
@@ -123,13 +155,51 @@ export function WarehouseCanvas({
       if (cell) {
         applyTool(cell.x, cell.y);
       }
+      setTooltip(prev => ({ ...prev, visible: false }));
+      return;
     }
 
-  }, [isPanning, isDrawing, lastPanPoint, getCellFromMouse, applyTool]);
+    // Handle hover for tooltip
+    const cell = getCellFromMouse(e);
+    if (cell) {
+      const cellData = warehouse.grid[cell.y][cell.x];
+      if (cellData.type === 'shelf' && cellData.locations.length > 0) {
+        // Filter locations based on z-visualization mode
+        let filteredLocations = cellData.locations;
+        if (zVisualizationMode !== 'all') {
+          const selectedLevel = parseInt(zVisualizationMode.replace('level', ''), 10);
+          filteredLocations = cellData.locations.filter(loc => loc.z === selectedLevel);
+        }
+        
+        if (filteredLocations.length > 0) {
+          setTooltip({
+            visible: true,
+            x: e.clientX,
+            y: e.clientY - 10,
+            cellX: cell.x,
+            cellY: cell.y,
+            locations: filteredLocations,
+          });
+        } else {
+          setTooltip(prev => ({ ...prev, visible: false }));
+        }
+      } else {
+        setTooltip(prev => ({ ...prev, visible: false }));
+      }
+    } else {
+      setTooltip(prev => ({ ...prev, visible: false }));
+    }
+  }, [isPanning, isDrawing, lastPanPoint, getCellFromMouse, applyTool, warehouse.grid, zVisualizationMode]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
     setIsDrawing(false);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsPanning(false);
+    setIsDrawing(false);
+    setTooltip(prev => ({ ...prev, visible: false }));
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -142,16 +212,17 @@ export function WarehouseCanvas({
     const cellPosition = getCellFromMouse(e);
     if (!cellPosition) return;
     const cell = warehouse.grid[cellPosition.y][cellPosition.x];
-    if (cell.type !== 'shelf') return;
+    if (cell.type !== 'shelf') {
+      setShelfDetails(null);
+      return;
+    }
 
-    const locations = cell.locations
-      .map((loc) => `z${loc.z} | ${loc.sku} | qty:${loc.quantity}`)
-      .join(' ; ');
-    console.log(
-      `[Shelf ${cellPosition.x},${cellPosition.y}] ${
-        locations.length > 0 ? locations : 'No locations configured'
-      }`
-    );
+    setShelfDetails({
+      visible: true,
+      cellX: cellPosition.x,
+      cellY: cellPosition.y,
+      locations: cell.locations,
+    });
   }, [getCellFromMouse, warehouse]);
 
   // Draw the canvas - memoized draw function to avoid recreation
@@ -190,36 +261,82 @@ export function WarehouseCanvas({
 
         ctx.fillStyle = fillColor;
         ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
-        ctx.globalAlpha = 1.0;
 
-        // Draw grid lines
-        ctx.strokeStyle = GRID_COLOR;
-        ctx.lineWidth = 0.5;
-        ctx.strokeRect(px, py, CELL_SIZE, CELL_SIZE);
-
-        // Draw shelf location markers for selected z-level only.
+        // Draw shelf with visual dominance - darker border
         if (cell.type === 'shelf') {
-          if (zVisualizationMode !== 'all') {
+          ctx.strokeStyle = '#1f2937'; // Darker gray border
+          ctx.lineWidth = 2;
+          ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
+        }
+
+        // Draw grid lines (lighter for shelves to not compete)
+        if (cell.type !== 'shelf') {
+          ctx.strokeStyle = GRID_COLOR;
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(px, py, CELL_SIZE, CELL_SIZE);
+        }
+
+        // Draw shelf location markers and labels
+        if (cell.type === 'shelf' && cell.locations.length > 0) {
+          if (zVisualizationMode === 'all') {
+            // Show count badge and mini dots for all levels
+            const totalCount = cell.locations.length;
+            const levelCounts = new Map<number, number>();
+            cell.locations.forEach(loc => {
+              levelCounts.set(loc.z, (levelCounts.get(loc.z) || 0) + 1);
+            });
+
+            // Draw small colored dots for each level present
+            const uniqueLevels = Array.from(levelCounts.keys()).sort();
+            const dotSize = 3;
+            const dotSpacing = 8;
+            const startX = px + 4;
+            const startY = py + 4;
+
+            uniqueLevels.slice(0, 4).forEach((level, index) => {
+              const color = Z_LEVEL_COLORS[level] || '#3b82f6';
+              ctx.beginPath();
+              ctx.fillStyle = color;
+              ctx.arc(startX + index * dotSpacing, startY, dotSize, 0, Math.PI * 2);
+              ctx.fill();
+            });
+
+            // Draw count badge if more items
+            if (totalCount > 0) {
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 8px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(totalCount.toString(), px + CELL_SIZE / 2, py + CELL_SIZE - 6);
+            }
+          } else {
+            // Specific level mode - show SKU labels
             const selectedLevel = parseInt(zVisualizationMode.replace('level', ''), 10);
-            const selectedCount = cell.locations.filter(loc => loc.z === selectedLevel).length;
+            const levelLocations = cell.locations.filter(loc => loc.z === selectedLevel);
 
-            if (selectedCount > 0) {
+            if (levelLocations.length > 0) {
               const markerColor = Z_LEVEL_COLORS[selectedLevel] || '#3b82f6';
-              const columns = Math.min(selectedCount, 4);
-              const rows = Math.ceil(selectedCount / columns);
-              const spacingX = CELL_SIZE / (columns + 1);
-              const spacingY = CELL_SIZE / (rows + 1);
-              let dotsDrawn = 0;
+              
+              // Draw colored indicator bar at top
+              ctx.fillStyle = markerColor;
+              ctx.fillRect(px + 2, py + 2, CELL_SIZE - 4, 3);
 
-              for (let row = 1; row <= rows; row++) {
-                for (let col = 1; col <= columns; col++) {
-                  if (dotsDrawn >= selectedCount) break;
-                  ctx.beginPath();
-                  ctx.fillStyle = markerColor;
-                  ctx.arc(px + col * spacingX, py + row * spacingY, 2, 0, Math.PI * 2);
-                  ctx.fill();
-                  dotsDrawn++;
-                }
+              // Show SKU for single item, count for multiple
+              if (levelLocations.length === 1) {
+                const loc = levelLocations[0];
+                const shortSku = loc.sku.length > 5 ? loc.sku.slice(0, 4) + '…' : loc.sku;
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(shortSku, px + CELL_SIZE / 2, py + CELL_SIZE / 2 + 2);
+              } else {
+                // Show count for multiple items at same level
+                ctx.fillStyle = markerColor;
+                ctx.font = 'bold 9px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${levelLocations.length}`, px + CELL_SIZE / 2, py + CELL_SIZE / 2 + 2);
               }
             }
           }
@@ -360,18 +477,101 @@ export function WarehouseCanvas({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
         onWheel={handleWheel}
         onClick={handleClick}
         className="cursor-crosshair"
         style={{ touchAction: 'none' }}
       />
+      
+      {/* Hover Tooltip */}
+      {tooltip.visible && (
+        <div
+          className="fixed z-50 pointer-events-none bg-foreground text-background rounded-md px-3 py-2 text-xs shadow-lg"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="font-semibold mb-1">Shelf ({tooltip.cellX}, {tooltip.cellY})</div>
+          <div className="space-y-0.5">
+            {tooltip.locations.slice(0, 4).map((loc, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#3b82f6' }}
+                />
+                <span>Z{loc.z}</span>
+                <span className="font-mono">{loc.sku}</span>
+                <span className="text-background/70">×{loc.quantity}</span>
+              </div>
+            ))}
+            {tooltip.locations.length > 4 && (
+              <div className="text-background/70 italic">
+                +{tooltip.locations.length - 4} more...
+              </div>
+            )}
+          </div>
+          <div className="absolute left-1/2 -bottom-1 -translate-x-1/2 w-2 h-2 bg-foreground rotate-45" />
+        </div>
+      )}
+
+      {/* Shelf Details Panel */}
+      {shelfDetails && shelfDetails.visible && (
+        <div className="absolute top-3 left-3 z-40 bg-background border border-border rounded-lg shadow-lg p-4 min-w-[200px] max-w-[280px]">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm">
+              Shelf ({shelfDetails.cellX}, {shelfDetails.cellY})
+            </h3>
+            <button
+              onClick={() => setShelfDetails(null)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {shelfDetails.locations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No items stored</p>
+          ) : (
+            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              {shelfDetails.locations
+                .sort((a, b) => a.z - b.z)
+                .map((loc, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 p-2 rounded bg-muted/50 text-xs"
+                >
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#3b82f6' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono font-medium truncate">{loc.sku}</div>
+                    <div className="text-muted-foreground">
+                      Level {loc.z} • Qty: {loc.quantity}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
+            Total items: {shelfDetails.locations.length}
+          </div>
+        </div>
+      )}
+
       <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded border border-border">
         <span>Zoom: {Math.round(zoom * 100)}%</span>
         <span className="text-border">|</span>
         <span>Alt+drag to pan</span>
         <span className="text-border">|</span>
-        <span>Click shelf to see locations</span>
+        <span>Hover for tooltip, click for details</span>
       </div>
     </div>
   );
