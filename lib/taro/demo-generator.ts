@@ -1,7 +1,7 @@
 // Demo data generators for Taro
 
 import type { Warehouse, Cell, Order, StorageLocation } from './types';
-import { buildCoordinateLocations } from './layout';
+import { buildCoordinateLocations, getShelfLocationId } from './layout';
 
 // Get all pickable locations from warehouse (local copy for demo-generator)
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
@@ -71,9 +71,9 @@ export function generateDemoWarehouse(): Warehouse {
   // z=2: SKU_B, qty 50
   // z=3: SKU_C, qty 30
   const testLocations: StorageLocation[] = [
-    { x: 5, y: 5, z: 1, sku: 'SKU_A', quantity: 100 },
-    { x: 5, y: 5, z: 2, sku: 'SKU_B', quantity: 50 },
-    { x: 5, y: 5, z: 3, sku: 'SKU_C', quantity: 30 },
+    { id: 'SKU_A@5,5,1', locationId: getShelfLocationId(5, 5), x: 5, y: 5, z: 1, sku: 'SKU_A', quantity: 100 },
+    { id: 'SKU_B@5,5,2', locationId: getShelfLocationId(5, 5), x: 5, y: 5, z: 2, sku: 'SKU_B', quantity: 50 },
+    { id: 'SKU_C@5,5,3', locationId: getShelfLocationId(5, 5), x: 5, y: 5, z: 3, sku: 'SKU_C', quantity: 30 },
   ];
 
   // Place locations at (5, 5)
@@ -98,7 +98,15 @@ export function generateDemoWarehouse(): Warehouse {
           for (let z = 1; z <= numZLevels; z++) {
             const sku = `SKU_${String(itemId).padStart(3, '0')}`;
             const quantity = Math.floor(Math.random() * 90) + 10;
-            cellLocations.push({ x: col, y: row + 1, z, sku, quantity });
+            cellLocations.push({
+              id: `${sku}@${col},${row + 1},${z}`,
+              locationId: getShelfLocationId(col, row + 1),
+              x: col,
+              y: row + 1,
+              z,
+              sku,
+              quantity,
+            });
             itemId++;
           }
 
@@ -122,21 +130,22 @@ export function generateRandomOrders(warehouse: Warehouse, count: number): Order
   const orders: Order[] = [];
   const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  // Get all available SKUs from warehouse
-  const allLocations = getAllPickableLocations(warehouse);
-  const availableSkus = Array.from(new Set(Array.from(allLocations.values()).map(l => l.sku)));
+  // Get all available shelf location IDs that contain items.
+  const availableLocationIds = warehouse.locations
+    .filter(location => location.items.length > 0)
+    .map(location => location.id);
 
-  if (availableSkus.length === 0) return orders;
+  if (availableLocationIds.length === 0) return orders;
 
   for (let i = 0; i < count; i++) {
     const itemCount = Math.floor(Math.random() * 4) + 2; // 2-5 items per order
     const orderItems: string[] = [];
-    const availableSkusCopy = [...availableSkus];
+    const availableLocationIdsCopy = [...availableLocationIds];
 
-    for (let j = 0; j < itemCount && availableSkusCopy.length > 0; j++) {
-      const idx = Math.floor(Math.random() * availableSkusCopy.length);
-      orderItems.push(availableSkusCopy[idx]);
-      availableSkusCopy.splice(idx, 1);
+    for (let j = 0; j < itemCount && availableLocationIdsCopy.length > 0; j++) {
+      const idx = Math.floor(Math.random() * availableLocationIdsCopy.length);
+      orderItems.push(availableLocationIdsCopy[idx]);
+      availableLocationIdsCopy.splice(idx, 1);
     }
 
     orders.push({

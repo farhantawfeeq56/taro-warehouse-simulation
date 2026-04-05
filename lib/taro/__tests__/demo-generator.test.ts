@@ -87,8 +87,8 @@ describe('demo-generator', () => {
       const warehouse = createEmptyWarehouse(10, 10);
       warehouse.grid[0][0].type = 'shelf';
       warehouse.grid[0][0].locations = [
-        { x: 0, y: 0, z: 1, sku: 'SKU_001', quantity: 10 },
-        { x: 0, y: 0, z: 2, sku: 'SKU_002', quantity: 20 },
+        { id: 'SKU_001@0,0,1', locationId: 'shelf-0-0', x: 0, y: 0, z: 1, sku: 'SKU_001', quantity: 10 },
+        { id: 'SKU_002@0,0,2', locationId: 'shelf-0-0', x: 0, y: 0, z: 2, sku: 'SKU_002', quantity: 20 },
       ];
 
       expect(getNextSku(warehouse)).toBe('SKU_003');
@@ -98,8 +98,8 @@ describe('demo-generator', () => {
       const warehouse = createEmptyWarehouse(10, 10);
       warehouse.grid[0][0].type = 'shelf';
       warehouse.grid[0][0].locations = [
-        { x: 0, y: 0, z: 1, sku: 'SKU_001', quantity: 10 },
-        { x: 0, y: 0, z: 2, sku: 'SKU_100', quantity: 20 },
+        { id: 'SKU_001@0,0,1', locationId: 'shelf-0-0', x: 0, y: 0, z: 1, sku: 'SKU_001', quantity: 10 },
+        { id: 'SKU_100@0,0,2', locationId: 'shelf-0-0', x: 0, y: 0, z: 2, sku: 'SKU_100', quantity: 20 },
       ];
 
       expect(getNextSku(warehouse)).toBe('SKU_101');

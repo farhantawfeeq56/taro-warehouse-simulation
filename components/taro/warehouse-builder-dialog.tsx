@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Warehouse, StorageLocation } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { X, Wand2, Upload } from 'lucide-react';
-import { buildCoordinateLocations } from '@/lib/taro/layout';
+import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 
 interface WarehouseBuilderDialogProps {
   onGenerate: (warehouse: Warehouse) => void;
@@ -47,7 +47,15 @@ function buildWarehouseFromParams(
         for (let z = 1; z <= numZLevels; z++) {
           const sku = `SKU_${String(itemId).padStart(3, '0')}`;
           const quantity = Math.floor(Math.random() * 90) + 10;
-          locations.push({ x: col, y: row, z, sku, quantity });
+          locations.push({
+            id: `${sku}@${col},${row},${z}`,
+            locationId: getShelfLocationId(col, row),
+            x: col,
+            y: row,
+            z,
+            sku,
+            quantity,
+          });
         }
         itemId++;
       }
@@ -141,6 +149,8 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
         const zLevel = entry.z ?? 1;
         const sku = entry.sku || `SKU_${String(itemId).padStart(3, '0')}`;
         locations.push({
+          id: `${sku}@${shelfCol},${shelfRow},${zLevel}`,
+          locationId: getShelfLocationId(shelfCol, shelfRow),
           x: shelfCol,
           y: shelfRow,
           z: zLevel,
