@@ -264,7 +264,7 @@ export function WarehouseCanvas({
 
         // Draw shelf with visual dominance - darker border
         if (cell.type === 'shelf') {
-          ctx.strokeStyle = '#1f2937'; // Darker gray border
+          ctx.strokeStyle = '#E7E8EC'; // Darker gray border
           ctx.lineWidth = 2;
           ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
         }
