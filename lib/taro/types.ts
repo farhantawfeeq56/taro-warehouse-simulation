@@ -39,12 +39,21 @@ export interface WorkerPosition {
   y: number;
 }
 
+export interface WarehouseLocation {
+  id: string;
+  x: number;
+  y: number;
+  z?: number;
+  type: 'shelf' | 'aisle' | 'packing';
+}
+
 export interface Warehouse {
   width: number;
   height: number;
   grid: Cell[][];
   shelves: { x: number; y: number }[];
   workerStart: WorkerPosition | null;
+  locations: WarehouseLocation[];
 }
 
 export interface WarehouseProfile {

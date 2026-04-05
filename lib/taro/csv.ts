@@ -3,17 +3,13 @@ import type { PickTask } from './types';
 
 /**
  * Convert grid coordinates to a human-readable warehouse location label.
- * Maps: y-position → Aisle letter (A, B, C...), x-position → Rack number, bin slot within rack.
- * Includes z-level if provided: "Aisle A, Rack 1, Bin 1, Level 2"
+ * Coordinate-native format that supports irregular layouts.
+ * Includes z-level if provided: "X:12, Y:7, Z:2"
  */
 export function coordToLocation(x: number, y: number, z?: number): string {
-  const aisleIndex = Math.floor(y / 3); // every 3 rows = 1 aisle (matches builder layout)
-  const aisleLabel = String.fromCharCode(65 + (aisleIndex % 26));
-  const rack = Math.floor(x / 2) + 1;
-  const bin = (x % 2) + 1;
-  const baseLocation = `Aisle ${aisleLabel}, Rack ${rack}, Bin ${bin}`;
+  const baseLocation = `X:${x}, Y:${y}`;
   if (z !== undefined && z > 0) {
-    return `${baseLocation}, Level ${z}`;
+    return `${baseLocation}, Z:${z}`;
   }
   return baseLocation;
 }
@@ -23,7 +19,7 @@ export function coordToLocation(x: number, y: number, z?: number): string {
  * Returns z level if found, undefined otherwise.
  */
 export function parseLocationZ(location: string): number | undefined {
-  const match = location.match(/Level\s+(\d+)/i);
+  const match = location.match(/(?:Level|Z:?)\s*(\d+)/i);
   if (match) {
     const parsed = parseInt(match[1], 10);
     return isNaN(parsed) ? undefined : parsed;
@@ -43,15 +39,12 @@ export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
   for (const worker of workerRoutes) {
     if (!worker.picks || worker.picks.length === 0) continue;
 
-    // Group picks by aisle zone for zone-based instructions
     const seen = new Set<string>();
     let step = 1;
 
-    // Sort picks by aisle (y) then rack (x) for natural walking order
+    // Sort picks by Y then X for deterministic coordinate ordering
     const sorted = [...worker.picks].sort((a, b) => {
-      const aisleA = Math.floor(a.y / 3);
-      const aisleB = Math.floor(b.y / 3);
-      if (aisleA !== aisleB) return aisleA - aisleB;
+      if (a.y !== b.y) return a.y - b.y;
       return a.x - b.x;
     });
 
@@ -60,9 +53,7 @@ export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
       if (seen.has(pickKey)) continue;
       seen.add(pickKey);
 
-      const aisleIndex = Math.floor(pick.y / 3);
-      const aisleLabel = String.fromCharCode(65 + (aisleIndex % 26));
-      const zone = `Aisle ${aisleLabel}`;
+      const zone = worker.zone || `Zone ${worker.workerId}`;
       const location = coordToLocation(pick.x, pick.y, pick.z);
       const item = pick.sku;
 
@@ -113,7 +104,7 @@ export function parseTaskCSV(csvText: string): PickTask[] {
 
       const parseLocationAndItem = (rawText: string): { location: string; item: string } => {
         const locationPattern =
-          /(Aisle\s+[^,]+,\s*Rack\s+\d+,\s*Bin\s+\d+(?:,\s*Level\s+\d+)?)(?:,(.*))?$/i;
+          /((?:X:\s*-?\d+,\s*Y:\s*-?\d+)(?:,\s*(?:Z:|Level)\s*\d+)?)(?:,(.*))?$/i;
         const match = rawText.match(locationPattern);
 
         if (match) {

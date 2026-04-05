@@ -46,9 +46,3 @@ export const WORKER_COLORS = ['#606C38', '#BC6C25', '#ECA400', '#AD343E']; // ol
 
 // Animation
 export const REPLAY_DURATION_MS = 3000; // 3 seconds baseline for animation
-
-// Warehouse layout defaults
-export const WAREHOUSE_LAYOUT_DEFAULTS = {
-  rackSpacing: 2, // cells per rack slot (shelf + aisle gap)
-  aisleHeight: 3, // rows per aisle (1 shelf + 2 path rows)
-} as const;
