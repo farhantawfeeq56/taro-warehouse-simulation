@@ -336,6 +336,7 @@ function simulateBatchPicking(
   // Return to start
   const returnPath = findPath(warehouse, currentPos, warehouse.workerStart);
   if (returnPath.length > 0) {
+    fullRoute.push(...returnPath);
     totalDistance += calculatePathDistance(returnPath);
   }
 
