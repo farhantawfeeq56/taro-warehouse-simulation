@@ -4,7 +4,9 @@ import { useMemo, useRef, useState } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Shuffle, X, Upload, Download } from 'lucide-react';
+import { AlertTriangle, Download, Plus, Shuffle, Trash2, Upload, X } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 
 interface OrdersPanelProps {
@@ -35,6 +37,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
   const [parsedCsv, setParsedCsv] = useState<ParsedOrdersState | null>(null);
   const [csvParseError, setCsvParseError] = useState<string | null>(null);
   const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
+  const [isParsingCsv, setIsParsingCsv] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get all available shelf locations that contain items.
@@ -175,6 +178,11 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsParsingCsv(true);
+    setParsedCsv(null);
+    setCsvParseError(null);
+    setImportSuccessMessage(null);
+
     try {
       const csvText = await file.text();
       const parsed = parseOrdersCsv(csvText);
@@ -187,6 +195,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       setCsvParseError(message);
       setImportSuccessMessage(null);
     } finally {
+      setIsParsingCsv(false);
       event.target.value = '';
     }
   };
@@ -227,10 +236,13 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
 
   const summary = useMemo(() => {
     const totalRows = parsedCsv?.rows.length ?? 0;
-    const validRows = parsedCsv?.rows.filter(row => row.isValid).length ?? 0;
+    const validRowsData = parsedCsv?.rows.filter(row => row.isValid) ?? [];
+    const validRows = validRowsData.length;
     const invalidRows = totalRows - validRows;
-    const uniqueOrders = new Set(parsedCsv?.rows.filter(row => row.isValid).map(row => row.orderId) ?? []).size;
-    return { totalRows, validRows, invalidRows, uniqueOrders };
+    const totalOrders = new Set(validRowsData.map(row => row.orderId)).size;
+    const totalItems = validRows;
+    const uniqueLocations = new Set(validRowsData.map(row => row.locationId)).size;
+    return { totalRows, validRows, invalidRows, totalOrders, totalItems, uniqueLocations };
   }, [parsedCsv]);
 
   const WORKER_COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
@@ -256,11 +268,21 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
             variant="outline"
             size="sm"
             onClick={handleUploadCsvClick}
+            disabled={isParsingCsv}
             className="h-7 text-xs px-2"
             title="Upload order CSV"
           >
-            <Upload className="h-3 w-3 mr-1" />
-            Upload CSV
+            {isParsingCsv ? (
+              <>
+                <Spinner className="h-3 w-3 mr-1" />
+                Parsing CSV...
+              </>
+            ) : (
+              <>
+                <Upload className="h-3 w-3 mr-1" />
+                Upload CSV
+              </>
+            )}
           </Button>
           <Button
             variant="outline"
@@ -313,16 +335,27 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
               </Button>
             </div>
 
+            {summary.invalidRows > 0 && (
+              <Alert className="py-2 px-3 border-amber-300/70 bg-amber-50/80 text-amber-900">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-[11px] text-amber-900">
+                  Some rows could not be imported
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-2 gap-1 text-[11px]">
               <div>Total rows: <span className="font-semibold">{summary.totalRows}</span></div>
               <div>Valid rows: <span className="font-semibold text-emerald-600">{summary.validRows}</span></div>
+              <div>Total orders: <span className="font-semibold">{summary.totalOrders}</span></div>
+              <div>Total items: <span className="font-semibold">{summary.totalItems}</span></div>
+              <div>Unique locations: <span className="font-semibold">{summary.uniqueLocations}</span></div>
               <div>Invalid rows: <span className="font-semibold text-destructive">{summary.invalidRows}</span></div>
-              <div>Unique orders: <span className="font-semibold">{summary.uniqueOrders}</span></div>
             </div>
 
-            <div className="max-h-52 overflow-auto border border-border rounded">
-              <table className="w-full text-[11px]">
-                <thead className="bg-muted/50 sticky top-0">
+            <div className="max-h-56 overflow-auto border border-border rounded-lg">
+              <table className="w-full min-w-[320px] text-[11px]">
+                <thead className="bg-muted/70 sticky top-0 z-10">
                   <tr className="text-left">
                     <th className="px-2 py-1 font-medium">Order ID</th>
                     <th className="px-2 py-1 font-medium">Location ID</th>
@@ -369,8 +402,8 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
 
         {orders.length === 0 ? (
           <div className="text-xs text-muted-foreground text-center py-8 space-y-2">
-            <div>No orders yet</div>
-            <div className="text-xs">Click &apos;Add Order&apos; to get started</div>
+            <div className="text-sm text-foreground">No orders yet</div>
+            <div className="text-xs">Upload CSV or create orders manually</div>
           </div>
         ) : (
           orders.map(order => (
