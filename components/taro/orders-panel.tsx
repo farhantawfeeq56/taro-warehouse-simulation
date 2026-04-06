@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Shuffle, X, Upload } from 'lucide-react';
+import { Plus, Trash2, Shuffle, X, Upload, Download } from 'lucide-react';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 
 interface OrdersPanelProps {
@@ -24,13 +24,17 @@ interface ParsedOrderRow {
 
 interface ParsedOrdersState {
   rows: ParsedOrderRow[];
-  orders: Order[];
 }
+
+const REQUIRED_HEADERS = ['order_id', 'location_id'] as const;
+const INVALID_CSV_FORMAT_MESSAGE = 'Invalid CSV format. Please use the sample format.';
+const SAMPLE_ORDERS_CSV = ['order_id,location_id', 'A,shelf-7-4', 'A,shelf-14-8', 'B,shelf-24-12'].join('\n');
 
 export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
   const [parsedCsv, setParsedCsv] = useState<ParsedOrdersState | null>(null);
   const [csvParseError, setCsvParseError] = useState<string | null>(null);
+  const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get all available shelf locations that contain items.
@@ -53,6 +57,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       assignedWorkerId: null,
     };
     onOrdersChange([...orders, newOrder]);
+    setImportSuccessMessage(null);
   };
 
   const deleteOrder = (orderId: string) => {
@@ -100,29 +105,38 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     const randomOrders = generateRandomOrders(warehouse, Math.min(5, Math.max(3, Math.floor(availableLocations.length / 3))));
     // Preserve assignedWorkerId=null on generated orders
     onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
+    setImportSuccessMessage(null);
   };
 
   const parseOrdersCsv = (csvText: string): ParsedOrdersState => {
-    const lines = csvText
-      .split(/\r?\n/)
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+    const lines = csvText.split(/\r?\n/);
+    const firstNonEmptyLine = lines.find(line => line.trim().length > 0);
 
-    if (lines.length === 0) {
-      throw new Error('CSV is empty.');
+    if (!firstNonEmptyLine) {
+      throw new Error(INVALID_CSV_FORMAT_MESSAGE);
     }
 
-    const [header, ...dataLines] = lines;
-    if (header.toLowerCase() !== 'order_id,location_id') {
-      throw new Error('CSV header must be exactly: order_id,location_id');
+    const headers = firstNonEmptyLine.split(',').map(part => part.trim());
+    const hasExactRequiredHeaders =
+      headers.length === REQUIRED_HEADERS.length &&
+      headers.every((header, idx) => header === REQUIRED_HEADERS[idx]);
+
+    if (!hasExactRequiredHeaders) {
+      throw new Error(INVALID_CSV_FORMAT_MESSAGE);
     }
+
+    const headerIndex = lines.findIndex(line => line.trim().length > 0);
+    const dataLines = lines.slice(headerIndex + 1);
 
     const rows: ParsedOrderRow[] = [];
-    const groupedValidLocations = new Map<string, string[]>();
 
     dataLines.forEach((line, index) => {
+      if (line.trim().length === 0) {
+        return;
+      }
+
       const [rawOrderId = '', rawLocationId = '', ...extras] = line.split(',').map(part => part.trim());
-      const rowNumber = index + 2;
+      const rowNumber = headerIndex + index + 2;
       const orderId = rawOrderId;
       const locationId = rawLocationId;
 
@@ -134,30 +148,27 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       } else if (!locationId) {
         error = 'Missing location_id';
       } else if (!allLocationIds.has(locationId)) {
-        error = `Location not found: ${locationId}`;
+        error = `Unknown location: ${locationId}`;
       }
 
-      const isValid = !error;
-      rows.push({ rowNumber, orderId, locationId, isValid, error });
-
-      if (isValid) {
-        const current = groupedValidLocations.get(orderId) ?? [];
-        current.push(locationId);
-        groupedValidLocations.set(orderId, current);
-      }
+      rows.push({ rowNumber, orderId, locationId, isValid: !error, error });
     });
 
-    const parsedOrders: Order[] = Array.from(groupedValidLocations.entries()).map(([orderId, items]) => ({
-      id: orderId,
-      items,
-      assignedWorkerId: null,
-    }));
-
-    return { rows, orders: parsedOrders };
+    return { rows };
   };
 
   const handleUploadCsvClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleDownloadSampleCsv = () => {
+    const blob = new Blob([SAMPLE_ORDERS_CSV], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'orders-sample.csv';
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleCsvSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,20 +180,56 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       const parsed = parseOrdersCsv(csvText);
       setParsedCsv(parsed);
       setCsvParseError(null);
-      console.log('Parsed CSV orders (temporary state):', parsed.orders);
+      setImportSuccessMessage(null);
     } catch (error) {
       setParsedCsv(null);
-      setCsvParseError(error instanceof Error ? error.message : 'Failed to parse CSV');
+      const message = error instanceof Error ? error.message : INVALID_CSV_FORMAT_MESSAGE;
+      setCsvParseError(message);
+      setImportSuccessMessage(null);
     } finally {
       event.target.value = '';
     }
+  };
+
+  const importValidOrders = () => {
+    if (!parsedCsv) {
+      return;
+    }
+
+    const groupedValidRows = parsedCsv.rows.reduce<Map<string, string[]>>((acc, row) => {
+      if (!row.isValid) {
+        return acc;
+      }
+
+      const items = acc.get(row.orderId) ?? [];
+      items.push(row.locationId);
+      acc.set(row.orderId, items);
+      return acc;
+    }, new Map<string, string[]>());
+
+    const importedOrders: Order[] = Array.from(groupedValidRows.entries()).map(([orderId, items]) => ({
+      id: orderId,
+      items,
+      assignedWorkerId: null,
+    }));
+
+    if (importedOrders.length === 0) {
+      setImportSuccessMessage('Imported 0 orders successfully');
+      setParsedCsv(null);
+      return;
+    }
+
+    onOrdersChange([...orders, ...importedOrders]);
+    setImportSuccessMessage(`Imported ${importedOrders.length} orders successfully`);
+    setParsedCsv(null);
+    setCsvParseError(null);
   };
 
   const summary = useMemo(() => {
     const totalRows = parsedCsv?.rows.length ?? 0;
     const validRows = parsedCsv?.rows.filter(row => row.isValid).length ?? 0;
     const invalidRows = totalRows - validRows;
-    const uniqueOrders = new Set(parsedCsv?.rows.map(row => row.orderId).filter(Boolean) ?? []).size;
+    const uniqueOrders = new Set(parsedCsv?.rows.filter(row => row.isValid).map(row => row.orderId) ?? []).size;
     return { totalRows, validRows, invalidRows, uniqueOrders };
   }, [parsedCsv]);
 
@@ -226,6 +273,17 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
             <Shuffle className="h-3 w-3" />
           </Button>
         </div>
+        <div className="mt-1">
+          <Button
+            variant="link"
+            size="sm"
+            onClick={handleDownloadSampleCsv}
+            className="h-6 px-0 text-xs"
+          >
+            <Download className="h-3 w-3 mr-1" />
+            Download sample CSV
+          </Button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -235,7 +293,12 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
         />
         {csvParseError && (
           <div className="mt-2 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive">
-            CSV parse error: {csvParseError}
+            {csvParseError}
+          </div>
+        )}
+        {importSuccessMessage && (
+          <div className="mt-2 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-700">
+            {importSuccessMessage}
           </div>
         )}
       </div>
@@ -288,7 +351,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                 size="sm"
                 className="h-7 text-xs flex-1"
                 disabled={summary.validRows === 0}
-                onClick={() => console.log('Import valid orders clicked (hook pending):', parsedCsv.orders)}
+                onClick={importValidOrders}
               >
                 Import valid orders
               </Button>
@@ -358,53 +421,37 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                 </div>
               </div>
 
-              {/* Items */}
-              <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-                  Items ({order.items.length})
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {order.items.length === 0 ? (
-                    <span className="text-xs text-muted-foreground italic">No items</span>
-                  ) : (
-                    order.items.map((locationId, index) => (
-                      <span
-                        key={`${order.id}-${index}`}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs font-mono font-medium rounded border border-primary/20 group"
-                        title={locationId}
-                      >
-                        {locationId}
-                        <button
-                          onClick={() => removeItemFromOrder(order.id, index)}
-                          className="text-primary/50 hover:text-primary group-hover:opacity-100 opacity-0 transition-opacity"
-                          title="Remove item"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))
-                  )}
-                </div>
+              {/* Items list */}
+              <div className="space-y-1">
+                {order.items.map((item, idx) => (
+                  <div key={`${item}-${idx}`} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1">
+                    <span className="font-mono text-foreground">{item}</span>
+                    <button
+                      onClick={() => removeItemFromOrder(order.id, idx)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
               </div>
 
-              {/* Add item */}
-              <div className="flex gap-1.5 pt-1">
+              {/* Add item input */}
+              <div className="flex gap-1">
                 <Input
-                  type="text"
-                  placeholder="Shelf location ID"
-                  list="available-locations"
                   value={newItemInput[order.id] || ''}
                   onChange={e => setNewItemInput(prev => ({ ...prev, [order.id]: e.target.value }))}
                   onKeyDown={e => handleItemInputKeyDown(order.id, e)}
+                  placeholder="Location ID"
                   className="h-7 text-xs flex-1"
+                  list={`location-suggestions-${order.id}`}
                 />
-                <datalist id="available-locations">
-                  {availableLocations.slice(0, 20).map(location => (
+                <datalist id={`location-suggestions-${order.id}`}>
+                  {availableLocations.map(location => (
                     <option key={location.id} value={location.id} />
                   ))}
                 </datalist>
                 <Button
-                  variant="outline"
                   size="sm"
                   onClick={() => {
                     const value = newItemInput[order.id] || '';
@@ -413,7 +460,8 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                       addItemToOrder(order.id, value);
                     }
                   }}
-                  className="h-7 px-3 text-xs"
+                  disabled={!newItemInput[order.id] || !availableLocations.some(location => location.id === newItemInput[order.id])}
+                  className="h-7 px-2"
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
@@ -421,23 +469,6 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
             </div>
           ))
         )}
-      </div>
-
-      <div className="p-3 border-t border-border bg-muted/30">
-        <div className="text-xs text-muted-foreground space-y-1">
-          <div className="flex justify-between">
-            <span className="font-medium">Total Items:</span>
-            <span className="font-mono font-semibold text-foreground">
-              {orders.reduce((sum, o) => sum + o.items.length, 0)}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="font-medium">Unique Locations:</span>
-            <span className="font-mono font-semibold text-foreground">
-              {new Set(orders.flatMap(o => o.items)).size}
-            </span>
-          </div>
-        </div>
       </div>
     </div>
   );
