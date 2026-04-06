@@ -20,15 +20,20 @@ interface ParsedOrderRow {
   rowNumber: number;
   orderId: string;
   locationId: string;
+  sourceValue: string;
+  sourceType: 'location_id' | 'sku';
   isValid: boolean;
+  allowsManualMapping?: boolean;
   error?: string;
 }
 
 interface ParsedOrdersState {
+  format: 'location_id' | 'sku';
   rows: ParsedOrderRow[];
 }
 
-const REQUIRED_HEADERS = ['order_id', 'location_id'] as const;
+const REQUIRED_LOCATION_HEADERS = ['order_id', 'location_id'] as const;
+const REQUIRED_SKU_HEADERS = ['order_id', 'sku'] as const;
 const INVALID_CSV_FORMAT_MESSAGE = 'Invalid CSV format. Please use the sample format.';
 const SAMPLE_ORDERS_CSV = ['order_id,location_id', 'A,shelf-7-4', 'A,shelf-14-8', 'B,shelf-24-12'].join('\n');
 
@@ -50,6 +55,25 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     () => new Set((warehouse?.locations ?? []).map(location => location.id)),
     [warehouse]
   );
+  const skuToLocationIds = useMemo(() => {
+    const skuMap = new Map<string, Set<string>>();
+
+    for (const row of warehouse?.grid ?? []) {
+      for (const cell of row) {
+        for (const location of cell.locations) {
+          if (!location.sku) continue;
+          if (!skuMap.has(location.sku)) {
+            skuMap.set(location.sku, new Set<string>());
+          }
+          skuMap.get(location.sku)!.add(location.locationId);
+        }
+      }
+    }
+
+    return new Map<string, string[]>(
+      Array.from(skuMap.entries()).map(([sku, locationIds]) => [sku, Array.from(locationIds).sort()])
+    );
+  }, [warehouse]);
 
   const addOrder = () => {
     const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -119,12 +143,20 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       throw new Error(INVALID_CSV_FORMAT_MESSAGE);
     }
 
-    const headers = firstNonEmptyLine.split(',').map(part => part.trim());
-    const hasExactRequiredHeaders =
-      headers.length === REQUIRED_HEADERS.length &&
-      headers.every((header, idx) => header === REQUIRED_HEADERS[idx]);
+    const headers = firstNonEmptyLine.split(',').map(part => part.trim().toLowerCase());
+    const hasLocationHeaders =
+      headers.length === REQUIRED_LOCATION_HEADERS.length &&
+      headers.every((header, idx) => header === REQUIRED_LOCATION_HEADERS[idx]);
+    const hasSkuHeaders =
+      headers.length === REQUIRED_SKU_HEADERS.length &&
+      headers.every((header, idx) => header === REQUIRED_SKU_HEADERS[idx]);
+    const detectedFormat: ParsedOrdersState['format'] | null = hasLocationHeaders
+      ? 'location_id'
+      : hasSkuHeaders
+        ? 'sku'
+        : null;
 
-    if (!hasExactRequiredHeaders) {
+    if (!detectedFormat) {
       throw new Error(INVALID_CSV_FORMAT_MESSAGE);
     }
 
@@ -138,26 +170,92 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
         return;
       }
 
-      const [rawOrderId = '', rawLocationId = '', ...extras] = line.split(',').map(part => part.trim());
+      const [rawOrderId = '', rawValue = '', ...extras] = line.split(',').map(part => part.trim());
       const rowNumber = headerIndex + index + 2;
       const orderId = rawOrderId;
-      const locationId = rawLocationId;
+      const sourceValue = rawValue;
+      let locationId = '';
+      let allowsManualMapping = false;
 
       let error: string | undefined;
       if (extras.length > 0) {
         error = 'Too many columns';
       } else if (!orderId) {
         error = 'Missing order_id';
-      } else if (!locationId) {
-        error = 'Missing location_id';
-      } else if (!allLocationIds.has(locationId)) {
-        error = `Unknown location: ${locationId}`;
+      } else if (detectedFormat === 'location_id') {
+        if (!sourceValue) {
+          error = 'Missing location_id';
+        } else if (!allLocationIds.has(sourceValue)) {
+          error = `Unknown location: ${sourceValue}`;
+        } else {
+          locationId = sourceValue;
+        }
+      } else {
+        if (!sourceValue) {
+          error = 'Missing sku';
+        } else {
+          const matchingLocationIds = skuToLocationIds.get(sourceValue) ?? [];
+          if (matchingLocationIds.length === 1) {
+            locationId = matchingLocationIds[0];
+          } else if (matchingLocationIds.length === 0) {
+            error = `Unknown SKU: ${sourceValue}`;
+            allowsManualMapping = true;
+          } else {
+            error = `Multiple locations for SKU: ${sourceValue}`;
+            allowsManualMapping = true;
+          }
+        }
       }
 
-      rows.push({ rowNumber, orderId, locationId, isValid: !error, error });
+      rows.push({
+        rowNumber,
+        orderId,
+        locationId,
+        sourceValue,
+        sourceType: detectedFormat,
+        isValid: !error,
+        allowsManualMapping,
+        error,
+      });
     });
 
-    return { rows };
+    return { format: detectedFormat, rows };
+  };
+
+  const setManualLocationMapping = (rowNumber: number, locationId: string) => {
+    setParsedCsv(current => {
+      if (!current) return current;
+
+      return {
+        ...current,
+        rows: current.rows.map(row => {
+          if (row.rowNumber !== rowNumber) return row;
+          if (!locationId) {
+            return {
+              ...row,
+              locationId: '',
+              isValid: false,
+              error: 'Manual mapping required',
+            };
+          }
+          if (!allLocationIds.has(locationId)) {
+            return {
+              ...row,
+              locationId: '',
+              isValid: false,
+              error: `Unknown location: ${locationId}`,
+            };
+          }
+
+          return {
+            ...row,
+            locationId,
+            isValid: true,
+            error: undefined,
+          };
+        }),
+      };
+    });
   };
 
   const handleUploadCsvClick = () => {
@@ -358,20 +456,44 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                 <thead className="bg-muted/70 sticky top-0 z-10">
                   <tr className="text-left">
                     <th className="px-2 py-1 font-medium">Order ID</th>
-                    <th className="px-2 py-1 font-medium">Location ID</th>
+                    <th className="px-2 py-1 font-medium">
+                      {parsedCsv.format === 'sku' ? 'SKU' : 'Location ID'}
+                    </th>
                     <th className="px-2 py-1 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {parsedCsv.rows.map(row => (
                     <tr
-                      key={`${row.rowNumber}-${row.orderId}-${row.locationId}`}
+                      key={`${row.rowNumber}-${row.orderId}-${row.sourceValue}`}
                       className={row.isValid ? 'border-t border-border' : 'border-t border-destructive/30 bg-destructive/10'}
                     >
                       <td className="px-2 py-1 font-mono">{row.orderId || '—'}</td>
-                      <td className="px-2 py-1 font-mono">{row.locationId || '—'}</td>
+                      <td className="px-2 py-1 font-mono">
+                        {row.sourceType === 'sku' ? row.sourceValue || '—' : row.locationId || '—'}
+                      </td>
                       <td className="px-2 py-1">
-                        {row.isValid ? '✅ Valid' : `❌ Invalid${row.error ? ` (${row.error})` : ''}`}
+                        {row.isValid ? (
+                          <div>✅ Valid{row.sourceType === 'sku' ? ` → ${row.locationId}` : ''}</div>
+                        ) : (
+                          <div className="space-y-1">
+                            <div>❌ Invalid{row.error ? ` (${row.error})` : ''}</div>
+                            {row.allowsManualMapping && (
+                              <select
+                                value={row.locationId}
+                                onChange={e => setManualLocationMapping(row.rowNumber, e.target.value)}
+                                className="w-full h-7 text-[11px] rounded border border-border bg-background text-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                              >
+                                <option value="">Map SKU to location…</option>
+                                {availableLocations.map(location => (
+                                  <option key={location.id} value={location.id}>
+                                    {location.id}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
