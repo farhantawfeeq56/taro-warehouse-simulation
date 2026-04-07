@@ -9,14 +9,12 @@ import type {
   SimulationResults,
   StrategyType,
   StrategyResult,
-  PickTask,
   ZVisualizationMode,
   WarehouseProfile,
   LaborProfile,
 } from '@/lib/taro/types';
 import { createEmptyWarehouse, generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/lib/taro/simulation';
-import { generateTaskCSV, parseTaskCSV } from '@/lib/taro/csv';
 import { parseWarehouseCsv, SAMPLE_WAREHOUSE_CSV_TEMPLATE } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
@@ -25,12 +23,8 @@ import { ResultsPanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { EntryOverlay } from './entry-overlay';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Play, Minus, Plus, Rocket } from 'lucide-react';
-interface TaroAppProps {
-  onDeployStrategy?: (tasks: PickTask[]) => void;
-}
-
-export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
+import { RotateCcw, Play, Minus, Plus, FileText } from 'lucide-react';
+export function TaroApp() {
   const [warehouse, setWarehouse] = useState<Warehouse>(() => createEmptyWarehouse(30, 24));
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
@@ -48,6 +42,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const replaySpeedRef = useRef(replaySpeed);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [importSummary, setImportSummary] = useState<string>('');
+  const [executionPlanStrategy, setExecutionPlanStrategy] = useState<StrategyType | null>(null);
 
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
@@ -93,6 +88,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setSimulationResults(null);
     setActiveStrategy(null);
     setAnimationProgress(0);
+    setExecutionPlanStrategy(null);
     setZVisualizationMode('all');
     setShowEntryOverlay(true);
     setImportSummary('');
@@ -106,6 +102,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setSimulationResults(null);
     setActiveStrategy(null);
     setAnimationProgress(0);
+    setExecutionPlanStrategy(null);
     setShowEntryOverlay(false);
     setImportSummary('');
   }, []);
@@ -118,6 +115,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
     setIsSimulating(true);
     setActiveStrategy(null);
     setAnimationProgress(0);
+    setExecutionPlanStrategy(null);
 
     requestAnimationFrame(() => {
       const results = runSimulation(warehouse, orders, workerCount, {
@@ -176,6 +174,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
       setAnimationProgress(0);
       setShowEntryOverlay(false);
       setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
+      setExecutionPlanStrategy(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
       alert(`CSV import failed: ${message}`);
@@ -187,6 +186,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
   const handleBuildManually = useCallback(() => {
     setShowEntryOverlay(false);
     setImportSummary('');
+    setExecutionPlanStrategy(null);
   }, []);
 
   const hasContent = warehouse.shelves.length > 0 ||
@@ -321,21 +321,18 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
             Simulate Strategies
           </Button>
 
-          {simulationResults && onDeployStrategy && (
+          {simulationResults && (
             <Button
               size="sm"
               onClick={() => {
-                const best = simulationResults.strategies.find(s => s.strategy === simulationResults.bestStrategy);
-                if (!best?.workerRoutes) return;
-                const csv = generateTaskCSV(best.workerRoutes);
-                const tasks = parseTaskCSV(csv);
-                onDeployStrategy(tasks);
+                setExecutionPlanStrategy(simulationResults.bestStrategy);
+                startStrategyAnimation(simulationResults.bestStrategy);
               }}
               className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-0"
-              title="Deploy best strategy tasks to workers"
+              title="Generate execution plan output for the best strategy"
             >
-              <Rocket className="h-3.5 w-3.5 mr-1.5" />
-              Deploy Strategy
+              <FileText className="h-3.5 w-3.5 mr-1.5" />
+              Generate Execution Plan
             </Button>
           )}
         </div>
@@ -411,6 +408,7 @@ export function TaroApp({ onDeployStrategy }: TaroAppProps = {}) {
           onStrategySelect={handleStrategySelect}
           animationProgress={animationProgress}
           workerCount={workerCount}
+          executionPlan={executionPlanStrategy ? simulationResults?.strategies.find(s => s.strategy === executionPlanStrategy) ?? null : null}
         />
       </div>
     </div>
