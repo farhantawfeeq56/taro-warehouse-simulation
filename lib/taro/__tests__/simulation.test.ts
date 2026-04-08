@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { runSimulation, buildRouteFrequencyHeatmap } from '../simulation';
 import { generateDemoWarehouse, generateRandomOrders } from '../demo-generator';
+import type { Warehouse } from '../types';
 
 describe('simulation', () => {
   const flattenRoutes = (routes: { x: number; y: number }[][]): number =>
@@ -145,5 +146,42 @@ describe('simulation', () => {
     expect(overriddenBatch!.totalDistance).toBeGreaterThanOrEqual(defaultBatch!.totalDistance);
     expect(overriddenBatch!.estimatedTime).toBeGreaterThanOrEqual(defaultBatch!.estimatedTime);
     expect(overriddenBatch!.costPerOrder).toBeGreaterThanOrEqual(defaultBatch!.costPerOrder);
+  });
+
+  it('should produce strategy-specific distances for overlapping orders', () => {
+    const warehouse: Warehouse = {
+      width: 12,
+      height: 8,
+      grid: Array.from({ length: 8 }, (_, y) =>
+        Array.from({ length: 12 }, (_, x) => ({
+          x,
+          y,
+          type: 'empty',
+          locations: [],
+        }))
+      ),
+      shelves: [],
+      workerStart: { x: 0, y: 0 },
+      locations: [
+        { id: 'L1', x: 1, y: 1, z: 1, type: 'shelf', items: ['SKU-1'] },
+        { id: 'L2', x: 4, y: 1, z: 1, type: 'shelf', items: ['SKU-2'] },
+        { id: 'L3', x: 9, y: 1, z: 1, type: 'shelf', items: ['SKU-3'] },
+        { id: 'L4', x: 10, y: 5, z: 1, type: 'shelf', items: ['SKU-4'] },
+      ],
+    };
+
+    const orders = [
+      { id: 'order-1', items: ['L1', 'L4'], assignedWorkerId: null },
+      { id: 'order-2', items: ['L2', 'L4'], assignedWorkerId: null },
+      { id: 'order-3', items: ['L3'], assignedWorkerId: null },
+    ];
+
+    const results = runSimulation(warehouse, orders, 2);
+    const distancesByStrategy = new Map(results.strategies.map(strategy => [strategy.strategy, strategy.totalDistance]));
+    const uniqueDistances = new Set(distancesByStrategy.values());
+
+    expect(uniqueDistances.size).toBeGreaterThan(1);
+    expect(distancesByStrategy.get('single')).toBeGreaterThanOrEqual(distancesByStrategy.get('batch') ?? 0);
+    expect(distancesByStrategy.get('wave')).toBeGreaterThanOrEqual(distancesByStrategy.get('batch') ?? 0);
   });
 });
