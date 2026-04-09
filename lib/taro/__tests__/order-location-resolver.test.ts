@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveOrderLocations } from '../order-location-resolver';
+import { resolveOrderLocations, validateOrderItemLocations } from '../order-location-resolver';
 import type { Warehouse } from '../types';
 
 const warehouse: Pick<Warehouse, 'items'> = {
@@ -35,6 +35,41 @@ describe('resolveOrderLocations', () => {
 
     expect(() => resolveOrderLocations(order, warehouse)).toThrow(
       'Order "order-3" references unknown itemId "MISSING_ITEM" at index 0.'
+    );
+  });
+});
+
+describe('validateOrderItemLocations', () => {
+  it('accepts orders where every itemId resolves to a known warehouse location', () => {
+    const order = {
+      id: 'order-4',
+      items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }],
+      assignedWorkerId: null,
+    };
+    const warehouseWithLocations = {
+      ...warehouse,
+      locations: [
+        { id: 'L1', x: 1, y: 1, z: 1, type: 'shelf' as const, items: ['SKU-1'] },
+        { id: 'L2', x: 2, y: 2, z: 1, type: 'shelf' as const, items: ['SKU-2'] },
+      ],
+    };
+
+    expect(() => validateOrderItemLocations(order, warehouseWithLocations)).not.toThrow();
+  });
+
+  it('throws when an itemId resolves to a location that does not exist', () => {
+    const order = {
+      id: 'order-5',
+      items: [{ itemId: 'ITEM_L2' }],
+      assignedWorkerId: null,
+    };
+    const warehouseWithMissingLocation = {
+      ...warehouse,
+      locations: [{ id: 'L1', x: 1, y: 1, z: 1, type: 'shelf' as const, items: ['SKU-1'] }],
+    };
+
+    expect(() => validateOrderItemLocations(order, warehouseWithMissingLocation)).toThrow(
+      'Order "order-5" itemId "ITEM_L2" resolves to invalid locationId "L2" at index 0.'
     );
   });
 });

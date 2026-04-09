@@ -11,7 +11,7 @@ import type {
   LaborProfile,
 } from './types';
 import { findPath, calculatePathDistance } from './pathfinding';
-import { migrateOrderToItemIds, resolveOrderLocations } from './order-location-resolver';
+import { migrateOrderToItemIds, resolveOrderLocations, validateOrderItemLocations } from './order-location-resolver';
 import type { CompatOrder } from './order-location-resolver';
 import {
   STRATEGY_COLORS,
@@ -388,6 +388,7 @@ export function runSimulation(
   const results: StrategyResult[] = [];
 
   const migratedOrders = orders.map(order => migrateOrderToItemIds(order));
+  migratedOrders.forEach(order => validateOrderItemLocations(order, warehouse));
 
   const resolvedOrders: ResolvedOrder[] = migratedOrders.map(order => ({
     id: order.id,

@@ -7,7 +7,7 @@ import { AlertTriangle, Download, Plus, Shuffle, Trash2, Upload, X } from 'lucid
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
-import { getItemById, getItemByLocation } from '@/lib/taro/items';
+import { getItemById } from '@/lib/taro/items';
 
 interface OrdersPanelProps {
   orders: Order[];
@@ -19,6 +19,7 @@ interface OrdersPanelProps {
 interface ParsedOrderRow {
   rowNumber: number;
   orderId: string;
+  itemId: string;
   locationId: string;
   sourceValue: string;
   sourceType: 'location_id' | 'sku';
@@ -44,12 +45,14 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
   const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
   const [isParsingCsv, setIsParsingCsv] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const getItemIdForLocation = (locationId: string): string => {
-    if (!warehouse) {
-      return `ITEM_${locationId}`;
+  const itemIdByLocationId = useMemo(() => {
+    const mapping = new Map<string, string>();
+    for (const item of warehouse?.items ?? []) {
+      mapping.set(item.locationId, item.id);
     }
-    return getItemByLocation(warehouse, locationId)?.id ?? `ITEM_${locationId}`;
-  };
+    return mapping;
+  }, [warehouse]);
+  const getItemIdForLocation = (locationId: string): string | undefined => itemIdByLocationId.get(locationId);
   const getLocationIdForItem = (itemId: string): string => {
     if (!warehouse) {
       return itemId.replace(/^ITEM_/, '');
@@ -188,6 +191,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       const orderId = rawOrderId;
       const sourceValue = rawValue;
       let locationId = '';
+      let itemId = '';
       let allowsManualMapping = false;
 
       let error: string | undefined;
@@ -200,8 +204,11 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
           error = 'Missing location_id';
         } else if (!allLocationIds.has(sourceValue)) {
           error = `Unknown location: ${sourceValue}`;
+        } else if (!itemIdByLocationId.has(sourceValue)) {
+          error = `No item mapped to location: ${sourceValue}`;
         } else {
           locationId = sourceValue;
+          itemId = itemIdByLocationId.get(sourceValue) ?? '';
         }
       } else {
         if (!sourceValue) {
@@ -210,6 +217,10 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
           const matchingLocationIds = skuToLocationIds.get(sourceValue) ?? [];
           if (matchingLocationIds.length === 1) {
             locationId = matchingLocationIds[0];
+            itemId = getItemIdForLocation(locationId) ?? '';
+            if (!itemId) {
+              error = `No item mapped to location: ${locationId}`;
+            }
           } else if (matchingLocationIds.length === 0) {
             error = `Unknown SKU: ${sourceValue}`;
             allowsManualMapping = true;
@@ -223,6 +234,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       rows.push({
         rowNumber,
         orderId,
+        itemId,
         locationId,
         sourceValue,
         sourceType: detectedFormat,
@@ -235,7 +247,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     return { format: detectedFormat, rows };
   };
 
-  const setManualLocationMapping = (rowNumber: number, locationId: string) => {
+  const setManualItemMapping = (rowNumber: number, itemId: string) => {
     setParsedCsv(current => {
       if (!current) return current;
 
@@ -243,26 +255,30 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
         ...current,
         rows: current.rows.map(row => {
           if (row.rowNumber !== rowNumber) return row;
-          if (!locationId) {
+          if (!itemId) {
             return {
               ...row,
+              itemId: '',
               locationId: '',
               isValid: false,
               error: 'Manual mapping required',
             };
           }
-          if (!allLocationIds.has(locationId)) {
+          const resolvedLocationId = getLocationIdForItem(itemId);
+          if (!allLocationIds.has(resolvedLocationId)) {
             return {
               ...row,
+              itemId: '',
               locationId: '',
               isValid: false,
-              error: `Unknown location: ${locationId}`,
+              error: `Invalid item mapping: ${itemId}`,
             };
           }
 
           return {
             ...row,
-            locationId,
+            itemId,
+            locationId: resolvedLocationId,
             isValid: true,
             error: undefined,
           };
@@ -322,7 +338,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       }
 
       const items = acc.get(row.orderId) ?? [];
-      items.push({ itemId: getItemIdForLocation(row.locationId) });
+      items.push({ itemId: row.itemId });
       acc.set(row.orderId, items);
       return acc;
     }, new Map<string, Order['items']>());
@@ -352,7 +368,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     const invalidRows = totalRows - validRows;
     const totalOrders = new Set(validRowsData.map(row => row.orderId)).size;
     const totalItems = validRows;
-    const uniqueLocations = new Set(validRowsData.map(row => row.locationId)).size;
+    const uniqueLocations = new Set(validRowsData.map(row => getLocationIdForItem(row.itemId))).size;
     return { totalRows, validRows, invalidRows, totalOrders, totalItems, uniqueLocations };
   }, [parsedCsv]);
 
@@ -493,14 +509,14 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                             <div>❌ Invalid{row.error ? ` (${row.error})` : ''}</div>
                             {row.allowsManualMapping && (
                               <select
-                                value={row.locationId}
-                                onChange={e => setManualLocationMapping(row.rowNumber, e.target.value)}
+                                value={row.itemId}
+                                onChange={e => setManualItemMapping(row.rowNumber, e.target.value)}
                                 className="w-full h-7 text-[11px] rounded border border-border bg-background text-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary"
                               >
-                                <option value="">Map SKU to location…</option>
-                                {availableLocations.map(location => (
-                                  <option key={location.id} value={location.id}>
-                                    {location.id}
+                                <option value="">Map SKU to item…</option>
+                                {availableItems.map(item => (
+                                  <option key={item.itemId} value={item.itemId}>
+                                    {item.itemId} ({item.locationId})
                                   </option>
                                 ))}
                               </select>

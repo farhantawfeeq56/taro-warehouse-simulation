@@ -1,7 +1,7 @@
 import { getItemById } from './items';
 import type { Order, OrderItem, Warehouse } from './types';
 
-export type CompatOrderItem = string | { locationId?: string; itemId?: string };
+export type CompatOrderItem = string | { itemId?: string };
 
 export interface CompatOrder {
   id: string;
@@ -18,11 +18,7 @@ function toItemId(item: CompatOrderItem): string {
     return item.itemId;
   }
 
-  if (item.locationId) {
-    return `ITEM_${item.locationId}`;
-  }
-
-  throw new Error('Invalid order item; expected string, locationId, or itemId.');
+  throw new Error('Invalid order item; expected legacy location string or itemId.');
 }
 
 export function migrateOrderToItemIds(order: Order | CompatOrder): Order {
@@ -45,5 +41,25 @@ export function resolveOrderLocations(
       throw new Error(`Order \"${order.id}\" references unknown itemId \"${itemId}\" at index ${index}.`);
     }
     return resolvedItem.locationId;
+  });
+}
+
+export function validateOrderItemLocations(
+  order: Order | CompatOrder,
+  warehouse: Pick<Warehouse, 'items' | 'locations'>
+): void {
+  const validLocationIds = new Set(warehouse.locations.map(location => location.id));
+
+  order.items.forEach((rawItem, index) => {
+    const itemId = toItemId(rawItem);
+    const resolvedItem = getItemById(warehouse, itemId);
+    if (!resolvedItem) {
+      throw new Error(`Order \"${order.id}\" references unknown itemId \"${itemId}\" at index ${index}.`);
+    }
+    if (!validLocationIds.has(resolvedItem.locationId)) {
+      throw new Error(
+        `Order \"${order.id}\" itemId \"${itemId}\" resolves to invalid locationId \"${resolvedItem.locationId}\" at index ${index}.`
+      );
+    }
   });
 }
