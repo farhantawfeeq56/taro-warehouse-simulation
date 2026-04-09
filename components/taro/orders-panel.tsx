@@ -3,12 +3,11 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { AlertTriangle, Download, Plus, Shuffle, Trash2, Upload, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
-import { getItemByLocation } from '@/lib/taro/items';
+import { getItemById, getItemByLocation } from '@/lib/taro/items';
 
 interface OrdersPanelProps {
   orders: Order[];
@@ -51,12 +50,29 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     }
     return getItemByLocation(warehouse, locationId)?.id ?? `ITEM_${locationId}`;
   };
+  const getLocationIdForItem = (itemId: string): string => {
+    if (!warehouse) {
+      return itemId.replace(/^ITEM_/, '');
+    }
+    return getItemById(warehouse, itemId)?.locationId ?? itemId.replace(/^ITEM_/, '');
+  };
 
   // Get all available shelf locations that contain items.
   const availableLocations = useMemo(() => {
     if (!warehouse) return [];
 
     return warehouse.locations.filter(location => location.items.length > 0);
+  }, [warehouse]);
+  const availableItems = useMemo(() => {
+    if (!warehouse) return [];
+
+    return warehouse.items
+      .map(item => ({
+        itemId: item.id,
+        locationId: item.locationId,
+        label: `${item.id} — ${item.locationId}`,
+      }))
+      .sort((a, b) => a.locationId.localeCompare(b.locationId));
   }, [warehouse]);
   const allLocationIds = useMemo(
     () => new Set((warehouse?.locations ?? []).map(location => location.id)),
@@ -105,10 +121,10 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     );
   };
 
-  const addItemToOrder = (orderId: string, locationId: string) => {
+  const addItemToOrder = (orderId: string, itemId: string) => {
     onOrdersChange(
       orders.map(o =>
-        o.id === orderId ? { ...o, items: [...o.items, { itemId: getItemIdForLocation(locationId) }] } : o
+        o.id === orderId ? { ...o, items: [...o.items, { itemId }] } : o
       )
     );
     setNewItemInput(prev => ({ ...prev, [orderId]: '' }));
@@ -122,16 +138,6 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
           : o
       )
     );
-  };
-
-  const handleItemInputKeyDown = (orderId: string, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      const value = newItemInput[orderId] || '';
-      const isValidLocationId = availableLocations.some(location => location.id === value);
-      if (value.trim() !== '' && isValidLocationId) {
-        addItemToOrder(orderId, value);
-      }
-    }
   };
 
   const generateRandom = () => {
@@ -587,7 +593,10 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
               <div className="space-y-1">
                 {order.items.map((item, idx) => (
                   <div key={`${item.itemId}-${idx}`} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1">
-                    <span className="font-mono text-foreground">{item.itemId}</span>
+                    <div className="min-w-0">
+                      <div className="font-mono text-foreground truncate">{getLocationIdForItem(item.itemId)}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground truncate">{item.itemId}</div>
+                    </div>
                     <button
                       onClick={() => removeItemFromOrder(order.id, idx)}
                       className="text-muted-foreground hover:text-destructive transition-colors"
@@ -600,29 +609,28 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
 
               {/* Add item input */}
               <div className="flex gap-1">
-                <Input
+                <select
                   value={newItemInput[order.id] || ''}
                   onChange={e => setNewItemInput(prev => ({ ...prev, [order.id]: e.target.value }))}
-                  onKeyDown={e => handleItemInputKeyDown(order.id, e)}
-                  placeholder="Location ID"
-                  className="h-7 text-xs flex-1"
-                  list={`location-suggestions-${order.id}`}
-                />
-                <datalist id={`location-suggestions-${order.id}`}>
-                  {availableLocations.map(location => (
-                    <option key={location.id} value={location.id} />
+                  className="h-7 text-xs flex-1 rounded border border-border bg-background text-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Select item…</option>
+                  {availableItems.map(itemOption => (
+                    <option key={itemOption.itemId} value={itemOption.itemId}>
+                      {itemOption.label}
+                    </option>
                   ))}
-                </datalist>
+                </select>
                 <Button
                   size="sm"
                   onClick={() => {
                     const value = newItemInput[order.id] || '';
-                    const isValidLocationId = availableLocations.some(location => location.id === value);
-                    if (value.trim() !== '' && isValidLocationId) {
+                    const isValidItemId = availableItems.some(item => item.itemId === value);
+                    if (value.trim() !== '' && isValidItemId) {
                       addItemToOrder(order.id, value);
                     }
                   }}
-                  disabled={!newItemInput[order.id] || !availableLocations.some(location => location.id === newItemInput[order.id])}
+                  disabled={!newItemInput[order.id] || !availableItems.some(item => item.itemId === newItemInput[order.id])}
                   className="h-7 px-2"
                 >
                   <Plus className="h-3 w-3" />
