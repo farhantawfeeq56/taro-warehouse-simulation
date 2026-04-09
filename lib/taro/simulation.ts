@@ -12,6 +12,7 @@ import type {
   LaborProfile,
 } from './types';
 import { findPath, calculatePathDistance } from './pathfinding';
+import { resolveOrderLocations } from './order-location-resolver';
 import {
   STRATEGY_COLORS,
   STRATEGY_NAMES,
@@ -76,14 +77,19 @@ interface WorkUnit {
   stops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[];
 }
 
+interface ResolvedOrder {
+  id: string;
+  locations: string[];
+}
+
 function dedupeLocationsByFirstSeen(
-  orders: Order[],
+  orders: ResolvedOrder[],
   allLocations: Map<string, { x: number; y: number; z: number; sku: string }>
 ): string[] {
   const seen = new Set<string>();
   const deduped: string[] = [];
   for (const order of orders) {
-    for (const locationId of order.items) {
+    for (const locationId of order.locations) {
       if (!allLocations.has(locationId) || seen.has(locationId)) continue;
       seen.add(locationId);
       deduped.push(locationId);
@@ -211,7 +217,7 @@ function buildRouteForStops(
 function simulateStrategy(
   strategy: StrategyType,
   warehouse: Warehouse,
-  orders: Order[],
+  orders: ResolvedOrder[],
   workerCount: number
 ): { route: { x: number; y: number }[]; distance: number; workerRoutes: WorkerRoute[]; workerDistances: number[] } {
   if (!warehouse.workerStart || orders.length === 0) {
@@ -238,7 +244,7 @@ function simulateStrategy(
 
   if (strategy === 'single') {
     orders.forEach((order, index) => {
-      const stops = order.items
+      const stops = order.locations
         .map((locationId) => ({ key: locationId, pos: allLocations.get(locationId) }))
         .filter((item): item is { key: string; pos: { x: number; y: number; z: number; sku: string } } => item.pos !== undefined);
       units.push({ zoneLabel: `Order ${index + 1}`, stops });
@@ -381,9 +387,14 @@ export function runSimulation(
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
 
+  const resolvedOrders: ResolvedOrder[] = orders.map(order => ({
+    id: order.id,
+    locations: resolveOrderLocations(order, warehouse),
+  }));
+
   const simulationByStrategy = new Map<StrategyType, ReturnType<typeof simulateStrategy>>();
   for (const strategy of strategies) {
-    simulationByStrategy.set(strategy, simulateStrategy(strategy, warehouse, orders, workerCount));
+    simulationByStrategy.set(strategy, simulateStrategy(strategy, warehouse, resolvedOrders, workerCount));
   }
 
   const baselineDistance = simulationByStrategy.get('single')?.distance || 1;
