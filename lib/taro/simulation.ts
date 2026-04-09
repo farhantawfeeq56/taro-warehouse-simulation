@@ -2,6 +2,7 @@
 
 import type {
   Warehouse,
+  Order,
   StrategyResult,
   SimulationResults,
   StrategyType,
@@ -11,8 +12,7 @@ import type {
   LaborProfile,
 } from './types';
 import { findPath, calculatePathDistance } from './pathfinding';
-import { migrateOrderToItemIds, resolveOrderLocations, validateOrderItemLocations } from './order-location-resolver';
-import type { CompatOrder } from './order-location-resolver';
+import { resolveOrderLocations, validateOrderItemLocations } from './order-location-resolver';
 import {
   STRATEGY_COLORS,
   STRATEGY_NAMES,
@@ -378,7 +378,7 @@ function resolveLaborProfile(profile?: Partial<LaborProfile>): LaborProfile {
 
 export function runSimulation(
   warehouse: Warehouse,
-  orders: CompatOrder[],
+  orders: Order[],
   workerCount: number = 2,
   profiles: SimulationProfiles = {}
 ): SimulationResults {
@@ -387,10 +387,9 @@ export function runSimulation(
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
 
-  const migratedOrders = orders.map(order => migrateOrderToItemIds(order));
-  migratedOrders.forEach(order => validateOrderItemLocations(order, warehouse));
+  orders.forEach(order => validateOrderItemLocations(order, warehouse));
 
-  const resolvedOrders: ResolvedOrder[] = migratedOrders.map(order => ({
+  const resolvedOrders: ResolvedOrder[] = orders.map(order => ({
     id: order.id,
     locations: resolveOrderLocations(order, warehouse),
   }));
@@ -434,7 +433,7 @@ export function runSimulation(
       estimatedTime: Math.round(timeMinutes * 10) / 10,
       efficiency,
       workerUtilization: Math.round(utilization),
-      costPerOrder: Math.round((cost / Math.max(migratedOrders.length, 1)) * 100) / 100,
+      costPerOrder: Math.round((cost / Math.max(orders.length, 1)) * 100) / 100,
       route: result.route,
       color: STRATEGY_COLORS[strategy],
       workerRoutes,
