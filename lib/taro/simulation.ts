@@ -125,6 +125,49 @@ function orderStopsNearestNeighbor(
   return orderedStops;
 }
 
+function optimizeRoute2Opt(
+  start: { x: number; y: number },
+  stops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[]
+): typeof stops {
+  if (stops.length < 3) return stops;
+
+  const distance = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+  const routeDistance = (route: typeof stops) => {
+    let total = 0;
+    let previous = start;
+    for (const stop of route) {
+      total += distance(previous, stop.pos);
+      previous = stop.pos;
+    }
+    return total;
+  };
+
+  let improved = true;
+  let bestRoute = [...stops];
+
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < bestRoute.length - 1; i++) {
+      for (let j = i + 1; j < bestRoute.length; j++) {
+        const candidateRoute = [
+          ...bestRoute.slice(0, i),
+          ...bestRoute.slice(i, j + 1).reverse(),
+          ...bestRoute.slice(j + 1),
+        ];
+
+        if (routeDistance(candidateRoute) < routeDistance(bestRoute)) {
+          bestRoute = candidateRoute;
+          improved = true;
+        }
+      }
+    }
+  }
+
+  return bestRoute;
+}
+
 function buildRouteForStops(
   warehouse: Warehouse,
   start: { x: number; y: number },
@@ -132,8 +175,10 @@ function buildRouteForStops(
 ): { route: { x: number; y: number }[]; distance: number } {
   if (stops.length === 0) return { route: [], distance: 0 };
 
-  const orderedStops = orderStopsNearestNeighbor(start, stops);
-  console.log('Ordered stops:', orderedStops.map((s) => s.key));
+  const initial = orderStopsNearestNeighbor(start, stops);
+  const orderedStops = optimizeRoute2Opt(start, initial);
+  console.log('Before:', initial.map((s) => s.key));
+  console.log('After:', orderedStops.map((s) => s.key));
 
   const route: { x: number; y: number }[] = [];
   let distance = 0;
