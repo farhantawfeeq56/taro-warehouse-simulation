@@ -50,6 +50,11 @@ export interface WarehouseLocation {
   items: string[];
 }
 
+export interface Item {
+  id: string;
+  locationId: string;
+}
+
 export interface Warehouse {
   width: number;
   height: number;
@@ -57,6 +62,7 @@ export interface Warehouse {
   shelves: { x: number; y: number }[];
   workerStart: WorkerPosition | null;
   locations: WarehouseLocation[];
+  items: Item[];
 }
 
 export interface WarehouseProfile {
