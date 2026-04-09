@@ -29,10 +29,14 @@ export interface Cell {
   locations: StorageLocation[];
 }
 
-// Order items reference shelf location IDs.
+export interface OrderItem {
+  itemId: string;
+}
+
+// Orders now reference item IDs.
 export interface Order {
   id: string;
-  items: string[]; // locationId references
+  items: OrderItem[];
   assignedWorkerId: number | null; // null = Auto
 }
 

@@ -8,6 +8,7 @@ import { AlertTriangle, Download, Plus, Shuffle, Trash2, Upload, X } from 'lucid
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
+import { getItemByLocation } from '@/lib/taro/items';
 
 interface OrdersPanelProps {
   orders: Order[];
@@ -44,6 +45,12 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
   const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
   const [isParsingCsv, setIsParsingCsv] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const getItemIdForLocation = (locationId: string): string => {
+    if (!warehouse) {
+      return `ITEM_${locationId}`;
+    }
+    return getItemByLocation(warehouse, locationId)?.id ?? `ITEM_${locationId}`;
+  };
 
   // Get all available shelf locations that contain items.
   const availableLocations = useMemo(() => {
@@ -101,7 +108,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
   const addItemToOrder = (orderId: string, locationId: string) => {
     onOrdersChange(
       orders.map(o =>
-        o.id === orderId ? { ...o, items: [...o.items, locationId] } : o
+        o.id === orderId ? { ...o, items: [...o.items, { itemId: getItemIdForLocation(locationId) }] } : o
       )
     );
     setNewItemInput(prev => ({ ...prev, [orderId]: '' }));
@@ -303,16 +310,16 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       return;
     }
 
-    const groupedValidRows = parsedCsv.rows.reduce<Map<string, string[]>>((acc, row) => {
+    const groupedValidRows = parsedCsv.rows.reduce<Map<string, Order['items']>>((acc, row) => {
       if (!row.isValid) {
         return acc;
       }
 
       const items = acc.get(row.orderId) ?? [];
-      items.push(row.locationId);
+      items.push({ itemId: getItemIdForLocation(row.locationId) });
       acc.set(row.orderId, items);
       return acc;
-    }, new Map<string, string[]>());
+    }, new Map<string, Order['items']>());
 
     const importedOrders: Order[] = Array.from(groupedValidRows.entries()).map(([orderId, items]) => ({
       id: orderId,
@@ -579,8 +586,8 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
               {/* Items list */}
               <div className="space-y-1">
                 {order.items.map((item, idx) => (
-                  <div key={`${item}-${idx}`} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1">
-                    <span className="font-mono text-foreground">{item}</span>
+                  <div key={`${item.itemId}-${idx}`} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1">
+                    <span className="font-mono text-foreground">{item.itemId}</span>
                     <button
                       onClick={() => removeItemFromOrder(order.id, idx)}
                       className="text-muted-foreground hover:text-destructive transition-colors"
