@@ -96,6 +96,35 @@ function sortStopsByGrid(stops: { key: string; pos: { x: number; y: number; z: n
   return [...stops].sort((a, b) => a.pos.y - b.pos.y || a.pos.x - b.pos.x);
 }
 
+function orderStopsNearestNeighbor(
+  start: { x: number; y: number },
+  stops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[]
+): typeof stops {
+  const unvisited = [...stops];
+  const orderedStops: typeof stops = [];
+  let current = start;
+
+  while (unvisited.length > 0) {
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (let i = 0; i < unvisited.length; i++) {
+      const candidate = unvisited[i];
+      const distance = Math.abs(candidate.pos.x - current.x) + Math.abs(candidate.pos.y - current.y);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = i;
+      }
+    }
+
+    const [nearestStop] = unvisited.splice(nearestIndex, 1);
+    orderedStops.push(nearestStop);
+    current = nearestStop.pos;
+  }
+
+  return orderedStops;
+}
+
 function buildRouteForStops(
   warehouse: Warehouse,
   start: { x: number; y: number },
@@ -103,11 +132,14 @@ function buildRouteForStops(
 ): { route: { x: number; y: number }[]; distance: number } {
   if (stops.length === 0) return { route: [], distance: 0 };
 
+  const orderedStops = orderStopsNearestNeighbor(start, stops);
+  console.log('Ordered stops:', orderedStops.map((s) => s.key));
+
   const route: { x: number; y: number }[] = [];
   let distance = 0;
   let current = start;
 
-  for (const stop of stops) {
+  for (const stop of orderedStops) {
     const leg = findPath(warehouse, current, stop.pos);
     if (leg.length > 0) {
       route.push(...leg);
@@ -169,7 +201,7 @@ function simulateStrategy(
   } else if (strategy === 'batch') {
     const stops = dedupeLocationsByFirstSeen(orders, allLocations)
       .map((key) => ({ key, pos: allLocations.get(key)! }));
-    units.push({ zoneLabel: 'Batch', stops: sortStopsByGrid(stops) });
+    units.push({ zoneLabel: 'Batch', stops });
   } else if (strategy === 'zone') {
     const dedupedKeys = dedupeLocationsByFirstSeen(orders, allLocations);
     const coordinateX = warehouse.locations.length > 0
@@ -187,14 +219,14 @@ function simulateStrategy(
       if (pos.x < midX) leftStops.push({ key, pos });
       else rightStops.push({ key, pos });
     }
-    units.push({ zoneLabel: 'Zone A (left)', stops: sortStopsByGrid(leftStops) });
-    units.push({ zoneLabel: 'Zone B (right)', stops: sortStopsByGrid(rightStops) });
+    units.push({ zoneLabel: 'Zone A (left)', stops: leftStops });
+    units.push({ zoneLabel: 'Zone B (right)', stops: rightStops });
   } else {
     const waveSize = 2;
     for (let i = 0; i < orders.length; i += waveSize) {
       const waveOrders = orders.slice(i, i + waveSize);
       const dedupedKeys = dedupeLocationsByFirstSeen(waveOrders, allLocations);
-      const stops = sortStopsByGrid(dedupedKeys.map((key) => ({ key, pos: allLocations.get(key)! })));
+      const stops = dedupedKeys.map((key) => ({ key, pos: allLocations.get(key)! }));
       units.push({ zoneLabel: `Wave ${Math.floor(i / waveSize) + 1}`, stops });
     }
   }
