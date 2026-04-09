@@ -2,6 +2,7 @@
 
 import type { Warehouse, Cell, Order, StorageLocation } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
+import { generateDefaultItemsFromLocations } from './items';
 
 // Get all pickable locations from warehouse (local copy for demo-generator)
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
@@ -39,8 +40,10 @@ export function createEmptyWarehouse(width: number, height: number): Warehouse {
     shelves: [],
     workerStart: null,
     locations: [],
+    items: [],
   };
   warehouse.locations = buildCoordinateLocations(warehouse);
+  warehouse.items = generateDefaultItemsFromLocations(warehouse.locations);
   return warehouse;
 }
 
@@ -122,6 +125,7 @@ export function generateDemoWarehouse(): Warehouse {
   warehouse.workerStart = { x: 1, y: height - 2 };
   warehouse.grid[height - 2][1].type = 'worker-start';
   warehouse.locations = buildCoordinateLocations(warehouse);
+  warehouse.items = generateDefaultItemsFromLocations(warehouse.locations);
 
   return warehouse;
 }

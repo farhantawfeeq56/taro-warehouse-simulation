@@ -5,6 +5,7 @@ import type { Warehouse, StorageLocation } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { X, Wand2, Upload } from 'lucide-react';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
+import { generateDefaultItemsFromLocations } from '@/lib/taro/items';
 
 interface WarehouseBuilderDialogProps {
   onGenerate: (warehouse: Warehouse) => void;
@@ -76,8 +77,10 @@ function buildWarehouseFromParams(
     shelves,
     workerStart,
     locations: [],
+    items: [],
   };
   warehouse.locations = buildCoordinateLocations(warehouse);
+  warehouse.items = generateDefaultItemsFromLocations(warehouse.locations);
   return warehouse;
 }
 
@@ -169,8 +172,9 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     const workerStart = { x: 0, y: height - 1 };
     grid[workerStart.y][workerStart.x] = { type: 'worker-start', x: 0, y: height - 1, locations: [] };
 
-    const warehouse: Warehouse = { width, height, grid, shelves, workerStart, locations: [] };
+    const warehouse: Warehouse = { width, height, grid, shelves, workerStart, locations: [], items: [] };
     warehouse.locations = buildCoordinateLocations(warehouse);
+    warehouse.items = generateDefaultItemsFromLocations(warehouse.locations);
     return warehouse;
   } catch {
     return null;

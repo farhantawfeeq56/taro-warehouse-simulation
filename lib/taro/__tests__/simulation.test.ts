@@ -168,6 +168,12 @@ describe('simulation', () => {
         { id: 'L3', x: 9, y: 1, z: 1, type: 'shelf', items: ['SKU-3'] },
         { id: 'L4', x: 10, y: 5, z: 1, type: 'shelf', items: ['SKU-4'] },
       ],
+      items: [
+        { id: 'ITEM_L1', locationId: 'L1' },
+        { id: 'ITEM_L2', locationId: 'L2' },
+        { id: 'ITEM_L3', locationId: 'L3' },
+        { id: 'ITEM_L4', locationId: 'L4' },
+      ],
     };
 
     const orders = [
