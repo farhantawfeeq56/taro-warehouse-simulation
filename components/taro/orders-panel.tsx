@@ -31,6 +31,8 @@ interface ParsedOrdersState {
 
 const REQUIRED_ITEM_HEADERS = ['order_id', 'item_id'] as const;
 const INVALID_CSV_FORMAT_MESSAGE = 'Invalid CSV format. Please use the sample format.';
+const LOCATION_CSV_NOT_SUPPORTED_MESSAGE = 'Location-based CSV is not supported. Please use order_id,item_id.';
+const ITEM_NOT_FOUND_ERROR_MESSAGE = 'Item not found. Please create items before importing orders.';
 const SAMPLE_ORDERS_CSV = ['order_id,item_id', 'A,ITEM_001', 'A,ITEM_004', 'B,ITEM_011'].join('\n');
 
 export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: OrdersPanelProps) {
@@ -117,6 +119,11 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     const hasItemHeaders =
       headers.length === REQUIRED_ITEM_HEADERS.length &&
       headers.every((header, idx) => header === REQUIRED_ITEM_HEADERS[idx]);
+    const hasLocationHeaders = headers.length === 2 && headers[0] === 'order_id' && headers[1] === 'location_id';
+
+    if (hasLocationHeaders) {
+      throw new Error(LOCATION_CSV_NOT_SUPPORTED_MESSAGE);
+    }
 
     if (!hasItemHeaders) {
       throw new Error(INVALID_CSV_FORMAT_MESSAGE);
@@ -143,14 +150,10 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
         error = 'Too many columns';
       } else if (!orderId) {
         error = 'Missing order_id';
+      } else if (!sourceValue || !availableItemIds.has(sourceValue)) {
+        error = ITEM_NOT_FOUND_ERROR_MESSAGE;
       } else {
-        if (!sourceValue) {
-          error = 'Missing item_id';
-        } else if (!availableItemIds.has(sourceValue)) {
-          error = `Unknown item_id: ${sourceValue}`;
-        } else {
-          itemId = sourceValue;
-        }
+        itemId = sourceValue;
       }
 
       rows.push({
@@ -365,6 +368,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                   <tr className="text-left">
                     <th className="px-2 py-1 font-medium">Order ID</th>
                     <th className="px-2 py-1 font-medium">Item ID</th>
+                    <th className="px-2 py-1 font-medium">Mapped Location</th>
                     <th className="px-2 py-1 font-medium">Status</th>
                   </tr>
                 </thead>
@@ -375,7 +379,10 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                       className={row.isValid ? 'border-t border-border' : 'border-t border-destructive/30 bg-destructive/10'}
                     >
                       <td className="px-2 py-1 font-mono">{row.orderId || '—'}</td>
-                      <td className="px-2 py-1 font-mono">{row.sourceValue || '—'}</td>
+                      <td className="px-2 py-1 font-mono">{row.itemId || row.sourceValue || '—'}</td>
+                      <td className="px-2 py-1 font-mono">
+                        {row.isValid && row.itemId ? getLocationIdForItem(row.itemId) : '—'}
+                      </td>
                       <td className="px-2 py-1">
                         {row.isValid ? (
                           <div>✅ Valid</div>
