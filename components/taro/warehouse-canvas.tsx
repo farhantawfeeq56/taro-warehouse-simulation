@@ -4,7 +4,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
-import { generateDefaultItemsFromLocations, getItemsByLocation } from '@/lib/taro/items';
+import { getItemsByLocation } from '@/lib/taro/items';
 
 interface WarehouseCanvasProps {
   warehouse: Warehouse;
@@ -126,7 +126,6 @@ export function WarehouseCanvas({
     }
 
     newWarehouse.locations = buildCoordinateLocations(newWarehouse);
-    newWarehouse.items = generateDefaultItemsFromLocations(newWarehouse.locations);
     onWarehouseChange(newWarehouse);
   }, [warehouse, selectedTool, onWarehouseChange]);
 
@@ -264,7 +263,6 @@ export function WarehouseCanvas({
 
     cell.locations.push(nextItem);
     newWarehouse.locations = buildCoordinateLocations(newWarehouse);
-    newWarehouse.items = generateDefaultItemsFromLocations(newWarehouse.locations);
 
     onWarehouseChange(newWarehouse);
     setShelfDetails({
