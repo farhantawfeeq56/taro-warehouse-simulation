@@ -190,4 +190,55 @@ describe('simulation', () => {
     expect(distancesByStrategy.get('single')).toBeGreaterThanOrEqual(distancesByStrategy.get('batch') ?? 0);
     expect(distancesByStrategy.get('wave')).toBeGreaterThanOrEqual(distancesByStrategy.get('batch') ?? 0);
   });
+
+  it('should support itemId-based order entries through the compatibility resolver', () => {
+    const warehouse: Warehouse = {
+      width: 6,
+      height: 6,
+      grid: Array.from({ length: 6 }, (_, y) =>
+        Array.from({ length: 6 }, (_, x) => ({
+          x,
+          y,
+          type: 'empty',
+          locations: [],
+        }))
+      ),
+      shelves: [],
+      workerStart: { x: 0, y: 0 },
+      locations: [
+        { id: 'L1', x: 1, y: 1, z: 1, type: 'shelf', items: ['SKU-1'] },
+        { id: 'L2', x: 4, y: 4, z: 1, type: 'shelf', items: ['SKU-2'] },
+      ],
+      items: [
+        { id: 'ITEM_L1', locationId: 'L1' },
+        { id: 'ITEM_L2', locationId: 'L2' },
+      ],
+    };
+
+    const legacyOrders = [
+      { id: 'order-legacy', items: ['L1', 'L2'], assignedWorkerId: null },
+    ];
+
+    const futureOrders = [
+      { id: 'order-future', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }], assignedWorkerId: null },
+    ] as unknown as Parameters<typeof runSimulation>[1];
+
+    const legacyResults = runSimulation(warehouse, legacyOrders, 2);
+    const futureResults = runSimulation(warehouse, futureOrders, 2);
+
+    expect(futureResults.strategies.map(s => s.totalDistance)).toEqual(
+      legacyResults.strategies.map(s => s.totalDistance)
+    );
+  });
+
+  it('should throw a clear error for unknown itemId entries in orders', () => {
+    const warehouse = generateDemoWarehouse();
+    const invalidOrders = [
+      { id: 'invalid-order', items: [{ itemId: 'DOES_NOT_EXIST' }], assignedWorkerId: null },
+    ] as unknown as Parameters<typeof runSimulation>[1];
+
+    expect(() => runSimulation(warehouse, invalidOrders, 2)).toThrow(
+      'Order "invalid-order" references unknown itemId "DOES_NOT_EXIST" at index 0.'
+    );
+  });
 });
