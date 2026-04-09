@@ -7,7 +7,7 @@ import { AlertTriangle, Download, Plus, Shuffle, Trash2, Upload, X } from 'lucid
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
-import { getItemById } from '@/lib/taro/items';
+import { getItemById, getItems } from '@/lib/taro/items';
 
 interface OrdersPanelProps {
   orders: Order[];
@@ -20,23 +20,18 @@ interface ParsedOrderRow {
   rowNumber: number;
   orderId: string;
   itemId: string;
-  locationId: string;
   sourceValue: string;
-  sourceType: 'location_id' | 'sku';
   isValid: boolean;
-  allowsManualMapping?: boolean;
   error?: string;
 }
 
 interface ParsedOrdersState {
-  format: 'location_id' | 'sku';
   rows: ParsedOrderRow[];
 }
 
-const REQUIRED_LOCATION_HEADERS = ['order_id', 'location_id'] as const;
-const REQUIRED_SKU_HEADERS = ['order_id', 'sku'] as const;
+const REQUIRED_ITEM_HEADERS = ['order_id', 'item_id'] as const;
 const INVALID_CSV_FORMAT_MESSAGE = 'Invalid CSV format. Please use the sample format.';
-const SAMPLE_ORDERS_CSV = ['order_id,location_id', 'A,shelf-7-4', 'A,shelf-14-8', 'B,shelf-24-12'].join('\n');
+const SAMPLE_ORDERS_CSV = ['order_id,item_id', 'A,ITEM_001', 'A,ITEM_004', 'B,ITEM_011'].join('\n');
 
 export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
@@ -45,61 +40,20 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
   const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
   const [isParsingCsv, setIsParsingCsv] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const itemIdByLocationId = useMemo(() => {
-    const mapping = new Map<string, string>();
-    for (const item of warehouse?.items ?? []) {
-      mapping.set(item.locationId, item.id);
-    }
-    return mapping;
-  }, [warehouse]);
-  const getItemIdForLocation = (locationId: string): string | undefined => itemIdByLocationId.get(locationId);
-  const getLocationIdForItem = (itemId: string): string => {
-    if (!warehouse) {
-      return itemId.replace(/^ITEM_/, '');
-    }
-    return getItemById(warehouse, itemId)?.locationId ?? itemId.replace(/^ITEM_/, '');
-  };
+  const getLocationIdForItem = (itemId: string): string => getItemById(warehouse ?? { items: [] }, itemId)?.locationId ?? 'Unknown location';
 
-  // Get all available shelf locations that contain items.
-  const availableLocations = useMemo(() => {
-    if (!warehouse) return [];
-
-    return warehouse.locations.filter(location => location.items.length > 0);
-  }, [warehouse]);
   const availableItems = useMemo(() => {
     if (!warehouse) return [];
 
-    return warehouse.items
+    return getItems(warehouse)
       .map(item => ({
         itemId: item.id,
         locationId: item.locationId,
         label: `${item.id} — ${item.locationId}`,
       }))
-      .sort((a, b) => a.locationId.localeCompare(b.locationId));
+      .sort((a, b) => a.itemId.localeCompare(b.itemId));
   }, [warehouse]);
-  const allLocationIds = useMemo(
-    () => new Set((warehouse?.locations ?? []).map(location => location.id)),
-    [warehouse]
-  );
-  const skuToLocationIds = useMemo(() => {
-    const skuMap = new Map<string, Set<string>>();
-
-    for (const row of warehouse?.grid ?? []) {
-      for (const cell of row) {
-        for (const location of cell.locations) {
-          if (!location.sku) continue;
-          if (!skuMap.has(location.sku)) {
-            skuMap.set(location.sku, new Set<string>());
-          }
-          skuMap.get(location.sku)!.add(location.locationId);
-        }
-      }
-    }
-
-    return new Map<string, string[]>(
-      Array.from(skuMap.entries()).map(([sku, locationIds]) => [sku, Array.from(locationIds).sort()])
-    );
-  }, [warehouse]);
+  const availableItemIds = useMemo(() => new Set(availableItems.map(item => item.itemId)), [availableItems]);
 
   const addOrder = () => {
     const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -144,8 +98,8 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
   };
 
   const generateRandom = () => {
-    if (!warehouse || availableLocations.length === 0) return;
-    const randomOrders = generateRandomOrders(warehouse, Math.min(5, Math.max(3, Math.floor(availableLocations.length / 3))));
+    if (!warehouse || availableItems.length === 0) return;
+    const randomOrders = generateRandomOrders(warehouse, Math.min(5, Math.max(3, Math.floor(availableItems.length / 3))));
     // Preserve assignedWorkerId=null on generated orders
     onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
     setImportSuccessMessage(null);
@@ -160,19 +114,11 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
     }
 
     const headers = firstNonEmptyLine.split(',').map(part => part.trim().toLowerCase());
-    const hasLocationHeaders =
-      headers.length === REQUIRED_LOCATION_HEADERS.length &&
-      headers.every((header, idx) => header === REQUIRED_LOCATION_HEADERS[idx]);
-    const hasSkuHeaders =
-      headers.length === REQUIRED_SKU_HEADERS.length &&
-      headers.every((header, idx) => header === REQUIRED_SKU_HEADERS[idx]);
-    const detectedFormat: ParsedOrdersState['format'] | null = hasLocationHeaders
-      ? 'location_id'
-      : hasSkuHeaders
-        ? 'sku'
-        : null;
+    const hasItemHeaders =
+      headers.length === REQUIRED_ITEM_HEADERS.length &&
+      headers.every((header, idx) => header === REQUIRED_ITEM_HEADERS[idx]);
 
-    if (!detectedFormat) {
+    if (!hasItemHeaders) {
       throw new Error(INVALID_CSV_FORMAT_MESSAGE);
     }
 
@@ -190,44 +136,20 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       const rowNumber = headerIndex + index + 2;
       const orderId = rawOrderId;
       const sourceValue = rawValue;
-      let locationId = '';
       let itemId = '';
-      let allowsManualMapping = false;
 
       let error: string | undefined;
       if (extras.length > 0) {
         error = 'Too many columns';
       } else if (!orderId) {
         error = 'Missing order_id';
-      } else if (detectedFormat === 'location_id') {
-        if (!sourceValue) {
-          error = 'Missing location_id';
-        } else if (!allLocationIds.has(sourceValue)) {
-          error = `Unknown location: ${sourceValue}`;
-        } else if (!itemIdByLocationId.has(sourceValue)) {
-          error = `No item mapped to location: ${sourceValue}`;
-        } else {
-          locationId = sourceValue;
-          itemId = itemIdByLocationId.get(sourceValue) ?? '';
-        }
       } else {
         if (!sourceValue) {
-          error = 'Missing sku';
+          error = 'Missing item_id';
+        } else if (!availableItemIds.has(sourceValue)) {
+          error = `Unknown item_id: ${sourceValue}`;
         } else {
-          const matchingLocationIds = skuToLocationIds.get(sourceValue) ?? [];
-          if (matchingLocationIds.length === 1) {
-            locationId = matchingLocationIds[0];
-            itemId = getItemIdForLocation(locationId) ?? '';
-            if (!itemId) {
-              error = `No item mapped to location: ${locationId}`;
-            }
-          } else if (matchingLocationIds.length === 0) {
-            error = `Unknown SKU: ${sourceValue}`;
-            allowsManualMapping = true;
-          } else {
-            error = `Multiple locations for SKU: ${sourceValue}`;
-            allowsManualMapping = true;
-          }
+          itemId = sourceValue;
         }
       }
 
@@ -235,56 +157,13 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
         rowNumber,
         orderId,
         itemId,
-        locationId,
         sourceValue,
-        sourceType: detectedFormat,
         isValid: !error,
-        allowsManualMapping,
         error,
       });
     });
 
-    return { format: detectedFormat, rows };
-  };
-
-  const setManualItemMapping = (rowNumber: number, itemId: string) => {
-    setParsedCsv(current => {
-      if (!current) return current;
-
-      return {
-        ...current,
-        rows: current.rows.map(row => {
-          if (row.rowNumber !== rowNumber) return row;
-          if (!itemId) {
-            return {
-              ...row,
-              itemId: '',
-              locationId: '',
-              isValid: false,
-              error: 'Manual mapping required',
-            };
-          }
-          const resolvedLocationId = getLocationIdForItem(itemId);
-          if (!allLocationIds.has(resolvedLocationId)) {
-            return {
-              ...row,
-              itemId: '',
-              locationId: '',
-              isValid: false,
-              error: `Invalid item mapping: ${itemId}`,
-            };
-          }
-
-          return {
-            ...row,
-            itemId,
-            locationId: resolvedLocationId,
-            isValid: true,
-            error: undefined,
-          };
-        }),
-      };
-    });
+    return { rows };
   };
 
   const handleUploadCsvClick = () => {
@@ -415,7 +294,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
             variant="outline"
             size="sm"
             onClick={generateRandom}
-            disabled={availableLocations.length === 0}
+            disabled={availableItems.length === 0}
             className="h-7 text-xs px-2"
             title="Generate random orders"
           >
@@ -485,9 +364,7 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                 <thead className="bg-muted/70 sticky top-0 z-10">
                   <tr className="text-left">
                     <th className="px-2 py-1 font-medium">Order ID</th>
-                    <th className="px-2 py-1 font-medium">
-                      {parsedCsv.format === 'sku' ? 'SKU' : 'Location ID'}
-                    </th>
+                    <th className="px-2 py-1 font-medium">Item ID</th>
                     <th className="px-2 py-1 font-medium">Status</th>
                   </tr>
                 </thead>
@@ -498,30 +375,12 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                       className={row.isValid ? 'border-t border-border' : 'border-t border-destructive/30 bg-destructive/10'}
                     >
                       <td className="px-2 py-1 font-mono">{row.orderId || '—'}</td>
-                      <td className="px-2 py-1 font-mono">
-                        {row.sourceType === 'sku' ? row.sourceValue || '—' : row.locationId || '—'}
-                      </td>
+                      <td className="px-2 py-1 font-mono">{row.sourceValue || '—'}</td>
                       <td className="px-2 py-1">
                         {row.isValid ? (
-                          <div>✅ Valid{row.sourceType === 'sku' ? ` → ${row.locationId}` : ''}</div>
+                          <div>✅ Valid</div>
                         ) : (
-                          <div className="space-y-1">
-                            <div>❌ Invalid{row.error ? ` (${row.error})` : ''}</div>
-                            {row.allowsManualMapping && (
-                              <select
-                                value={row.itemId}
-                                onChange={e => setManualItemMapping(row.rowNumber, e.target.value)}
-                                className="w-full h-7 text-[11px] rounded border border-border bg-background text-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary"
-                              >
-                                <option value="">Map SKU to item…</option>
-                                {availableItems.map(item => (
-                                  <option key={item.itemId} value={item.itemId}>
-                                    {item.itemId} ({item.locationId})
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </div>
+                          <div>❌ Invalid{row.error ? ` (${row.error})` : ''}</div>
                         )}
                       </td>
                     </tr>
@@ -610,8 +469,8 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                 {order.items.map((item, idx) => (
                   <div key={`${item.itemId}-${idx}`} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1">
                     <div className="min-w-0">
-                      <div className="font-mono text-foreground truncate">{getLocationIdForItem(item.itemId)}</div>
-                      <div className="font-mono text-[10px] text-muted-foreground truncate">{item.itemId}</div>
+                      <div className="font-mono text-foreground truncate">{item.itemId}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground truncate">{getLocationIdForItem(item.itemId)}</div>
                     </div>
                     <button
                       onClick={() => removeItemFromOrder(order.id, idx)}
@@ -628,9 +487,10 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                 <select
                   value={newItemInput[order.id] || ''}
                   onChange={e => setNewItemInput(prev => ({ ...prev, [order.id]: e.target.value }))}
-                  className="h-7 text-xs flex-1 rounded border border-border bg-background text-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  disabled={availableItems.length === 0}
+                  className="h-7 text-xs flex-1 rounded border border-border bg-background text-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <option value="">Select item…</option>
+                  <option value="">{availableItems.length === 0 ? 'No items available' : 'Select item…'}</option>
                   {availableItems.map(itemOption => (
                     <option key={itemOption.itemId} value={itemOption.itemId}>
                       {itemOption.label}
@@ -646,12 +506,15 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
                       addItemToOrder(order.id, value);
                     }
                   }}
-                  disabled={!newItemInput[order.id] || !availableItems.some(item => item.itemId === newItemInput[order.id])}
+                  disabled={availableItems.length === 0 || !newItemInput[order.id] || !availableItems.some(item => item.itemId === newItemInput[order.id])}
                   className="h-7 px-2"
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
+              {availableItems.length === 0 && (
+                <div className="text-[11px] text-amber-700">No items available. Add items to shelves first.</div>
+              )}
             </div>
           ))
         )}
