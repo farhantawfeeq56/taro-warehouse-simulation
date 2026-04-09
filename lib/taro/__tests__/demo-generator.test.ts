@@ -21,6 +21,7 @@ describe('demo-generator', () => {
 
     it('should have no items or shelves initially', () => {
       const warehouse = createEmptyWarehouse(10, 10);
+      expect(warehouse.items).toEqual([]);
       expect(warehouse.shelves).toHaveLength(0);
       expect(warehouse.workerStart).toBeNull();
     });
@@ -32,6 +33,7 @@ describe('demo-generator', () => {
       expect(warehouse.width).toBeGreaterThan(0);
       expect(warehouse.height).toBeGreaterThan(0);
       expect(warehouse.shelves.length).toBeGreaterThan(0);
+      expect(warehouse.items.length).toBeGreaterThan(0);
     });
 
     it('should have worker start position', () => {

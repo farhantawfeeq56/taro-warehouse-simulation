@@ -2,7 +2,6 @@
 
 import type { Warehouse, Cell, Order, StorageLocation } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
-import { generateDefaultItemsFromLocations } from './items';
 
 // Get all pickable locations from warehouse (local copy for demo-generator)
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
@@ -43,7 +42,6 @@ export function createEmptyWarehouse(width: number, height: number): Warehouse {
     items: [],
   };
   warehouse.locations = buildCoordinateLocations(warehouse);
-  warehouse.items = generateDefaultItemsFromLocations(warehouse.locations);
   return warehouse;
 }
 
@@ -51,6 +49,14 @@ export function generateDemoWarehouse(): Warehouse {
   const width = 30;
   const height = 24;
   const warehouse = createEmptyWarehouse(width, height);
+  let demoItemIndex = 1;
+  const createDemoItem = (locationId: string) => {
+    warehouse.items.push({
+      id: `DEMO_ITEM_${String(demoItemIndex).padStart(3, '0')}`,
+      locationId,
+    });
+    demoItemIndex++;
+  };
 
   // Create shelf rows with aisles between them
   const shelfRows = [2, 3, 6, 7, 10, 11, 14, 15, 18, 19];
@@ -83,6 +89,7 @@ export function generateDemoWarehouse(): Warehouse {
   warehouse.grid[5][5].type = 'shelf';
   warehouse.grid[5][5].locations = testLocations;
   warehouse.shelves.push({ x: 5, y: 5 });
+  createDemoItem(getShelfLocationId(5, 5));
 
   // Add some additional items at shelf edges with locations
   let itemId = 4; // Start after test SKUs
@@ -116,6 +123,7 @@ export function generateDemoWarehouse(): Warehouse {
           warehouse.grid[row + 1][col].type = 'shelf';
           warehouse.grid[row + 1][col].locations = cellLocations;
           warehouse.shelves.push({ x: col, y: row + 1 });
+          createDemoItem(getShelfLocationId(col, row + 1));
         }
       }
     }
@@ -125,7 +133,6 @@ export function generateDemoWarehouse(): Warehouse {
   warehouse.workerStart = { x: 1, y: height - 2 };
   warehouse.grid[height - 2][1].type = 'worker-start';
   warehouse.locations = buildCoordinateLocations(warehouse);
-  warehouse.items = generateDefaultItemsFromLocations(warehouse.locations);
 
   return warehouse;
 }
@@ -134,22 +141,18 @@ export function generateRandomOrders(warehouse: Warehouse, count: number): Order
   const orders: Order[] = [];
   const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  // Get all available shelf location IDs that contain items.
-  const availableLocationIds = warehouse.locations
-    .filter(location => location.items.length > 0)
-    .map(location => location.id);
-
-  if (availableLocationIds.length === 0) return orders;
+  const availableItemIds = warehouse.items.map(item => item.id);
+  if (availableItemIds.length === 0) return orders;
 
   for (let i = 0; i < count; i++) {
     const itemCount = Math.floor(Math.random() * 4) + 2; // 2-5 items per order
     const orderItems: Order['items'] = [];
-    const availableLocationIdsCopy = [...availableLocationIds];
+    const availableItemIdsCopy = [...availableItemIds];
 
-    for (let j = 0; j < itemCount && availableLocationIdsCopy.length > 0; j++) {
-      const idx = Math.floor(Math.random() * availableLocationIdsCopy.length);
-      orderItems.push({ itemId: `ITEM_${availableLocationIdsCopy[idx]}` });
-      availableLocationIdsCopy.splice(idx, 1);
+    for (let j = 0; j < itemCount && availableItemIdsCopy.length > 0; j++) {
+      const idx = Math.floor(Math.random() * availableItemIdsCopy.length);
+      orderItems.push({ itemId: availableItemIdsCopy[idx] });
+      availableItemIdsCopy.splice(idx, 1);
     }
 
     orders.push({

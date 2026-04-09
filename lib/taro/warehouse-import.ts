@@ -1,5 +1,4 @@
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
-import { generateDefaultItemsFromLocations } from './items';
 import type { Cell, StorageLocation, Warehouse } from './types';
 
 const REQUIRED_COLUMNS = ['originallocation', 'x', 'y', 'z'] as const;
@@ -186,7 +185,6 @@ function buildWarehouse(locations: ImportedWarehouseLocation[]): Warehouse {
   };
 
   warehouse.locations = buildCoordinateLocations(warehouse);
-  warehouse.items = generateDefaultItemsFromLocations(warehouse.locations);
   return warehouse;
 }
 
