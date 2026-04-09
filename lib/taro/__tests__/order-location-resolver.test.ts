@@ -4,8 +4,8 @@ import type { Warehouse } from '../types';
 
 const warehouse: Pick<Warehouse, 'items'> = {
   items: [
-    { id: 'ITEM_A', locationId: 'L1' },
-    { id: 'ITEM_B', locationId: 'L2' },
+    { id: 'ITEM_L1', locationId: 'L1' },
+    { id: 'ITEM_L2', locationId: 'L2' },
   ],
 };
 
@@ -19,7 +19,7 @@ describe('resolveOrderLocations', () => {
   it('resolves itemId-based entries to locationId', () => {
     const order = {
       id: 'order-2',
-      items: [{ itemId: 'ITEM_A' }, { itemId: 'ITEM_B' }],
+      items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }],
       assignedWorkerId: null,
     };
 

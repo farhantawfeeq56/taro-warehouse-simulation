@@ -2,7 +2,6 @@
 
 import type {
   Warehouse,
-  Order,
   StrategyResult,
   SimulationResults,
   StrategyType,
@@ -12,7 +11,8 @@ import type {
   LaborProfile,
 } from './types';
 import { findPath, calculatePathDistance } from './pathfinding';
-import { resolveOrderLocations } from './order-location-resolver';
+import { migrateOrderToItemIds, resolveOrderLocations } from './order-location-resolver';
+import type { CompatOrder } from './order-location-resolver';
 import {
   STRATEGY_COLORS,
   STRATEGY_NAMES,
@@ -378,7 +378,7 @@ function resolveLaborProfile(profile?: Partial<LaborProfile>): LaborProfile {
 
 export function runSimulation(
   warehouse: Warehouse,
-  orders: Order[],
+  orders: CompatOrder[],
   workerCount: number = 2,
   profiles: SimulationProfiles = {}
 ): SimulationResults {
@@ -387,7 +387,9 @@ export function runSimulation(
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
 
-  const resolvedOrders: ResolvedOrder[] = orders.map(order => ({
+  const migratedOrders = orders.map(order => migrateOrderToItemIds(order));
+
+  const resolvedOrders: ResolvedOrder[] = migratedOrders.map(order => ({
     id: order.id,
     locations: resolveOrderLocations(order, warehouse),
   }));
@@ -400,13 +402,13 @@ export function runSimulation(
   const baselineDistance = simulationByStrategy.get('single')?.distance || 1;
 
   for (const strategy of strategies) {
-    const result = simulationByStrategy.get(strategy) ?? { route: [], distance: 0, workerRoutes: [] };
+    const result = simulationByStrategy.get(strategy) ?? { route: [], distance: 0, workerRoutes: [], workerDistances: [] };
     const workerRoutes = result.workerRoutes;
 
     // Calculate metrics from individual worker routes
-    const workerDistances = (result.workerDistances ?? []).map(distance => distance * warehouseProfile.scale);
+    const workerDistances = result.workerDistances.map((distance: number) => distance * warehouseProfile.scale);
 
-    const totalDistance = workerDistances.reduce((sum, d) => sum + d, 0);
+    const totalDistance = workerDistances.reduce((sum: number, d: number) => sum + d, 0);
     const criticalPathDistance = Math.max(...workerDistances, 0);
     const workerTimes = workerRoutes.map((_route, idx) => workerDistances[idx] / warehouseProfile.workerSpeed);
     const timeMinutes = Math.max(...workerTimes, 0);
@@ -431,7 +433,7 @@ export function runSimulation(
       estimatedTime: Math.round(timeMinutes * 10) / 10,
       efficiency,
       workerUtilization: Math.round(utilization),
-      costPerOrder: Math.round((cost / Math.max(orders.length, 1)) * 100) / 100,
+      costPerOrder: Math.round((cost / Math.max(migratedOrders.length, 1)) * 100) / 100,
       route: result.route,
       color: STRATEGY_COLORS[strategy],
       workerRoutes,

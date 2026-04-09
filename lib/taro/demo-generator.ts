@@ -143,12 +143,12 @@ export function generateRandomOrders(warehouse: Warehouse, count: number): Order
 
   for (let i = 0; i < count; i++) {
     const itemCount = Math.floor(Math.random() * 4) + 2; // 2-5 items per order
-    const orderItems: string[] = [];
+    const orderItems: Order['items'] = [];
     const availableLocationIdsCopy = [...availableLocationIds];
 
     for (let j = 0; j < itemCount && availableLocationIdsCopy.length > 0; j++) {
       const idx = Math.floor(Math.random() * availableLocationIdsCopy.length);
-      orderItems.push(availableLocationIdsCopy[idx]);
+      orderItems.push({ itemId: `ITEM_${availableLocationIdsCopy[idx]}` });
       availableLocationIdsCopy.splice(idx, 1);
     }
 
