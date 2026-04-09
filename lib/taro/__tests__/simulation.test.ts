@@ -177,9 +177,9 @@ describe('simulation', () => {
     };
 
     const orders = [
-      { id: 'order-1', items: ['L1', 'L4'], assignedWorkerId: null },
-      { id: 'order-2', items: ['L2', 'L4'], assignedWorkerId: null },
-      { id: 'order-3', items: ['L3'], assignedWorkerId: null },
+      { id: 'order-1', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L4' }], assignedWorkerId: null },
+      { id: 'order-2', items: [{ itemId: 'ITEM_L2' }, { itemId: 'ITEM_L4' }], assignedWorkerId: null },
+      { id: 'order-3', items: [{ itemId: 'ITEM_L3' }], assignedWorkerId: null },
     ];
 
     const results = runSimulation(warehouse, orders, 2);
@@ -191,7 +191,7 @@ describe('simulation', () => {
     expect(distancesByStrategy.get('wave')).toBeGreaterThanOrEqual(distancesByStrategy.get('batch') ?? 0);
   });
 
-  it('should support itemId-based order entries through the compatibility resolver', () => {
+  it('should accept strictly itemId-based order entries', () => {
     const warehouse: Warehouse = {
       width: 6,
       height: 6,
@@ -215,27 +215,19 @@ describe('simulation', () => {
       ],
     };
 
-    const legacyOrders = [
-      { id: 'order-legacy', items: ['L1', 'L2'], assignedWorkerId: null },
+    const orders = [
+      { id: 'order-future', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }], assignedWorkerId: null },
     ];
 
-    const futureOrders = [
-      { id: 'order-future', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }], assignedWorkerId: null },
-    ] as unknown as Parameters<typeof runSimulation>[1];
-
-    const legacyResults = runSimulation(warehouse, legacyOrders, 2);
-    const futureResults = runSimulation(warehouse, futureOrders, 2);
-
-    expect(futureResults.strategies.map(s => s.totalDistance)).toEqual(
-      legacyResults.strategies.map(s => s.totalDistance)
-    );
+    const results = runSimulation(warehouse, orders, 2);
+    expect(results.strategies).toHaveLength(4);
   });
 
   it('should throw a clear error for unknown itemId entries in orders', () => {
     const warehouse = generateDemoWarehouse();
     const invalidOrders = [
       { id: 'invalid-order', items: [{ itemId: 'DOES_NOT_EXIST' }], assignedWorkerId: null },
-    ] as unknown as Parameters<typeof runSimulation>[1];
+    ];
 
     expect(() => runSimulation(warehouse, invalidOrders, 2)).toThrow(
       'Order "invalid-order" references unknown itemId "DOES_NOT_EXIST" at index 0.'

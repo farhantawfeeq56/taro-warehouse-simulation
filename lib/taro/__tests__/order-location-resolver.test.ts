@@ -10,15 +10,9 @@ const warehouse: Pick<Warehouse, 'items'> = {
 };
 
 describe('resolveOrderLocations', () => {
-  it('returns location-based orders unchanged', () => {
-    const order = { id: 'order-1', items: ['L1', 'L2'], assignedWorkerId: null };
-
-    expect(resolveOrderLocations(order, warehouse)).toEqual(['L1', 'L2']);
-  });
-
   it('resolves itemId-based entries to locationId', () => {
     const order = {
-      id: 'order-2',
+      id: 'order-1',
       items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }],
       assignedWorkerId: null,
     };
@@ -28,13 +22,13 @@ describe('resolveOrderLocations', () => {
 
   it('throws a clear error when itemId cannot be resolved', () => {
     const order = {
-      id: 'order-3',
+      id: 'order-2',
       items: [{ itemId: 'MISSING_ITEM' }],
       assignedWorkerId: null,
     };
 
     expect(() => resolveOrderLocations(order, warehouse)).toThrow(
-      'Order "order-3" references unknown itemId "MISSING_ITEM" at index 0.'
+      'Order "order-2" references unknown itemId "MISSING_ITEM" at index 0.'
     );
   });
 });
@@ -42,7 +36,7 @@ describe('resolveOrderLocations', () => {
 describe('validateOrderItemLocations', () => {
   it('accepts orders where every itemId resolves to a known warehouse location', () => {
     const order = {
-      id: 'order-4',
+      id: 'order-3',
       items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }],
       assignedWorkerId: null,
     };
@@ -59,7 +53,7 @@ describe('validateOrderItemLocations', () => {
 
   it('throws when an itemId resolves to a location that does not exist', () => {
     const order = {
-      id: 'order-5',
+      id: 'order-4',
       items: [{ itemId: 'ITEM_L2' }],
       assignedWorkerId: null,
     };
@@ -69,7 +63,7 @@ describe('validateOrderItemLocations', () => {
     };
 
     expect(() => validateOrderItemLocations(order, warehouseWithMissingLocation)).toThrow(
-      'Order "order-5" itemId "ITEM_L2" resolves to invalid locationId "L2" at index 0.'
+      'Order "order-4" itemId "ITEM_L2" resolves to invalid locationId "L2" at index 0.'
     );
   });
 });
