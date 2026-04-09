@@ -3,8 +3,8 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
-import { buildCoordinateLocations } from '@/lib/taro/layout';
-import { generateDefaultItemsFromLocations } from '@/lib/taro/items';
+import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
+import { generateDefaultItemsFromLocations, getItemsByLocation } from '@/lib/taro/items';
 
 interface WarehouseCanvasProps {
   warehouse: Warehouse;
@@ -277,6 +277,13 @@ export function WarehouseCanvas({
     setNewQuantity(1);
     setIsAddingItem(false);
   }, [newQuantity, newSku, onWarehouseChange, shelfDetails, warehouse]);
+
+  const selectedShelfLocationId = shelfDetails
+    ? getShelfLocationId(shelfDetails.cellX, shelfDetails.cellY)
+    : null;
+  const shelfItems = selectedShelfLocationId
+    ? getItemsByLocation(warehouse, selectedShelfLocationId)
+    : [];
 
   const activeRouteHeatmap = useCallback((): number[][] | null => {
     if (!activeRoute) return null;
@@ -649,34 +656,23 @@ export function WarehouseCanvas({
             </button>
           </div>
           
-          {shelfDetails.locations.length === 0 ? (
+          {shelfItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">No items stored</p>
           ) : (
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {shelfDetails.locations
-                .sort((a, b) => a.z - b.z)
-                .map((loc, idx) => (
+              {shelfItems.map((item) => (
                 <div
-                  key={idx}
+                  key={item.id}
                   className="flex items-center gap-2 p-2 rounded bg-muted/50 text-xs"
                 >
-                  <span
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#3b82f6' }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-mono font-medium truncate">{loc.sku}</div>
-                    <div className="text-muted-foreground">
-                      Level {loc.z} • Qty: {loc.quantity}
-                    </div>
-                  </div>
+                  <div className="font-mono font-medium truncate">{item.id}</div>
                 </div>
               ))}
             </div>
           )}
           
           <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
-            Total items: {shelfDetails.locations.length}
+            Total items: {shelfItems.length}
           </div>
 
           <div className="mt-3">

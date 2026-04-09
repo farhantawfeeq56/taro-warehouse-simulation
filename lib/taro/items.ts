@@ -21,3 +21,7 @@ export function getItemById(warehouse: Pick<Warehouse, 'items'>, itemId: string)
 export function getItemByLocation(warehouse: Pick<Warehouse, 'items'>, locationId: string): Item | undefined {
   return warehouse.items.find(item => item.locationId === locationId);
 }
+
+export function getItemsByLocation(warehouse: Pick<Warehouse, 'items'>, locationId: string): Item[] {
+  return warehouse.items.filter(item => item.locationId === locationId);
+}
