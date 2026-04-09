@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { generateDefaultItemsFromLocations, getItemById, getItemByLocation, getItems } from '../items';
+import { generateDefaultItemsFromLocations, getItemById, getItemByLocation, getItems, getItemsByLocation } from '../items';
 import type { Warehouse, WarehouseLocation } from '../types';
 
 afterEach(() => {
@@ -34,6 +34,8 @@ describe('items', () => {
     expect(getItems(warehouse)).toHaveLength(2);
     expect(getItemById(warehouse, 'ITEM_shelf-1-1')).toEqual({ id: 'ITEM_shelf-1-1', locationId: 'shelf-1-1' });
     expect(getItemByLocation(warehouse, 'shelf-2-1')).toEqual({ id: 'ITEM_shelf-2-1', locationId: 'shelf-2-1' });
+    expect(getItemsByLocation(warehouse, 'shelf-2-1')).toEqual([{ id: 'ITEM_shelf-2-1', locationId: 'shelf-2-1' }]);
+    expect(getItemsByLocation(warehouse, 'MISSING')).toEqual([]);
     expect(getItemById(warehouse, 'MISSING')).toBeUndefined();
     expect(getItemByLocation(warehouse, 'MISSING')).toBeUndefined();
   });
