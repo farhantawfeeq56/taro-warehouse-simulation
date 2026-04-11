@@ -410,7 +410,12 @@ export function runSimulation(
 
     const totalDistance = workerDistances.reduce((sum: number, d: number) => sum + d, 0);
     const criticalPathDistance = Math.max(...workerDistances, 0);
-    const workerTimes = workerRoutes.map((_route, idx) => workerDistances[idx] / warehouseProfile.workerSpeed);
+    const workerTimes = workerRoutes.map((route, idx) => {
+      // Total time per worker = walking time (distance / speed) + picking time (pick count * pick seconds / 60).
+      const walkingTimeMinutes = workerDistances[idx] / warehouseProfile.workerSpeed;
+      const pickingTimeMinutes = (route.assignedPickCount * warehouseProfile.pickTimePerItem) / 60;
+      return walkingTimeMinutes + pickingTimeMinutes;
+    });
     const timeMinutes = Math.max(...workerTimes, 0);
 
     const efficiency = strategy === 'single'
