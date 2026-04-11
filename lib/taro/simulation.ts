@@ -72,9 +72,15 @@ function roundRobinAllocation(itemKeys: string[], numWorkers: number): Map<numbe
   return workerBuckets;
 }
 
+interface PickStop {
+  key: string;
+  pos: { x: number; y: number; z: number; sku: string };
+  pickCount: number;
+}
+
 interface WorkUnit {
   zoneLabel: string;
-  stops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[];
+  stops: PickStop[];
 }
 
 interface ResolvedOrder {
@@ -98,13 +104,27 @@ function dedupeLocationsByFirstSeen(
   return deduped;
 }
 
-function sortStopsByGrid(stops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[]) {
+function countLocationPickDemand(
+  orders: ResolvedOrder[],
+  allLocations: Map<string, { x: number; y: number; z: number; sku: string }>
+): Map<string, number> {
+  const pickCounts = new Map<string, number>();
+  for (const order of orders) {
+    for (const locationId of order.locations) {
+      if (!allLocations.has(locationId)) continue;
+      pickCounts.set(locationId, (pickCounts.get(locationId) ?? 0) + 1);
+    }
+  }
+  return pickCounts;
+}
+
+function sortStopsByGrid(stops: PickStop[]) {
   return [...stops].sort((a, b) => a.pos.y - b.pos.y || a.pos.x - b.pos.x);
 }
 
 function orderStopsNearestNeighbor(
   start: { x: number; y: number },
-  stops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[]
+  stops: PickStop[]
 ): typeof stops {
   const unvisited = [...stops];
   const orderedStops: typeof stops = [];
@@ -133,7 +153,7 @@ function orderStopsNearestNeighbor(
 
 function optimizeRoute2Opt(
   start: { x: number; y: number },
-  stops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[]
+  stops: PickStop[]
 ): typeof stops {
   if (stops.length < 3) return stops;
 
@@ -177,7 +197,7 @@ function optimizeRoute2Opt(
 function buildRouteForStops(
   warehouse: Warehouse,
   start: { x: number; y: number },
-  stops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[]
+  stops: PickStop[]
 ): { route: { x: number; y: number }[]; distance: number } {
   if (stops.length === 0) return { route: [], distance: 0 };
 
@@ -245,15 +265,17 @@ function simulateStrategy(
   if (strategy === 'single') {
     orders.forEach((order, index) => {
       const stops = order.locations
-        .map((locationId) => ({ key: locationId, pos: allLocations.get(locationId) }))
-        .filter((item): item is { key: string; pos: { x: number; y: number; z: number; sku: string } } => item.pos !== undefined);
+        .map((locationId) => ({ key: locationId, pos: allLocations.get(locationId), pickCount: 1 }))
+        .filter((item): item is PickStop => item.pos !== undefined);
       units.push({ zoneLabel: `Order ${index + 1}`, stops });
     });
   } else if (strategy === 'batch') {
+    const pickDemandByLocation = countLocationPickDemand(orders, allLocations);
     const stops = dedupeLocationsByFirstSeen(orders, allLocations)
-      .map((key) => ({ key, pos: allLocations.get(key)! }));
+      .map((key) => ({ key, pos: allLocations.get(key)!, pickCount: pickDemandByLocation.get(key) ?? 0 }));
     units.push({ zoneLabel: 'Batch', stops });
   } else if (strategy === 'zone') {
+    const pickDemandByLocation = countLocationPickDemand(orders, allLocations);
     const dedupedKeys = dedupeLocationsByFirstSeen(orders, allLocations);
     const coordinateX = warehouse.locations.length > 0
       ? warehouse.locations.map(loc => loc.x)
@@ -262,13 +284,14 @@ function simulateStrategy(
     const maxX = Math.max(...coordinateX);
     const midX = minX + ((maxX - minX + 1) / 2);
 
-    const leftStops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[] = [];
-    const rightStops: { key: string; pos: { x: number; y: number; z: number; sku: string } }[] = [];
+    const leftStops: PickStop[] = [];
+    const rightStops: PickStop[] = [];
     for (const key of dedupedKeys) {
       const pos = allLocations.get(key);
       if (!pos) continue;
-      if (pos.x < midX) leftStops.push({ key, pos });
-      else rightStops.push({ key, pos });
+      const pickCount = pickDemandByLocation.get(key) ?? 0;
+      if (pos.x < midX) leftStops.push({ key, pos, pickCount });
+      else rightStops.push({ key, pos, pickCount });
     }
     units.push({ zoneLabel: 'Zone A (left)', stops: leftStops });
     units.push({ zoneLabel: 'Zone B (right)', stops: rightStops });
@@ -276,8 +299,9 @@ function simulateStrategy(
     const waveSize = 2;
     for (let i = 0; i < orders.length; i += waveSize) {
       const waveOrders = orders.slice(i, i + waveSize);
+      const pickDemandByLocation = countLocationPickDemand(waveOrders, allLocations);
       const dedupedKeys = dedupeLocationsByFirstSeen(waveOrders, allLocations);
-      const stops = dedupedKeys.map((key) => ({ key, pos: allLocations.get(key)! }));
+      const stops = dedupedKeys.map((key) => ({ key, pos: allLocations.get(key)!, pickCount: pickDemandByLocation.get(key) ?? 0 }));
       units.push({ zoneLabel: `Wave ${Math.floor(i / waveSize) + 1}`, stops });
     }
   }
@@ -291,6 +315,7 @@ function simulateStrategy(
     const unitIndices = (workerBuckets.get(workerId) || []).map(index => Number(index));
     const route: { x: number; y: number }[] = [];
     const picks: WorkerRoute['picks'] = [];
+    let assignedPickCount = 0;
     let distance = 0;
 
     for (const unitIndex of unitIndices) {
@@ -308,6 +333,7 @@ function simulateStrategy(
           sku: stop.pos.sku,
         });
       }
+      assignedPickCount += unit.stops.reduce((sum, stop) => sum + stop.pickCount, 0);
     }
 
     workerDistances[i] = distance;
@@ -320,7 +346,8 @@ function simulateStrategy(
       zone: unitIndices.length > 0
         ? unitIndices.map(unitIndex => units[unitIndex]?.zoneLabel ?? '').filter(Boolean).join(', ')
         : `Worker ${workerId} (idle)`,
-      assignedPickCount: picks.length,
+      // assignedPickCount represents total item picks, not unique locations.
+      assignedPickCount,
       progress: 0,
     };
   });
