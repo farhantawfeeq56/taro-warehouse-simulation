@@ -2,6 +2,7 @@
 
 import type { Warehouse } from './types';
 import { PriorityQueue } from './priority-queue';
+import { calculateManhattanDistance } from './distance';
 
 interface Node {
   x: number;
@@ -13,7 +14,7 @@ interface Node {
 }
 
 function heuristic(a: { x: number; y: number }, b: { x: number; y: number }): number {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  return calculateManhattanDistance(a, b);
 }
 
 export function isWalkable(warehouse: Warehouse, x: number, y: number): boolean {
@@ -178,7 +179,7 @@ function findNearestWalkable(
   let bestDistance = Infinity;
 
   for (const node of walkableNodes) {
-    const distance = Math.abs(node.x - pos.x) + Math.abs(node.y - pos.y);
+    const distance = calculateManhattanDistance(node, pos);
     if (distance < bestDistance) {
       bestDistance = distance;
       nearest = { x: node.x, y: node.y };
@@ -193,9 +194,7 @@ export function calculatePathDistance(path: { x: number; y: number }[]): number 
 
   let distance = 0;
   for (let i = 1; i < path.length; i++) {
-    const dx = Math.abs(path[i].x - path[i - 1].x);
-    const dy = Math.abs(path[i].y - path[i - 1].y);
-    distance += dx + dy;
+    distance += calculateManhattanDistance(path[i], path[i - 1]);
   }
 
   return distance;
