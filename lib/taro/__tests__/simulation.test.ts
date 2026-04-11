@@ -223,6 +223,60 @@ describe('simulation', () => {
     expect(results.strategies).toHaveLength(4);
   });
 
+  it('should count assignedPickCount as total item picks (including duplicate locations)', () => {
+    const warehouse: Warehouse = {
+      width: 8,
+      height: 6,
+      grid: Array.from({ length: 6 }, (_, y) =>
+        Array.from({ length: 8 }, (_, x) => ({
+          x,
+          y,
+          type: 'empty',
+          locations: [],
+        }))
+      ),
+      shelves: [],
+      workerStart: { x: 0, y: 0 },
+      locations: [
+        { id: 'L1', x: 2, y: 1, z: 1, type: 'shelf', items: ['SKU-1'] },
+        { id: 'L2', x: 5, y: 1, z: 1, type: 'shelf', items: ['SKU-2'] },
+      ],
+      items: [
+        { id: 'ITEM_L1', locationId: 'L1' },
+        { id: 'ITEM_L2', locationId: 'L2' },
+      ],
+    };
+
+    const fewerPickOrders = [
+      { id: 'order-a', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }], assignedWorkerId: null },
+    ];
+    const morePickOrders = [
+      { id: 'order-a', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }], assignedWorkerId: null },
+      { id: 'order-b', items: [{ itemId: 'ITEM_L1' }], assignedWorkerId: null },
+    ];
+
+    const fewerResults = runSimulation(warehouse, fewerPickOrders, 1);
+    const moreResults = runSimulation(warehouse, morePickOrders, 1);
+
+    for (const strategy of fewerResults.strategies) {
+      const totalAssignedPicks = strategy.workerRoutes.reduce((sum, route) => sum + route.assignedPickCount, 0);
+      expect(totalAssignedPicks).toBe(2);
+    }
+
+    for (const strategy of moreResults.strategies) {
+      const totalAssignedPicks = strategy.workerRoutes.reduce((sum, route) => sum + route.assignedPickCount, 0);
+      expect(totalAssignedPicks).toBe(3);
+    }
+
+    for (const strategyName of ['single', 'batch', 'zone', 'wave'] as const) {
+      const fewer = fewerResults.strategies.find(strategy => strategy.strategy === strategyName);
+      const more = moreResults.strategies.find(strategy => strategy.strategy === strategyName);
+      expect(fewer).toBeDefined();
+      expect(more).toBeDefined();
+      expect(more!.estimatedTime).toBeGreaterThan(fewer!.estimatedTime);
+    }
+  });
+
   it('should throw a clear error for unknown itemId entries in orders', () => {
     const warehouse = generateDemoWarehouse();
     const invalidOrders = [
