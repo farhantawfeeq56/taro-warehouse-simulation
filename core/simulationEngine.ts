@@ -73,6 +73,14 @@ function roundRobinAllocation(itemKeys: string[], numWorkers: number): Map<numbe
   return workerBuckets;
 }
 
+function bucketStopsRoundRobin(stops: PickStop[], numWorkers: number): PickStop[][] {
+  const buckets: PickStop[][] = Array.from({ length: numWorkers }, () => []);
+  stops.forEach((stop, index) => {
+    buckets[index % numWorkers].push(stop);
+  });
+  return buckets;
+}
+
 interface PickStop {
   key: string;
   pos: { x: number; y: number; z: number; sku: string };
@@ -264,6 +272,7 @@ function simulateStrategy(
 
   const allLocations = getAllPickableLocations(warehouse);
   const start = warehouse.workerStart;
+  const numWorkers = strategy === 'single' ? 1 : Math.max(1, Math.min(3, workerCount));
   const units: WorkUnit[] = [];
 
   if (strategy === 'single') {
@@ -275,9 +284,15 @@ function simulateStrategy(
     });
   } else if (strategy === 'batch') {
     const pickDemandByLocation = countLocationPickDemand(orders, allLocations);
-    const stops = dedupeLocationsByFirstSeen(orders, allLocations)
+    const dedupedStops = dedupeLocationsByFirstSeen(orders, allLocations)
       .map((key) => ({ key, pos: allLocations.get(key)!, pickCount: pickDemandByLocation.get(key) ?? 0 }));
-    units.push({ zoneLabel: 'Batch', stops });
+    const stopBuckets = bucketStopsRoundRobin(dedupedStops, numWorkers);
+    stopBuckets.forEach((stops, index) => {
+      units.push({
+        zoneLabel: `Batch Worker ${index + 1} (${stops.length} picks)`,
+        stops,
+      });
+    });
   } else if (strategy === 'zone') {
     const pickDemandByLocation = countLocationPickDemand(orders, allLocations);
     const dedupedKeys = dedupeLocationsByFirstSeen(orders, allLocations);
@@ -310,7 +325,6 @@ function simulateStrategy(
     }
   }
 
-  const numWorkers = strategy === 'single' ? 1 : Math.max(1, Math.min(3, workerCount));
   const workerBuckets = roundRobinAllocation(units.map((_, i) => `${i}`), numWorkers);
 
   const workerDistances: number[] = Array.from({ length: numWorkers }, () => 0);

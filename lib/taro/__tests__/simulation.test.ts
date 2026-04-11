@@ -277,6 +277,58 @@ describe('simulation', () => {
     }
   });
 
+  it('should split batch picks across available workers', () => {
+    const warehouse: Warehouse = {
+      width: 12,
+      height: 8,
+      grid: Array.from({ length: 8 }, (_, y) =>
+        Array.from({ length: 12 }, (_, x) => ({
+          x,
+          y,
+          type: 'empty',
+          locations: [],
+        }))
+      ),
+      shelves: [],
+      workerStart: { x: 0, y: 0 },
+      locations: [
+        { id: 'L1', x: 1, y: 1, z: 1, type: 'shelf', items: ['SKU-1'] },
+        { id: 'L2', x: 2, y: 1, z: 1, type: 'shelf', items: ['SKU-2'] },
+        { id: 'L3', x: 3, y: 1, z: 1, type: 'shelf', items: ['SKU-3'] },
+        { id: 'L4', x: 4, y: 1, z: 1, type: 'shelf', items: ['SKU-4'] },
+        { id: 'L5', x: 5, y: 1, z: 1, type: 'shelf', items: ['SKU-5'] },
+        { id: 'L6', x: 6, y: 1, z: 1, type: 'shelf', items: ['SKU-6'] },
+      ],
+      items: [
+        { id: 'ITEM_L1', locationId: 'L1' },
+        { id: 'ITEM_L2', locationId: 'L2' },
+        { id: 'ITEM_L3', locationId: 'L3' },
+        { id: 'ITEM_L4', locationId: 'L4' },
+        { id: 'ITEM_L5', locationId: 'L5' },
+        { id: 'ITEM_L6', locationId: 'L6' },
+      ],
+    };
+
+    const orders = [
+      { id: 'order-1', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }], assignedWorkerId: null },
+      { id: 'order-2', items: [{ itemId: 'ITEM_L3' }, { itemId: 'ITEM_L4' }], assignedWorkerId: null },
+      { id: 'order-3', items: [{ itemId: 'ITEM_L5' }, { itemId: 'ITEM_L6' }], assignedWorkerId: null },
+    ];
+
+    const results = runSimulation(warehouse, orders, 3);
+    const batch = results.strategies.find(strategy => strategy.strategy === 'batch');
+
+    expect(batch).toBeDefined();
+    expect(batch!.workerRoutes).toHaveLength(3);
+
+    const activeWorkers = batch!.workerRoutes.filter(route => route.assignedPickCount > 0);
+    expect(activeWorkers).toHaveLength(3);
+
+    const picksPerWorker = activeWorkers.map(route => route.picks.length);
+    expect(Math.max(...picksPerWorker) - Math.min(...picksPerWorker)).toBeLessThanOrEqual(1);
+    expect(activeWorkers.every(route => route.zone.startsWith('Batch Worker'))).toBe(true);
+  });
+
   it('should throw a clear error for unknown itemId entries in orders', () => {
     const warehouse = generateDemoWarehouse();
     const invalidOrders = [
