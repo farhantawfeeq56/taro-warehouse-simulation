@@ -206,8 +206,6 @@ function buildRouteForStops(
 
   const initial = orderStopsNearestNeighbor(start, stops);
   const orderedStops = optimizeRoute2Opt(start, initial);
-  console.log('Before:', initial.map((s) => s.key));
-  console.log('After:', orderedStops.map((s) => s.key));
 
   const route: { x: number; y: number }[] = [];
   let distance = 0;
@@ -423,6 +421,20 @@ function resolveLaborProfile(profile?: Partial<LaborProfile>): LaborProfile {
   };
 }
 
+function scaleWorkerDistances(workerDistances: number[], scale: number): number[] {
+  return workerDistances.map((distance) => distance * scale);
+}
+
+function calculateWorkerTimeMinutes(
+  distanceMeters: number,
+  assignedPickCount: number,
+  warehouseProfile: WarehouseProfile
+): number {
+  const walkingTimeMinutes = distanceMeters / warehouseProfile.workerSpeed;
+  const pickingTimeMinutes = (assignedPickCount * warehouseProfile.pickTimePerItem) / 60;
+  return walkingTimeMinutes + pickingTimeMinutes;
+}
+
 export function runSimulation(
   warehouse: Warehouse,
   orders: Order[],
@@ -453,16 +465,13 @@ export function runSimulation(
     const workerRoutes = result.workerRoutes;
 
     // Calculate metrics from individual worker routes
-    const workerDistances = result.workerDistances.map((distance: number) => distance * warehouseProfile.scale);
+    const workerDistances = scaleWorkerDistances(result.workerDistances, warehouseProfile.scale);
 
     const totalDistance = workerDistances.reduce((sum: number, d: number) => sum + d, 0);
     const criticalPathDistance = Math.max(...workerDistances, 0);
-    const workerTimes = workerRoutes.map((route, idx) => {
-      // Total time per worker = walking time (distance / speed) + picking time (pick count * pick seconds / 60).
-      const walkingTimeMinutes = workerDistances[idx] / warehouseProfile.workerSpeed;
-      const pickingTimeMinutes = (route.assignedPickCount * warehouseProfile.pickTimePerItem) / 60;
-      return walkingTimeMinutes + pickingTimeMinutes;
-    });
+    const workerTimes = workerRoutes.map((route, idx) =>
+      calculateWorkerTimeMinutes(workerDistances[idx], route.assignedPickCount, warehouseProfile)
+    );
     const timeMinutes = Math.max(...workerTimes, 0);
 
     const efficiency = strategy === 'single'
