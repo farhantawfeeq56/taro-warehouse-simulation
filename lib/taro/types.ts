@@ -90,6 +90,7 @@ export interface WorkerRoute {
   workerId: number;
   route: { x: number; y: number }[];
   picks: { locationKey: string; x: number; y: number; z: number; sku: string }[];
+  tasks: PickTask[];
   color: string;
   zone: string;
   assignedPickCount: number;
@@ -108,7 +109,7 @@ export interface StrategyResult {
   costPerOrder: number;
   route: { x: number; y: number }[];
   color: string;
-  workerRoutes?: WorkerRoute[];
+  workerRoutes: WorkerRoute[];
 }
 
 export interface SimulationResults {

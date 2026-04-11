@@ -195,7 +195,12 @@ function optimizeRoute2Opt(
 function buildRouteForStops(
   warehouse: Warehouse,
   start: { x: number; y: number },
-  stops: PickStop[]
+  stops: PickStop[],
+  context: {
+    strategy: StrategyType;
+    workerId: number;
+    unitLabel: string;
+  }
 ): { route: { x: number; y: number }[]; distance: number } {
   if (stops.length === 0) return { route: [], distance: 0 };
 
@@ -210,34 +215,26 @@ function buildRouteForStops(
 
   for (const stop of orderedStops) {
     const leg = findPath(warehouse, current, stop.pos);
-    if (leg.length > 0) {
-      route.push(...leg);
-    } else {
-      console.warn('Pathfinding failed for picking leg; falling back to Manhattan estimate.', {
-        from: current,
-        to: stop.pos,
-      });
+    if (leg.length === 0) {
+      throw new Error(
+        `Pathfinding failed for pick leg: strategy=${context.strategy}, worker=${context.workerId}, unit=${context.unitLabel}, from=(${current.x},${current.y}), to=(${stop.pos.x},${stop.pos.y})`
+      );
     }
+    route.push(...leg);
     const legDistance = calculatePathDistance(leg);
-    distance += legDistance > 0
-      ? legDistance
-      : calculateManhattanDistance(stop.pos, current);
+    distance += legDistance;
     current = stop.pos;
   }
 
   const returnLeg = findPath(warehouse, current, start);
-  if (returnLeg.length > 0) {
-    route.push(...returnLeg);
-  } else {
-    console.warn('Pathfinding failed for return leg; falling back to Manhattan estimate.', {
-      from: current,
-      to: start,
-    });
+  if (returnLeg.length === 0) {
+    throw new Error(
+      `Pathfinding failed for return leg: strategy=${context.strategy}, worker=${context.workerId}, unit=${context.unitLabel}, from=(${current.x},${current.y}), to=(${start.x},${start.y})`
+    );
   }
+  route.push(...returnLeg);
   const returnDistance = calculatePathDistance(returnLeg);
-  distance += returnDistance > 0
-    ? returnDistance
-    : calculateManhattanDistance(start, current);
+  distance += returnDistance;
 
   return { route, distance };
 }
@@ -258,6 +255,7 @@ function simulateStrategy(
         workerId: i + 1,
         route: [],
         picks: [],
+        tasks: [],
         color: WORKER_COLORS[i % WORKER_COLORS.length],
         zone: `Worker ${i + 1} (idle)`,
         assignedPickCount: 0,
@@ -323,16 +321,29 @@ function simulateStrategy(
     const unitIndices = (workerBuckets.get(workerId) || []).map(index => Number(index));
     const route: { x: number; y: number }[] = [];
     const picks: WorkerRoute['picks'] = [];
+    const tasks: WorkerRoute['tasks'] = [];
     let assignedPickCount = 0;
     let distance = 0;
+    let step = 1;
 
     for (const unitIndex of unitIndices) {
       const unit = units[unitIndex];
       if (!unit || unit.stops.length === 0) continue;
-      const unitResult = buildRouteForStops(warehouse, start, unit.stops);
+      const unitResult = buildRouteForStops(warehouse, start, unit.stops, {
+        strategy,
+        workerId,
+        unitLabel: unit.zoneLabel,
+      });
       route.push(...unitResult.route);
       distance += unitResult.distance;
       for (const stop of unit.stops) {
+        tasks.push({
+          workerId,
+          step: step++,
+          zone: unit.zoneLabel,
+          location: `${stop.pos.x},${stop.pos.y},${stop.pos.z}`,
+          item: stop.pos.sku,
+        });
         picks.push({
           locationKey: stop.key,
           x: stop.pos.x,
@@ -350,6 +361,7 @@ function simulateStrategy(
       workerId,
       route,
       picks,
+      tasks,
       color: WORKER_COLORS[i % WORKER_COLORS.length],
       zone: unitIndices.length > 0
         ? unitIndices.map(unitIndex => units[unitIndex]?.zoneLabel ?? '').filter(Boolean).join(', ')
