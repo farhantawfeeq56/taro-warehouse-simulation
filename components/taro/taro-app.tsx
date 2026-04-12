@@ -248,8 +248,8 @@ export function TaroApp() {
               </button>
               <span className="text-xs font-mono font-semibold w-4 text-center">{workerCount}</span>
               <button
-                onClick={() => setWorkerCount(c => Math.min(3, c + 1))}
-                disabled={workerCount >= 3}
+                onClick={() => setWorkerCount(c => Math.min(4, c + 1))}
+                disabled={workerCount >= 4}
                 className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 title="Increase worker count"
               >
