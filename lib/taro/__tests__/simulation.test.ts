@@ -336,4 +336,78 @@ describe('simulation', () => {
       'Order "invalid-order" references unknown itemId "DOES_NOT_EXIST" at index 0.'
     );
   });
+
+  it('should handle orders with items that have invalid locationIds gracefully', () => {
+    const warehouse: Warehouse = {
+      width: 6,
+      height: 6,
+      grid: Array.from({ length: 6 }, (_, y) =>
+        Array.from({ length: 6 }, (_, x) => ({
+          x,
+          y,
+          type: 'empty',
+          locations: [],
+        }))
+      ),
+      shelves: [],
+      workerStart: { x: 0, y: 0 },
+      locations: [
+        { id: 'L1', x: 1, y: 1, z: 1, type: 'shelf', items: ['SKU-1'] },
+      ],
+      items: [
+        { id: 'ITEM_L1', locationId: 'L1' },
+        { id: 'ITEM_INVALID', locationId: 'DOES_NOT_EXIST' },
+      ],
+    };
+
+    const orders = [
+      { id: 'order-1', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_INVALID' }], assignedWorkerId: null },
+    ];
+
+    // Should NOT throw - should handle gracefully with validation context
+    const results = runSimulation(warehouse, orders, 1);
+    expect(results).toBeDefined();
+    expect(results.strategies).toHaveLength(4);
+    // Should have validation context indicating missing items
+    expect(results.validationContext).toBeDefined();
+    expect(results.validationContext?.missingItems).toBe(1);
+    expect(results.validationContext?.affectedOrders).toBe(1);
+  });
+
+  it('should handle mixed valid/invalid orders and run partial simulation', () => {
+    const warehouse: Warehouse = {
+      width: 8,
+      height: 6,
+      grid: Array.from({ length: 6 }, (_, y) =>
+        Array.from({ length: 8 }, (_, x) => ({
+          x,
+          y,
+          type: 'empty',
+          locations: [],
+        }))
+      ),
+      shelves: [],
+      workerStart: { x: 0, y: 0 },
+      locations: [
+        { id: 'L1', x: 1, y: 1, z: 1, type: 'shelf', items: ['SKU-1'] },
+        { id: 'L2', x: 3, y: 1, z: 1, type: 'shelf', items: ['SKU-2'] },
+      ],
+      items: [
+        { id: 'ITEM_L1', locationId: 'L1' },
+        { id: 'ITEM_L2', locationId: 'L2' },
+        { id: 'ITEM_BAD', locationId: 'DOES_NOT_EXIST' },
+      ],
+    };
+
+    const orders = [
+      { id: 'order-valid', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }], assignedWorkerId: null },
+      { id: 'order-mixed', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_BAD' }], assignedWorkerId: null },
+    ];
+
+    // Should run successfully with partial data
+    const results = runSimulation(warehouse, orders, 1);
+    expect(results).toBeDefined();
+    expect(results.validationContext).toBeDefined();
+    expect(results.validationContext?.missingItems).toBe(1);
+  });
 });
