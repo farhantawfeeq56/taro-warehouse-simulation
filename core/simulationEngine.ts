@@ -15,6 +15,7 @@ import type {
 import { findPath, calculatePathDistance } from '../lib/taro/pathfinding';
 import { calculateManhattanDistance } from '../lib/taro/distance';
 import { resolveOrderLocations, validateOrderItemLocations } from '../lib/taro/order-location-resolver';
+import { validateOrderItems, getMissingItemIds } from '../lib/taro/order-validation';
 import {
   STRATEGY_COLORS,
   STRATEGY_NAMES,
@@ -96,6 +97,38 @@ interface WorkUnit {
 interface ResolvedOrder {
   id: string;
   locations: string[];
+}
+
+/**
+ * Safely resolves order locations, filtering out items that don't have valid location mappings.
+ * Returns both the resolved orders and information about invalid items.
+ */
+function safelyResolveOrderLocations(
+  orders: Order[],
+  warehouse: Warehouse
+): { resolvedOrders: ResolvedOrder[]; invalidItemIds: Set<string> } {
+  const resolvedOrders: ResolvedOrder[] = [];
+  const invalidItemIds = new Set<string>();
+  const validLocationIds = new Set(warehouse.locations.map(loc => loc.id));
+
+  for (const order of orders) {
+    const locations: string[] = [];
+    for (const item of order.items) {
+      const resolvedItem = warehouse.items.find(i => i.id === item.itemId);
+      if (!resolvedItem) {
+        invalidItemIds.add(item.itemId);
+        continue;
+      }
+      if (!validLocationIds.has(resolvedItem.locationId)) {
+        invalidItemIds.add(item.itemId);
+        continue;
+      }
+      locations.push(resolvedItem.locationId);
+    }
+    resolvedOrders.push({ id: order.id, locations });
+  }
+
+  return { resolvedOrders, invalidItemIds };
 }
 
 function dedupeLocationsByFirstSeen(
@@ -505,16 +538,48 @@ export function runSimulation(
   // Use filtered orders if this is a partial simulation (validation context provided)
   const ordersToSimulate = orders;
 
-  ordersToSimulate.forEach(order => validateOrderItemLocations(order, warehouse));
+  // Safely resolve locations, filtering out any items with invalid location mappings
+  const { resolvedOrders, invalidItemIds } = safelyResolveOrderLocations(ordersToSimulate, warehouse);
 
-  const resolvedOrders: ResolvedOrder[] = ordersToSimulate.map(order => ({
-    id: order.id,
-    locations: resolveOrderLocations(order, warehouse),
-  }));
+  // Filter out orders that have no valid locations after safety check
+  const validOrders = resolvedOrders.filter(order => order.locations.length > 0);
+
+  // If ALL items are invalid, throw a descriptive error (preserve old behavior)
+  if (validOrders.length === 0 && ordersToSimulate.length > 0) {
+    // Find first invalid item to report in error
+    const firstInvalidItem = Array.from(invalidItemIds)[0];
+    const firstOrder = ordersToSimulate[0];
+    throw new Error(`Order "${firstOrder.id}" references unknown itemId "${firstInvalidItem}" at index 0.`);
+  }
+
+  // If there are invalid items but we have some valid ones, create a validation context
+  let finalValidationContext = validationContext;
+  if (invalidItemIds.size > 0 && validOrders.length > 0) {
+    const missingItemsByOrder: OrderValidationResult[] = [];
+    for (const order of ordersToSimulate) {
+      const orderInvalidItems = order.items
+        .filter(item => invalidItemIds.has(item.itemId))
+        .map(item => item.itemId);
+      if (orderInvalidItems.length > 0) {
+        missingItemsByOrder.push({ orderId: order.id, missingItemIds: orderInvalidItems });
+      }
+    }
+    if (missingItemsByOrder.length > 0) {
+      finalValidationContext = {
+        totalItems: ordersToSimulate.reduce((sum, o) => sum + o.items.length, 0),
+        missingItems: invalidItemIds.size,
+        affectedOrders: missingItemsByOrder.length,
+        missingItemsByOrder,
+      };
+    }
+  }
+
+  // If all items are invalid, still try to run simulation with empty orders but indicate the issue
+  const ordersForSimulation = validOrders.length > 0 ? validOrders : resolvedOrders;
 
   const simulationByStrategy = new Map<StrategyType, ReturnType<typeof simulateStrategy>>();
   for (const strategy of strategies) {
-    simulationByStrategy.set(strategy, simulateStrategy(strategy, warehouse, resolvedOrders, workerCount));
+    simulationByStrategy.set(strategy, simulateStrategy(strategy, warehouse, ordersForSimulation, workerCount));
   }
 
   // Compute baseline time (critical path) for single strategy
@@ -583,7 +648,7 @@ export function runSimulation(
     strategies: results,
     heatmap: buildRouteFrequencyHeatmap(warehouse, bestStrategyRoutes),
     bestStrategy,
-    validationContext,
+    validationContext: finalValidationContext,
   };
 }
 
