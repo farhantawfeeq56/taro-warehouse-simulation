@@ -1,6 +1,56 @@
 import { getItemById } from './items';
 import type { Order, Warehouse, OrderValidationResult, SimulationValidationContext } from './types';
 
+/** Result of validating order lines against the warehouse catalog and location graph. */
+export interface ItemsValidationResult {
+  hasUnresolvableItems: boolean;
+  context: SimulationValidationContext;
+}
+
+/**
+ * Validates that every order line resolves to an item on the layout with a valid storage location.
+ * Aligns with simulation resolution: unknown item IDs and broken location links count as unresolvable.
+ */
+export function validateItems(orders: Order[], warehouse: Warehouse): ItemsValidationResult {
+  const validLocationIds = new Set(warehouse.locations.map(loc => loc.id));
+  const missingItemsByOrder: OrderValidationResult[] = [];
+  let totalItems = 0;
+
+  for (const order of orders) {
+    const unresolvableLineIds: string[] = [];
+
+    for (const line of order.items) {
+      totalItems++;
+      const resolvedItem = getItemById(warehouse, line.itemId);
+      if (!resolvedItem) {
+        unresolvableLineIds.push(line.itemId);
+        continue;
+      }
+      if (!validLocationIds.has(resolvedItem.locationId)) {
+        unresolvableLineIds.push(line.itemId);
+      }
+    }
+
+    if (unresolvableLineIds.length > 0) {
+      missingItemsByOrder.push({ orderId: order.id, missingItemIds: unresolvableLineIds });
+    }
+  }
+
+  const missingItems = missingItemsByOrder.reduce((sum, row) => sum + row.missingItemIds.length, 0);
+
+  const context: SimulationValidationContext = {
+    totalItems,
+    missingItems,
+    affectedOrders: missingItemsByOrder.length,
+    missingItemsByOrder,
+  };
+
+  return {
+    hasUnresolvableItems: missingItems > 0,
+    context,
+  };
+}
+
 /**
  * Validates order items against warehouse items without throwing errors.
  * Returns information about missing items that could not be found in the warehouse.

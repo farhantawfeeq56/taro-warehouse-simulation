@@ -16,7 +16,6 @@ import type {
 import { findPath, calculatePathDistance } from '../lib/taro/pathfinding';
 import { calculateManhattanDistance } from '../lib/taro/distance';
 import { resolveOrderLocations, validateOrderItemLocations } from '../lib/taro/order-location-resolver';
-import { validateOrderItems, getMissingItemIds } from '../lib/taro/order-validation';
 import {
   STRATEGY_COLORS,
   STRATEGY_NAMES,
@@ -534,6 +533,7 @@ export function runSimulation(
 ): SimulationResults {
   const warehouseProfile = resolveWarehouseProfile(profiles.warehouseProfile);
   const laborProfile = resolveLaborProfile(profiles.laborProfile);
+  const allowPartial = profiles.allowPartial === true;
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
 
@@ -546,18 +546,28 @@ export function runSimulation(
   // Filter out orders that have no valid locations after safety check
   const validOrders = resolvedOrders.filter(order => order.locations.length > 0);
 
+  const unresolvableItemIds = new Set([...missingItemIds, ...invalidLocationItemIds]);
+
   // If ALL items are invalid, throw a descriptive error (preserve old behavior)
   if (validOrders.length === 0 && ordersToSimulate.length > 0) {
-    // Find first invalid item to report in error
-    const firstInvalidItem = Array.from(new Set([...missingItemIds, ...invalidLocationItemIds]))[0];
-    const firstOrder = ordersToSimulate[0];
-    throw new Error(`Order "${firstOrder.id}" references unknown itemId "${firstInvalidItem}" at index 0.`);
+    if (!allowPartial) {
+      // Find first invalid item to report in error
+      const firstInvalidItem = Array.from(unresolvableItemIds)[0];
+      const firstOrder = ordersToSimulate[0];
+      throw new Error(`Order "${firstOrder.id}" references unknown itemId "${firstInvalidItem}" at index 0.`);
+    }
   }
 
-  // If there are invalid items but we have some valid ones, create a validation context
+  if (unresolvableItemIds.size > 0 && !allowPartial) {
+    throw new Error(
+      'Orders contain items that cannot be resolved (missing from the layout or linked to an invalid location). ' +
+        'Pass allowPartial: true in simulation profiles to run using only resolvable lines.'
+    );
+  }
+
+  // When any lines are unresolvable, attach validation context for partial runs and UI
   let finalValidationContext = validationContext;
-  const unresolvableItemIds = new Set([...missingItemIds, ...invalidLocationItemIds]);
-  if (unresolvableItemIds.size > 0 && validOrders.length > 0) {
+  if (unresolvableItemIds.size > 0) {
     const missingItemsByOrder: OrderValidationResult[] = [];
     for (const order of ordersToSimulate) {
       const orderInvalidItems = order.items
@@ -577,7 +587,6 @@ export function runSimulation(
     }
   }
 
-  // If all items are invalid, still try to run simulation with empty orders but indicate the issue
   const ordersForSimulation = validOrders.length > 0 ? validOrders : resolvedOrders;
 
   const simulationByStrategy = new Map<StrategyType, ReturnType<typeof simulateStrategy>>();
@@ -671,14 +680,11 @@ export function runPartialSimulation(
   orders: Order[],
   workerCount: number = 2,
   profiles: SimulationProfiles = {},
-  validationContext: SimulationValidationContext,
+  validationContext?: SimulationValidationContext,
   options?: { allowPartial?: boolean }
 ): SimulationResults {
+  void validationContext;
   void options?.allowPartial;
 
-  // Filter orders to only include items that exist in the warehouse
-  const { filterValidOrderItems } = require('../lib/taro/order-validation');
-  const filteredOrders = filterValidOrderItems(orders, warehouse);
-
-  return runSimulation(warehouse, filteredOrders, workerCount, profiles, validationContext);
+  return runSimulation(warehouse, orders, workerCount, { ...profiles, allowPartial: true });
 }
