@@ -252,7 +252,7 @@ function simulateStrategy(
   workerCount: number
 ): { route: { x: number; y: number }[]; distance: number; workerRoutes: WorkerRoute[]; workerDistances: number[] } {
   if (!warehouse.workerStart || orders.length === 0) {
-    const workers = strategy === 'single' ? 1 : Math.max(1, Math.min(3, workerCount));
+    const workers = strategy === 'single' ? 1 : Math.max(1, Math.min(4, workerCount));
     return {
       route: [],
       distance: 0,
@@ -272,7 +272,7 @@ function simulateStrategy(
 
   const allLocations = getAllPickableLocations(warehouse);
   const start = warehouse.workerStart;
-  const numWorkers = strategy === 'single' ? 1 : Math.max(1, Math.min(3, workerCount));
+  const numWorkers = strategy === 'single' ? 1 : Math.max(1, Math.min(4, workerCount));
   const units: WorkUnit[] = [];
 
   if (strategy === 'single') {
@@ -296,24 +296,63 @@ function simulateStrategy(
   } else if (strategy === 'zone') {
     const pickDemandByLocation = countLocationPickDemand(orders, allLocations);
     const dedupedKeys = dedupeLocationsByFirstSeen(orders, allLocations);
-    const coordinateX = warehouse.locations.length > 0
-      ? warehouse.locations.map(loc => loc.x)
-      : [0, warehouse.width - 1];
-    const minX = Math.min(...coordinateX);
-    const maxX = Math.max(...coordinateX);
-    const midX = minX + ((maxX - minX + 1) / 2);
 
-    const leftStops: PickStop[] = [];
-    const rightStops: PickStop[] = [];
-    for (const key of dedupedKeys) {
-      const pos = allLocations.get(key);
-      if (!pos) continue;
-      const pickCount = pickDemandByLocation.get(key) ?? 0;
-      if (pos.x < midX) leftStops.push({ key, pos, pickCount });
-      else rightStops.push({ key, pos, pickCount });
+    // Create stops with pick counts
+    const allStops: PickStop[] = dedupedKeys
+      .map((key) => ({
+        key,
+        pos: allLocations.get(key)!,
+        pickCount: pickDemandByLocation.get(key) ?? 0,
+      }))
+      .filter((stop) => stop.pos !== undefined);
+
+    // Sort stops by X-coordinate to create vertical slices
+    allStops.sort((a, b) => a.pos.x - b.pos.x);
+
+    const totalPicks = allStops.reduce((sum, stop) => sum + stop.pickCount, 0);
+    const targetPicksPerWorker = totalPicks / numWorkers;
+
+    // Create N zones with balanced workloads
+    const zoneLabels = ['A', 'B', 'C', 'D'];
+    let currentZoneStops: PickStop[] = [];
+    let currentZonePicks = 0;
+    let zoneIndex = 0;
+    let remainingStops = allStops.length;
+    let remainingWorkers = numWorkers;
+
+    for (const stop of allStops) {
+      currentZoneStops.push(stop);
+      currentZonePicks += stop.pickCount;
+      remainingStops--;
+
+      // Decide whether to start a new zone
+      const shouldCreateNewZone =
+        // Must ensure each remaining worker gets at least one stop
+        (remainingStops >= remainingWorkers - 1) &&
+        // Create new zone if we've met target picks (with buffer for balance)
+        (currentZonePicks >= targetPicksPerWorker * 0.8) &&
+        // Don't create the last zone here (it gets all remaining stops)
+        (zoneIndex < numWorkers - 1);
+
+      if (shouldCreateNewZone) {
+        units.push({
+          zoneLabel: `Zone ${zoneLabels[zoneIndex]}`,
+          stops: currentZoneStops,
+        });
+        currentZoneStops = [];
+        currentZonePicks = 0;
+        zoneIndex++;
+        remainingWorkers--;
+      }
     }
-    units.push({ zoneLabel: 'Zone A (left)', stops: leftStops });
-    units.push({ zoneLabel: 'Zone B (right)', stops: rightStops });
+
+    // Add final zone with any remaining stops
+    if (currentZoneStops.length > 0 || zoneIndex < numWorkers) {
+      units.push({
+        zoneLabel: `Zone ${zoneLabels[zoneIndex]}`,
+        stops: currentZoneStops,
+      });
+    }
   } else {
     const waveSize = 2;
     for (let i = 0; i < orders.length; i += waveSize) {
