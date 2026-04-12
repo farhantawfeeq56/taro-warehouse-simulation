@@ -50,11 +50,8 @@ describe('simulation', () => {
     const results = runSimulation(warehouse, orders, 3);
 
     for (const strategy of results.strategies) {
-      if (strategy.strategy === 'single') {
-        expect(strategy.workerRoutes).toHaveLength(1);
-      } else {
-        expect(strategy.workerRoutes).toHaveLength(3);
-      }
+      // All strategies should use the configured number of workers
+      expect(strategy.workerRoutes).toHaveLength(3);
 
       // Each worker route should have the required properties
       for (const route of strategy.workerRoutes || []) {
