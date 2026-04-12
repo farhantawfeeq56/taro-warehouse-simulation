@@ -209,8 +209,8 @@ function buildRouteForStops(
     workerId: number;
     unitLabel: string;
   }
-): { route: { x: number; y: number }[]; distance: number } {
-  if (stops.length === 0) return { route: [], distance: 0 };
+): { route: { x: number; y: number }[]; distance: number; orderedStops: PickStop[] } {
+  if (stops.length === 0) return { route: [], distance: 0, orderedStops: [] };
 
   const initial = orderStopsNearestNeighbor(start, stops);
   const orderedStops = optimizeRoute2Opt(start, initial);
@@ -242,7 +242,7 @@ function buildRouteForStops(
   const returnDistance = calculatePathDistance(returnLeg);
   distance += returnDistance;
 
-  return { route, distance };
+  return { route, distance, orderedStops };
 }
 
 function simulateStrategy(
@@ -387,7 +387,7 @@ function simulateStrategy(
       });
       route.push(...unitResult.route);
       distance += unitResult.distance;
-      for (const stop of unit.stops) {
+      for (const stop of unitResult.orderedStops) {
         tasks.push({
           workerId,
           step: step++,
@@ -401,6 +401,7 @@ function simulateStrategy(
           y: stop.pos.y,
           z: stop.pos.z,
           sku: stop.pos.sku,
+          pickCount: stop.pickCount, // Adding pickCount to use in results panel
         });
       }
       assignedPickCount += unit.stops.reduce((sum, stop) => sum + stop.pickCount, 0);

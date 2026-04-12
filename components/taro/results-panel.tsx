@@ -84,6 +84,27 @@ export function ResultsPanel({
     : null;
   const baseline = results.strategies.find((strategy) => strategy.strategy === 'single') ?? null;
 
+  const workerPickMilestones = useMemo(() => {
+    if (!activeResult?.workerRoutes) return [];
+
+    return activeResult.workerRoutes.map((worker) => {
+      const milestones: { index: number; pickCount: number }[] = [];
+      let lastRouteIndex = 0;
+
+      for (const pick of worker.picks) {
+        for (let i = lastRouteIndex; i < worker.route.length; i++) {
+          const point = worker.route[i];
+          if (point.x === pick.x && point.y === pick.y) {
+            milestones.push({ index: i, pickCount: pick.pickCount || 1 });
+            lastRouteIndex = i + 1;
+            break;
+          }
+        }
+      }
+      return milestones;
+    });
+  }, [activeResult]);
+
   return (
     <div className="w-80 border-l border-border bg-background flex flex-col">
       <div className="p-3 border-b border-border">
@@ -153,17 +174,28 @@ export function ResultsPanel({
               <span className="text-xs font-mono text-muted-foreground">{workerCount} configured</span>
             </div>
             <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-2">
-              {activeResult.workerRoutes.map((worker) => {
-                const progress = Math.min(animationProgress * 100, 100);
+              {activeResult.workerRoutes.map((worker, idx) => {
+                const milestones = workerPickMilestones[idx] || [];
+                const visiblePoints = Math.max(1, Math.floor(worker.route.length * animationProgress));
+                
+                // Count how many picks are completed based on current route position
+                // A pick is completed when its route index is less than visiblePoints
+                const completedPicks = milestones.reduce((sum, m) => {
+                  return m.index < visiblePoints ? sum + m.pickCount : sum;
+                }, 0);
+                
+                const totalPicks = worker.assignedPickCount;
+                const progress = totalPicks > 0 ? (completedPicks / totalPicks) * 100 : 0;
+                
                 return (
                   <div key={worker.workerId} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold">Worker {worker.workerId}</span>
-                      <span className="font-mono text-muted-foreground">{worker.assignedPickCount} picks</span>
+                      <span className="font-mono text-muted-foreground">{completedPicks} / {totalPicks} picks</span>
                     </div>
                     <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border/50">
                       <div
-                        className="h-full rounded-full transition-all"
+                        className="h-full rounded-full transition-all duration-300"
                         style={{ width: `${progress}%`, backgroundColor: worker.color }}
                       />
                     </div>
