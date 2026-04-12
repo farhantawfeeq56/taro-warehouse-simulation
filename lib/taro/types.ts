@@ -116,6 +116,10 @@ export interface SimulationResults {
   strategies: StrategyResult[];
   heatmap: number[][];
   bestStrategy: StrategyType;
+  isPartial: boolean;
+  unresolvableItems: string[];
+  missingItemsCount: number;
+  invalidLocationCount: number;
   validationContext?: SimulationValidationContext;
 }
 

@@ -25,8 +25,35 @@ import { EntryOverlay } from './entry-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Play, Minus, Plus, FileText } from 'lucide-react';
-import { validateOrderItems, getMissingItemIds } from '@/lib/taro/order-validation';
+import { getMissingItemIds } from '@/lib/taro/order-validation';
 import type { SimulationValidationContext } from '@/lib/taro/types';
+
+interface SimulationBlockState {
+  title: string;
+  description: string;
+}
+
+function buildUnresolvableValidationContext(orders: Order[], warehouse: Warehouse): SimulationValidationContext {
+  const missingItemsByOrder = orders.reduce<SimulationValidationContext['missingItemsByOrder']>((acc, order) => {
+    const unresolved = order.items
+      .filter(({ itemId }) => !warehouse.items.some(item => item.id === itemId))
+      .map(({ itemId }) => itemId);
+
+    if (unresolved.length > 0) {
+      acc.push({ orderId: order.id, missingItemIds: unresolved });
+    }
+
+    return acc;
+  }, []);
+
+  return {
+    totalItems: orders.reduce((sum, order) => sum + order.items.length, 0),
+    missingItems: missingItemsByOrder.reduce((sum, order) => sum + order.missingItemIds.length, 0),
+    affectedOrders: missingItemsByOrder.length,
+    missingItemsByOrder,
+  };
+}
+
 export function TaroApp() {
   const [warehouse, setWarehouse] = useState<Warehouse>(() => createEmptyWarehouse(30, 24));
   const [orders, setOrders] = useState<Order[]>([]);
@@ -49,6 +76,7 @@ export function TaroApp() {
   const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
+  const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
 
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
@@ -101,6 +129,7 @@ export function TaroApp() {
     setValidationContext(null);
     setShowValidationModal(false);
     setHighlightedMissingItemIds(null);
+    setSimulationBlockState(null);
   }, []);
 
   const generateDemo = useCallback(() => {
@@ -117,6 +146,7 @@ export function TaroApp() {
     setValidationContext(null);
     setShowValidationModal(false);
     setHighlightedMissingItemIds(null);
+    setSimulationBlockState(null);
   }, []);
 
   const runSimulationHandler = useCallback(() => {
@@ -127,10 +157,23 @@ export function TaroApp() {
     // Clear any previous validation highlights
     setHighlightedMissingItemIds(null);
 
+    setSimulationResults(null);
+    setSimulationBlockState(null);
+
     // Validate orders before simulation
-    const validation = validateOrderItems(orders, warehouse);
+    const validation = buildUnresolvableValidationContext(orders, warehouse);
 
     if (validation.missingItems > 0) {
+      if (validation.missingItems >= validation.totalItems) {
+        setValidationContext(validation);
+        setSimulationBlockState({
+          title: 'No valid items to simulate',
+          description: 'Add items to the layout to run simulation.',
+        });
+        setHighlightedMissingItemIds(getMissingItemIds(validation));
+        return;
+      }
+
       // Set validation context and show modal
       setValidationContext(validation);
       setShowValidationModal(true);
@@ -143,6 +186,7 @@ export function TaroApp() {
     setAnimationProgress(0);
     setExecutionPlanStrategy(null);
     setValidationContext(null);
+    setSimulationBlockState(null);
 
     requestAnimationFrame(() => {
       const results = runSimulation(warehouse, orders, workerCount, {
@@ -162,6 +206,10 @@ export function TaroApp() {
     if (validationContext) {
       const missingItemIds = getMissingItemIds(validationContext);
       setHighlightedMissingItemIds(missingItemIds);
+      setSimulationBlockState({
+        title: 'Missing items need layout placement',
+        description: 'Add these items to the layout to continue',
+      });
     }
   }, [validationContext]);
 
@@ -182,7 +230,7 @@ export function TaroApp() {
       const results = runPartialSimulation(warehouse, orders, workerCount, {
         warehouseProfile,
         laborProfile,
-      }, validationContext);
+      }, validationContext, { allowPartial: true });
 
       setSimulationResults(results);
       setIsSimulating(false);
@@ -239,6 +287,7 @@ export function TaroApp() {
       setValidationContext(null);
       setShowValidationModal(false);
       setHighlightedMissingItemIds(null);
+      setSimulationBlockState(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
       alert(`CSV import failed: ${message}`);
@@ -254,6 +303,7 @@ export function TaroApp() {
     setValidationContext(null);
     setShowValidationModal(false);
     setHighlightedMissingItemIds(null);
+    setSimulationBlockState(null);
   }, []);
 
   const hasContent = warehouse.shelves.length > 0 ||
@@ -479,6 +529,8 @@ export function TaroApp() {
           workerCount={workerCount}
           executionPlan={executionPlanStrategy ? simulationResults?.strategies.find(s => s.strategy === executionPlanStrategy) ?? null : null}
           validationContext={validationContext}
+          blockState={simulationBlockState}
+          onViewUnresolvableItems={(itemIds) => setHighlightedMissingItemIds(new Set(itemIds))}
         />
       </div>
 
