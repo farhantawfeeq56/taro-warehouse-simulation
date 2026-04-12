@@ -14,6 +14,8 @@ interface OrdersPanelProps {
   onOrdersChange: (orders: Order[]) => void;
   warehouse?: Warehouse;
   workerCount: number;
+  highlightedMissingItemIds?: Set<string> | null;
+  onClearHighlights?: () => void;
 }
 
 interface ParsedOrderRow {
@@ -30,12 +32,19 @@ interface ParsedOrdersState {
 }
 
 const REQUIRED_ITEM_HEADERS = ['order_id', 'item_id'] as const;
-const INVALID_CSV_FORMAT_MESSAGE = 'Invalid CSV format. Please use the sample format.';
+const INVALID_CSV_FORMAT_MESSAGE = 'Invalid CSV format. Please use sample format.';
 const LOCATION_CSV_NOT_SUPPORTED_MESSAGE = 'Location-based CSV is not supported. Please use order_id,item_id.';
 const ITEM_NOT_FOUND_ERROR_MESSAGE = 'Item not found. Please create items before importing orders.';
 const SAMPLE_ORDERS_CSV = ['order_id,item_id', 'A,ITEM_001', 'A,ITEM_004', 'B,ITEM_011'].join('\n');
 
-export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: OrdersPanelProps) {
+export function OrdersPanel({
+  orders,
+  onOrdersChange,
+  warehouse,
+  workerCount,
+  highlightedMissingItemIds,
+  onClearHighlights,
+}: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
   const [parsedCsv, setParsedCsv] = useState<ParsedOrdersState | null>(null);
   const [csvParseError, setCsvParseError] = useState<string | null>(null);
@@ -43,6 +52,11 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
   const [isParsingCsv, setIsParsingCsv] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const getLocationIdForItem = (itemId: string): string => getItemById(warehouse ?? { items: [] }, itemId)?.locationId ?? 'Unknown location';
+
+  // Check if an item is highlighted (missing)
+  const isItemHighlighted = (itemId: string): boolean => {
+    return highlightedMissingItemIds?.has(itemId) ?? false;
+  };
 
   const availableItems = useMemo(() => {
     if (!warehouse) return [];
@@ -87,6 +101,10 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
       )
     );
     setNewItemInput(prev => ({ ...prev, [orderId]: '' }));
+    // Clear highlights when user adds items
+    if (onClearHighlights && highlightedMissingItemIds) {
+      onClearHighlights();
+    }
   };
 
   const removeItemFromOrder = (orderId: string, itemIndex: number) => {
@@ -97,6 +115,10 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
           : o
       )
     );
+    // Clear highlights when user removes items
+    if (onClearHighlights && highlightedMissingItemIds) {
+      onClearHighlights();
+    }
   };
 
   const generateRandom = () => {
@@ -263,6 +285,21 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
           <h2 className="text-sm font-semibold text-foreground">Orders</h2>
           <span className="text-xs text-muted-foreground">{orders.length} orders</span>
         </div>
+
+        {/* Highlight info banner */}
+        {highlightedMissingItemIds && highlightedMissingItemIds.size > 0 && (
+          <div className="mb-2 flex items-center justify-between px-2 py-1.5 bg-amber-50/80 dark:bg-amber-950/20 border border-amber-300/70 dark:border-amber-800/50 rounded text-xs">
+            <span className="text-amber-800 dark:text-amber-300 font-medium">
+              ⚠️ {highlightedMissingItemIds.size} missing item{highlightedMissingItemIds.size !== 1 ? 's' : ''} highlighted
+            </span>
+            <button
+              onClick={onClearHighlights}
+              className="text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 transition-colors font-medium"
+            >
+              Clear
+            </button>
+          </div>
+        )}
         <div className="flex gap-1">
           <Button
             variant="outline"
@@ -473,20 +510,39 @@ export function OrdersPanel({ orders, onOrdersChange, warehouse, workerCount }: 
 
               {/* Items list */}
               <div className="space-y-1">
-                {order.items.map((item, idx) => (
-                  <div key={`${item.itemId}-${idx}`} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1">
-                    <div className="min-w-0">
-                      <div className="font-mono text-foreground truncate">{item.itemId}</div>
-                      <div className="font-mono text-[10px] text-muted-foreground truncate">{getLocationIdForItem(item.itemId)}</div>
-                    </div>
-                    <button
-                      onClick={() => removeItemFromOrder(order.id, idx)}
-                      className="text-muted-foreground hover:text-destructive transition-colors"
+                {order.items.map((item, idx) => {
+                  const isHighlighted = isItemHighlighted(item.itemId);
+                  return (
+                    <div
+                      key={`${item.itemId}-${idx}`}
+                      className={`flex items-center justify-between text-xs rounded px-2 py-1 ${
+                        isHighlighted
+                          ? 'bg-amber-100/80 dark:bg-amber-900/30 border border-amber-400/50 dark:border-amber-700/50'
+                          : 'bg-muted/30'
+                      }`}
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+                      <div className="min-w-0">
+                        <div className={`font-mono truncate ${isHighlighted ? 'text-amber-900 dark:text-amber-100 font-semibold' : 'text-foreground'}`}>
+                          {item.itemId}
+                          {isHighlighted && <span className="ml-1.5 text-[10px] text-amber-700 dark:text-amber-300">(not found)</span>}
+                        </div>
+                        <div className={`font-mono text-[10px] truncate ${isHighlighted ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                          {getLocationIdForItem(item.itemId)}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeItemFromOrder(order.id, idx)}
+                        className={`transition-colors ${
+                          isHighlighted
+                            ? 'text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200'
+                            : 'text-muted-foreground hover:text-destructive'
+                        }`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Add item input */}

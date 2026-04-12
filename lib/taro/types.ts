@@ -116,6 +116,19 @@ export interface SimulationResults {
   strategies: StrategyResult[];
   heatmap: number[][];
   bestStrategy: StrategyType;
+  validationContext?: SimulationValidationContext;
+}
+
+export interface OrderValidationResult {
+  orderId: string;
+  missingItemIds: string[];
+}
+
+export interface SimulationValidationContext {
+  totalItems: number;
+  missingItems: number;
+  affectedOrders: number;
+  missingItemsByOrder: OrderValidationResult[];
 }
 
 export type ToolType = 'shelf' | 'worker' | 'erase';
