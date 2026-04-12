@@ -10,6 +10,7 @@ import type {
   SimulationProfiles,
   WarehouseProfile,
   LaborProfile,
+  SimulationValidationContext,
 } from '../lib/taro/types';
 import { findPath, calculatePathDistance } from '../lib/taro/pathfinding';
 import { calculateManhattanDistance } from '../lib/taro/distance';
@@ -493,16 +494,20 @@ export function runSimulation(
   warehouse: Warehouse,
   orders: Order[],
   workerCount: number = 2,
-  profiles: SimulationProfiles = {}
+  profiles: SimulationProfiles = {},
+  validationContext?: SimulationValidationContext
 ): SimulationResults {
   const warehouseProfile = resolveWarehouseProfile(profiles.warehouseProfile);
   const laborProfile = resolveLaborProfile(profiles.laborProfile);
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
 
-  orders.forEach(order => validateOrderItemLocations(order, warehouse));
+  // Use filtered orders if this is a partial simulation (validation context provided)
+  const ordersToSimulate = orders;
 
-  const resolvedOrders: ResolvedOrder[] = orders.map(order => ({
+  ordersToSimulate.forEach(order => validateOrderItemLocations(order, warehouse));
+
+  const resolvedOrders: ResolvedOrder[] = ordersToSimulate.map(order => ({
     id: order.id,
     locations: resolveOrderLocations(order, warehouse),
   }));
@@ -556,7 +561,7 @@ export function runSimulation(
       estimatedTime: Math.round(timeMinutes * 10) / 10,
       efficiency,
       workerUtilization: Math.round(utilization),
-      costPerOrder: Math.round((cost / Math.max(orders.length, 1)) * 100) / 100,
+      costPerOrder: Math.round((cost / Math.max(ordersToSimulate.length, 1)) * 100) / 100,
       route: result.route,
       color: STRATEGY_COLORS[strategy],
       workerRoutes,
@@ -578,5 +583,24 @@ export function runSimulation(
     strategies: results,
     heatmap: buildRouteFrequencyHeatmap(warehouse, bestStrategyRoutes),
     bestStrategy,
+    validationContext,
   };
+}
+
+/**
+ * Runs a partial simulation with only valid items, excluding missing items.
+ * Use this when orders contain items that don't exist in the warehouse.
+ */
+export function runPartialSimulation(
+  warehouse: Warehouse,
+  orders: Order[],
+  workerCount: number = 2,
+  profiles: SimulationProfiles = {},
+  validationContext: SimulationValidationContext
+): SimulationResults {
+  // Filter orders to only include items that exist in the warehouse
+  const { filterValidOrderItems } = require('../lib/taro/order-validation');
+  const filteredOrders = filterValidOrderItems(orders, warehouse);
+
+  return runSimulation(warehouse, filteredOrders, workerCount, profiles, validationContext);
 }

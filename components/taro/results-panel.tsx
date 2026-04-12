@@ -1,9 +1,11 @@
 'use client';
 
-import type { SimulationResults, StrategyResult, StrategyType } from '@/lib/taro/types';
+import { useState } from 'react';
+import type { SimulationResults, StrategyResult, StrategyType, SimulationValidationContext } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Activity } from 'lucide-react';
+import { AlertTriangle, Activity, ChevronDown, ChevronUp } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ResultsPanelProps {
   results: SimulationResults | null;
@@ -13,6 +15,7 @@ interface ResultsPanelProps {
   animationProgress: number;
   workerCount: number;
   executionPlan: StrategyResult | null;
+  validationContext?: SimulationValidationContext | null;
 }
 
 export function ResultsPanel({
@@ -23,8 +26,15 @@ export function ResultsPanel({
   animationProgress,
   workerCount,
   executionPlan,
+  validationContext,
 }: ResultsPanelProps) {
   const strategies = results?.strategies ?? [];
+  const [showMissingItems, setShowMissingItems] = useState(false);
+
+  const isPartialSimulation = validationContext !== undefined && validationContext !== null;
+  const simulatedItemCount = validationContext
+    ? validationContext.totalItems - validationContext.missingItems
+    : null;
 
   const sortedStrategies = [...strategies].sort((a, b) => {
     if (a.strategy === 'single') return 1;
@@ -93,6 +103,51 @@ export function ResultsPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        {/* Partial simulation warning banner */}
+        {isPartialSimulation && validationContext && (
+          <Alert className="py-3 px-3 border-amber-300/70 bg-amber-50/80 dark:bg-amber-950/20 dark:border-amber-800/50">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-xs text-amber-900 dark:text-amber-300">
+              <div className="font-semibold mb-1">Partial simulation results</div>
+              <div className="space-y-1">
+                <div>
+                  <span className="font-medium">{validationContext.missingItems}</span> of{' '}
+                  <span className="font-medium">{validationContext.totalItems}</span> items were not found and excluded.
+                </div>
+                <div className="text-[10px] opacity-80">
+                  Simulated with {validationContext.totalItems - validationContext.missingItems} valid items across{' '}
+                  {validationContext.affectedOrders} affected order{validationContext.affectedOrders !== 1 ? 's' : ''}.
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMissingItems(!showMissingItems)}
+                className="mt-2 flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 transition-colors"
+              >
+                {showMissingItems ? (
+                  <>
+                    <ChevronUp className="h-3 w-3" />
+                    Hide missing items
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3" />
+                    View missing items
+                  </>
+                )}
+              </button>
+              {showMissingItems && (
+                <div className="mt-2 pt-2 border-t border-amber-200/50 dark:border-amber-800/50 space-y-1">
+                  {validationContext.missingItemsByOrder.map(orderResult => (
+                    <div key={orderResult.orderId} className="text-[10px]">
+                      <span className="font-medium">{orderResult.orderId}:</span>{' '}
+                      {orderResult.missingItemIds.join(', ')}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="space-y-1.5">
           {sortedStrategies.map((strategy) => {
             const isSelected = activeStrategy === strategy.strategy;
@@ -126,8 +181,11 @@ export function ResultsPanel({
                   )}
                   <div className="flex-1" />
                   {isBest && !isBaseline && (
-                    <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 shrink-0">
-                      Best
+                    <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${isPartialSimulation
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                      : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                    }`}>
+                      {isPartialSimulation ? 'Best (Partial)' : 'Best'}
                     </Badge>
                   )}
                 </div>
@@ -146,8 +204,17 @@ export function ResultsPanel({
         {activeResult?.workerRoutes && activeResult.workerRoutes.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Worker Allocation</div>
-              <span className="text-xs font-mono text-muted-foreground">{workerCount} configured</span>
+              <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                Worker Allocation
+              </div>
+              <div className="flex items-center gap-2">
+                {simulatedItemCount !== null && isPartialSimulation && (
+                  <span className="text-xs font-mono text-amber-600 dark:text-amber-400">
+                    {simulatedItemCount} items
+                  </span>
+                )}
+                <span className="text-xs font-mono text-muted-foreground">{workerCount} configured</span>
+              </div>
             </div>
             <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-2">
               {activeResult.workerRoutes.map((worker) => {

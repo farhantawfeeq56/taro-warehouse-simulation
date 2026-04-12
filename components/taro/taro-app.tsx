@@ -14,7 +14,7 @@ import type {
   LaborProfile,
 } from '@/lib/taro/types';
 import { createEmptyWarehouse, generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
-import { runSimulation } from '@/core/simulationEngine';
+import { runSimulation, runPartialSimulation } from '@/core/simulationEngine';
 import { parseWarehouseCsv, SAMPLE_WAREHOUSE_CSV_TEMPLATE } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
@@ -22,8 +22,11 @@ import { OrdersPanel } from './orders-panel';
 import { ResultsPanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { EntryOverlay } from './entry-overlay';
+import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Play, Minus, Plus, FileText } from 'lucide-react';
+import { validateOrderItems, getMissingItemIds } from '@/lib/taro/order-validation';
+import type { SimulationValidationContext } from '@/lib/taro/types';
 export function TaroApp() {
   const [warehouse, setWarehouse] = useState<Warehouse>(() => createEmptyWarehouse(30, 24));
   const [orders, setOrders] = useState<Order[]>([]);
@@ -43,6 +46,9 @@ export function TaroApp() {
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [importSummary, setImportSummary] = useState<string>('');
   const [executionPlanStrategy, setExecutionPlanStrategy] = useState<StrategyType | null>(null);
+  const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
@@ -92,6 +98,9 @@ export function TaroApp() {
     setZVisualizationMode('all');
     setShowEntryOverlay(true);
     setImportSummary('');
+    setValidationContext(null);
+    setShowValidationModal(false);
+    setHighlightedMissingItemIds(null);
   }, []);
 
   const generateDemo = useCallback(() => {
@@ -105,6 +114,9 @@ export function TaroApp() {
     setExecutionPlanStrategy(null);
     setShowEntryOverlay(false);
     setImportSummary('');
+    setValidationContext(null);
+    setShowValidationModal(false);
+    setHighlightedMissingItemIds(null);
   }, []);
 
   const runSimulationHandler = useCallback(() => {
@@ -112,10 +124,25 @@ export function TaroApp() {
       return;
     }
 
+    // Clear any previous validation highlights
+    setHighlightedMissingItemIds(null);
+
+    // Validate orders before simulation
+    const validation = validateOrderItems(orders, warehouse);
+
+    if (validation.missingItems > 0) {
+      // Set validation context and show modal
+      setValidationContext(validation);
+      setShowValidationModal(true);
+      return;
+    }
+
+    // No validation errors, proceed with normal simulation
     setIsSimulating(true);
     setActiveStrategy(null);
     setAnimationProgress(0);
     setExecutionPlanStrategy(null);
+    setValidationContext(null);
 
     requestAnimationFrame(() => {
       const results = runSimulation(warehouse, orders, workerCount, {
@@ -128,6 +155,40 @@ export function TaroApp() {
       startStrategyAnimation(results.bestStrategy);
     });
   }, [warehouse, orders, workerCount, warehouseProfile, laborProfile, startStrategyAnimation]);
+
+  const handleFixItems = useCallback(() => {
+    // Close modal and highlight missing items in the orders panel
+    setShowValidationModal(false);
+    if (validationContext) {
+      const missingItemIds = getMissingItemIds(validationContext);
+      setHighlightedMissingItemIds(missingItemIds);
+    }
+  }, [validationContext]);
+
+  const handleSimulateAnyway = useCallback(() => {
+    // Close modal and run partial simulation
+    setShowValidationModal(false);
+
+    if (!validationContext) {
+      return;
+    }
+
+    setIsSimulating(true);
+    setActiveStrategy(null);
+    setAnimationProgress(0);
+    setExecutionPlanStrategy(null);
+
+    requestAnimationFrame(() => {
+      const results = runPartialSimulation(warehouse, orders, workerCount, {
+        warehouseProfile,
+        laborProfile,
+      }, validationContext);
+
+      setSimulationResults(results);
+      setIsSimulating(false);
+      startStrategyAnimation(results.bestStrategy);
+    });
+  }, [warehouse, orders, workerCount, warehouseProfile, laborProfile, validationContext, startStrategyAnimation]);
 
   const handleStrategySelect = useCallback((strategy: StrategyType) => {
     startStrategyAnimation(strategy);
@@ -175,6 +236,9 @@ export function TaroApp() {
       setShowEntryOverlay(false);
       setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
       setExecutionPlanStrategy(null);
+      setValidationContext(null);
+      setShowValidationModal(false);
+      setHighlightedMissingItemIds(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
       alert(`CSV import failed: ${message}`);
@@ -187,6 +251,9 @@ export function TaroApp() {
     setShowEntryOverlay(false);
     setImportSummary('');
     setExecutionPlanStrategy(null);
+    setValidationContext(null);
+    setShowValidationModal(false);
+    setHighlightedMissingItemIds(null);
   }, []);
 
   const hasContent = warehouse.shelves.length > 0 ||
@@ -346,6 +413,8 @@ export function TaroApp() {
           onOrdersChange={setOrders}
           warehouse={warehouse}
           workerCount={workerCount}
+          highlightedMissingItemIds={highlightedMissingItemIds}
+          onClearHighlights={() => setHighlightedMissingItemIds(null)}
         />
 
         {/* Center - Canvas */}
@@ -409,8 +478,20 @@ export function TaroApp() {
           animationProgress={animationProgress}
           workerCount={workerCount}
           executionPlan={executionPlanStrategy ? simulationResults?.strategies.find(s => s.strategy === executionPlanStrategy) ?? null : null}
+          validationContext={validationContext}
         />
       </div>
+
+      {/* Validation Modal */}
+      {validationContext && (
+        <ValidationModal
+          open={showValidationModal}
+          validationContext={validationContext}
+          onClose={() => setShowValidationModal(false)}
+          onFixItems={handleFixItems}
+          onSimulateAnyway={handleSimulateAnyway}
+        />
+      )}
     </div>
   );
 }
