@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Download, Plus, Shuffle, Trash2, Upload, X } from 'lucide-react';
@@ -51,6 +51,7 @@ export function OrdersPanel({
   const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
   const [isParsingCsv, setIsParsingCsv] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const getLocationIdForItem = (itemId: string): string => getItemById(warehouse ?? { items: [] }, itemId)?.locationId ?? 'Unknown location';
 
   // Check if an item is highlighted (missing)
@@ -278,6 +279,19 @@ export function OrdersPanel({
 
   const WORKER_COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
 
+  useEffect(() => {
+    if (!highlightedMissingItemIds || highlightedMissingItemIds.size === 0) {
+      return;
+    }
+
+    const firstAffectedOrder = orders.find((order) => order.items.some((item) => highlightedMissingItemIds.has(item.itemId)));
+    if (!firstAffectedOrder) {
+      return;
+    }
+
+    orderRefs.current[firstAffectedOrder.id]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [orders, highlightedMissingItemIds]);
+
   return (
     <div className="w-72 border-r border-border bg-background flex flex-col">
       <div className="p-3 border-b border-border">
@@ -460,10 +474,22 @@ export function OrdersPanel({
             <div className="text-xs">Upload CSV or create orders manually</div>
           </div>
         ) : (
-          orders.map(order => (
+          orders.map(order => {
+            const isOrderAffected = Boolean(
+              highlightedMissingItemIds && order.items.some((item) => highlightedMissingItemIds.has(item.itemId))
+            );
+
+            return (
             <div
               key={order.id}
-              className="border border-border rounded-lg bg-card p-3 space-y-2 hover:border-muted-foreground/50 transition-colors"
+              ref={(element) => {
+                orderRefs.current[order.id] = element;
+              }}
+              className={`border rounded-lg bg-card p-3 space-y-2 hover:border-muted-foreground/50 transition-colors ${
+                isOrderAffected
+                  ? 'border-amber-400/70 dark:border-amber-700/70 ring-1 ring-amber-300/40 dark:ring-amber-800/50'
+                  : 'border-border'
+              }`}
             >
               {/* Header row */}
               <div className="flex items-center justify-between">
@@ -579,7 +605,8 @@ export function OrdersPanel({
                 <div className="text-[11px] text-amber-700">No items available. Add items to shelves first.</div>
               )}
             </div>
-          ))
+          );
+          })
         )}
       </div>
     </div>

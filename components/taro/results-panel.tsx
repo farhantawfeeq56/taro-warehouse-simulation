@@ -1,11 +1,16 @@
 'use client';
 
-import { useState } from 'react';
 import type { SimulationResults, StrategyResult, StrategyType, SimulationValidationContext } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Activity, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, Activity } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
+interface ResultsBlockState {
+  title: string;
+  description: string;
+}
 
 interface ResultsPanelProps {
   results: SimulationResults | null;
@@ -16,6 +21,8 @@ interface ResultsPanelProps {
   workerCount: number;
   executionPlan: StrategyResult | null;
   validationContext?: SimulationValidationContext | null;
+  blockState?: ResultsBlockState | null;
+  onViewUnresolvableItems?: (itemIds: string[]) => void;
 }
 
 export function ResultsPanel({
@@ -27,14 +34,16 @@ export function ResultsPanel({
   workerCount,
   executionPlan,
   validationContext,
+  blockState,
+  onViewUnresolvableItems,
 }: ResultsPanelProps) {
   const strategies = results?.strategies ?? [];
-  const [showMissingItems, setShowMissingItems] = useState(false);
-
-  const isPartialSimulation = validationContext !== undefined && validationContext !== null;
+  const isPartialSimulation = Boolean(results?.isPartial);
   const simulatedItemCount = validationContext
     ? validationContext.totalItems - validationContext.missingItems
     : null;
+
+  const unresolvableItems = results?.unresolvableItems ?? [];
 
   const sortedStrategies = [...strategies].sort((a, b) => {
     if (a.strategy === 'single') return 1;
@@ -44,6 +53,23 @@ export function ResultsPanel({
     if (a.estimatedTime !== b.estimatedTime) return a.estimatedTime - b.estimatedTime;
     return a.costPerOrder - b.costPerOrder;
   });
+
+  if (blockState && !results && !isSimulating) {
+    return (
+      <div className="w-80 border-l border-border bg-background flex flex-col">
+        <div className="p-3 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground">Simulation Results</h2>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center text-muted-foreground text-sm">
+            <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-40 text-amber-600" />
+            <p className="font-semibold text-foreground">{blockState.title}</p>
+            <p className="text-xs mt-2">{blockState.description}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!results && !isSimulating) {
     return (
@@ -103,51 +129,6 @@ export function ResultsPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {/* Partial simulation warning banner */}
-        {isPartialSimulation && validationContext && (
-          <Alert className="py-3 px-3 border-amber-300/70 bg-amber-50/80 dark:bg-amber-950/20 dark:border-amber-800/50">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertDescription className="text-xs text-amber-900 dark:text-amber-300">
-              <div className="font-semibold mb-1">Partial simulation results</div>
-              <div className="space-y-1">
-                <div>
-                  <span className="font-medium">{validationContext.missingItems}</span> of{' '}
-                  <span className="font-medium">{validationContext.totalItems}</span> items were not found and excluded.
-                </div>
-                <div className="text-[10px] opacity-80">
-                  Simulated with {validationContext.totalItems - validationContext.missingItems} valid items across{' '}
-                  {validationContext.affectedOrders} affected order{validationContext.affectedOrders !== 1 ? 's' : ''}.
-                </div>
-              </div>
-              <button
-                onClick={() => setShowMissingItems(!showMissingItems)}
-                className="mt-2 flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 transition-colors"
-              >
-                {showMissingItems ? (
-                  <>
-                    <ChevronUp className="h-3 w-3" />
-                    Hide missing items
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-3 w-3" />
-                    View missing items
-                  </>
-                )}
-              </button>
-              {showMissingItems && (
-                <div className="mt-2 pt-2 border-t border-amber-200/50 dark:border-amber-800/50 space-y-1">
-                  {validationContext.missingItemsByOrder.map(orderResult => (
-                    <div key={orderResult.orderId} className="text-[10px]">
-                      <span className="font-medium">{orderResult.orderId}:</span>{' '}
-                      {orderResult.missingItemIds.join(', ')}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
         <div className="space-y-1.5">
           {sortedStrategies.map((strategy) => {
             const isSelected = activeStrategy === strategy.strategy;
@@ -185,7 +166,7 @@ export function ResultsPanel({
                       ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                       : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
                     }`}>
-                      {isPartialSimulation ? 'Best (Partial)' : 'Best'}
+                      {isPartialSimulation ? 'Best (partial data)' : 'Best'}
                     </Badge>
                   )}
                 </div>
@@ -309,6 +290,35 @@ export function ResultsPanel({
               </ul>
             </div>
           </div>
+        )}
+
+        {isPartialSimulation && (
+          <Alert className="py-3 px-3 border-amber-300/70 bg-amber-50/80 dark:bg-amber-950/20 dark:border-amber-800/50">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-xs text-amber-900 dark:text-amber-300">
+              <div className="inline">
+                {unresolvableItems.length} items missing from layout. Results may be inaccurate.
+              </div>{' '}
+              {unresolvableItems.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="underline font-medium"
+                      onClick={() => onViewUnresolvableItems?.(unresolvableItems)}
+                    >
+                      View items
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-64">
+                    <div className="font-medium mb-1">Unresolvable item IDs</div>
+                    <div className="max-h-40 overflow-y-auto text-[11px] leading-4">
+                      {unresolvableItems.join(', ')}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </AlertDescription>
+          </Alert>
         )}
       </div>
 

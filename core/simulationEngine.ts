@@ -11,6 +11,7 @@ import type {
   WarehouseProfile,
   LaborProfile,
   SimulationValidationContext,
+  OrderValidationResult,
 } from '../lib/taro/types';
 import { findPath, calculatePathDistance } from '../lib/taro/pathfinding';
 import { calculateManhattanDistance } from '../lib/taro/distance';
@@ -106,9 +107,10 @@ interface ResolvedOrder {
 function safelyResolveOrderLocations(
   orders: Order[],
   warehouse: Warehouse
-): { resolvedOrders: ResolvedOrder[]; invalidItemIds: Set<string> } {
+): { resolvedOrders: ResolvedOrder[]; missingItemIds: Set<string>; invalidLocationItemIds: Set<string> } {
   const resolvedOrders: ResolvedOrder[] = [];
-  const invalidItemIds = new Set<string>();
+  const missingItemIds = new Set<string>();
+  const invalidLocationItemIds = new Set<string>();
   const validLocationIds = new Set(warehouse.locations.map(loc => loc.id));
 
   for (const order of orders) {
@@ -116,11 +118,11 @@ function safelyResolveOrderLocations(
     for (const item of order.items) {
       const resolvedItem = warehouse.items.find(i => i.id === item.itemId);
       if (!resolvedItem) {
-        invalidItemIds.add(item.itemId);
+        missingItemIds.add(item.itemId);
         continue;
       }
       if (!validLocationIds.has(resolvedItem.locationId)) {
-        invalidItemIds.add(item.itemId);
+        invalidLocationItemIds.add(item.itemId);
         continue;
       }
       locations.push(resolvedItem.locationId);
@@ -128,7 +130,7 @@ function safelyResolveOrderLocations(
     resolvedOrders.push({ id: order.id, locations });
   }
 
-  return { resolvedOrders, invalidItemIds };
+  return { resolvedOrders, missingItemIds, invalidLocationItemIds };
 }
 
 function dedupeLocationsByFirstSeen(
@@ -539,7 +541,7 @@ export function runSimulation(
   const ordersToSimulate = orders;
 
   // Safely resolve locations, filtering out any items with invalid location mappings
-  const { resolvedOrders, invalidItemIds } = safelyResolveOrderLocations(ordersToSimulate, warehouse);
+  const { resolvedOrders, missingItemIds, invalidLocationItemIds } = safelyResolveOrderLocations(ordersToSimulate, warehouse);
 
   // Filter out orders that have no valid locations after safety check
   const validOrders = resolvedOrders.filter(order => order.locations.length > 0);
@@ -547,18 +549,19 @@ export function runSimulation(
   // If ALL items are invalid, throw a descriptive error (preserve old behavior)
   if (validOrders.length === 0 && ordersToSimulate.length > 0) {
     // Find first invalid item to report in error
-    const firstInvalidItem = Array.from(invalidItemIds)[0];
+    const firstInvalidItem = Array.from(new Set([...missingItemIds, ...invalidLocationItemIds]))[0];
     const firstOrder = ordersToSimulate[0];
     throw new Error(`Order "${firstOrder.id}" references unknown itemId "${firstInvalidItem}" at index 0.`);
   }
 
   // If there are invalid items but we have some valid ones, create a validation context
   let finalValidationContext = validationContext;
-  if (invalidItemIds.size > 0 && validOrders.length > 0) {
+  const unresolvableItemIds = new Set([...missingItemIds, ...invalidLocationItemIds]);
+  if (unresolvableItemIds.size > 0 && validOrders.length > 0) {
     const missingItemsByOrder: OrderValidationResult[] = [];
     for (const order of ordersToSimulate) {
       const orderInvalidItems = order.items
-        .filter(item => invalidItemIds.has(item.itemId))
+        .filter(item => unresolvableItemIds.has(item.itemId))
         .map(item => item.itemId);
       if (orderInvalidItems.length > 0) {
         missingItemsByOrder.push({ orderId: order.id, missingItemIds: orderInvalidItems });
@@ -567,7 +570,7 @@ export function runSimulation(
     if (missingItemsByOrder.length > 0) {
       finalValidationContext = {
         totalItems: ordersToSimulate.reduce((sum, o) => sum + o.items.length, 0),
-        missingItems: invalidItemIds.size,
+        missingItems: unresolvableItemIds.size,
         affectedOrders: missingItemsByOrder.length,
         missingItemsByOrder,
       };
@@ -644,10 +647,17 @@ export function runSimulation(
       ? bestStrategyResult.workerRoutes.map(workerRoute => workerRoute.route)
       : [bestStrategyResult.route];
 
+  const unresolvableItems = [...new Set(finalValidationContext?.missingItemsByOrder.flatMap(order => order.missingItemIds) ?? [])];
+  const fallbackMissingCount = finalValidationContext?.missingItems ?? 0;
+
   return {
     strategies: results,
     heatmap: buildRouteFrequencyHeatmap(warehouse, bestStrategyRoutes),
     bestStrategy,
+    isPartial: finalValidationContext !== undefined && finalValidationContext !== null,
+    unresolvableItems,
+    missingItemsCount: missingItemIds.size > 0 ? missingItemIds.size : fallbackMissingCount,
+    invalidLocationCount: invalidLocationItemIds.size,
     validationContext: finalValidationContext,
   };
 }
@@ -661,8 +671,11 @@ export function runPartialSimulation(
   orders: Order[],
   workerCount: number = 2,
   profiles: SimulationProfiles = {},
-  validationContext: SimulationValidationContext
+  validationContext: SimulationValidationContext,
+  options?: { allowPartial?: boolean }
 ): SimulationResults {
+  void options?.allowPartial;
+
   // Filter orders to only include items that exist in the warehouse
   const { filterValidOrderItems } = require('../lib/taro/order-validation');
   const filteredOrders = filterValidOrderItems(orders, warehouse);
