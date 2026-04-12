@@ -252,7 +252,7 @@ function simulateStrategy(
   workerCount: number
 ): { route: { x: number; y: number }[]; distance: number; workerRoutes: WorkerRoute[]; workerDistances: number[] } {
   if (!warehouse.workerStart || orders.length === 0) {
-    const workers = strategy === 'single' ? 1 : Math.max(1, Math.min(4, workerCount));
+    const workers = Math.max(1, Math.min(4, workerCount));
     return {
       route: [],
       distance: 0,
@@ -272,7 +272,7 @@ function simulateStrategy(
 
   const allLocations = getAllPickableLocations(warehouse);
   const start = warehouse.workerStart;
-  const numWorkers = strategy === 'single' ? 1 : Math.max(1, Math.min(4, workerCount));
+  const numWorkers = Math.max(1, Math.min(4, workerCount));
   const units: WorkUnit[] = [];
 
   if (strategy === 'single') {
