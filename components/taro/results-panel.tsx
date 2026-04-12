@@ -4,7 +4,6 @@ import type { SimulationResults, StrategyResult, StrategyType } from '@/lib/taro
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Activity } from 'lucide-react';
-import { useMemo } from 'react';
 
 interface ResultsPanelProps {
   results: SimulationResults | null;
@@ -27,41 +26,14 @@ export function ResultsPanel({
 }: ResultsPanelProps) {
   const strategies = results?.strategies ?? [];
 
-  const sortedStrategies = useMemo(() => {
-    return [...strategies].sort((a, b) => {
-      if (a.strategy === 'single') return 1;
-      if (b.strategy === 'single') return -1;
-      if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
-      if (a.criticalPathDistance !== b.criticalPathDistance) return a.criticalPathDistance - b.criticalPathDistance;
-      if (a.estimatedTime !== b.estimatedTime) return a.estimatedTime - b.estimatedTime;
-      return a.costPerOrder - b.costPerOrder;
-    });
-  }, [strategies]);
-
-  const workerPickMilestones = useMemo(() => {
-    const activeResult = activeStrategy && results
-      ? results.strategies.find((strategy) => strategy.strategy === activeStrategy) ?? null
-      : null;
-
-    if (!activeResult?.workerRoutes) return [];
-
-    return activeResult.workerRoutes.map((worker) => {
-      const milestones: { index: number; pickCount: number }[] = [];
-      let lastRouteIndex = 0;
-
-      for (const pick of worker.picks) {
-        for (let i = lastRouteIndex; i < worker.route.length; i++) {
-          const point = worker.route[i];
-          if (point.x === pick.x && point.y === pick.y) {
-            milestones.push({ index: i, pickCount: pick.pickCount || 1 });
-            lastRouteIndex = i + 1;
-            break;
-          }
-        }
-      }
-      return milestones;
-    });
-  }, [results, activeStrategy]);
+  const sortedStrategies = [...strategies].sort((a, b) => {
+    if (a.strategy === 'single') return 1;
+    if (b.strategy === 'single') return -1;
+    if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
+    if (a.criticalPathDistance !== b.criticalPathDistance) return a.criticalPathDistance - b.criticalPathDistance;
+    if (a.estimatedTime !== b.estimatedTime) return a.estimatedTime - b.estimatedTime;
+    return a.costPerOrder - b.costPerOrder;
+  });
 
   if (!results && !isSimulating) {
     return (
@@ -178,19 +150,17 @@ export function ResultsPanel({
               <span className="text-xs font-mono text-muted-foreground">{workerCount} configured</span>
             </div>
             <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-2">
-              {activeResult.workerRoutes.map((worker, idx) => {
-                const milestones = workerPickMilestones[idx] || [];
-                const visiblePoints = Math.max(1, Math.floor(worker.route.length * animationProgress));
-                
-                // Count how many picks are completed based on current route position
-                // A pick is completed when its route index is less than visiblePoints
-                const completedPicks = milestones.reduce((sum, m) => {
-                  return m.index < visiblePoints ? sum + m.pickCount : sum;
-                }, 0);
-                
+              {activeResult.workerRoutes.map((worker) => {
                 const totalPicks = worker.assignedPickCount;
+                // Distribute picks proportionally across the route animation
+                // This is simpler and more reliable than trying to match pick positions in the route
+                // (which fails because pick positions are on shelves but routes use nearest walkable cells)
+                const completedPicks = Math.min(
+                  totalPicks,
+                  Math.floor(totalPicks * animationProgress)
+                );
                 const progress = totalPicks > 0 ? (completedPicks / totalPicks) * 100 : 0;
-                
+
                 return (
                   <div key={worker.workerId} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
