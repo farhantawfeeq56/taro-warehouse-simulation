@@ -82,6 +82,8 @@ export interface LaborProfile {
 export interface SimulationProfiles {
   warehouseProfile?: Partial<WarehouseProfile>;
   laborProfile?: Partial<LaborProfile>;
+  /** When true, unresolvable order lines are skipped instead of aborting the run. */
+  allowPartial?: boolean;
 }
 
 export type StrategyType = 'single' | 'batch' | 'zone' | 'wave';

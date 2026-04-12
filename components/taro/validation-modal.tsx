@@ -55,7 +55,7 @@ export function ValidationModal({
             Fix items first
           </AlertDialogCancel>
           <AlertDialogAction onClick={onSimulateAnyway} className="flex-1 bg-amber-600 hover:bg-amber-700">
-            Simulate anyway (partial results)
+            Simulate anyway
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
