@@ -38,6 +38,31 @@ export function ResultsPanel({
     });
   }, [strategies]);
 
+  const workerPickMilestones = useMemo(() => {
+    const activeResult = activeStrategy && results
+      ? results.strategies.find((strategy) => strategy.strategy === activeStrategy) ?? null
+      : null;
+
+    if (!activeResult?.workerRoutes) return [];
+
+    return activeResult.workerRoutes.map((worker) => {
+      const milestones: { index: number; pickCount: number }[] = [];
+      let lastRouteIndex = 0;
+
+      for (const pick of worker.picks) {
+        for (let i = lastRouteIndex; i < worker.route.length; i++) {
+          const point = worker.route[i];
+          if (point.x === pick.x && point.y === pick.y) {
+            milestones.push({ index: i, pickCount: pick.pickCount || 1 });
+            lastRouteIndex = i + 1;
+            break;
+          }
+        }
+      }
+      return milestones;
+    });
+  }, [results, activeStrategy]);
+
   if (!results && !isSimulating) {
     return (
       <div className="w-80 border-l border-border bg-background flex flex-col">
@@ -83,27 +108,6 @@ export function ResultsPanel({
     ? results.strategies.find((strategy) => strategy.strategy === activeStrategy) ?? null
     : null;
   const baseline = results.strategies.find((strategy) => strategy.strategy === 'single') ?? null;
-
-  const workerPickMilestones = useMemo(() => {
-    if (!activeResult?.workerRoutes) return [];
-
-    return activeResult.workerRoutes.map((worker) => {
-      const milestones: { index: number; pickCount: number }[] = [];
-      let lastRouteIndex = 0;
-
-      for (const pick of worker.picks) {
-        for (let i = lastRouteIndex; i < worker.route.length; i++) {
-          const point = worker.route[i];
-          if (point.x === pick.x && point.y === pick.y) {
-            milestones.push({ index: i, pickCount: pick.pickCount || 1 });
-            lastRouteIndex = i + 1;
-            break;
-          }
-        }
-      }
-      return milestones;
-    });
-  }, [activeResult]);
 
   return (
     <div className="w-80 border-l border-border bg-background flex flex-col">
