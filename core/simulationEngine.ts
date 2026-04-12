@@ -472,7 +472,15 @@ export function runSimulation(
     simulationByStrategy.set(strategy, simulateStrategy(strategy, warehouse, resolvedOrders, workerCount));
   }
 
-  const baselineDistance = simulationByStrategy.get('single')?.distance || 1;
+  // Compute baseline time (critical path) for single strategy
+  const baselineResult = simulationByStrategy.get('single');
+  const baselineWorkerDistances = baselineResult
+    ? scaleWorkerDistances(baselineResult.workerDistances, warehouseProfile.scale)
+    : [];
+  const baselineWorkerTimes = baselineResult?.workerRoutes.map((route, idx) =>
+    calculateWorkerTimeMinutes(baselineWorkerDistances[idx], route.assignedPickCount, warehouseProfile)
+  ) ?? [];
+  const baselineTime = Math.max(...baselineWorkerTimes, 0) || 1;
 
   for (const strategy of strategies) {
     const result = simulationByStrategy.get(strategy) ?? { route: [], distance: 0, workerRoutes: [], workerDistances: [] };
@@ -490,7 +498,7 @@ export function runSimulation(
 
     const efficiency = strategy === 'single'
       ? 0
-      : Math.round(((baselineDistance - (totalDistance / warehouseProfile.scale)) / baselineDistance) * 100);
+      : Math.round(((baselineTime - timeMinutes) / baselineTime) * 100);
 
     const activeWorkers = workerRoutes.filter(route => route.assignedPickCount > 0).length;
     const utilization = workerRoutes.length > 0
