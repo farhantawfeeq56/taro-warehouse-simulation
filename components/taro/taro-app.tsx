@@ -25,7 +25,7 @@ import { Toolbar } from './toolbar';
 import { EntryOverlay } from './entry-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Play, Minus, Plus, FileText } from 'lucide-react';
+import { RotateCcw, Play, Minus, Plus, FileText, ChevronLeft } from 'lucide-react';
 import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 
 interface SimulationBlockState {
@@ -35,7 +35,7 @@ interface SimulationBlockState {
   description: string;
 }
 
-export function TaroApp() {
+export function TaroApp({ onBack }: { onBack?: () => void }) {
   const [warehouse, setWarehouse] = useState<Warehouse>(() => createEmptyWarehouse(30, 24));
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
@@ -326,7 +326,12 @@ export function TaroApp() {
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
         <div className="flex items-center gap-4">
-                    <div>
+          {onBack && (
+            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 -ml-2">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          )}
+          <div>
             <h1 className="text-base font-bold tracking-tight">Taro</h1>
             <p className="text-xs text-muted-foreground leading-tight">Warehouse Picking Simulator</p>
             {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
