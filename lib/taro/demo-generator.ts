@@ -75,25 +75,23 @@ export function generateDemoWarehouse(): Warehouse {
     }
   }
 
-  // Add test data at (5, 5) with z-levels
+  // Add test data at (5, 3) with z-levels
   // z=1: SKU_A, qty 100
   // z=2: SKU_B, qty 50
   // z=3: SKU_C, qty 30
   const testLocations: StorageLocation[] = [
-    { id: 'SKU_A@5,5,1', locationId: getShelfLocationId(5, 5), x: 5, y: 5, z: 1, sku: 'SKU_A', quantity: 100 },
-    { id: 'SKU_B@5,5,2', locationId: getShelfLocationId(5, 5), x: 5, y: 5, z: 2, sku: 'SKU_B', quantity: 50 },
-    { id: 'SKU_C@5,5,3', locationId: getShelfLocationId(5, 5), x: 5, y: 5, z: 3, sku: 'SKU_C', quantity: 30 },
+    { id: 'SKU_A@5,3,1', locationId: getShelfLocationId(5, 3), x: 5, y: 3, z: 1, sku: 'SKU_A', quantity: 100 },
+    { id: 'SKU_B@5,3,2', locationId: getShelfLocationId(5, 3), x: 5, y: 3, z: 2, sku: 'SKU_B', quantity: 50 },
+    { id: 'SKU_C@5,3,3', locationId: getShelfLocationId(5, 3), x: 5, y: 3, z: 3, sku: 'SKU_C', quantity: 30 },
   ];
 
-  // Place locations at (5, 5)
-  warehouse.grid[5][5].type = 'shelf';
-  warehouse.grid[5][5].locations = testLocations;
-  warehouse.shelves.push({ x: 5, y: 5 });
-  createDemoItem(getShelfLocationId(5, 5));
+  // Place locations at (5, 3)
+  warehouse.grid[3][5].locations = testLocations;
+  createDemoItem(getShelfLocationId(5, 3));
 
   // Add some additional items at shelf edges with locations
   let itemId = 4; // Start after test SKUs
-  // Place items on bottom edges of shelf pairs
+  // Place items on shelf rows
   const itemRows = [3, 7, 11, 15, 19];
   for (const row of itemRows) {
     for (const [startCol, endCol] of shelfCols) {
@@ -109,10 +107,10 @@ export function generateDemoWarehouse(): Warehouse {
             const sku = `SKU_${String(itemId).padStart(3, '0')}`;
             const quantity = Math.floor(Math.random() * 90) + 10;
             cellLocations.push({
-              id: `${sku}@${col},${row + 1},${z}`,
-              locationId: getShelfLocationId(col, row + 1),
+              id: `${sku}@${col},${row},${z}`,
+              locationId: getShelfLocationId(col, row),
               x: col,
-              y: row + 1,
+              y: row,
               z,
               sku,
               quantity,
@@ -120,10 +118,8 @@ export function generateDemoWarehouse(): Warehouse {
             itemId++;
           }
 
-          warehouse.grid[row + 1][col].type = 'shelf';
-          warehouse.grid[row + 1][col].locations = cellLocations;
-          warehouse.shelves.push({ x: col, y: row + 1 });
-          createDemoItem(getShelfLocationId(col, row + 1));
+          warehouse.grid[row][col].locations = cellLocations;
+          createDemoItem(getShelfLocationId(col, row));
         }
       }
     }
