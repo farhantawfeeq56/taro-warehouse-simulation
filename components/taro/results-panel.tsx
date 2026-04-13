@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ResultsBlockState {
+  simulationState?: 'NO_VALID_ITEMS';
   title: string;
   description: string;
 }
@@ -54,7 +55,11 @@ export function ResultsPanel({
     return a.costPerOrder - b.costPerOrder;
   });
 
-  if (blockState && !results && !isSimulating) {
+  if (
+    blockState &&
+    !isSimulating &&
+    (blockState.simulationState === 'NO_VALID_ITEMS' || !results)
+  ) {
     return (
       <div className="w-80 border-l border-border bg-background flex flex-col">
         <div className="p-3 border-b border-border">

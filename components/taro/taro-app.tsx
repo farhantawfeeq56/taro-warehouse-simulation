@@ -29,6 +29,8 @@ import { RotateCcw, Play, Minus, Plus, FileText } from 'lucide-react';
 import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 
 interface SimulationBlockState {
+  /** Set when simulation cannot run; drives right-panel blocked UI. */
+  simulationState?: 'NO_VALID_ITEMS';
   title: string;
   description: string;
 }
@@ -174,6 +176,31 @@ export function TaroApp() {
     }
 
     const result = validateItems(orders, warehouse);
+    // validItemsCount = totalItems - unresolvable line count (same as totalItems - missingItems in context)
+    const validItemsCount = result.context.totalItems - result.context.missingItems;
+
+    if (validItemsCount === 0) {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      setSimulationResults(null);
+      setActiveStrategy(null);
+      setAnimationProgress(0);
+      setExecutionPlanStrategy(null);
+      setIsSimulating(false);
+      setShowValidationModal(false);
+      setValidationResult(result);
+      setValidationContext(result.context);
+      setSimulationBlockState({
+        simulationState: 'NO_VALID_ITEMS',
+        title: 'No valid items to simulate',
+        description: 'None of the items in your orders exist in the current layout.',
+      });
+      return;
+    }
+
+    setSimulationBlockState(null);
 
     if (result.hasUnresolvableItems) {
       setValidationResult(result);
