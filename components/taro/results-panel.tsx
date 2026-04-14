@@ -132,6 +132,15 @@ export function SystemStatePanel({
             action: onImportCsv || (() => {}),
           };
           break;
+        case 'active-z-items':
+          content = {
+            icon: PackageSearch,
+            title: "No Items in Level",
+            description: "The currently selected Z-level has no inventory items.",
+            actionLabel: "Import CSV",
+            action: onImportCsv || (() => {}),
+          };
+          break;
         case 'valid-orders':
           content = {
             icon: ClipboardList,

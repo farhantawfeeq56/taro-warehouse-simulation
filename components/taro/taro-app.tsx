@@ -24,6 +24,7 @@ import { SystemStatePanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { EntryOverlay } from './entry-overlay';
 import { ValidationModal } from './validation-modal';
+import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Play, Minus, Plus, FileText, ChevronLeft } from 'lucide-react';
 import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
@@ -63,7 +64,7 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
 
   // 1. Derived Data
-  const readiness = useMemo(() => evaluateReadiness(warehouse, orders), [warehouse, orders]);
+  const readiness = useMemo(() => evaluateReadiness(warehouse, orders, zVisualizationMode), [warehouse, orders, zVisualizationMode]);
   const canSimulate = readiness.isReady;
   const hasContent = warehouse.shelves.length > 0 ||
                      warehouse.workerStart !== null ||
@@ -413,6 +414,8 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
               title="Labor cost per hour"
             />
           </div>
+
+          <ReadinessIndicator readiness={readiness} />
 
           <Button
             size="sm"
