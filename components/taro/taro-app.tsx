@@ -14,19 +14,18 @@ import type {
   LaborProfile,
   SimulationValidationContext,
 } from '@/lib/taro/types';
-import { createEmptyWarehouse, generateDemoWarehouse, generateSkeletonWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
+import { generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/core/simulationEngine';
-import { parseWarehouseCsv, SAMPLE_WAREHOUSE_CSV_TEMPLATE } from '@/lib/taro/warehouse-import';
+import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
 import { OrdersPanel } from './orders-panel';
 import { SystemStatePanel } from './results-panel';
 import { Toolbar } from './toolbar';
-import { EntryOverlay } from './entry-overlay';
 import { ValidationModal } from './validation-modal';
 import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Play, Minus, Plus, FileText, ChevronLeft } from 'lucide-react';
+import { RotateCcw, Play, FileText } from 'lucide-react';
 import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
@@ -38,9 +37,15 @@ interface SimulationBlockState {
   description: string;
 }
 
-export function TaroApp({ onBack }: { onBack?: () => void }) {
-  const [warehouse, setWarehouse] = useState<Warehouse>(() => createEmptyWarehouse(30, 24));
-  const [orders, setOrders] = useState<Order[]>([]);
+export function TaroApp() {
+  const { initialWarehouse, initialOrders } = useMemo(() => {
+    const w = generateDemoWarehouse();
+    const o = generateRandomOrders(w, 4);
+    return { initialWarehouse: w, initialOrders: o };
+  }, []);
+
+  const [warehouse, setWarehouse] = useState<Warehouse>(initialWarehouse);
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
@@ -51,7 +56,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
   const [warehouseProfile, setWarehouseProfile] = useState<WarehouseProfile>({ ...DEFAULT_WAREHOUSE_PROFILE });
   const [laborProfile, setLaborProfile] = useState<LaborProfile>({ ...DEFAULT_LABOR_PROFILE });
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
-  const [showEntryOverlay, setShowEntryOverlay] = useState(true);
   const animationRef = useRef<number | null>(null);
   const replaySpeedRef = useRef(replaySpeed);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -66,9 +70,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
   // 1. Derived Data
   const readiness = useMemo(() => evaluateReadiness(warehouse, orders, zVisualizationMode), [warehouse, orders, zVisualizationMode]);
   const canSimulate = readiness.isReady;
-  const hasContent = warehouse.shelves.length > 0 ||
-                     warehouse.workerStart !== null ||
-                     orders.length > 0;
 
   const activeRoute = useMemo((): StrategyResult | null => {
     if (!simulationResults || !activeStrategy) return null;
@@ -107,41 +108,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
     };
 
     animationRef.current = requestAnimationFrame(animate);
-  }, []);
-
-  const resetWarehouse = useCallback(() => {
-    setWarehouse(createEmptyWarehouse(30, 24));
-    setOrders([]);
-    setSimulationResults(null);
-    setActiveStrategy(null);
-    setAnimationProgress(0);
-    setExecutionPlanStrategy(null);
-    setZVisualizationMode('all');
-    setShowEntryOverlay(true);
-    setImportSummary('');
-    setValidationContext(null);
-    setValidationResult(null);
-    setShowValidationModal(false);
-    setHighlightedMissingItemIds(null);
-    setSimulationBlockState(null);
-  }, []);
-
-  const generateDemo = useCallback(() => {
-    const demoWarehouse = generateDemoWarehouse();
-    setWarehouse(demoWarehouse);
-    const demoOrders = generateRandomOrders(demoWarehouse, 4);
-    setOrders(demoOrders);
-    setSimulationResults(null);
-    setActiveStrategy(null);
-    setAnimationProgress(0);
-    setExecutionPlanStrategy(null);
-    setShowEntryOverlay(false);
-    setImportSummary('');
-    setValidationContext(null);
-    setValidationResult(null);
-    setShowValidationModal(false);
-    setHighlightedMissingItemIds(null);
-    setSimulationBlockState(null);
   }, []);
 
   const runSimulationFlow = useCallback(
@@ -222,16 +188,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
     startStrategyAnimation(strategy);
   }, [startStrategyAnimation]);
 
-  const downloadCsvTemplate = useCallback(() => {
-    const blob = new Blob([SAMPLE_WAREHOUSE_CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'warehouse-template.csv';
-    link.click();
-    URL.revokeObjectURL(url);
-  }, []);
-
   const handleImport = useCallback(() => {
     csvInputRef.current?.click();
   }, []);
@@ -248,7 +204,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
       setSimulationResults(null);
       setActiveStrategy(null);
       setAnimationProgress(0);
-      setShowEntryOverlay(false);
       setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
       setExecutionPlanStrategy(null);
       setValidationContext(null);
@@ -269,23 +224,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
     setOrders(demoOrders);
   }, [warehouse]);
 
-  const handleBuildManually = useCallback(() => {
-    const skeleton = generateSkeletonWarehouse();
-    setWarehouse(skeleton);
-    setOrders([]);
-    setSimulationResults(null);
-    setActiveStrategy(null);
-    setAnimationProgress(0);
-    setShowEntryOverlay(false);
-    setImportSummary('');
-    setExecutionPlanStrategy(null);
-    setValidationContext(null);
-    setValidationResult(null);
-    setShowValidationModal(false);
-    setHighlightedMissingItemIds(null);
-    setSimulationBlockState(null);
-  }, []);
-
   // 4. Side Effects
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
@@ -301,14 +239,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
 
   return (
     <div className="h-full flex flex-col bg-background font-sans relative">
-      {showEntryOverlay && !hasContent && (
-        <EntryOverlay
-          onTryDemo={generateDemo}
-          onImport={handleImport}
-          onBuildManually={handleBuildManually}
-          onDownloadTemplate={downloadCsvTemplate}
-        />
-      )}
       <input
         ref={csvInputRef}
         type="file"
@@ -320,107 +250,14 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
         <div className="flex items-center gap-4">
-          {onBack && (
-            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 -ml-2">
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-          )}
           <div>
             <h1 className="text-base font-bold tracking-tight">Taro</h1>
             <p className="text-xs text-muted-foreground leading-tight">Warehouse Picking Simulator</p>
             {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
           </div>
-
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={resetWarehouse}
-            className="h-8 text-xs"
-            title="Clear all items and reset simulation"
-          >
-            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-            Reset
-          </Button>
-
-          {/* Worker count stepper */}
-          <div className="flex items-center gap-1.5 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
-            <span className="text-xs text-muted-foreground font-medium">Workers</span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setWorkerCount(c => Math.max(1, c - 1))}
-                disabled={workerCount <= 1}
-                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Decrease worker count"
-              >
-                <Minus className="h-3 w-3" />
-              </button>
-              <span className="text-xs font-mono font-semibold w-4 text-center">{workerCount}</span>
-              <button
-                onClick={() => setWorkerCount(c => Math.min(4, c + 1))}
-                disabled={workerCount >= 4}
-                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Increase worker count"
-              >
-                <Plus className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-
-          <div className="hidden xl:flex items-center gap-2 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
-            <label className="text-xs text-muted-foreground font-medium">Scale</label>
-            <input
-              type="number"
-              min={0.1}
-              step={0.1}
-              value={warehouseProfile.scale}
-              onChange={(e) => setWarehouseProfile(prev => ({ ...prev, scale: Number(e.target.value) || DEFAULT_WAREHOUSE_PROFILE.scale }))}
-              className="w-14 h-5 text-xs bg-background border border-border rounded px-1"
-              title="Meters per grid cell"
-            />
-          </div>
-
-          <div className="hidden xl:flex items-center gap-2 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
-            <label className="text-xs text-muted-foreground font-medium">Speed</label>
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={warehouseProfile.workerSpeed}
-              onChange={(e) => setWarehouseProfile(prev => ({ ...prev, workerSpeed: Number(e.target.value) || DEFAULT_WAREHOUSE_PROFILE.workerSpeed }))}
-              className="w-14 h-5 text-xs bg-background border border-border rounded px-1"
-              title="Worker speed (meters per minute)"
-            />
-          </div>
-
-          <div className="hidden xl:flex items-center gap-2 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
-            <label className="text-xs text-muted-foreground font-medium">Pick s</label>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={warehouseProfile.pickTimePerItem}
-              onChange={(e) => setWarehouseProfile(prev => ({ ...prev, pickTimePerItem: Number(e.target.value) || DEFAULT_WAREHOUSE_PROFILE.pickTimePerItem }))}
-              className="w-12 h-5 text-xs bg-background border border-border rounded px-1"
-              title="Seconds per pick"
-            />
-          </div>
-
-          <div className="hidden xl:flex items-center gap-2 border border-border rounded-lg px-2 py-1 bg-muted/30 h-8">
-            <label className="text-xs text-muted-foreground font-medium">$/hr</label>
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={laborProfile.costPerHour}
-              onChange={(e) => setLaborProfile({ costPerHour: Number(e.target.value) || DEFAULT_LABOR_PROFILE.costPerHour })}
-              className="w-14 h-5 text-xs bg-background border border-border rounded px-1"
-              title="Labor cost per hour"
-            />
-          </div>
-
           <ReadinessIndicator readiness={readiness} />
 
           <Button
