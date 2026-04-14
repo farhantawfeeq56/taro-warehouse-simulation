@@ -5,6 +5,7 @@ import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLo
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 import { getItemsByLocation } from '@/lib/taro/items';
+import { getNextSku } from '@/lib/taro/demo-generator';
 
 interface WarehouseCanvasProps {
   warehouse: Warehouse;
@@ -48,6 +49,7 @@ export function WarehouseCanvas({
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
   
   // Tooltip state for hover
   const [tooltip, setTooltip] = useState<TooltipState>({
@@ -113,6 +115,10 @@ export function WarehouseCanvas({
         if (cell.type === 'shelf') {
           // Remove from shelves array
           newWarehouse.shelves = newWarehouse.shelves.filter(s => !(s.x === cellX && s.y === cellY));
+          
+          // Cleanup items associated with this shelf
+          const locationId = getShelfLocationId(cellX, cellY);
+          newWarehouse.items = newWarehouse.items.filter(item => item.locationId !== locationId);
         }
         if (cell.type === 'worker-start') {
           newWarehouse.workerStart = null;
@@ -164,6 +170,7 @@ export function WarehouseCanvas({
 
     // Handle hover for tooltip
     const cell = getCellFromMouse(e);
+    setHoveredCell(cell);
     if (cell) {
       const cellData = warehouse.grid[cell.y][cell.x];
       if (cellData.type === 'shelf' && cellData.locations.length > 0) {
@@ -202,6 +209,7 @@ export function WarehouseCanvas({
   const handleMouseLeave = useCallback(() => {
     setIsPanning(false);
     setIsDrawing(false);
+    setHoveredCell(null);
     setTooltip(prev => ({ ...prev, visible: false }));
   }, []);
 
@@ -234,20 +242,40 @@ export function WarehouseCanvas({
     const nextWarehouse = {
       ...warehouse,
       items: [...warehouse.items],
+      grid: warehouse.grid.map(row => row.map(cell => ({ ...cell, locations: [...cell.locations] }))),
     };
 
     const locationId = getShelfLocationId(shelfDetails.cellX, shelfDetails.cellY);
-    const itemCounter = nextWarehouse.items.reduce((max, existingItem) => {
-      const match = existingItem.id.match(/^ITEM_(\d+)$/);
-      if (!match) return max;
-      return Math.max(max, Number(match[1]));
-    }, 0);
+    const cell = nextWarehouse.grid[shelfDetails.cellY][shelfDetails.cellX];
+    
+    // Determine next z-level (cap at 4 as per suggestions)
+    const nextZ = Math.min(cell.locations.length + 1, 4);
+    if (cell.locations.length >= 4) {
+      // Already at max levels for this demo
+      return;
+    }
+
+    const sku = getNextSku(warehouse);
+    
+    // 1. Add to items list
     const newItem: Item = {
-      id: `ITEM_${itemCounter + 1}`,
+      id: `ITEM_${sku.replace('SKU_', '')}`,
       locationId,
     };
-
     nextWarehouse.items.push(newItem);
+
+    // 2. Add to cell locations
+    const newLocation: StorageLocation = {
+      id: `${sku}@${shelfDetails.cellX},${shelfDetails.cellY},${nextZ}`,
+      locationId,
+      x: shelfDetails.cellX,
+      y: shelfDetails.cellY,
+      z: nextZ,
+      sku,
+      quantity: 50, // Default quantity
+    };
+    cell.locations.push(newLocation);
+
     onWarehouseChange(nextWarehouse);
   }, [onWarehouseChange, shelfDetails, warehouse]);
 
@@ -538,8 +566,22 @@ export function WarehouseCanvas({
     ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, width, height);
 
+    // Draw hover highlight
+    if (hoveredCell) {
+      const cell = warehouse.grid[hoveredCell.y][hoveredCell.x];
+      if (cell.type === 'shelf') {
+        const px = hoveredCell.x * CELL_SIZE;
+        const py = hoveredCell.y * CELL_SIZE;
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.2)'; // Blue tint
+        ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
+        ctx.strokeStyle = '#3b82f6'; // Bright blue border
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+      }
+    }
+
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, activeRouteHeatmap, animationProgress, zVisualizationMode]);
+  }, [warehouse, panOffset, zoom, activeRoute, activeRouteHeatmap, animationProgress, zVisualizationMode, hoveredCell]);
 
   // Use RAF for smooth animation, avoid 60fps React re-renders
   useEffect(() => {
@@ -560,6 +602,8 @@ export function WarehouseCanvas({
     };
   }, [drawCanvas, activeRoute, animationProgress]);
 
+  const isHoveringShelf = hoveredCell && warehouse.grid[hoveredCell.y][hoveredCell.x].type === 'shelf';
+
   return (
     <div
       ref={containerRef}
@@ -575,7 +619,7 @@ export function WarehouseCanvas({
         onMouseLeave={handleMouseLeave}
         onWheel={handleWheel}
         onClick={handleClick}
-        className="cursor-crosshair"
+        className={isHoveringShelf ? 'cursor-pointer' : 'cursor-crosshair'}
         style={{ touchAction: 'none' }}
       />
       

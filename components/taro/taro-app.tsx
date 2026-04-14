@@ -14,7 +14,7 @@ import type {
   LaborProfile,
   SimulationValidationContext,
 } from '@/lib/taro/types';
-import { createEmptyWarehouse, generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
+import { createEmptyWarehouse, generateDemoWarehouse, generateSkeletonWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/core/simulationEngine';
 import { parseWarehouseCsv, SAMPLE_WAREHOUSE_CSV_TEMPLATE } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -270,6 +270,12 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
   }, [warehouse]);
 
   const handleBuildManually = useCallback(() => {
+    const skeleton = generateSkeletonWarehouse();
+    setWarehouse(skeleton);
+    setOrders([]);
+    setSimulationResults(null);
+    setActiveStrategy(null);
+    setAnimationProgress(0);
     setShowEntryOverlay(false);
     setImportSummary('');
     setExecutionPlanStrategy(null);

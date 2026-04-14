@@ -88,7 +88,7 @@ export function evaluateReadiness(
     );
   }
 
-  const validOrders = orders.length > 0 && orders.some(o => o.items.length > 0);
+  const validOrders = orders.length > 0 && orders.every(o => o.items.length > 0);
   const workerStartMet = warehouse.workerStart !== null;
 
   // Use existing validation logic to see if all items can be picked
