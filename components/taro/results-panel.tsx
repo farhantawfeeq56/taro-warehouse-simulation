@@ -1,10 +1,11 @@
 'use client';
 
-import type { SimulationResults, StrategyResult, StrategyType, SimulationValidationContext } from '@/lib/taro/types';
+import type { SimulationResults, StrategyResult, StrategyType, SimulationValidationContext, ZVisualizationMode } from '@/lib/taro/types';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { 
   AlertTriangle, 
   Activity, 
@@ -49,6 +50,7 @@ interface SystemStatePanelProps {
   onImportCsv?: () => void;
   onAddDemoOrders?: () => void;
   onSetWorkerStart?: () => void;
+  onZVisualizationChange?: (mode: ZVisualizationMode) => void;
 }
 
 export function SystemStatePanel({
@@ -67,6 +69,7 @@ export function SystemStatePanel({
   onImportCsv,
   onAddDemoOrders,
   onSetWorkerStart,
+  onZVisualizationChange,
 }: SystemStatePanelProps) {
   const strategies = results?.strategies ?? [];
   const simulatedItemCount = validationContext
@@ -111,73 +114,8 @@ export function SystemStatePanel({
 
   // 2. NOT READY State
   if (!readiness?.isReady && !results) {
-    const firstUnmetCondition = readiness?.conditions.find(c => !c.isMet);
-    
-    let content = {
-      icon: AlertTriangle,
-      title: "Action Required",
-      description: "Simulation requirements not met.",
-      actionLabel: "",
-      action: () => {},
-    };
-
-    if (firstUnmetCondition) {
-      switch (firstUnmetCondition.id) {
-        case 'items-exist':
-          content = {
-            icon: PackageSearch,
-            title: "Inventory Required",
-            description: "No shelves or items found in the warehouse layout.",
-            actionLabel: "Import CSV",
-            action: onImportCsv || (() => {}),
-          };
-          break;
-        case 'active-z-items':
-          content = {
-            icon: PackageSearch,
-            title: "No Items in Level",
-            description: "The currently selected Z-level has no inventory items.",
-            actionLabel: "Import CSV",
-            action: onImportCsv || (() => {}),
-          };
-          break;
-        case 'valid-orders':
-          content = {
-            icon: ClipboardList,
-            title: "No Active Orders",
-            description: "At least one order with items is required to simulate.",
-            actionLabel: "Add Demo Orders",
-            action: onAddDemoOrders || (() => {}),
-          };
-          break;
-        case 'pickable-items':
-          content = {
-            icon: MapPinOff,
-            title: "Unplaced Items",
-            description: "Some ordered items don't have a location in the warehouse.",
-            actionLabel: "Highlight Missing Items",
-            action: () => {
-              if (validationContext && onViewUnresolvableItems) {
-                const missingIds: string[] = [];
-                validationContext.missingItemsByOrder.forEach(o => {
-                  missingIds.push(...o.missingItemIds);
-                });
-                onViewUnresolvableItems(missingIds);
-              }
-            },
-          };
-          break;
-        case 'worker-start':
-          content = {
-            icon: UserPlus,
-            title: "Worker Start Missing",
-            description: "A starting point for workers must be placed on the grid.",
-            actionLabel: "Use Worker Tool",
-            action: onSetWorkerStart || (() => {}),
-          };
-          break;
-      }
-    }
+    const nextFix = readiness?.nextFix;
+    const progress = readiness ? (readiness.completedSteps / readiness.totalSteps) * 100 : 0;
 
     return (
       <div className="w-80 border-l border-border bg-background flex flex-col">
@@ -190,25 +128,78 @@ export function SystemStatePanel({
             </Badge>
           </div>
         </div>
-        <div className="flex-1 flex items-center justify-center p-6">
-          <Empty className="border-0 p-0">
-            <EmptyMedia variant="icon">
-              <content.icon className="h-6 w-6 text-amber-600" />
-            </EmptyMedia>
-            <EmptyHeader>
-              <EmptyTitle>{content.title}</EmptyTitle>
-              <EmptyDescription>
-                {content.description}
-              </EmptyDescription>
-            </EmptyHeader>
-            {content.actionLabel && (
-              <EmptyContent>
-                <Button onClick={content.action} variant="outline" className="w-full">
-                  {content.actionLabel}
-                </Button>
-              </EmptyContent>
-            )}
-          </Empty>
+        
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* Progress Section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-medium">
+              <span className="text-muted-foreground">Readiness Progress</span>
+              <span className="text-foreground">{readiness?.completedSteps} / {readiness?.totalSteps}</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
+
+          {/* Next Fix Card */}
+          {nextFix && (
+            <div className="border border-amber-200 bg-amber-50/50 dark:bg-amber-950/10 dark:border-amber-900 rounded-lg p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 bg-amber-100 dark:bg-amber-900/40 p-1.5 rounded-md">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100">{nextFix.label}</h3>
+                  <p className="text-xs text-amber-800/80 dark:text-amber-200/60 leading-relaxed">
+                    {nextFix.description}
+                  </p>
+                </div>
+              </div>
+              
+              <Button 
+                onClick={() => {
+                  if (nextFix.id === 'import-items') onImportCsv?.();
+                  if (nextFix.id === 'switch-z-level') onZVisualizationChange?.('all');
+                  if (nextFix.id === 'add-orders') onAddDemoOrders?.();
+                  if (nextFix.id === 'place-items') {
+                    if (validationContext && onViewUnresolvableItems) {
+                      const missingIds: string[] = [];
+                      validationContext.missingItemsByOrder.forEach(o => {
+                        missingIds.push(...o.missingItemIds);
+                      });
+                      onViewUnresolvableItems(missingIds);
+                    }
+                  }
+                  if (nextFix.id === 'set-worker-start') onSetWorkerStart?.();
+                }}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm h-9 text-xs font-semibold"
+              >
+                {nextFix.actionLabel}
+              </Button>
+            </div>
+          )}
+
+          {/* Checklist */}
+          <div className="space-y-3">
+            <h4 className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">
+              Requirements Checklist
+            </h4>
+            <div className="space-y-2">
+              {readiness?.conditions.map((condition) => (
+                <div key={condition.id} className="flex items-center gap-3">
+                  {condition.isMet ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />
+                  )}
+                  <span className={cn(
+                    "text-xs font-medium",
+                    condition.isMet ? "text-foreground" : "text-muted-foreground"
+                  )}>
+                    {condition.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
