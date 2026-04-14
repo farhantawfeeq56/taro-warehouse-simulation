@@ -251,8 +251,10 @@ export function TaroApp() {
       <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-base font-bold tracking-tight">Taro</h1>
-            <p className="text-xs text-muted-foreground leading-tight">Warehouse Picking Simulator</p>
+            <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator
+
+</h1>
+            <p className="text-xs text-muted-foreground leading-tight">Demo warehouse generated for viewing purposes. Try tweaking the generated layout to see edge cases</p>
             {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
           </div>
         </div>
