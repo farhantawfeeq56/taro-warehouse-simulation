@@ -14,7 +14,7 @@ import type {
   LaborProfile,
   SimulationValidationContext,
 } from '@/lib/taro/types';
-import { generateDemoWarehouse, generateRandomOrders } from '@/lib/taro/demo-generator';
+import { generateDemoWarehouse, generateRandomOrders, createEmptyWarehouse } from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -147,6 +147,28 @@ export function TaroApp() {
     },
     [warehouse, orders, workerCount, warehouseProfile, laborProfile, startStrategyAnimation]
   );
+
+  const handleClearWarehouse = useCallback(() => {
+    if (window.confirm('Are you sure you want to clear the entire warehouse layout and all orders? This cannot be undone.')) {
+      setWarehouse(createEmptyWarehouse(30, 24));
+      setOrders([]);
+      setSimulationResults(null);
+      setIsSimulating(false);
+      setActiveStrategy(null);
+      setAnimationProgress(0);
+      setExecutionPlanStrategy(null);
+      setValidationContext(null);
+      setValidationResult(null);
+      setShowValidationModal(false);
+      setHighlightedMissingItemIds(null);
+      setSimulationBlockState(null);
+      setImportSummary('');
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+    }
+  }, []);
 
   const handleSimulateClick = useCallback(() => {
     if (!readiness.isReady) {
@@ -298,6 +320,7 @@ export function TaroApp() {
             <Toolbar
               selectedTool={selectedTool}
               onToolChange={setSelectedTool}
+              onClear={handleClearWarehouse}
               zVisualizationMode={zVisualizationMode}
               onZVisualizationChange={setZVisualizationMode}
             />
