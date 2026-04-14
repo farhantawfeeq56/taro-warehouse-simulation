@@ -173,7 +173,7 @@ export function WarehouseCanvas({
     setHoveredCell(cell);
     if (cell) {
       const cellData = warehouse.grid[cell.y][cell.x];
-      if (cellData.type === 'shelf' && cellData.locations.length > 0) {
+      if (cellData.type === 'shelf') {
         // Filter locations based on z-visualization mode
         let filteredLocations = cellData.locations;
         if (zVisualizationMode !== 'all') {
@@ -181,18 +181,14 @@ export function WarehouseCanvas({
           filteredLocations = cellData.locations.filter(loc => loc.z === selectedLevel);
         }
         
-        if (filteredLocations.length > 0) {
-          setTooltip({
-            visible: true,
-            x: e.clientX,
-            y: e.clientY - 10,
-            cellX: cell.x,
-            cellY: cell.y,
-            locations: filteredLocations,
-          });
-        } else {
-          setTooltip(prev => ({ ...prev, visible: false }));
-        }
+        setTooltip({
+          visible: true,
+          x: e.clientX,
+          y: e.clientY - 10,
+          cellX: cell.x,
+          cellY: cell.y,
+          locations: filteredLocations,
+        });
       } else {
         setTooltip(prev => ({ ...prev, visible: false }));
       }
@@ -275,6 +271,7 @@ export function WarehouseCanvas({
       quantity: 50, // Default quantity
     };
     cell.locations.push(newLocation);
+    nextWarehouse.locations = buildCoordinateLocations(nextWarehouse);
 
     onWarehouseChange(nextWarehouse);
   }, [onWarehouseChange, shelfDetails, warehouse]);
@@ -635,17 +632,21 @@ export function WarehouseCanvas({
         >
           <div className="font-semibold mb-1">Shelf ({tooltip.cellX}, {tooltip.cellY})</div>
           <div className="space-y-0.5">
-            {tooltip.locations.slice(0, 4).map((loc, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#3b82f6' }}
-                />
-                <span>Z{loc.z}</span>
-                <span className="font-mono">{loc.sku}</span>
-                <span className="text-background/70">×{loc.quantity}</span>
-              </div>
-            ))}
+            {tooltip.locations.length === 0 ? (
+              <div className="text-background/70 italic">Click to manage items</div>
+            ) : (
+              tooltip.locations.slice(0, 4).map((loc, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#3b82f6' }}
+                  />
+                  <span>Z{loc.z}</span>
+                  <span className="font-mono">{loc.sku}</span>
+                  <span className="text-background/70">×{loc.quantity}</span>
+                </div>
+              ))
+            )}
             {tooltip.locations.length > 4 && (
               <div className="text-background/70 italic">
                 +{tooltip.locations.length - 4} more...

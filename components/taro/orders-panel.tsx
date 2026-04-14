@@ -319,6 +319,7 @@ export function OrdersPanel({
             variant="outline"
             size="sm"
             onClick={addOrder}
+            disabled={availableItems.length === 0}
             className="flex-1 h-7 text-xs"
           >
             <Plus className="h-3 w-3 mr-1" />
