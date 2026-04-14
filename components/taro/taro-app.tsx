@@ -27,6 +27,8 @@ import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Play, Minus, Plus, FileText, ChevronLeft } from 'lucide-react';
 import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
+import { evaluateReadiness } from '@/lib/taro/readiness';
+import type { SimulationReadiness } from '@/lib/taro/readiness';
 
 interface SimulationBlockState {
   /** Set when simulation cannot run; drives right-panel blocked UI. */
@@ -244,9 +246,10 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
     };
   }, []);
 
-  const canSimulate = warehouse.workerStart !== null &&
-                      orders.length > 0 &&
-                      orders.some(o => o.items.length > 0);
+  // Compute readiness state
+  const readiness = useMemo(() => evaluateReadiness(warehouse, orders), [warehouse, orders]);
+
+  const canSimulate = readiness.isReady;
 
   const downloadCsvTemplate = useCallback(() => {
     const blob = new Blob([SAMPLE_WAREHOUSE_CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
@@ -522,6 +525,7 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
         {/* Right Panel - Results */}
         <ResultsPanel
           results={simulationResults}
+          readiness={readiness}
           isSimulating={isSimulating}
           activeStrategy={activeStrategy}
           onStrategySelect={handleStrategySelect}
