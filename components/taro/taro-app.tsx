@@ -25,7 +25,7 @@ import { Toolbar } from './toolbar';
 import { ValidationModal } from './validation-modal';
 import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Play, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
@@ -259,17 +259,6 @@ export function TaroApp() {
 
         <div className="flex items-center gap-2 ml-auto">
           <ReadinessIndicator readiness={readiness} />
-
-          <Button
-            size="sm"
-            onClick={handleSimulateClick}
-            disabled={isSimulating}
-            className="h-8 text-xs"
-            title="Run picking strategy simulation"
-          >
-            <Play className="h-3.5 w-3.5 mr-1.5" />
-            Simulate Strategies
-          </Button>
 
           {simulationResults && (
             <Button
