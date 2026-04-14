@@ -7,8 +7,11 @@ export interface ReadinessCondition {
   isMet: boolean;
 }
 
+export type ReadinessStatus = 'READY' | 'NOT_READY';
+
 export interface SimulationReadiness {
   isReady: boolean;
+  status: ReadinessStatus;
   conditions: ReadinessCondition[];
 }
 
@@ -20,10 +23,10 @@ export function evaluateReadiness(warehouse: Warehouse, orders: Order[]): Simula
   const validOrders = orders.length > 0 && orders.some(o => o.items.length > 0);
   const workerStartMet = warehouse.workerStart !== null;
 
-  // Use existing validation logic to see if any items can be picked
+  // Use existing validation logic to see if all items can be picked
   const validationResult = validateItems(orders, warehouse);
-  const atLeastOnePickable = validationResult.context.totalItems > validationResult.context.missingItems && 
-                             validationResult.context.totalItems > 0;
+  const allItemsPickable = validationResult.context.totalItems > 0 && 
+                           validationResult.context.missingItems === 0;
 
   const conditions: ReadinessCondition[] = [
     {
@@ -38,8 +41,8 @@ export function evaluateReadiness(warehouse: Warehouse, orders: Order[]): Simula
     },
     {
       id: 'pickable-items',
-      label: 'Items placed on layout',
-      isMet: atLeastOnePickable,
+      label: 'All items placed on layout',
+      isMet: allItemsPickable,
     },
     {
       id: 'worker-start',
@@ -49,10 +52,12 @@ export function evaluateReadiness(warehouse: Warehouse, orders: Order[]): Simula
   ];
 
   // All conditions must be met for simulation to be "Ready"
-  const isReady = itemsExist && validOrders && atLeastOnePickable && workerStartMet;
+  const isReady = itemsExist && validOrders && allItemsPickable && workerStartMet;
+  const status: ReadinessStatus = isReady ? 'READY' : 'NOT_READY';
 
   return {
     isReady,
+    status,
     conditions,
   };
 }

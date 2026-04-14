@@ -531,9 +531,14 @@ export function runSimulation(
   profiles: SimulationProfiles = {},
   validationContext?: SimulationValidationContext
 ): SimulationResults {
+  // Sanity check: simulation requires a worker start position and at least one order
+  if (!warehouse.workerStart || orders.length === 0) {
+    throw new Error('Simulation requirements not met: Worker start position and orders are required.');
+  }
+
   const warehouseProfile = resolveWarehouseProfile(profiles.warehouseProfile);
   const laborProfile = resolveLaborProfile(profiles.laborProfile);
-  const allowPartial = profiles.allowPartial === true;
+  const allowPartial = false; // Forced to false: partial simulations are no longer permitted
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
 
@@ -663,28 +668,10 @@ export function runSimulation(
     strategies: results,
     heatmap: buildRouteFrequencyHeatmap(warehouse, bestStrategyRoutes),
     bestStrategy,
-    isPartial: finalValidationContext !== undefined && finalValidationContext !== null,
+    isPartial: false,
     unresolvableItems,
     missingItemsCount: missingItemIds.size > 0 ? missingItemIds.size : fallbackMissingCount,
     invalidLocationCount: invalidLocationItemIds.size,
     validationContext: finalValidationContext,
   };
-}
-
-/**
- * Runs a partial simulation with only valid items, excluding missing items.
- * Use this when orders contain items that don't exist in the warehouse.
- */
-export function runPartialSimulation(
-  warehouse: Warehouse,
-  orders: Order[],
-  workerCount: number = 2,
-  profiles: SimulationProfiles = {},
-  validationContext?: SimulationValidationContext,
-  options?: { allowPartial?: boolean }
-): SimulationResults {
-  void validationContext;
-  void options?.allowPartial;
-
-  return runSimulation(warehouse, orders, workerCount, { ...profiles, allowPartial: true });
 }

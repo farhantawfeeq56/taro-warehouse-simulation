@@ -136,7 +136,7 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
   }, []);
 
   const runSimulationFlow = useCallback(
-    (options?: { allowPartial?: boolean }) => {
+    () => {
       if (!warehouse.workerStart || orders.length === 0) {
         return;
       }
@@ -148,40 +148,33 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
       setAnimationProgress(0);
       setExecutionPlanStrategy(null);
       setHighlightedMissingItemIds(null);
-
-      if (!options?.allowPartial) {
-        setValidationContext(null);
-        setValidationResult(null);
-        setShowValidationModal(false);
-      }
+      setValidationContext(null);
+      setValidationResult(null);
+      setShowValidationModal(false);
 
       requestAnimationFrame(() => {
-        const results = runSimulation(warehouse, orders, workerCount, {
-          warehouseProfile,
-          laborProfile,
-          ...(options?.allowPartial ? { allowPartial: true } : {}),
-        });
+        try {
+          const results = runSimulation(warehouse, orders, workerCount, {
+            warehouseProfile,
+            laborProfile,
+          });
 
-        setSimulationResults(results);
-        setIsSimulating(false);
-        setValidationContext(results.validationContext ?? null);
-        setValidationResult(null);
-        startStrategyAnimation(results.bestStrategy);
+          setSimulationResults(results);
+          setIsSimulating(false);
+          setValidationContext(results.validationContext ?? null);
+          setValidationResult(null);
+          startStrategyAnimation(results.bestStrategy);
+        } catch (error) {
+          console.error('Simulation failed:', error);
+          setIsSimulating(false);
+        }
       });
     },
     [warehouse, orders, workerCount, warehouseProfile, laborProfile, startStrategyAnimation]
   );
 
   const handleSimulateClick = useCallback(() => {
-    if (!warehouse.workerStart || orders.length === 0) {
-      return;
-    }
-
-    const result = validateItems(orders, warehouse);
-    // validItemsCount = totalItems - unresolvable line count (same as totalItems - missingItems in context)
-    const validItemsCount = result.context.totalItems - result.context.missingItems;
-
-    if (validItemsCount === 0) {
+    if (!readiness.isReady) {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
@@ -191,28 +184,21 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
       setAnimationProgress(0);
       setExecutionPlanStrategy(null);
       setIsSimulating(false);
-      setShowValidationModal(false);
+
+      const result = validateItems(orders, warehouse);
       setValidationResult(result);
       setValidationContext(result.context);
-      setSimulationBlockState({
-        simulationState: 'NO_VALID_ITEMS',
-        title: 'No valid items to simulate',
-        description: 'None of the items in your orders exist in the current layout.',
-      });
+
+      // If we're not ready because of items, show the modal to explain why
+      if (result.hasUnresolvableItems) {
+        setShowValidationModal(true);
+      }
       return;
     }
 
     setSimulationBlockState(null);
-
-    if (result.hasUnresolvableItems) {
-      setValidationResult(result);
-      setValidationContext(result.context);
-      setShowValidationModal(true);
-      return;
-    }
-
     runSimulationFlow();
-  }, [warehouse, orders, runSimulationFlow]);
+  }, [readiness, warehouse, orders, runSimulationFlow]);
 
   const handleFixItems = useCallback(() => {
     setShowValidationModal(false);
@@ -220,18 +206,8 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
     if (validationContext) {
       const missingItemIds = getMissingItemIds(validationContext);
       setHighlightedMissingItemIds(missingItemIds);
-      setSimulationBlockState({
-        title: 'Missing items need layout placement',
-        description: 'Add these items to the layout to continue',
-      });
     }
   }, [validationContext]);
-
-  const handleSimulateAnyway = useCallback(() => {
-    setShowValidationModal(false);
-    setValidationResult(null);
-    runSimulationFlow({ allowPartial: true });
-  }, [runSimulationFlow]);
 
   const handleStrategySelect = useCallback((strategy: StrategyType) => {
     startStrategyAnimation(strategy);
@@ -433,7 +409,7 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
           <Button
             size="sm"
             onClick={handleSimulateClick}
-            disabled={!canSimulate || isSimulating}
+            disabled={isSimulating}
             className="h-8 text-xs"
             title="Run picking strategy simulation"
           >
@@ -545,7 +521,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
           validationContext={validationContext}
           onClose={() => setShowValidationModal(false)}
           onFixItems={handleFixItems}
-          onSimulateAnyway={handleSimulateAnyway}
         />
       )}
     </div>
