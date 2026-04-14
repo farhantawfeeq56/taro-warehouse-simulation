@@ -2,6 +2,7 @@ import { Warehouse, Order, ZVisualizationMode } from './types';
 import { validateItems } from './order-validation';
 
 export type GuidedFixId = 
+  | 'add-shelves'
   | 'import-items' 
   | 'switch-z-level' 
   | 'add-orders' 
@@ -33,11 +34,17 @@ export interface SimulationReadiness {
 }
 
 const FIX_TEMPLATES: Record<string, GuidedFix> = {
+  'add-shelves': {
+    id: 'add-shelves',
+    label: 'Add Shelves',
+    description: 'Your warehouse layout is empty. Start by adding shelves to the grid to define storage areas.',
+    actionLabel: 'Add Shelves',
+  },
   'items-exist': {
     id: 'import-items',
     label: 'Add Inventory',
-    description: 'The warehouse has no items. Click on a shelf to add items manually or import a CSV.',
-    actionLabel: 'Import CSV',
+    description: 'The warehouse has no items. Click on a shelf to add items manually.',
+    actionLabel: 'Add Items',
   },
   'active-z-items': {
     id: 'switch-z-level',
@@ -129,7 +136,12 @@ export function evaluateReadiness(
   
   // Find the first unmet condition for the guided fix
   const firstUnmet = conditions.find(c => !c.isMet);
-  const nextFix = firstUnmet ? FIX_TEMPLATES[firstUnmet.id] : undefined;
+  let nextFix = firstUnmet ? FIX_TEMPLATES[firstUnmet.id] : undefined;
+  
+  // Special case: if no items exist AND no shelves exist, show "Add Shelves" fix
+  if (firstUnmet?.id === 'items-exist' && warehouse.shelves.length === 0) {
+    nextFix = FIX_TEMPLATES['add-shelves'];
+  }
   
   const completedSteps = conditions.filter(c => c.isMet).length;
   const totalSteps = conditions.length;

@@ -380,7 +380,7 @@ export function TaroApp() {
           blockState={simulationBlockState}
           onViewUnresolvableItems={(itemIds) => setHighlightedMissingItemIds(new Set(itemIds))}
           onSimulate={handleSimulateClick}
-          onImportCsv={handleImport}
+          onAddShelves={() => setSelectedTool('shelf')}
           onAddDemoOrders={handleAddDemoOrders}
           onSetWorkerStart={() => setSelectedTool('worker')}
           onZVisualizationChange={setZVisualizationMode}

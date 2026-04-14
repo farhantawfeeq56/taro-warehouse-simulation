@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { 
-  AlertTriangle, 
   Activity, 
   CheckCircle2, 
   Circle, 
@@ -47,7 +46,7 @@ interface SystemStatePanelProps {
   blockState?: ResultsBlockState | null;
   onViewUnresolvableItems?: (itemIds: string[]) => void;
   onSimulate?: () => void;
-  onImportCsv?: () => void;
+  onAddShelves?: () => void;
   onAddDemoOrders?: () => void;
   onSetWorkerStart?: () => void;
   onZVisualizationChange?: (mode: ZVisualizationMode) => void;
@@ -66,7 +65,7 @@ export function SystemStatePanel({
   blockState,
   onViewUnresolvableItems,
   onSimulate,
-  onImportCsv,
+  onAddShelves,
   onAddDemoOrders,
   onSetWorkerStart,
   onZVisualizationChange,
@@ -123,12 +122,12 @@ export function SystemStatePanel({
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold text-foreground">System State</h2>
-            <Badge variant="outline" className="ml-auto text-[10px] uppercase font-bold text-amber-600 border-amber-200 bg-amber-50">
+            <Badge variant="secondary" className="ml-auto text-[10px] uppercase font-bold">
               Not Ready
             </Badge>
           </div>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {/* Progress Section */}
           <div className="space-y-2">
@@ -141,22 +140,20 @@ export function SystemStatePanel({
 
           {/* Next Fix Card */}
           {nextFix && (
-            <div className="border border-amber-200 bg-amber-50/50 dark:bg-amber-950/10 dark:border-amber-900 rounded-lg p-4 space-y-3">
+            <div className="border border-border bg-muted/30 rounded-lg p-4 space-y-3">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 bg-amber-100 dark:bg-amber-900/40 p-1.5 rounded-md">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                </div>
                 <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100">{nextFix.label}</h3>
-                  <p className="text-xs text-amber-800/80 dark:text-amber-200/60 leading-relaxed">
+                  <h3 className="text-sm font-bold text-foreground">{nextFix.label}</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     {nextFix.description}
                   </p>
                 </div>
               </div>
-              
-              <Button 
+
+              <Button
                 onClick={() => {
-                  if (nextFix.id === 'import-items') onImportCsv?.();
+                  if (nextFix.id === 'add-shelves') onAddShelves?.();
+                  if (nextFix.id === 'import-items') onAddShelves?.();
                   if (nextFix.id === 'switch-z-level') onZVisualizationChange?.('all');
                   if (nextFix.id === 'add-orders') onAddDemoOrders?.();
                   if (nextFix.id === 'place-items') {
@@ -170,7 +167,7 @@ export function SystemStatePanel({
                   }
                   if (nextFix.id === 'set-worker-start') onSetWorkerStart?.();
                 }}
-                className="w-full bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm h-9 text-xs font-semibold"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-none shadow-sm h-9 text-xs font-semibold"
               >
                 {nextFix.actionLabel}
               </Button>
