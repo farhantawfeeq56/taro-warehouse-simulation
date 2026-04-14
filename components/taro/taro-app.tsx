@@ -25,7 +25,7 @@ import { Toolbar } from './toolbar';
 import { ValidationModal } from './validation-modal';
 import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
-import { FileText } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
@@ -287,15 +287,12 @@ export function TaroApp() {
           {simulationResults && (
             <Button
               size="sm"
-              onClick={() => {
-                setExecutionPlanStrategy(simulationResults.bestStrategy);
-                startStrategyAnimation(simulationResults.bestStrategy);
-              }}
-              className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-0"
-              title="Generate execution plan output for the best strategy"
+              variant="outline"
+              onClick={handleSimulateClick}
+              className="h-8 text-xs"
             >
-              <FileText className="h-3.5 w-3.5 mr-1.5" />
-              Generate Execution Plan
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              Simulate again
             </Button>
           )}
         </div>
