@@ -35,8 +35,8 @@ export interface SimulationReadiness {
 const FIX_TEMPLATES: Record<string, GuidedFix> = {
   'items-exist': {
     id: 'import-items',
-    label: 'Import Inventory',
-    description: 'The warehouse has no items. Import a CSV to populate inventory.',
+    label: 'Add Inventory',
+    description: 'The warehouse has no items. Click on a shelf to add items manually or import a CSV.',
     actionLabel: 'Import CSV',
   },
   'active-z-items': {
