@@ -526,6 +526,7 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
           onImportCsv={handleImport}
           onAddDemoOrders={handleAddDemoOrders}
           onSetWorkerStart={() => setSelectedTool('worker')}
+          onZVisualizationChange={setZVisualizationMode}
         />
       </div>
 

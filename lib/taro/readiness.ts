@@ -1,6 +1,20 @@
 import { Warehouse, Order, ZVisualizationMode } from './types';
 import { validateItems } from './order-validation';
 
+export type GuidedFixId = 
+  | 'import-items' 
+  | 'switch-z-level' 
+  | 'add-orders' 
+  | 'place-items' 
+  | 'set-worker-start';
+
+export interface GuidedFix {
+  id: GuidedFixId;
+  label: string;
+  description: string;
+  actionLabel: string;
+}
+
 export interface ReadinessCondition {
   id: string;
   label: string;
@@ -13,7 +27,43 @@ export interface SimulationReadiness {
   isReady: boolean;
   status: ReadinessStatus;
   conditions: ReadinessCondition[];
+  nextFix?: GuidedFix;
+  completedSteps: number;
+  totalSteps: number;
 }
+
+const FIX_TEMPLATES: Record<string, GuidedFix> = {
+  'items-exist': {
+    id: 'import-items',
+    label: 'Import Inventory',
+    description: 'The warehouse has no items. Import a CSV to populate inventory.',
+    actionLabel: 'Import CSV',
+  },
+  'active-z-items': {
+    id: 'switch-z-level',
+    label: 'Switch View Level',
+    description: 'The current floor level is empty. Switch to a level with items.',
+    actionLabel: 'View All Levels',
+  },
+  'valid-orders': {
+    id: 'add-orders',
+    label: 'Add Simulation Orders',
+    description: 'No orders exist to simulate. Add demo orders to get started.',
+    actionLabel: 'Add Demo Orders',
+  },
+  'pickable-items': {
+    id: 'place-items',
+    label: 'Resolve Missing Items',
+    description: 'Some items in your orders are not placed in the warehouse.',
+    actionLabel: 'Check Placement',
+  },
+  'worker-start': {
+    id: 'set-worker-start',
+    label: 'Set Worker Start',
+    description: 'Workers need a starting point to begin picking.',
+    actionLabel: 'Set Start Position',
+  },
+};
 
 /**
  * Evaluates whether the simulation is ready to run based on current warehouse state and orders.
@@ -49,39 +99,47 @@ export function evaluateReadiness(
   const conditions: ReadinessCondition[] = [
     {
       id: 'items-exist',
-      label: 'Items Exist',
+      label: 'Inventory Imported',
       isMet: itemsExist,
     },
     {
       id: 'active-z-items',
-      label: 'Items in Active Z-Level',
+      label: 'Items in Active Level',
       isMet: hasItemsInActiveZ,
     },
     {
-      id: 'pickable-items',
-      label: 'Orders Valid',
-      isMet: allItemsPickable,
-    },
-    {
       id: 'valid-orders',
-      label: 'Active orders created',
+      label: 'Orders Active',
       isMet: validOrders,
     },
     {
+      id: 'pickable-items',
+      label: 'Items Placed',
+      isMet: allItemsPickable,
+    },
+    {
       id: 'worker-start',
-      label: 'Worker start position set',
+      label: 'Worker Start Position',
       isMet: workerStartMet,
     }
   ];
 
-  // All conditions must be met for simulation to be "Ready"
-  // Note: We include the new Z-level check in the readiness calculation
-  const isReady = itemsExist && hasItemsInActiveZ && allItemsPickable && workerStartMet && validOrders;
+  const isReady = conditions.every(c => c.isMet);
   const status: ReadinessStatus = isReady ? 'READY' : 'NOT_READY';
+  
+  // Find the first unmet condition for the guided fix
+  const firstUnmet = conditions.find(c => !c.isMet);
+  const nextFix = firstUnmet ? FIX_TEMPLATES[firstUnmet.id] : undefined;
+  
+  const completedSteps = conditions.filter(c => c.isMet).length;
+  const totalSteps = conditions.length;
 
   return {
     isReady,
     status,
     conditions,
+    nextFix,
+    completedSteps,
+    totalSteps
   };
 }
