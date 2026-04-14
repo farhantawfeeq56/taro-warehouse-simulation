@@ -20,7 +20,7 @@ import { parseWarehouseCsv, SAMPLE_WAREHOUSE_CSV_TEMPLATE } from '@/lib/taro/war
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
 import { OrdersPanel } from './orders-panel';
-import { ResultsPanel } from './results-panel';
+import { SystemStatePanel } from './results-panel';
 import { Toolbar } from './toolbar';
 import { EntryOverlay } from './entry-overlay';
 import { ValidationModal } from './validation-modal';
@@ -269,6 +269,11 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
     }
   }, []);
 
+  const handleAddDemoOrders = useCallback(() => {
+    const demoOrders = generateRandomOrders(warehouse, 4);
+    setOrders(demoOrders);
+  }, [warehouse]);
+
   const handleBuildManually = useCallback(() => {
     setShowEntryOverlay(false);
     setImportSummary('');
@@ -498,8 +503,8 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
 
-        {/* Right Panel - Results */}
-        <ResultsPanel
+        {/* Right Panel - System State */}
+        <SystemStatePanel
           results={simulationResults}
           readiness={readiness}
           isSimulating={isSimulating}
@@ -511,6 +516,10 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
           validationContext={validationContext}
           blockState={simulationBlockState}
           onViewUnresolvableItems={(itemIds) => setHighlightedMissingItemIds(new Set(itemIds))}
+          onSimulate={handleSimulateClick}
+          onImportCsv={handleImport}
+          onAddDemoOrders={handleAddDemoOrders}
+          onSetWorkerStart={() => setSelectedTool('worker')}
         />
       </div>
 

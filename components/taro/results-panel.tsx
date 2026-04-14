@@ -4,7 +4,28 @@ import type { SimulationResults, StrategyResult, StrategyType, SimulationValidat
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Activity, CheckCircle2, Circle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { 
+  AlertTriangle, 
+  Activity, 
+  CheckCircle2, 
+  Circle, 
+  PackageSearch, 
+  ClipboardList, 
+  MapPinOff, 
+  UserPlus, 
+  PlayCircle, 
+  BarChart3, 
+  Loader2 
+} from 'lucide-react';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyContent,
+  EmptyMedia,
+} from '@/components/ui/empty';
 
 interface ResultsBlockState {
   simulationState?: 'NO_VALID_ITEMS';
@@ -12,7 +33,7 @@ interface ResultsBlockState {
   description: string;
 }
 
-interface ResultsPanelProps {
+interface SystemStatePanelProps {
   results: SimulationResults | null;
   readiness?: SimulationReadiness;
   isSimulating: boolean;
@@ -24,9 +45,13 @@ interface ResultsPanelProps {
   validationContext?: SimulationValidationContext | null;
   blockState?: ResultsBlockState | null;
   onViewUnresolvableItems?: (itemIds: string[]) => void;
+  onSimulate?: () => void;
+  onImportCsv?: () => void;
+  onAddDemoOrders?: () => void;
+  onSetWorkerStart?: () => void;
 }
 
-export function ResultsPanel({
+export function SystemStatePanel({
   results,
   readiness,
   isSimulating,
@@ -38,7 +63,11 @@ export function ResultsPanel({
   validationContext,
   blockState,
   onViewUnresolvableItems,
-}: ResultsPanelProps) {
+  onSimulate,
+  onImportCsv,
+  onAddDemoOrders,
+  onSetWorkerStart,
+}: SystemStatePanelProps) {
   const strategies = results?.strategies ?? [];
   const simulatedItemCount = validationContext
     ? validationContext.totalItems - validationContext.missingItems
@@ -53,102 +82,165 @@ export function ResultsPanel({
     return a.costPerOrder - b.costPerOrder;
   });
 
-  if (!isSimulating && !results) {
-    if (blockState) {
-      return (
-        <div className="w-80 border-l border-border bg-background flex flex-col">
-          <div className="p-3 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Simulation Results</h2>
-          </div>
-          <div className="flex-1 flex items-center justify-center p-6">
-            <div className="text-center text-muted-foreground text-sm">
-              <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-40 text-amber-600" />
-              <p className="font-semibold text-foreground">{blockState.title}</p>
-              <p className="text-xs mt-2">{blockState.description}</p>
-              {!readiness?.isReady && (
-                <div className="mt-6 space-y-2 text-left border-t border-border pt-4">
-                  <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Readiness Checklist</p>
-                  {readiness?.conditions.map((condition) => (
-                    <div key={condition.id} className="flex items-center gap-2">
-                      {condition.isMet ? (
-                        <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                      ) : (
-                        <Circle className="h-3 w-3 text-muted-foreground/30" />
-                      )}
-                      <span className={cn(
-                        "text-[11px]",
-                        condition.isMet ? "text-foreground" : "text-muted-foreground"
-                      )}>
-                        {condition.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+  // 1. Loading State
+  if (isSimulating) {
+    return (
+      <div className="w-80 border-l border-border bg-background flex flex-col">
+        <div className="p-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary animate-pulse" />
+            <h2 className="text-sm font-semibold text-foreground">System State</h2>
           </div>
         </div>
-      );
+        <div className="flex-1 flex items-center justify-center p-6">
+          <Empty className="border-0 p-0">
+            <EmptyMedia variant="icon">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </EmptyMedia>
+            <EmptyHeader>
+              <EmptyTitle>Simulating...</EmptyTitle>
+              <EmptyDescription>
+                Calculating optimal routes across all picking strategies.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. NOT READY State
+  if (!readiness?.isReady && !results) {
+    const firstUnmetCondition = readiness?.conditions.find(c => !c.isMet);
+    
+    let content = {
+      icon: AlertTriangle,
+      title: "Action Required",
+      description: "Simulation requirements not met.",
+      actionLabel: "",
+      action: () => {},
+    };
+
+    if (firstUnmetCondition) {
+      switch (firstUnmetCondition.id) {
+        case 'items-exist':
+          content = {
+            icon: PackageSearch,
+            title: "Inventory Required",
+            description: "No shelves or items found in the warehouse layout.",
+            actionLabel: "Import CSV",
+            action: onImportCsv || (() => {}),
+          };
+          break;
+        case 'valid-orders':
+          content = {
+            icon: ClipboardList,
+            title: "No Active Orders",
+            description: "At least one order with items is required to simulate.",
+            actionLabel: "Add Demo Orders",
+            action: onAddDemoOrders || (() => {}),
+          };
+          break;
+        case 'pickable-items':
+          content = {
+            icon: MapPinOff,
+            title: "Unplaced Items",
+            description: "Some ordered items don't have a location in the warehouse.",
+            actionLabel: "Highlight Missing Items",
+            action: () => {
+              if (validationContext && onViewUnresolvableItems) {
+                const missingIds: string[] = [];
+                validationContext.missingItemsByOrder.forEach(o => {
+                  missingIds.push(...o.missingItemIds);
+                });
+                onViewUnresolvableItems(missingIds);
+              }
+            },
+          };
+          break;
+        case 'worker-start':
+          content = {
+            icon: UserPlus,
+            title: "Worker Start Missing",
+            description: "A starting point for workers must be placed on the grid.",
+            actionLabel: "Use Worker Tool",
+            action: onSetWorkerStart || (() => {}),
+          };
+          break;
+      }
     }
 
     return (
       <div className="w-80 border-l border-border bg-background flex flex-col">
         <div className="p-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">Simulation Results</h2>
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-foreground">System State</h2>
+            <Badge variant="outline" className="ml-auto text-[10px] uppercase font-bold text-amber-600 border-amber-200 bg-amber-50">
+              Not Ready
+            </Badge>
+          </div>
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
-          <div className="text-center text-muted-foreground text-sm w-full">
-            <Activity className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="font-medium text-foreground mb-4">Simulation Readiness</p>
-            <div className="space-y-3 max-w-[220px] mx-auto border border-border/50 rounded-lg p-4 bg-muted/20">
-              {readiness?.conditions.map((condition) => (
-                <div key={condition.id} className="flex items-center gap-3 text-left">
-                  {condition.isMet ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                  ) : (
-                    <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />
-                  )}
-                  <span className={cn(
-                    "text-xs",
-                    condition.isMet ? "text-foreground font-medium" : "text-muted-foreground"
-                  )}>
-                    {condition.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {!readiness?.isReady ? (
-              <p className="text-[11px] mt-6 text-muted-foreground/80 leading-relaxed italic px-4">
-                All requirements must be met before simulation can be performed.
-              </p>
-            ) : (
-              <p className="text-[11px] mt-6 text-emerald-600 font-medium px-4">
-                Ready to simulate! Click the Simulate button to start.
-              </p>
+          <Empty className="border-0 p-0">
+            <EmptyMedia variant="icon">
+              <content.icon className="h-6 w-6 text-amber-600" />
+            </EmptyMedia>
+            <EmptyHeader>
+              <EmptyTitle>{content.title}</EmptyTitle>
+              <EmptyDescription>
+                {content.description}
+              </EmptyDescription>
+            </EmptyHeader>
+            {content.actionLabel && (
+              <EmptyContent>
+                <Button onClick={content.action} variant="outline" className="w-full">
+                  {content.actionLabel}
+                </Button>
+              </EmptyContent>
             )}
-          </div>
+          </Empty>
         </div>
       </div>
     );
   }
 
-  if (isSimulating) {
+  // 3. READY State (Ready but no results)
+  if (readiness?.isReady && !results) {
     return (
       <div className="w-80 border-l border-border bg-background flex flex-col">
         <div className="p-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">Simulation Results</h2>
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">System State</h2>
+            <Badge variant="outline" className="ml-auto text-[10px] uppercase font-bold text-emerald-600 border-emerald-200 bg-emerald-50">
+              Ready
+            </Badge>
+          </div>
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
-          <div className="text-center text-muted-foreground text-sm">
-            <div className="animate-spin h-8 w-8 border-2 border-muted-foreground border-t-transparent rounded-full mx-auto mb-3" />
-            <p>Running all strategies…</p>
-            <p className="text-xs mt-1">Preparing route animation and results.</p>
-          </div>
+          <Empty className="border-0 p-0">
+            <EmptyMedia variant="icon">
+              <PlayCircle className="h-6 w-6 text-emerald-600" />
+            </EmptyMedia>
+            <EmptyHeader>
+              <EmptyTitle>Ready to Simulate</EmptyTitle>
+              <EmptyDescription>
+                All requirements met. Ready to calculate optimal picking routes.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={onSimulate} className="w-full bg-emerald-600 hover:bg-emerald-700">
+                Run Simulation
+              </Button>
+            </EmptyContent>
+          </Empty>
         </div>
       </div>
     );
   }
 
+  // 4. RESULT STATE
   if (!results) return null;
 
   const activeResult = activeStrategy
@@ -160,9 +252,12 @@ export function ResultsPanel({
     <div className="w-80 border-l border-border bg-background flex flex-col">
       <div className="p-3 border-b border-border">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Simulation Results</h2>
-          <Badge variant="outline" className="text-xs">
-            {results.strategies.length} strategies
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">System State</h2>
+          </div>
+          <Badge variant="outline" className="text-[10px] uppercase font-bold text-blue-600 border-blue-200 bg-blue-50">
+            Results
           </Badge>
         </div>
       </div>
@@ -231,9 +326,6 @@ export function ResultsPanel({
             <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-2">
               {activeResult.workerRoutes.map((worker) => {
                 const totalPicks = worker.assignedPickCount;
-                // Distribute picks proportionally across the route animation
-                // This is simpler and more reliable than trying to match pick positions in the route
-                // (which fails because pick positions are on shelves but routes use nearest walkable cells)
                 const completedPicks = Math.min(
                   totalPicks,
                   Math.floor(totalPicks * animationProgress)
