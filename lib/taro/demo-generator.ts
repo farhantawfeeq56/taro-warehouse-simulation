@@ -133,6 +133,33 @@ export function generateDemoWarehouse(): Warehouse {
   return warehouse;
 }
 
+export function generateSkeletonWarehouse(): Warehouse {
+  const width = 30;
+  const height = 24;
+  const warehouse = createEmptyWarehouse(width, height);
+
+  // Create shelf rows with aisles between them
+  const shelfRows = [2, 3, 6, 7, 10, 11, 14, 15, 18, 19];
+  const shelfCols: [number, number][] = [
+    [3, 10],
+    [13, 20],
+    [23, 27],
+  ];
+
+  for (const row of shelfRows) {
+    for (const [startCol, endCol] of shelfCols) {
+      for (let col = startCol; col <= endCol; col++) {
+        warehouse.grid[row][col].type = 'shelf';
+        warehouse.shelves.push({ x: col, y: row });
+      }
+    }
+  }
+
+  warehouse.locations = buildCoordinateLocations(warehouse);
+
+  return warehouse;
+}
+
 export function generateRandomOrders(warehouse: Warehouse, count: number): Order[] {
   const orders: Order[] = [];
   const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
