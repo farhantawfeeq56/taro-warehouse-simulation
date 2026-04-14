@@ -1,9 +1,10 @@
 'use client';
 
 import type { SimulationResults, StrategyResult, StrategyType, SimulationValidationContext } from '@/lib/taro/types';
+import type { SimulationReadiness } from '@/lib/taro/readiness';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Activity } from 'lucide-react';
+import { AlertTriangle, Activity, CheckCircle2, Circle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -15,6 +16,7 @@ interface ResultsBlockState {
 
 interface ResultsPanelProps {
   results: SimulationResults | null;
+  readiness?: SimulationReadiness;
   isSimulating: boolean;
   activeStrategy: StrategyType | null;
   onStrategySelect: (strategy: StrategyType) => void;
@@ -28,6 +30,7 @@ interface ResultsPanelProps {
 
 export function ResultsPanel({
   results,
+  readiness,
   isSimulating,
   activeStrategy,
   onStrategySelect,
@@ -83,15 +86,31 @@ export function ResultsPanel({
           <h2 className="text-sm font-semibold text-foreground">Simulation Results</h2>
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
-          <div className="text-center text-muted-foreground text-sm">
+          <div className="text-center text-muted-foreground text-sm w-full">
             <Activity className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="font-medium">To run a simulation:</p>
-            <ol className="text-xs mt-3 space-y-1 text-left inline-block">
-              <li>1. Place shelves and items</li>
-              <li>2. Add orders</li>
-              <li>3. Place worker start</li>
-              <li>4. Click &apos;Simulate Strategies&apos;</li>
-            </ol>
+            <p className="font-medium text-foreground mb-4">Simulation Readiness</p>
+            <div className="space-y-3 max-w-[200px] mx-auto">
+              {readiness?.conditions.map((condition) => (
+                <div key={condition.id} className="flex items-center gap-3 text-left">
+                  {condition.isMet ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />
+                  )}
+                  <span className={cn(
+                    "text-xs",
+                    condition.isMet ? "text-foreground font-medium" : "text-muted-foreground"
+                  )}>
+                    {condition.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {!readiness?.isReady && (
+              <p className="text-[11px] mt-6 text-muted-foreground/80 leading-relaxed italic">
+                Complete all steps to enable simulation
+              </p>
+            )}
           </div>
         </div>
       </div>
