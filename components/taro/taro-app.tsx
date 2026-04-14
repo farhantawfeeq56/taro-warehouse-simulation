@@ -62,9 +62,22 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
   const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
 
-  useEffect(() => {
-    replaySpeedRef.current = replaySpeed;
-  }, [replaySpeed]);
+  // 1. Derived Data
+  const readiness = useMemo(() => evaluateReadiness(warehouse, orders), [warehouse, orders]);
+  const canSimulate = readiness.isReady;
+  const hasContent = warehouse.shelves.length > 0 ||
+                     warehouse.workerStart !== null ||
+                     orders.length > 0;
+
+  const activeRoute = useMemo((): StrategyResult | null => {
+    if (!simulationResults || !activeStrategy) return null;
+    return simulationResults.strategies.find(s => s.strategy === activeStrategy) || null;
+  }, [simulationResults, activeStrategy]);
+
+  const executionPlan = useMemo((): StrategyResult | null => {
+    if (!executionPlanStrategy || !simulationResults) return null;
+    return simulationResults.strategies.find(s => s.strategy === executionPlanStrategy) ?? null;
+  }, [executionPlanStrategy, simulationResults]);
 
   const startStrategyAnimation = useCallback((strategy: StrategyType) => {
     if (animationRef.current) {
@@ -94,11 +107,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
 
     animationRef.current = requestAnimationFrame(animate);
   }, []);
-
-  const getActiveRoute = useCallback((): StrategyResult | null => {
-    if (!simulationResults || !activeStrategy) return null;
-    return simulationResults.strategies.find(s => s.strategy === activeStrategy) || null;
-  }, [simulationResults, activeStrategy]);
 
   const resetWarehouse = useCallback(() => {
     setWarehouse(createEmptyWarehouse(30, 24));
@@ -213,20 +221,6 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
     startStrategyAnimation(strategy);
   }, [startStrategyAnimation]);
 
-  // Cleanup animation on unmount
-  useEffect(() => {
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, []);
-
-  // Compute readiness state
-  const readiness = useMemo(() => evaluateReadiness(warehouse, orders), [warehouse, orders]);
-
-  const canSimulate = readiness.isReady;
-
   const downloadCsvTemplate = useCallback(() => {
     const blob = new Blob([SAMPLE_WAREHOUSE_CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -285,9 +279,18 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
     setSimulationBlockState(null);
   }, []);
 
-  const hasContent = warehouse.shelves.length > 0 ||
-                     warehouse.workerStart !== null ||
-                     orders.length > 0;
+  // 4. Side Effects
+  useEffect(() => {
+    replaySpeedRef.current = replaySpeed;
+  }, [replaySpeed]);
+
+  useEffect(() => {
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="h-full flex flex-col bg-background font-sans relative">
@@ -468,7 +471,7 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
             warehouse={warehouse}
             onWarehouseChange={setWarehouse}
             selectedTool={selectedTool}
-            activeRoute={getActiveRoute()}
+            activeRoute={activeRoute}
             animationProgress={animationProgress}
             zVisualizationMode={zVisualizationMode}
           />
@@ -512,7 +515,7 @@ export function TaroApp({ onBack }: { onBack?: () => void }) {
           onStrategySelect={handleStrategySelect}
           animationProgress={animationProgress}
           workerCount={workerCount}
-          executionPlan={executionPlanStrategy ? simulationResults?.strategies.find(s => s.strategy === executionPlanStrategy) ?? null : null}
+          executionPlan={executionPlan}
           validationContext={validationContext}
           blockState={simulationBlockState}
           onViewUnresolvableItems={(itemIds) => setHighlightedMissingItemIds(new Set(itemIds))}
