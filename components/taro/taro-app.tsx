@@ -254,7 +254,7 @@ export function TaroApp() {
             <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator
 
 </h1>
-            <p className="text-xs text-muted-foreground leading-tight">Demo warehouse generated for viewing purposes. Try tweaking the generated layout to see edge cases</p>
+            <p className="text-xs text-muted-foreground leading-tight">Demo warehouse generated for viewing purposes. Refresh for fresh demo.</p>
             {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
           </div>
         </div>
