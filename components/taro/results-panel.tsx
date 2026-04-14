@@ -5,8 +5,6 @@ import type { SimulationReadiness } from '@/lib/taro/readiness';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Activity, CheckCircle2, Circle } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ResultsBlockState {
   simulationState?: 'NO_VALID_ITEMS';
@@ -42,12 +40,9 @@ export function ResultsPanel({
   onViewUnresolvableItems,
 }: ResultsPanelProps) {
   const strategies = results?.strategies ?? [];
-  const isPartialSimulation = Boolean(results?.isPartial);
   const simulatedItemCount = validationContext
     ? validationContext.totalItems - validationContext.missingItems
     : null;
-
-  const unresolvableItems = results?.unresolvableItems ?? [];
 
   const sortedStrategies = [...strategies].sort((a, b) => {
     if (a.strategy === 'single') return 1;
@@ -58,28 +53,44 @@ export function ResultsPanel({
     return a.costPerOrder - b.costPerOrder;
   });
 
-  if (
-    blockState &&
-    !isSimulating &&
-    (blockState.simulationState === 'NO_VALID_ITEMS' || !results)
-  ) {
-    return (
-      <div className="w-80 border-l border-border bg-background flex flex-col">
-        <div className="p-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">Simulation Results</h2>
-        </div>
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="text-center text-muted-foreground text-sm">
-            <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-40 text-amber-600" />
-            <p className="font-semibold text-foreground">{blockState.title}</p>
-            <p className="text-xs mt-2">{blockState.description}</p>
+  if (!isSimulating && !results) {
+    if (blockState) {
+      return (
+        <div className="w-80 border-l border-border bg-background flex flex-col">
+          <div className="p-3 border-b border-border">
+            <h2 className="text-sm font-semibold text-foreground">Simulation Results</h2>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-6">
+            <div className="text-center text-muted-foreground text-sm">
+              <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-40 text-amber-600" />
+              <p className="font-semibold text-foreground">{blockState.title}</p>
+              <p className="text-xs mt-2">{blockState.description}</p>
+              {!readiness?.isReady && (
+                <div className="mt-6 space-y-2 text-left border-t border-border pt-4">
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Readiness Checklist</p>
+                  {readiness?.conditions.map((condition) => (
+                    <div key={condition.id} className="flex items-center gap-2">
+                      {condition.isMet ? (
+                        <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                      ) : (
+                        <Circle className="h-3 w-3 text-muted-foreground/30" />
+                      )}
+                      <span className={cn(
+                        "text-[11px]",
+                        condition.isMet ? "text-foreground" : "text-muted-foreground"
+                      )}>
+                        {condition.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (!results && !isSimulating) {
     return (
       <div className="w-80 border-l border-border bg-background flex flex-col">
         <div className="p-3 border-b border-border">
@@ -89,7 +100,7 @@ export function ResultsPanel({
           <div className="text-center text-muted-foreground text-sm w-full">
             <Activity className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium text-foreground mb-4">Simulation Readiness</p>
-            <div className="space-y-3 max-w-[200px] mx-auto">
+            <div className="space-y-3 max-w-[220px] mx-auto border border-border/50 rounded-lg p-4 bg-muted/20">
               {readiness?.conditions.map((condition) => (
                 <div key={condition.id} className="flex items-center gap-3 text-left">
                   {condition.isMet ? (
@@ -106,9 +117,13 @@ export function ResultsPanel({
                 </div>
               ))}
             </div>
-            {!readiness?.isReady && (
-              <p className="text-[11px] mt-6 text-muted-foreground/80 leading-relaxed italic">
-                Complete all steps to enable simulation
+            {!readiness?.isReady ? (
+              <p className="text-[11px] mt-6 text-muted-foreground/80 leading-relaxed italic px-4">
+                All requirements must be met before simulation can be performed.
+              </p>
+            ) : (
+              <p className="text-[11px] mt-6 text-emerald-600 font-medium px-4">
+                Ready to simulate! Click the Simulate button to start.
               </p>
             )}
           </div>
@@ -186,11 +201,8 @@ export function ResultsPanel({
                   )}
                   <div className="flex-1" />
                   {isBest && !isBaseline && (
-                    <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${isPartialSimulation
-                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                      : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                    }`}>
-                      {isPartialSimulation ? 'Best (partial data)' : 'Best'}
+                    <Badge className="text-[10px] px-1.5 py-0 shrink-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                      Best
                     </Badge>
                   )}
                 </div>
@@ -213,11 +225,6 @@ export function ResultsPanel({
                 Worker Allocation
               </div>
               <div className="flex items-center gap-2">
-                {simulatedItemCount !== null && isPartialSimulation && (
-                  <span className="text-xs font-mono text-amber-600 dark:text-amber-400">
-                    {simulatedItemCount} items
-                  </span>
-                )}
                 <span className="text-xs font-mono text-muted-foreground">{workerCount} configured</span>
               </div>
             </div>
@@ -314,35 +321,6 @@ export function ResultsPanel({
               </ul>
             </div>
           </div>
-        )}
-
-        {isPartialSimulation && (
-          <Alert className="py-3 px-3 border-amber-300/70 bg-amber-50/80 dark:bg-amber-950/20 dark:border-amber-800/50">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertDescription className="text-xs text-amber-900 dark:text-amber-300">
-              <div className="inline">
-                {unresolvableItems.length} items missing from layout. Results may be inaccurate.
-              </div>{' '}
-              {unresolvableItems.length > 0 && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      className="underline font-medium"
-                      onClick={() => onViewUnresolvableItems?.(unresolvableItems)}
-                    >
-                      View items
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-64">
-                    <div className="font-medium mb-1">Unresolvable item IDs</div>
-                    <div className="max-h-40 overflow-y-auto text-[11px] leading-4">
-                      {unresolvableItems.join(', ')}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </AlertDescription>
-          </Alert>
         )}
       </div>
 

@@ -18,7 +18,6 @@ interface ValidationModalProps {
   validationContext: SimulationValidationContext;
   onClose: () => void;
   onFixItems: () => void;
-  onSimulateAnyway: () => void;
 }
 
 export function ValidationModal({
@@ -26,7 +25,6 @@ export function ValidationModal({
   validationContext,
   onClose,
   onFixItems,
-  onSimulateAnyway,
 }: ValidationModalProps) {
   const { missingItems, affectedOrders } = validationContext;
 
@@ -39,23 +37,23 @@ export function ValidationModal({
               <AlertTriangle className="h-5 w-5 text-amber-600" />
             </div>
             <div className="flex-1">
-              <AlertDialogTitle className="text-lg">Some items are missing from layout</AlertDialogTitle>
+              <AlertDialogTitle className="text-lg">Items missing from layout</AlertDialogTitle>
             </div>
           </div>
         </AlertDialogHeader>
 
-        <AlertDialogDescription className="space-y-1 text-sm">
-          <p>{missingItems} items cannot be resolved</p>
-          <p>{affectedOrders} orders affected</p>
-          <p>Simulation will ignore these items. Results may underestimate distance, time, and cost.</p>
+        <AlertDialogDescription className="space-y-3 text-sm">
+          <p>The simulation cannot start because some items in your orders are not placed in the warehouse layout:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>{missingItems} items cannot be resolved</li>
+            <li>{affectedOrders} orders affected</li>
+          </ul>
+          <p className="font-medium text-foreground">Please place these items on the layout to enable simulation.</p>
         </AlertDialogDescription>
 
-        <AlertDialogFooter className="gap-2">
-          <AlertDialogCancel onClick={onFixItems} className="flex-1">
-            Fix items first
-          </AlertDialogCancel>
-          <AlertDialogAction onClick={onSimulateAnyway} className="flex-1 bg-amber-600 hover:bg-amber-700">
-            Simulate anyway
+        <AlertDialogFooter>
+          <AlertDialogAction onClick={onFixItems} className="w-full">
+            Identify and fix items
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
