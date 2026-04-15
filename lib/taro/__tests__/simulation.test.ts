@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runSimulation, buildRouteFrequencyHeatmap } from '../../../core/simulationEngine';
+import { runSimulation, buildRouteFrequencyHeatmap } from '../simulation';
 import { generateDemoWarehouse, generateRandomOrders } from '../demo-generator';
 import type { Warehouse } from '../types';
 
