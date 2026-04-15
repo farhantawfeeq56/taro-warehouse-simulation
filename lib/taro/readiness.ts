@@ -1,5 +1,5 @@
 import { Warehouse, Order, ZVisualizationMode } from './types';
-import { validateItems } from './order-validation';
+import { validateItems } from './validation';
 
 export type GuidedFixId = 
   | 'add-shelves'

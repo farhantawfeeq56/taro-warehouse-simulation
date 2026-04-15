@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 import { getItemById, getItems } from '@/lib/taro/items';
+import { parseCsvLine } from '@/lib/taro/csv';
 
 interface OrdersPanelProps {
   orders: Order[];
@@ -138,7 +139,7 @@ export function OrdersPanel({
       throw new Error(INVALID_CSV_FORMAT_MESSAGE);
     }
 
-    const headers = firstNonEmptyLine.split(',').map(part => part.trim().toLowerCase());
+    const headers = parseCsvLine(firstNonEmptyLine).map(part => part.trim().toLowerCase());
     const hasItemHeaders =
       headers.length === REQUIRED_ITEM_HEADERS.length &&
       headers.every((header, idx) => header === REQUIRED_ITEM_HEADERS[idx]);
@@ -162,7 +163,7 @@ export function OrdersPanel({
         return;
       }
 
-      const [rawOrderId = '', rawValue = '', ...extras] = line.split(',').map(part => part.trim());
+      const [rawOrderId = '', rawValue = '', ...extras] = parseCsvLine(line);
       const rowNumber = headerIndex + index + 2;
       const orderId = rawOrderId;
       const sourceValue = rawValue;

@@ -15,7 +15,7 @@ import type {
   SimulationValidationContext,
 } from '@/lib/taro/types';
 import { generateDemoWarehouse, generateRandomOrders, createEmptyWarehouse } from '@/lib/taro/demo-generator';
-import { runSimulation } from '@/core/simulationEngine';
+import { runSimulation } from '@/lib/taro/simulation';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
@@ -26,7 +26,7 @@ import { ValidationModal } from './validation-modal';
 import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
 import { RotateCcw } from 'lucide-react';
-import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
+import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 
