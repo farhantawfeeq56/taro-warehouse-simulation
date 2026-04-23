@@ -445,6 +445,8 @@ function resolveWarehouseProfile(profile?: Partial<WarehouseProfile>): Warehouse
   return {
     scale: profile?.scale ?? DEFAULT_WAREHOUSE_PROFILE.scale,
     workerSpeed: profile?.workerSpeed ?? DEFAULT_WAREHOUSE_PROFILE.workerSpeed,
+    verticalSpeed: profile?.verticalSpeed ?? DEFAULT_WAREHOUSE_PROFILE.verticalSpeed,
+    zScale: profile?.zScale ?? DEFAULT_WAREHOUSE_PROFILE.zScale,
     pickTimePerItem: profile?.pickTimePerItem ?? DEFAULT_WAREHOUSE_PROFILE.pickTimePerItem,
   };
 }
