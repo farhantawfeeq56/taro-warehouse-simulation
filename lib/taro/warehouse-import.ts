@@ -1,6 +1,5 @@
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
 import type { Cell, StorageLocation, Warehouse } from './types';
-import { parseCsvLine } from './csv';
 
 const REQUIRED_COLUMNS = ['originallocation', 'x', 'y', 'z'] as const;
 const MAX_CANVAS_WIDTH = 60;
@@ -26,6 +25,37 @@ export interface WarehouseImportSummary {
 export interface WarehouseImportResult {
   warehouse: Warehouse;
   summary: WarehouseImportSummary;
+}
+
+function parseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current.trim());
+  return values;
 }
 
 function deriveRackId(originalLocation: string): string {

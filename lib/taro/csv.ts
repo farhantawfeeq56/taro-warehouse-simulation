@@ -2,40 +2,6 @@ import type { WorkerRoute } from './types';
 import type { PickTask } from './types';
 
 /**
- * Robust CSV line parser that handles quoted values with commas.
- */
-export function parseCsvLine(line: string): string[] {
-  const values: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      values.push(current.trim());
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  values.push(current.trim());
-  return values;
-}
-
-/**
  * Convert grid coordinates to a human-readable warehouse location label.
  * Coordinate-native format that supports irregular layouts.
  * Includes z-level if provided: "X:12, Y:7, Z:2"
@@ -114,6 +80,8 @@ export function downloadCSV(csvString: string, filename = 'tasks.csv'): void {
 
 /**
  * Parse a CSV string back into structured PickTask objects.
+ * Handles both 4-column (workerId,step,location,item) and
+ * 5-column (workerId,step,zone,location,item) formats.
  */
 export function parseTaskCSV(csvText: string): PickTask[] {
   const lines = csvText.trim().split('\n');
@@ -125,15 +93,16 @@ export function parseTaskCSV(csvText: string): PickTask[] {
     .map(line => line.trim())
     .filter(line => line.length > 0)
     .map(line => {
-      const parts = parseCsvLine(line);
+      const parts = line.split(',');
       const workerId = parseInt(parts[0], 10);
       const step = parseInt(parts[1], 10);
 
+      // Validate parsed integers
       if (isNaN(workerId) || isNaN(step)) {
         return { workerId: 0, step: 0, zone: '', location: '', item: '' };
       }
 
-      const parseLocationAndItem = (rawText: string, extraParts: string[]): { location: string; item: string } => {
+      const parseLocationAndItem = (rawText: string): { location: string; item: string } => {
         const locationPattern =
           /((?:X:\s*-?\d+,\s*Y:\s*-?\d+)(?:,\s*(?:Z:|Level)\s*\d+)?)(?:,(.*))?$/i;
         const match = rawText.match(locationPattern);
@@ -145,19 +114,22 @@ export function parseTaskCSV(csvText: string): PickTask[] {
           };
         }
 
+        const fallbackParts = rawText.split(',');
         return {
-          location: rawText.trim(),
-          item: extraParts.join(',').trim(),
+          location: fallbackParts[0]?.trim() ?? '',
+          item: fallbackParts.slice(1).join(',').trim(),
         };
       };
 
       if (hasZone) {
         const zone = parts[2]?.trim() ?? '';
-        const { location, item } = parseLocationAndItem(parts[3] ?? '', parts.slice(4));
+        const remainingText = parts.slice(3).join(',').trim();
+        const { location, item } = parseLocationAndItem(remainingText);
         return { workerId, step, zone, location, item };
       }
 
-      const { location, item } = parseLocationAndItem(parts[2] ?? '', parts.slice(3));
+      const remainingText = parts.slice(2).join(',').trim();
+      const { location, item } = parseLocationAndItem(remainingText);
       return { workerId, step, zone: '', location, item };
     })
     .filter(task => task.workerId > 0 && task.step > 0);
