@@ -12,7 +12,15 @@ export function generateLayout(config: LayoutConfig): Warehouse {
   const rowInterval = Math.max(3, 11 - density); 
   const shelfRows: number[] = [];
   
+  // Define highway (central horizontal aisle)
+  const highwayHeight = 3;
+  const midY = Math.floor(height / 2);
+  const highwayRows = Array.from({ length: highwayHeight }, (_, i) => midY - Math.floor(highwayHeight / 2) + i);
+
   for (let y = 2; y < height - 2; y++) {
+    // Skip if it's part of the highway
+    if (highwayRows.includes(y)) continue;
+
     // Basic pattern: 2 rows of shelves followed by an aisle
     if (y % rowInterval !== 0) {
       shelfRows.push(y);
@@ -25,7 +33,7 @@ export function generateLayout(config: LayoutConfig): Warehouse {
   
   // Shortcuts (0-3): horizontal cross-aisles
   const shortcutCols: number[] = [];
-  if (shortcuts > 0) {
+  if (shortcuts > 0 && type !== 'fishbone') {
     const segmentWidth = Math.floor((endCol - startCol) / (shortcuts + 1));
     for (let i = 1; i <= shortcuts; i++) {
       shortcutCols.push(startCol + i * segmentWidth);
@@ -50,14 +58,36 @@ export function generateLayout(config: LayoutConfig): Warehouse {
         continue;
       }
 
-      // Fishbone type: V-shape approximation
+      // Fishbone type: V-shape approximation with central highway and diagonal aisles
       if (type === 'fishbone') {
         const midPoint = (startCol + endCol) / 2;
-        const distanceFromMid = Math.abs(x - midPoint);
-        // Create an angled gap
-        if (Math.abs(distanceFromMid - (y % 10)) < 1) {
-          continue;
+        const distanceFromMid = x - midPoint;
+        const relativeY = y - midY;
+        
+        // Main V-shape diagonal aisles
+        // Angle depends on distance from center
+        // Shortcuts slider (0-3) controls number of diagonal aisles
+        const diagonalAisleWidth = 1.5;
+        let isDiagonalAisle = false;
+        
+        // We always have the main fishbone angle
+        if (Math.abs(Math.abs(distanceFromMid) - Math.abs(relativeY)) < diagonalAisleWidth) {
+          isDiagonalAisle = true;
         }
+
+        // Additional diagonal aisles based on shortcuts
+        if (shortcuts > 0) {
+          const spacing = (endCol - startCol) / (shortcuts + 1);
+          for (let i = 1; i <= shortcuts; i++) {
+            const offset = i * spacing;
+            if (Math.abs(Math.abs(distanceFromMid - offset) - Math.abs(relativeY)) < diagonalAisleWidth ||
+                Math.abs(Math.abs(distanceFromMid + offset) - Math.abs(relativeY)) < diagonalAisleWidth) {
+              isDiagonalAisle = true;
+            }
+          }
+        }
+
+        if (isDiagonalAisle) continue;
       }
 
       // Row continuity: apply occasional gaps if continuity is low
@@ -69,6 +99,31 @@ export function generateLayout(config: LayoutConfig): Warehouse {
       warehouse.shelves.push({ x, y });
     }
   }
+
+  // Cleanup pass: remove isolated shelves or tiny segments
+  const grid = warehouse.grid;
+  const shelvesToRemove: {x: number, y: number}[] = [];
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (grid[y][x].type === 'shelf') {
+        // In this simulation, shelves are predominantly horizontal.
+        // Remove any shelf cell that doesn't have a horizontal neighbor.
+        let horizontalNeighbors = 0;
+        if (x > 0 && grid[y][x-1].type === 'shelf') horizontalNeighbors++;
+        if (x < width - 1 && grid[y][x+1].type === 'shelf') horizontalNeighbors++;
+        
+        if (horizontalNeighbors === 0) {
+          shelvesToRemove.push({x, y});
+        }
+      }
+    }
+  }
+  
+  for (const {x, y} of shelvesToRemove) {
+    grid[y][x].type = 'empty';
+  }
+  warehouse.shelves = warehouse.shelves.filter(s => grid[s.y][s.x].type === 'shelf');
 
   warehouse.workerStart = { x: 1, y: height - 2 };
   warehouse.grid[height - 2][1].type = 'worker-start';

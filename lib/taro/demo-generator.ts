@@ -45,6 +45,57 @@ export function createEmptyWarehouse(width: number, height: number): Warehouse {
   return warehouse;
 }
 
+/**
+ * Iterates through all 'shelf' cells and adds 1-4 random items (SKUs) at various Z-levels (1-4).
+ */
+export function populateWarehouseWithItems(warehouse: Warehouse): void {
+  let skuIndex = 1;
+  const maxZ = 4;
+
+  for (let y = 0; y < warehouse.height; y++) {
+    for (let x = 0; x < warehouse.width; x++) {
+      const cell = warehouse.grid[y][x];
+      if (cell.type === 'shelf') {
+        const numItems = Math.floor(Math.random() * 4) + 1; // 1-4 items
+        const cellLocations: StorageLocation[] = [];
+        
+        // Randomly pick unique Z levels
+        const zLevels = Array.from({ length: maxZ }, (_, i) => i + 1)
+          .sort(() => Math.random() - 0.5)
+          .slice(0, numItems)
+          .sort((a, b) => a - b);
+
+        for (const z of zLevels) {
+          const sku = `SKU_${String(skuIndex).padStart(3, '0')}`;
+          const quantity = Math.floor(Math.random() * 90) + 10;
+          const locationId = getShelfLocationId(x, y);
+          
+          cellLocations.push({
+            id: `${sku}@${x},${y},${z}`,
+            locationId,
+            x,
+            y,
+            z,
+            sku,
+            quantity,
+          });
+          
+          warehouse.items.push({
+            id: sku,
+            locationId,
+          });
+          
+          skuIndex++;
+        }
+        
+        cell.locations = cellLocations;
+      }
+    }
+  }
+
+  warehouse.locations = buildCoordinateLocations(warehouse);
+}
+
 export function generateDemoWarehouse(): Warehouse {
   const width = 30;
   const height = 24;
