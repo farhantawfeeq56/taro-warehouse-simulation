@@ -109,7 +109,7 @@ function buildWarehouse(locations: ImportedWarehouseLocation[]): Warehouse {
 
     shelfMap.get(key)!.push({
       id: `${location.id}@${location.x},${location.y},${location.z}`,
-      locationId: getShelfLocationId(location.x, location.y),
+      locationId: getShelfLocationId(location.x, location.y, location.z),
       x: location.x,
       y: location.y,
       z: location.z,

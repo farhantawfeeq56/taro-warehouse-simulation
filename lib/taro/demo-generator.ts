@@ -68,7 +68,7 @@ export function populateWarehouseWithItems(warehouse: Warehouse): void {
         for (const z of zLevels) {
           const sku = `SKU_${String(skuIndex).padStart(3, '0')}`;
           const quantity = Math.floor(Math.random() * 90) + 10;
-          const locationId = getShelfLocationId(x, y);
+          const locationId = getShelfLocationId(x, y, z);
           
           cellLocations.push({
             id: `${sku}@${x},${y},${z}`,
@@ -131,14 +131,16 @@ export function generateDemoWarehouse(): Warehouse {
   // z=2: SKU_B, qty 50
   // z=3: SKU_C, qty 30
   const testLocations: StorageLocation[] = [
-    { id: 'SKU_A@5,3,1', locationId: getShelfLocationId(5, 3), x: 5, y: 3, z: 1, sku: 'SKU_A', quantity: 100 },
-    { id: 'SKU_B@5,3,2', locationId: getShelfLocationId(5, 3), x: 5, y: 3, z: 2, sku: 'SKU_B', quantity: 50 },
-    { id: 'SKU_C@5,3,3', locationId: getShelfLocationId(5, 3), x: 5, y: 3, z: 3, sku: 'SKU_C', quantity: 30 },
+    { id: 'SKU_A@5,3,1', locationId: getShelfLocationId(5, 3, 1), x: 5, y: 3, z: 1, sku: 'SKU_A', quantity: 100 },
+    { id: 'SKU_B@5,3,2', locationId: getShelfLocationId(5, 3, 2), x: 5, y: 3, z: 2, sku: 'SKU_B', quantity: 50 },
+    { id: 'SKU_C@5,3,3', locationId: getShelfLocationId(5, 3, 3), x: 5, y: 3, z: 3, sku: 'SKU_C', quantity: 30 },
   ];
 
   // Place locations at (5, 3)
   warehouse.grid[3][5].locations = testLocations;
-  createDemoItem(getShelfLocationId(5, 3));
+  createDemoItem(getShelfLocationId(5, 3, 1));
+  createDemoItem(getShelfLocationId(5, 3, 2));
+  createDemoItem(getShelfLocationId(5, 3, 3));
 
   // Add some additional items at shelf edges with locations
   let itemId = 4; // Start after test SKUs
@@ -157,20 +159,24 @@ export function generateDemoWarehouse(): Warehouse {
           for (let z = 1; z <= numZLevels; z++) {
             const sku = `SKU_${String(itemId).padStart(3, '0')}`;
             const quantity = Math.floor(Math.random() * 90) + 10;
+            const locationId = getShelfLocationId(col, row, z);
             cellLocations.push({
               id: `${sku}@${col},${row},${z}`,
-              locationId: getShelfLocationId(col, row),
+              locationId,
               x: col,
               y: row,
               z,
               sku,
               quantity,
             });
+            warehouse.items.push({
+              id: sku,
+              locationId,
+            });
             itemId++;
           }
 
           warehouse.grid[row][col].locations = cellLocations;
-          createDemoItem(getShelfLocationId(col, row));
         }
       }
     }
