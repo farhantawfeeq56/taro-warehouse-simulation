@@ -69,6 +69,51 @@ export function generateLayout(config: LayoutConfig): Warehouse {
         generateCorridor(midX, midY + offset, -1, -1);
       }
     }
+  } else if (type === 'fishbone-geometric') {
+    const angle = 30 * (Math.PI / 180);
+    const aisleWidth = 2.5;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        // Central Vertical Spine
+        if (Math.abs(x - midX) < 1.5) {
+          fishboneAisles.add(`${x},${y}`);
+          continue;
+        }
+
+        // Central Horizontal Highway
+        if (Math.abs(y - midY) < 1.5) {
+          fishboneAisles.add(`${x},${y}`);
+          continue;
+        }
+
+        const spacings = [0];
+        if (shortcuts > 0) {
+          const spacing = Math.max(10, Math.floor(height / (shortcuts + 1)));
+          for (let i = 1; i <= shortcuts; i++) {
+            spacings.push(i * spacing);
+            spacings.push(-i * spacing);
+          }
+        }
+
+        let isDiagonalAisle = false;
+        for (const s of spacings) {
+          const angles = [angle, -angle, Math.PI - angle, -Math.PI + angle];
+          for (const a of angles) {
+            const dist = Math.abs((x - midX) * Math.sin(a) - (y - (midY + s)) * Math.cos(a));
+            if (dist < aisleWidth / 2) {
+              isDiagonalAisle = true;
+              break;
+            }
+          }
+          if (isDiagonalAisle) break;
+        }
+
+        if (isDiagonalAisle) {
+          fishboneAisles.add(`${x},${y}`);
+        }
+      }
+    }
   }
 
   // 2. Define Shelf Rows
@@ -107,7 +152,7 @@ export function generateLayout(config: LayoutConfig): Warehouse {
     }
 
     for (let x = startCol; x <= endCol; x++) {
-      if (type === 'fishbone') {
+      if (type === 'fishbone' || type === 'fishbone-geometric') {
         if (fishboneAisles.has(`${x},${y}`)) continue;
         // For fishbone, we ignore the gap frequency and rowLength to keep racks continuous
       } else {

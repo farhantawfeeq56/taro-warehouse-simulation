@@ -79,7 +79,7 @@ describe('pathfinding', () => {
       expect(calculatePathDistance([{ x: 0, y: 0 }])).toBe(0);
     });
 
-    it('should calculate Manhattan distance correctly', () => {
+    it('should calculate Euclidean distance correctly', () => {
       const path = [
         { x: 0, y: 0 },
         { x: 3, y: 0 },  // 3 steps right
@@ -89,12 +89,12 @@ describe('pathfinding', () => {
       expect(calculatePathDistance(path)).toBe(3 + 4 + 2); // 9
     });
 
-    it('should handle diagonal paths (Manhattan distance)', () => {
+    it('should handle diagonal paths (Euclidean distance)', () => {
       const path = [
         { x: 0, y: 0 },
-        { x: 3, y: 3 },  // 6 steps (3 right + 3 down)
+        { x: 1, y: 1 },  // distance sqrt(2)
       ];
-      expect(calculatePathDistance(path)).toBe(6);
+      expect(calculatePathDistance(path)).toBeCloseTo(Math.SQRT2);
     });
   });
 });

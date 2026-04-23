@@ -149,7 +149,7 @@ export interface PickTask {
   item: string;
 }
 
-export type LayoutType = 'parallel' | 'cross-aisle' | 'segmented' | 'fishbone';
+export type LayoutType = 'parallel' | 'cross-aisle' | 'segmented' | 'fishbone' | 'fishbone-geometric';
 
 export interface LayoutConfig {
   type: LayoutType;

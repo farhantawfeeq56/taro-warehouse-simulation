@@ -66,6 +66,7 @@ export function SetupOverlay({ onComplete, initialConfig }: SetupOverlayProps) {
                 <SelectItem value="cross-aisle">Cross Aisle</SelectItem>
                 <SelectItem value="segmented">Segmented Blocks</SelectItem>
                 <SelectItem value="fishbone">Fishbone (V-Shape)</SelectItem>
+                <SelectItem value="fishbone-geometric">Fishbone (Geometric)</SelectItem>
               </SelectContent>
             </Select>
           </div>
