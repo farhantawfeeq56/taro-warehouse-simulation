@@ -3,15 +3,16 @@
 import { useState } from 'react';
 import type { Warehouse, StorageLocation } from '@/lib/taro/types';
 import { cn } from '@/lib/utils';
-import { X, Wand2, Upload } from 'lucide-react';
+import { X, Wand2, Upload, LayoutGrid } from 'lucide-react';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
+import { generateFishboneLayout } from '@/lib/taro/layout-generator';
 
 interface WarehouseBuilderDialogProps {
   onGenerate: (warehouse: Warehouse) => void;
   onClose: () => void;
 }
 
-type Tab = 'guided' | 'csv';
+type Tab = 'guided' | 'fishbone' | 'csv';
 
 function buildWarehouseFromParams(
   aisles: number,
@@ -180,14 +181,31 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
 
 export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilderDialogProps) {
   const [tab, setTab] = useState<Tab>('guided');
+  
+  // Guided states
   const [aisles, setAisles] = useState(4);
   const [racks, setRacks] = useState(6);
   const [bins, setBins] = useState(3);
+  
+  // Fishbone states
+  const [fbWidth, setFbWidth] = useState(30);
+  const [fbHeight, setFbHeight] = useState(24);
+  const [theta, setTheta] = useState(45);
+  const [i2, setI2] = useState(1);
+  const [s, setS] = useState(6);
+  const [ap, setAp] = useState(0.8);
+
   const [csvText, setCsvText] = useState('');
   const [csvError, setCsvError] = useState('');
 
   const handleGenerate = () => {
     const wh = buildWarehouseFromParams(aisles, racks, bins);
+    onGenerate(wh);
+    onClose();
+  };
+
+  const handleGenerateFishbone = () => {
+    const wh = generateFishboneLayout(fbWidth, fbHeight, theta, i2, s, ap);
     onGenerate(wh);
     onClose();
   };
@@ -222,7 +240,7 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
 
         {/* Tabs */}
         <div className="flex border-b border-border">
-          {(['guided', 'csv'] as Tab[]).map(t => (
+          {(['guided', 'fishbone', 'csv'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -233,7 +251,7 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              {t === 'guided' ? 'Guided Builder' : 'Import from CSV'}
+              {t === 'guided' ? 'Standard Grid' : t === 'fishbone' ? 'Fishbone (V)' : 'CSV Import'}
             </button>
           ))}
         </div>
@@ -282,6 +300,45 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
               >
                 <Wand2 className="h-4 w-4" />
                 Generate Layout
+              </button>
+            </div>
+          ) : tab === 'fishbone' ? (
+            <div className="space-y-5">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Generate a complex fishbone layout with diagonal aisles and a central spine. Ideal for high-density pick optimizations.
+              </p>
+
+              {[
+                { label: 'Warehouse Width', desc: 'Total grid columns', value: fbWidth, min: 10, max: 60, set: setFbWidth },
+                { label: 'Warehouse Height', desc: 'Total grid rows', value: fbHeight, min: 10, max: 60, set: setFbHeight },
+                { label: 'Angle (θ)', desc: 'Aisle angle in degrees', value: theta, min: 15, max: 75, set: setTheta },
+                { label: 'Growth Factor (I₂)', desc: 'Spacing multiplier', value: i2, min: 1, max: 5, set: setI2 },
+                { label: 'Row Spacing (s)', desc: 'Base gap between diagonal aisles', value: s, min: 2, max: 12, set: setS },
+                { label: 'Shelf Density (ap)', desc: 'Probability of shelf placement', value: Math.round(ap * 100), min: 0, max: 100, set: (v: number) => setAp(v / 100) },
+              ].map(({ label, desc, value, min, max, set }) => (
+                <div key={label} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium">{label}</label>
+                    <span className="text-xs font-mono text-muted-foreground">{label.includes('Density') ? `${value}%` : value}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{desc}</p>
+                  <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    value={value}
+                    onChange={e => set(Number(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                </div>
+              ))}
+
+              <button
+                onClick={handleGenerateFishbone}
+                className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Generate Fishbone
               </button>
             </div>
           ) : (
