@@ -2,7 +2,7 @@
 
 import type { Warehouse } from './types';
 import { PriorityQueue } from './priority-queue';
-import { calculateManhattanDistance } from './distance';
+import { calculateOctileDistance, calculateEuclideanDistance, calculateManhattanDistance } from './distance';
 
 interface Node {
   x: number;
@@ -13,8 +13,14 @@ interface Node {
   parent: Node | null;
 }
 
+interface Neighbor {
+  x: number;
+  y: number;
+  cost: number;
+}
+
 function heuristic(a: { x: number; y: number }, b: { x: number; y: number }): number {
-  return calculateManhattanDistance(a, b);
+  return calculateOctileDistance(a, b);
 }
 
 export function isWalkable(warehouse: Warehouse, x: number, y: number): boolean {
@@ -25,7 +31,7 @@ export function isWalkable(warehouse: Warehouse, x: number, y: number): boolean 
   return cell.type !== 'shelf';
 }
 
-function getNeighborGraph(warehouse: Warehouse): Map<string, { x: number; y: number }[]> {
+function getNeighborGraph(warehouse: Warehouse): Map<string, Neighbor[]> {
   const walkable: { x: number; y: number }[] = [];
   for (let y = 0; y < warehouse.height; y++) {
     for (let x = 0; x < warehouse.width; x++) {
@@ -36,38 +42,50 @@ function getNeighborGraph(warehouse: Warehouse): Map<string, { x: number; y: num
   }
 
   const walkableSet = new Set(walkable.map(loc => `${loc.x},${loc.y}`));
-  const neighbors = new Map<string, { x: number; y: number }[]>();
+  const neighbors = new Map<string, Neighbor[]>();
 
   for (const loc of walkable) {
-    const list: { x: number; y: number }[] = [];
-    const candidates = [
+    const list: Neighbor[] = [];
+    
+    // Cardinal moves
+    const cardinals = [
       { x: loc.x, y: loc.y - 1 },
       { x: loc.x, y: loc.y + 1 },
       { x: loc.x - 1, y: loc.y },
       { x: loc.x + 1, y: loc.y },
     ];
-    for (const candidate of candidates) {
-      if (walkableSet.has(`${candidate.x},${candidate.y}`)) {
-        list.push(candidate);
+    for (const cand of cardinals) {
+      if (walkableSet.has(`${cand.x},${cand.y}`)) {
+        list.push({ ...cand, cost: 1 });
       }
     }
+
+    // Diagonal moves
+    const diagonals = [
+      { x: loc.x - 1, y: loc.y - 1, cx1: loc.x - 1, cy1: loc.y, cx2: loc.x, cy2: loc.y - 1 },
+      { x: loc.x + 1, y: loc.y - 1, cx1: loc.x + 1, cy1: loc.y, cx2: loc.x, cy2: loc.y - 1 },
+      { x: loc.x - 1, y: loc.y + 1, cx1: loc.x - 1, cy1: loc.y, cx2: loc.x, cy2: loc.y + 1 },
+      { x: loc.x + 1, y: loc.y + 1, cx1: loc.x + 1, cy1: loc.y, cx2: loc.x, cy2: loc.y + 1 },
+    ];
+
+    for (const d of diagonals) {
+      if (walkableSet.has(`${d.x},${d.y}`)) {
+        // Corner-cutting prevention: both adjacent cardinal cells must be walkable
+        if (walkableSet.has(`${d.cx1},${d.cy1}`) && walkableSet.has(`${d.cx2},${d.cy2}`)) {
+          list.push({ x: d.x, y: d.y, cost: Math.SQRT2 });
+        }
+      }
+    }
+
     neighbors.set(`${loc.x},${loc.y}`, list);
   }
 
   return neighbors;
 }
 
-function getNeighbors(graph: Map<string, { x: number; y: number }[]>, node: Node): { x: number; y: number }[] {
-  const directions = [
-    { x: 0, y: -1 }, // up
-    { x: 0, y: 1 },  // down
-    { x: -1, y: 0 }, // left
-    { x: 1, y: 0 },  // right
-  ];
-
+function getNeighbors(graph: Map<string, Neighbor[]>, node: Node): Neighbor[] {
   const neighbors = graph.get(`${node.x},${node.y}`);
-  if (neighbors) return neighbors;
-  return directions.map(dir => ({ x: node.x + dir.x, y: node.y + dir.y }));
+  return neighbors || [];
 }
 
 export function findPath(
@@ -127,7 +145,7 @@ export function findPath(
         continue;
       }
 
-      const g = current.g + 1;
+      const g = current.g + neighbor.cost;
       const h = heuristic(neighbor, actualEnd);
       const f = g + h;
 
@@ -138,8 +156,6 @@ export function findPath(
           existingNode.g = g;
           existingNode.f = f;
           existingNode.parent = current;
-          // Priority queue doesn't support priority updates directly
-          // The node will be in correct position since we're always extracting min
         }
       } else {
         const newNode: Node = {
@@ -179,7 +195,7 @@ function findNearestWalkable(
   let bestDistance = Infinity;
 
   for (const node of walkableNodes) {
-    const distance = calculateManhattanDistance(node, pos);
+    const distance = calculateOctileDistance(node, pos);
     if (distance < bestDistance) {
       bestDistance = distance;
       nearest = { x: node.x, y: node.y };
@@ -194,7 +210,7 @@ export function calculatePathDistance(path: { x: number; y: number }[]): number 
 
   let distance = 0;
   for (let i = 1; i < path.length; i++) {
-    distance += calculateManhattanDistance(path[i], path[i - 1]);
+    distance += calculateEuclideanDistance(path[i], path[i - 1]);
   }
 
   return distance;

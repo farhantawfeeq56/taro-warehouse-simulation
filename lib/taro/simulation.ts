@@ -13,7 +13,7 @@ import type {
   SimulationValidationContext,
 } from './types';
 import { findPath, calculatePathDistance } from './pathfinding';
-import { calculateManhattanDistance } from './distance';
+import { calculateOctileDistance } from './distance';
 import { safelyResolveOrderLocations, type ResolvedOrder } from './validation';
 import {
   STRATEGY_COLORS,
@@ -135,7 +135,7 @@ function orderStopsNearestNeighbor(
 
     for (let i = 0; i < unvisited.length; i++) {
       const candidate = unvisited[i];
-      const distance = calculateManhattanDistance(candidate.pos, current);
+      const distance = calculateOctileDistance(candidate.pos, current);
       if (distance < nearestDistance) {
         nearestDistance = distance;
         nearestIndex = i;
@@ -160,7 +160,7 @@ function optimizeRoute2Opt(
     let total = 0;
     let previous = start;
     for (const stop of route) {
-      total += calculateManhattanDistance(previous, stop.pos);
+      total += calculateOctileDistance(previous, stop.pos);
       previous = stop.pos;
     }
     return total;
