@@ -18,60 +18,10 @@ export function generateLayout(config: LayoutConfig): Warehouse {
   // Pre-calculate Fishbone Aisles if needed
   const fishboneAisles = new Set<string>();
   if (type === 'fishbone') {
-    const addAisle = (x: number, y: number) => {
-      // 3-cell horizontal width for 4-way pathfinding
-      for (let dx = -1; dx <= 1; dx++) {
-        const nx = x + dx;
-        if (nx >= 0 && nx < width && y >= 0 && y < height) {
-          fishboneAisles.add(`${nx},${y}`);
-        }
-      }
-    };
-
-    const generateCorridor = (startX: number, startY: number, dirX: number, dirY: number) => {
-      let x = startX;
-      let y = startY;
-      while (x >= 0 && x < width && y >= 0 && y < height) {
-        addAisle(x, y);
-        x += dirX;
-        y += dirY;
-      }
-    };
-
-    // Central Vertical Spine
-    for (let y = 0; y < height; y++) {
-      for (const x of spineCols) {
-        fishboneAisles.add(`${x},${y}`);
-      }
-    }
-
-    // Main V-shape diagonals from center
-    generateCorridor(midX, midY, 1, 1);   // Bottom Right
-    generateCorridor(midX, midY, -1, 1);  // Bottom Left
-    generateCorridor(midX, midY, 1, -1);  // Top Right
-    generateCorridor(midX, midY, -1, -1); // Top Left
-
-    // Shortcut ribs
-    if (shortcuts > 0) {
-      const spacing = Math.max(8, Math.floor(width / (shortcuts + 2)));
-      for (let i = 1; i <= shortcuts; i++) {
-        const offset = i * spacing;
-        // Outer ribs
-        generateCorridor(midX, midY + offset, 1, 1);
-        generateCorridor(midX, midY + offset, -1, 1);
-        generateCorridor(midX, midY - offset, 1, -1);
-        generateCorridor(midX, midY - offset, -1, -1);
-        
-        // Inner ribs
-        generateCorridor(midX, midY - offset, 1, 1);
-        generateCorridor(midX, midY - offset, -1, 1);
-        generateCorridor(midX, midY + offset, 1, -1);
-        generateCorridor(midX, midY + offset, -1, -1);
-      }
-    }
-  } else if (type === 'fishbone-geometric') {
-    const angle = 30 * (Math.PI / 180);
-    const aisleWidth = 2.5;
+    const theta = 33.7 * (Math.PI / 180); // Optimal angle (arctan(2/3))
+    const aisleWidth = 2.1;
+    const pdX = midX;
+    const pdY = height - 1;
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -81,36 +31,31 @@ export function generateLayout(config: LayoutConfig): Warehouse {
           continue;
         }
 
-        // Central Horizontal Highway
-        if (Math.abs(y - midY) < 1.5) {
+        const dx = x - pdX;
+        const dy = y - pdY;
+
+        // Main V-shape starting from P&D point
+        const dist = Math.abs(Math.abs(dx) * Math.sin(theta) + dy * Math.cos(theta));
+        if (dist < aisleWidth / 2) {
           fishboneAisles.add(`${x},${y}`);
           continue;
         }
 
-        const spacings = [0];
+        // Secondary V-shaped ribs
         if (shortcuts > 0) {
-          const spacing = Math.max(10, Math.floor(height / (shortcuts + 1)));
+          const ribSpacing = Math.floor(height / (shortcuts + 1));
+          let isRib = false;
           for (let i = 1; i <= shortcuts; i++) {
-            spacings.push(i * spacing);
-            spacings.push(-i * spacing);
-          }
-        }
-
-        let isDiagonalAisle = false;
-        for (const s of spacings) {
-          const angles = [angle, -angle, Math.PI - angle, -Math.PI + angle];
-          for (const a of angles) {
-            const dist = Math.abs((x - midX) * Math.sin(a) - (y - (midY + s)) * Math.cos(a));
-            if (dist < aisleWidth / 2) {
-              isDiagonalAisle = true;
+            const ribY = pdY - i * ribSpacing;
+            const distRib = Math.abs(Math.abs(dx) * Math.sin(theta) + (y - ribY) * Math.cos(theta));
+            if (distRib < aisleWidth / 2) {
+              isRib = true;
               break;
             }
           }
-          if (isDiagonalAisle) break;
-        }
-
-        if (isDiagonalAisle) {
-          fishboneAisles.add(`${x},${y}`);
+          if (isRib) {
+            fishboneAisles.add(`${x},${y}`);
+          }
         }
       }
     }
@@ -152,7 +97,7 @@ export function generateLayout(config: LayoutConfig): Warehouse {
     }
 
     for (let x = startCol; x <= endCol; x++) {
-      if (type === 'fishbone' || type === 'fishbone-geometric') {
+      if (type === 'fishbone') {
         if (fishboneAisles.has(`${x},${y}`)) continue;
         // For fishbone, we ignore the gap frequency and rowLength to keep racks continuous
       } else {

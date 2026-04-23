@@ -72,6 +72,8 @@ export interface Warehouse {
 export interface WarehouseProfile {
   scale: number; // meters per grid cell
   workerSpeed: number; // meters per minute
+  verticalSpeed: number; // meters per minute
+  zScale: number; // meters per level
   pickTimePerItem: number; // seconds per pick
 }
 
@@ -149,7 +151,7 @@ export interface PickTask {
   item: string;
 }
 
-export type LayoutType = 'parallel' | 'cross-aisle' | 'segmented' | 'fishbone' | 'fishbone-geometric';
+export type LayoutType = 'parallel' | 'cross-aisle' | 'segmented' | 'fishbone';
 
 export interface LayoutConfig {
   type: LayoutType;

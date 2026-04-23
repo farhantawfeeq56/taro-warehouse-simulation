@@ -4,6 +4,8 @@
 export const DEFAULT_WAREHOUSE_PROFILE = {
   scale: 2, // meters per grid cell
   workerSpeed: 60, // meters per minute
+  verticalSpeed: 15, // meters per minute
+  zScale: 1.5, // meters per level
   pickTimePerItem: 6, // seconds per pick
 } as const;
 

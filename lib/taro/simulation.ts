@@ -459,14 +459,28 @@ function scaleWorkerDistances(workerDistances: number[], scale: number): number[
   return workerDistances.map((distance) => distance * scale);
 }
 
+function calculateZDistance(picks: WorkerRoute['picks']): number {
+  if (picks.length === 0) return 0;
+  let totalZ = 0;
+  let currentZ = 1;
+  for (const pick of picks) {
+    totalZ += Math.abs(pick.z - currentZ);
+    currentZ = pick.z;
+  }
+  totalZ += Math.abs(1 - currentZ);
+  return totalZ;
+}
+
 function calculateWorkerTimeMinutes(
   distanceMeters: number,
+  zDistanceLevels: number,
   assignedPickCount: number,
   warehouseProfile: WarehouseProfile
 ): number {
   const walkingTimeMinutes = distanceMeters / warehouseProfile.workerSpeed;
+  const verticalTimeMinutes = (zDistanceLevels * warehouseProfile.zScale) / warehouseProfile.verticalSpeed;
   const pickingTimeMinutes = (assignedPickCount * warehouseProfile.pickTimePerItem) / 60;
-  return walkingTimeMinutes + pickingTimeMinutes;
+  return walkingTimeMinutes + verticalTimeMinutes + pickingTimeMinutes;
 }
 
 export function runSimulation(
@@ -512,7 +526,12 @@ export function runSimulation(
     ? scaleWorkerDistances(baselineResult.workerDistances, warehouseProfile.scale)
     : [];
   const baselineWorkerTimes = baselineResult?.workerRoutes.map((route, idx) =>
-    calculateWorkerTimeMinutes(baselineWorkerDistances[idx], route.assignedPickCount, warehouseProfile)
+    calculateWorkerTimeMinutes(
+      baselineWorkerDistances[idx],
+      calculateZDistance(route.picks),
+      route.assignedPickCount,
+      warehouseProfile
+    )
   ) ?? [];
   const baselineTime = Math.max(...baselineWorkerTimes, 0) || 1;
 
@@ -524,7 +543,12 @@ export function runSimulation(
     const totalDistance = workerDistances.reduce((sum: number, d: number) => sum + d, 0);
     const criticalPathDistance = Math.max(...workerDistances, 0);
     const workerTimes = workerRoutes.map((route, idx) =>
-      calculateWorkerTimeMinutes(workerDistances[idx], route.assignedPickCount, warehouseProfile)
+      calculateWorkerTimeMinutes(
+        workerDistances[idx],
+        calculateZDistance(route.picks),
+        route.assignedPickCount,
+        warehouseProfile
+      )
     );
     const timeMinutes = Math.max(...workerTimes, 0);
 
