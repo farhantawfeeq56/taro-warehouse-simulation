@@ -28,9 +28,6 @@ export function SetupOverlay({ onComplete, initialConfig }: SetupOverlayProps) {
   const handleComplete = () => {
     // Apply constraints
     let finalConfig = { ...config };
-    if (config.type === 'fishbone') {
-      finalConfig.shortcuts = 0; // fishbone usually doesn't have standard shortcuts
-    }
     if (config.type === 'segmented') {
       finalConfig.rowLength = Math.min(finalConfig.rowLength, 5); // cap continuity for segmented
     }

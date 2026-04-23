@@ -15,7 +15,12 @@ import type {
   SimulationValidationContext,
   LayoutConfig,
 } from '@/lib/taro/types';
-import { generateDemoWarehouse, generateRandomOrders, createEmptyWarehouse } from '@/lib/taro/demo-generator';
+import { 
+  generateDemoWarehouse, 
+  generateRandomOrders, 
+  createEmptyWarehouse,
+  populateWarehouseWithItems 
+} from '@/lib/taro/demo-generator';
 import { generateLayout } from '@/lib/taro/layout-generator';
 import { SetupOverlay } from './setup-overlay';
 import { runSimulation } from '@/lib/taro/simulation';
@@ -52,12 +57,18 @@ export function TaroApp() {
   
   const [warehouse, setWarehouse] = useState<Warehouse>(() => {
     const config = getLayoutConfig();
-    return config ? generateLayout(config) : generateDemoWarehouse();
+    if (config) {
+      const w = generateLayout(config);
+      populateWarehouseWithItems(w);
+      return w;
+    }
+    return generateDemoWarehouse();
   });
   
   const [orders, setOrders] = useState<Order[]>(() => {
     const config = getLayoutConfig();
     const w = config ? generateLayout(config) : generateDemoWarehouse();
+    if (config) populateWarehouseWithItems(w);
     return generateRandomOrders(w, 4);
   });
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
@@ -85,8 +96,11 @@ export function TaroApp() {
 
   const handleSetupComplete = useCallback((config: LayoutConfig) => {
     const newWarehouse = generateLayout(config);
+    populateWarehouseWithItems(newWarehouse);
+    const newOrders = generateRandomOrders(newWarehouse, 4);
+    
     setWarehouse(newWarehouse);
-    setOrders([]); // Reset orders for new layout
+    setOrders(newOrders);
     setSimulationResults(null);
     setShowSetup(false);
     setLayoutConfig(config);
@@ -360,6 +374,7 @@ export function TaroApp() {
               onClear={handleClearWarehouse}
               zVisualizationMode={zVisualizationMode}
               onZVisualizationChange={setZVisualizationMode}
+              onOpenSetup={() => setShowSetup(true)}
             />
           </div>
 

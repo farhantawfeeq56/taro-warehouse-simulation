@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { ToolType, ZVisualizationMode } from '@/lib/taro/types';
-import { Grid3X3, User, Eraser, Layers, Trash2 } from 'lucide-react';
+import { Grid3X3, User, Eraser, Layers, Trash2, Settings2 } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
@@ -10,6 +10,7 @@ interface ToolbarProps {
   onClear: () => void;
   zVisualizationMode: ZVisualizationMode;
   onZVisualizationChange: (mode: ZVisualizationMode) => void;
+  onOpenSetup?: () => void;
 }
 
 const tools: { type: ToolType; label: string; icon: typeof Grid3X3 }[] = [
@@ -38,9 +39,24 @@ export function Toolbar({
   onClear,
   zVisualizationMode,
   onZVisualizationChange,
+  onOpenSetup,
 }: ToolbarProps) {
   return (
     <div className="flex items-center gap-2 flex-wrap">
+      {onOpenSetup && (
+        <>
+          <button
+            onClick={onOpenSetup}
+            className="h-8 px-3 rounded-lg border border-border bg-background text-foreground hover:bg-muted transition-colors flex items-center gap-1.5 text-xs font-medium"
+            title="Configure warehouse layout"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Configure</span>
+          </button>
+          <div className="w-px h-6 bg-border" />
+        </>
+      )}
+
       <div className="flex items-center gap-0.5 p-1 bg-muted/50 rounded-lg border border-border">
         {tools.map(({ type, label, icon: Icon }) => (
           <button
