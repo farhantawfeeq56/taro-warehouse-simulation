@@ -13,8 +13,11 @@ import type {
   WarehouseProfile,
   LaborProfile,
   SimulationValidationContext,
+  LayoutConfig,
 } from '@/lib/taro/types';
 import { generateDemoWarehouse, generateRandomOrders, createEmptyWarehouse } from '@/lib/taro/demo-generator';
+import { generateLayout } from '@/lib/taro/layout-generator';
+import { SetupOverlay } from './setup-overlay';
 import { runSimulation } from '@/lib/taro/simulation';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -25,7 +28,7 @@ import { Toolbar } from './toolbar';
 import { ValidationModal } from './validation-modal';
 import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Settings2, LayoutDashboard } from 'lucide-react';
 import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
@@ -66,6 +69,41 @@ export function TaroApp() {
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
+
+  const [showSetup, setShowSetup] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('taro_setup_complete') !== 'true';
+    }
+    return false;
+  });
+
+  const [layoutConfig, setLayoutConfig] = useState<LayoutConfig | undefined>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('taro_layout_config');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          return undefined;
+        }
+      }
+    }
+    return undefined;
+  });
+
+  const handleSetupComplete = useCallback((config: LayoutConfig) => {
+    const newWarehouse = generateLayout(config);
+    setWarehouse(newWarehouse);
+    setOrders([]); // Reset orders for new layout
+    setSimulationResults(null);
+    setShowSetup(false);
+    setLayoutConfig(config);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('taro_setup_complete', 'true');
+      localStorage.setItem('taro_layout_config', JSON.stringify(config));
+    }
+  }, []);
 
   // 1. Derived Data
   const readiness = useMemo(() => evaluateReadiness(warehouse, orders, zVisualizationMode), [warehouse, orders, zVisualizationMode]);
@@ -284,6 +322,16 @@ export function TaroApp() {
         <div className="flex items-center gap-2 ml-auto">
           <ReadinessIndicator readiness={readiness} />
 
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowSetup(true)}
+            className="h-8 text-xs"
+          >
+            <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+            Change Layout
+          </Button>
+
           {simulationResults && (
             <Button
               size="sm"
@@ -391,6 +439,13 @@ export function TaroApp() {
           validationContext={validationContext}
           onClose={() => setShowValidationModal(false)}
           onFixItems={handleFixItems}
+        />
+      )}
+
+      {showSetup && (
+        <SetupOverlay 
+          onComplete={handleSetupComplete} 
+          initialConfig={layoutConfig}
         />
       )}
     </div>

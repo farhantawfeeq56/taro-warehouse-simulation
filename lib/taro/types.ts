@@ -148,3 +148,12 @@ export interface PickTask {
   location: string;
   item: string;
 }
+
+export type LayoutType = 'standard' | 'large' | 'compact' | 'minimal';
+
+export interface LayoutConfig {
+  type: LayoutType;
+  width: number;
+  height: number;
+  aisles: number;
+}
