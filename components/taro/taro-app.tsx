@@ -14,7 +14,12 @@ import type {
   LaborProfile,
   SimulationValidationContext,
 } from '@/lib/taro/types';
-import { generateDemoWarehouse, generateRandomOrders, createEmptyWarehouse } from '@/lib/taro/demo-generator';
+import {
+  generateDemoWarehouse,
+  generateRandomOrders,
+  createEmptyWarehouse,
+  generateSkeletonWarehouse,
+} from '@/lib/taro/demo-generator';
 import { runSimulation } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -38,14 +43,8 @@ interface SimulationBlockState {
 }
 
 export function TaroApp() {
-  const { initialWarehouse, initialOrders } = useMemo(() => {
-    const w = generateDemoWarehouse();
-    const o = generateRandomOrders(w, 4);
-    return { initialWarehouse: w, initialOrders: o };
-  }, []);
-
-  const [warehouse, setWarehouse] = useState<Warehouse>(initialWarehouse);
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [warehouse, setWarehouse] = useState<Warehouse>(() => generateSkeletonWarehouse());
+  const [orders, setOrders] = useState<Order[]>([]);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
@@ -247,6 +246,14 @@ export function TaroApp() {
   }, [warehouse]);
 
   // 4. Side Effects
+  useEffect(() => {
+    // Generate demo data only on client-side after hydration
+    const w = generateDemoWarehouse();
+    const o = generateRandomOrders(w, 4);
+    setWarehouse(w);
+    setOrders(o);
+  }, []);
+
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
   }, [replaySpeed]);
