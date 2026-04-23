@@ -6,19 +6,22 @@ export function generateLayout(config: LayoutConfig): Warehouse {
   const { width, height, type, density, shortcuts, rowLength } = config;
   const warehouse = createEmptyWarehouse(width, height);
 
-  // 1. Calculate row positions
+  // 1. Calculate Hub Constants
+  const midX = Math.floor(width / 2);
+  const midY = Math.floor(height / 2);
+  const spineWidth = 3;
+  const highwayHeight = 3;
+  
+  const spineCols = Array.from({ length: spineWidth }, (_, i) => midX - Math.floor(spineWidth / 2) + i);
+  const highwayRows = Array.from({ length: highwayHeight }, (_, i) => midY - Math.floor(highwayHeight / 2) + i);
+
+  // 2. Define Shelf Rows
   // density 1-10: 1 means more space (fewer rows), 10 means more storage (more rows)
-  // rowInterval of 3 means shelf, shelf, empty (aisle)
   const rowInterval = Math.max(3, 11 - density); 
   const shelfRows: number[] = [];
   
-  // Define highway (central horizontal aisle)
-  const highwayHeight = 3;
-  const midY = Math.floor(height / 2);
-  const highwayRows = Array.from({ length: highwayHeight }, (_, i) => midY - Math.floor(highwayHeight / 2) + i);
-
   for (let y = 2; y < height - 2; y++) {
-    // Skip if it's part of the highway
+    // Skip if it's part of the horizontal highway
     if (highwayRows.includes(y)) continue;
 
     // Basic pattern: 2 rows of shelves followed by an aisle
@@ -27,11 +30,11 @@ export function generateLayout(config: LayoutConfig): Warehouse {
     }
   }
 
-  // 2. Calculate column ranges and gaps
+  // 3. Calculate column ranges and cross-aisle shortcuts
   const startCol = 3;
   const endCol = width - 4;
   
-  // Shortcuts (0-3): horizontal cross-aisles
+  // Non-fishbone shortcuts: vertical cross-aisles
   const shortcutCols: number[] = [];
   if (shortcuts > 0 && type !== 'fishbone') {
     const segmentWidth = Math.floor((endCol - startCol) / (shortcuts + 1));
@@ -40,59 +43,57 @@ export function generateLayout(config: LayoutConfig): Warehouse {
     }
   }
 
-  // Row Continuity (1-10): 1 means frequent gaps, 10 means continuous rows
-  const gapFrequency = 11 - rowLength;
-
+  // 4. Populate Shelves
   for (const y of shelfRows) {
-    // Cross-aisle type: big gap in the middle row(s)
-    if (type === 'cross-aisle' && Math.abs(y - height / 2) < 2) {
+    // Cross-aisle type special handling: larger central gap if not already handled by highwayRows
+    if (type === 'cross-aisle' && Math.abs(y - midY) < 2) {
       continue;
     }
 
     for (let x = startCol; x <= endCol; x++) {
-      // Skip if this column is a shortcut
-      if (shortcutCols.includes(x)) continue;
-
-      // Segmented type: gaps based on rowLength
-      if (type === 'segmented' && x % (Math.max(2, gapFrequency) * 3) === 0) {
-        continue;
-      }
-
-      // Fishbone type: V-shape approximation with central highway and diagonal aisles
       if (type === 'fishbone') {
-        const midPoint = (startCol + endCol) / 2;
-        const distanceFromMid = x - midPoint;
-        const relativeY = y - midY;
-        
-        // Main V-shape diagonal aisles
-        // Angle depends on distance from center
-        // Shortcuts slider (0-3) controls number of diagonal aisles
-        const diagonalAisleWidth = 1.5;
+        // Central Vertical Spine
+        if (spineCols.includes(x)) continue;
+
+        // Diagonal "V" Aisles
+        const dx = Math.abs(x - midX);
+        const dy = Math.abs(y - midY);
         let isDiagonalAisle = false;
-        
-        // We always have the main fishbone angle
-        if (Math.abs(Math.abs(distanceFromMid) - Math.abs(relativeY)) < diagonalAisleWidth) {
+
+        // Main diagonal V-shape (2-3 cells wide for 4-way pathfinding)
+        if (Math.abs(dx - dy) < 1.1) {
           isDiagonalAisle = true;
         }
 
-        // Additional diagonal aisles based on shortcuts
-        if (shortcuts > 0) {
-          const spacing = (endCol - startCol) / (shortcuts + 1);
+        // Parallel diagonal ribs based on shortcuts
+        if (!isDiagonalAisle && shortcuts > 0) {
+          const spacing = Math.max(8, Math.floor(width / (shortcuts + 2)));
           for (let i = 1; i <= shortcuts; i++) {
             const offset = i * spacing;
-            if (Math.abs(Math.abs(distanceFromMid - offset) - Math.abs(relativeY)) < diagonalAisleWidth ||
-                Math.abs(Math.abs(distanceFromMid + offset) - Math.abs(relativeY)) < diagonalAisleWidth) {
+            if (Math.abs(dx - (dy + offset)) < 1.1 || Math.abs(dx - (dy - offset)) < 1.1) {
               isDiagonalAisle = true;
+              break;
             }
           }
         }
 
         if (isDiagonalAisle) continue;
-      }
+        
+        // For fishbone, we ignore the gap frequency and rowLength to keep racks continuous
+      } else {
+        // Standard layout logic
+        if (shortcutCols.includes(x)) continue;
 
-      // Row continuity: apply occasional gaps if continuity is low
-      if (rowLength < 10 && x % (rowLength * 5) === 0) {
-        continue;
+        // Segmented type: gaps based on rowLength
+        const gapFrequency = 11 - rowLength;
+        if (type === 'segmented' && x % (Math.max(2, gapFrequency) * 3) === 0) {
+          continue;
+        }
+
+        // Row continuity: apply occasional gaps if continuity is low
+        if (rowLength < 10 && x % (rowLength * 5) === 0) {
+          continue;
+        }
       }
 
       warehouse.grid[y][x].type = 'shelf';
@@ -100,14 +101,13 @@ export function generateLayout(config: LayoutConfig): Warehouse {
     }
   }
 
-  // Cleanup pass: remove isolated shelves or tiny segments
+  // 5. Cleanup pass: remove isolated shelves or tiny segments
   const grid = warehouse.grid;
   const shelvesToRemove: {x: number, y: number}[] = [];
   
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (grid[y][x].type === 'shelf') {
-        // In this simulation, shelves are predominantly horizontal.
         // Remove any shelf cell that doesn't have a horizontal neighbor.
         let horizontalNeighbors = 0;
         if (x > 0 && grid[y][x-1].type === 'shelf') horizontalNeighbors++;
