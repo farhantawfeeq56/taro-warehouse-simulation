@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { Settings2, LayoutDashboard } from 'lucide-react';
 
 interface SetupOverlayProps {
@@ -16,14 +17,24 @@ interface SetupOverlayProps {
 
 export function SetupOverlay({ onComplete, initialConfig }: SetupOverlayProps) {
   const [config, setConfig] = useState<LayoutConfig>(initialConfig || {
-    type: 'standard',
+    type: 'parallel',
     width: 30,
     height: 24,
-    aisles: 5
+    density: 5,
+    shortcuts: 1,
+    rowLength: 5
   });
 
   const handleComplete = () => {
-    onComplete(config);
+    // Apply constraints
+    let finalConfig = { ...config };
+    if (config.type === 'fishbone') {
+      finalConfig.shortcuts = 0; // fishbone usually doesn't have standard shortcuts
+    }
+    if (config.type === 'segmented') {
+      finalConfig.rowLength = Math.min(finalConfig.rowLength, 5); // cap continuity for segmented
+    }
+    onComplete(finalConfig);
   };
 
   return (
@@ -38,6 +49,9 @@ export function SetupOverlay({ onComplete, initialConfig }: SetupOverlayProps) {
           </div>
           <CardDescription>
             Configure your warehouse layout before starting the simulation.
+            <span className="block mt-1 font-medium text-primary/80">
+              Different layouts can significantly change walking distance
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -51,10 +65,10 @@ export function SetupOverlay({ onComplete, initialConfig }: SetupOverlayProps) {
                 <SelectValue placeholder="Select layout pattern" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="standard">Standard Aisles</SelectItem>
-                <SelectItem value="large">Large Distribution Center</SelectItem>
-                <SelectItem value="compact">Compact Fulfillment</SelectItem>
-                <SelectItem value="minimal">Minimal Lab</SelectItem>
+                <SelectItem value="parallel">Parallel Aisles</SelectItem>
+                <SelectItem value="cross-aisle">Cross Aisle</SelectItem>
+                <SelectItem value="segmented">Segmented Blocks</SelectItem>
+                <SelectItem value="fishbone">Fishbone (V-Shape)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -80,14 +94,48 @@ export function SetupOverlay({ onComplete, initialConfig }: SetupOverlayProps) {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="aisles">Number of Aisles</Label>
-            <Input 
-              id="aisles" 
-              type="number" 
-              value={config.aisles}
-              onChange={(e) => setConfig({ ...config, aisles: parseInt(e.target.value) || 5 })}
-            />
+          <div className="space-y-4 pt-2">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label>Space vs Storage (Density)</Label>
+                <span className="text-xs font-mono text-muted-foreground">{config.density}</span>
+              </div>
+              <Slider 
+                value={[config.density]} 
+                min={1} 
+                max={10} 
+                step={1} 
+                onValueChange={([val]) => setConfig({ ...config, density: val })}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label>Shortcut Paths</Label>
+                <span className="text-xs font-mono text-muted-foreground">{config.shortcuts}</span>
+              </div>
+              <Slider 
+                value={[config.shortcuts]} 
+                min={0} 
+                max={3} 
+                step={1} 
+                onValueChange={([val]) => setConfig({ ...config, shortcuts: val })}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label>Row Continuity (Length)</Label>
+                <span className="text-xs font-mono text-muted-foreground">{config.rowLength}</span>
+              </div>
+              <Slider 
+                value={[config.rowLength]} 
+                min={1} 
+                max={10} 
+                step={1} 
+                onValueChange={([val]) => setConfig({ ...config, rowLength: val })}
+              />
+            </div>
           </div>
         </CardContent>
         <CardFooter>

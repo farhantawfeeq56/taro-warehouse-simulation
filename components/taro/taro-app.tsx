@@ -33,6 +33,13 @@ import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 
+import {
+  getSetupComplete,
+  setSetupComplete,
+  getLayoutConfig,
+  setLayoutConfig as saveLayoutConfig,
+} from '@/lib/taro/storage';
+
 interface SimulationBlockState {
   /** Set when simulation cannot run; drives right-panel blocked UI. */
   simulationState?: 'NO_VALID_ITEMS';
@@ -41,14 +48,18 @@ interface SimulationBlockState {
 }
 
 export function TaroApp() {
-  const { initialWarehouse, initialOrders } = useMemo(() => {
-    const w = generateDemoWarehouse();
-    const o = generateRandomOrders(w, 4);
-    return { initialWarehouse: w, initialOrders: o };
-  }, []);
-
-  const [warehouse, setWarehouse] = useState<Warehouse>(initialWarehouse);
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [layoutConfig, setLayoutConfig] = useState<LayoutConfig | undefined>(() => getLayoutConfig() || undefined);
+  
+  const [warehouse, setWarehouse] = useState<Warehouse>(() => {
+    const config = getLayoutConfig();
+    return config ? generateLayout(config) : generateDemoWarehouse();
+  });
+  
+  const [orders, setOrders] = useState<Order[]>(() => {
+    const config = getLayoutConfig();
+    const w = config ? generateLayout(config) : generateDemoWarehouse();
+    return generateRandomOrders(w, 4);
+  });
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
@@ -70,26 +81,7 @@ export function TaroApp() {
   const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
 
-  const [showSetup, setShowSetup] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('taro_setup_complete') !== 'true';
-    }
-    return false;
-  });
-
-  const [layoutConfig, setLayoutConfig] = useState<LayoutConfig | undefined>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('taro_layout_config');
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {
-          return undefined;
-        }
-      }
-    }
-    return undefined;
-  });
+  const [showSetup, setShowSetup] = useState(() => !getSetupComplete());
 
   const handleSetupComplete = useCallback((config: LayoutConfig) => {
     const newWarehouse = generateLayout(config);
@@ -99,10 +91,8 @@ export function TaroApp() {
     setShowSetup(false);
     setLayoutConfig(config);
     
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('taro_setup_complete', 'true');
-      localStorage.setItem('taro_layout_config', JSON.stringify(config));
-    }
+    setSetupComplete(true);
+    saveLayoutConfig(config);
   }, []);
 
   // 1. Derived Data
@@ -201,6 +191,8 @@ export function TaroApp() {
       setHighlightedMissingItemIds(null);
       setSimulationBlockState(null);
       setImportSummary('');
+      setLayoutConfig(undefined);
+      saveLayoutConfig(null); // Clear from storage
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
@@ -271,6 +263,8 @@ export function TaroApp() {
       setShowValidationModal(false);
       setHighlightedMissingItemIds(null);
       setSimulationBlockState(null);
+      setLayoutConfig(undefined);
+      saveLayoutConfig(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
       alert(`CSV import failed: ${message}`);
@@ -311,10 +305,8 @@ export function TaroApp() {
       <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator
-
-</h1>
-            <p className="text-xs text-muted-foreground leading-tight">Demo warehouse generated for viewing purposes. Refresh for fresh demo.</p>
+            <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator</h1>
+            <p className="text-xs text-muted-foreground leading-tight">Evaluation engine for warehouse layout and picking strategy decisions.</p>
             {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
           </div>
         </div>
@@ -374,7 +366,13 @@ export function TaroApp() {
           {/* Canvas */}
           <WarehouseCanvas
             warehouse={warehouse}
-            onWarehouseChange={setWarehouse}
+            onWarehouseChange={(newW) => {
+              setWarehouse(newW);
+              if (layoutConfig) {
+                setLayoutConfig(undefined);
+                saveLayoutConfig(null);
+              }
+            }}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
             animationProgress={animationProgress}
@@ -429,6 +427,7 @@ export function TaroApp() {
           onAddDemoOrders={handleAddDemoOrders}
           onSetWorkerStart={() => setSelectedTool('worker')}
           onZVisualizationChange={setZVisualizationMode}
+          layoutConfig={layoutConfig}
         />
       </div>
 

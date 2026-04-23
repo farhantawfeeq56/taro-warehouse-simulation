@@ -149,11 +149,13 @@ export interface PickTask {
   item: string;
 }
 
-export type LayoutType = 'standard' | 'large' | 'compact' | 'minimal';
+export type LayoutType = 'parallel' | 'cross-aisle' | 'segmented' | 'fishbone';
 
 export interface LayoutConfig {
   type: LayoutType;
   width: number;
   height: number;
-  aisles: number;
+  density: number;    // 1-10 (Space vs Storage)
+  shortcuts: number;  // 0-3 (Shortcut Paths)
+  rowLength: number;  // 1-10 (Row Continuity)
 }

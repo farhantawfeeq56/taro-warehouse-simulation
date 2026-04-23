@@ -1,6 +1,6 @@
 'use client';
 
-import type { SimulationResults, StrategyResult, StrategyType, SimulationValidationContext, ZVisualizationMode } from '@/lib/taro/types';
+import type { LayoutConfig, SimulationResults, StrategyResult, StrategyType, SimulationValidationContext, ZVisualizationMode } from '@/lib/taro/types';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,8 @@ import {
   UserPlus, 
   PlayCircle, 
   BarChart3, 
-  Loader2 
+  Loader2,
+  LayoutDashboard
 } from 'lucide-react';
 import {
   Empty,
@@ -50,6 +51,7 @@ interface SystemStatePanelProps {
   onAddDemoOrders?: () => void;
   onSetWorkerStart?: () => void;
   onZVisualizationChange?: (mode: ZVisualizationMode) => void;
+  layoutConfig?: LayoutConfig;
 }
 
 export function SystemStatePanel({
@@ -69,6 +71,7 @@ export function SystemStatePanel({
   onAddDemoOrders,
   onSetWorkerStart,
   onZVisualizationChange,
+  layoutConfig,
 }: SystemStatePanelProps) {
   const strategies = results?.strategies ?? [];
   const simulatedItemCount = validationContext
@@ -226,8 +229,25 @@ export function SystemStatePanel({
                 All requirements met. Ready to calculate optimal picking routes.
               </EmptyDescription>
             </EmptyHeader>
-            <EmptyContent>
-              <Button onClick={onSimulate} className="w-full bg-emerald-600 hover:bg-emerald-700">
+            <EmptyContent className="w-full space-y-4">
+              {layoutConfig && (
+                <div className="p-3 border border-border rounded-lg bg-muted/30 text-[10px] space-y-1.5">
+                  <div className="font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <LayoutDashboard className="h-3 w-3 text-primary" />
+                    Proposed layout decision
+                  </div>
+                  <div className="text-foreground font-semibold flex gap-1.5 items-center flex-wrap">
+                    <span className="capitalize">{layoutConfig.type.replace('-', ' ')}</span>
+                    <span className="opacity-30">•</span>
+                    <span>{layoutConfig.density >= 8 ? 'High Storage' : layoutConfig.density <= 3 ? 'High Accessibility' : 'Balanced Density'}</span>
+                    <span className="opacity-30">•</span>
+                    <span>{layoutConfig.shortcuts > 0 ? `${layoutConfig.shortcuts} Shortcuts` : 'No Shortcuts'}</span>
+                    <span className="opacity-30">•</span>
+                    <span>{layoutConfig.rowLength >= 8 ? 'Continuous Rows' : layoutConfig.rowLength <= 3 ? 'Short Blocks' : 'Standard Rows'}</span>
+                  </div>
+                </div>
+              )}
+              <Button onClick={onSimulate} className="w-full bg-emerald-600 hover:bg-emerald-700 h-10 font-bold">
                 Run Simulation
               </Button>
             </EmptyContent>
@@ -260,6 +280,24 @@ export function SystemStatePanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        {layoutConfig && (
+          <div className="p-2.5 border border-border rounded-lg bg-muted/30 text-[10px] space-y-1">
+            <div className="font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <LayoutDashboard className="h-3 w-3 text-primary" />
+              Decision context
+            </div>
+            <div className="text-foreground font-semibold flex gap-1.5 items-center flex-wrap">
+              <span className="capitalize">{layoutConfig.type.replace('-', ' ')}</span>
+              <span className="opacity-30">•</span>
+              <span>{layoutConfig.density >= 8 ? 'High Storage' : layoutConfig.density <= 3 ? 'High Accessibility' : 'Balanced Density'}</span>
+              <span className="opacity-30">•</span>
+              <span>{layoutConfig.shortcuts > 0 ? `${layoutConfig.shortcuts} Shortcuts` : 'No Shortcuts'}</span>
+              <span className="opacity-30">•</span>
+              <span>{layoutConfig.rowLength >= 8 ? 'Continuous Rows' : layoutConfig.rowLength <= 3 ? 'Short Blocks' : 'Standard Rows'}</span>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-1.5">
           {sortedStrategies.map((strategy) => {
             const isSelected = activeStrategy === strategy.strategy;
