@@ -1,11 +1,12 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation, Item } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 import { getItemsByLocation } from '@/lib/taro/items';
 import { getNextSku } from '@/lib/taro/demo-generator';
+import { addOuterPadding, OUTER_PADDING } from '@/lib/taro/layout-utils';
 
 interface WarehouseCanvasProps {
   warehouse: Warehouse;
@@ -64,6 +65,8 @@ export function WarehouseCanvas({
   // Shelf details panel state for click
   const [shelfDetails, setShelfDetails] = useState<ShelfDetailsState | null>(null);
 
+  const paddedGrid = useMemo(() => addOuterPadding(warehouse.grid), [warehouse.grid]);
+
   const getCellFromMouse = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -72,8 +75,8 @@ export function WarehouseCanvas({
     const x = (e.clientX - rect.left - panOffset.x) / zoom;
     const y = (e.clientY - rect.top - panOffset.y) / zoom;
 
-    const cellX = Math.floor(x / CELL_SIZE);
-    const cellY = Math.floor(y / CELL_SIZE);
+    const cellX = Math.floor(x / CELL_SIZE) - OUTER_PADDING;
+    const cellY = Math.floor(y / CELL_SIZE) - OUTER_PADDING;
 
     if (cellX >= 0 && cellX < warehouse.width && cellY >= 0 && cellY < warehouse.height) {
       return { x: cellX, y: cellY };
@@ -333,8 +336,8 @@ export function WarehouseCanvas({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = warehouse.width * CELL_SIZE;
-    const height = warehouse.height * CELL_SIZE;
+    const width = (warehouse.width + OUTER_PADDING * 2) * CELL_SIZE;
+    const height = (warehouse.height + OUTER_PADDING * 2) * CELL_SIZE;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
@@ -342,9 +345,9 @@ export function WarehouseCanvas({
     ctx.scale(zoom, zoom);
 
     // Draw cells
-    for (let y = 0; y < warehouse.height; y++) {
-      for (let x = 0; x < warehouse.width; x++) {
-        const cell = warehouse.grid[y][x];
+    for (let y = 0; y < paddedGrid.length; y++) {
+      for (let x = 0; x < paddedGrid[0].length; x++) {
+        const cell = paddedGrid[y][x];
         const px = x * CELL_SIZE;
         const py = y * CELL_SIZE;
 
@@ -462,8 +465,8 @@ export function WarehouseCanvas({
           for (let x = 0; x < warehouse.width; x++) {
             const heat = heatmap[y][x];
             if (heat <= 0) continue;
-            const px = x * CELL_SIZE;
-            const py = y * CELL_SIZE;
+            const px = (x + OUTER_PADDING) * CELL_SIZE;
+            const py = (y + OUTER_PADDING) * CELL_SIZE;
             const intensity = heat / maxHeat;
             const alpha = 0.12 + intensity * 0.43;
             ctx.fillStyle = `rgba(239, 68, 68, ${alpha.toFixed(3)})`;
@@ -491,10 +494,10 @@ export function WarehouseCanvas({
           ctx.globalAlpha = 0.8;
 
           const firstPoint = workerRoute.route[0];
-          ctx.moveTo(firstPoint.x * CELL_SIZE + CELL_SIZE / 2, firstPoint.y * CELL_SIZE + CELL_SIZE / 2);
+          ctx.moveTo((firstPoint.x + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, (firstPoint.y + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2);
           for (let i = 1; i < visiblePoints; i++) {
             const point = workerRoute.route[i];
-            ctx.lineTo(point.x * CELL_SIZE + CELL_SIZE / 2, point.y * CELL_SIZE + CELL_SIZE / 2);
+            ctx.lineTo((point.x + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, (point.y + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2);
           }
           ctx.stroke();
           ctx.globalAlpha = 1;
@@ -504,12 +507,12 @@ export function WarehouseCanvas({
           ctx.beginPath();
           ctx.fillStyle = workerRoute.color;
           ctx.globalAlpha = 0.25;
-          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
+          ctx.arc((workerPos.x + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, (workerPos.y + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
           ctx.fill();
           ctx.globalAlpha = 1;
           ctx.beginPath();
           ctx.fillStyle = workerRoute.color;
-          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
+          ctx.arc((workerPos.x + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, (workerPos.y + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
           ctx.fill();
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;
@@ -527,14 +530,14 @@ export function WarehouseCanvas({
           ctx.globalAlpha = 0.8;
           const firstPoint = activeRoute.route[0];
           ctx.moveTo(
-            firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
-            firstPoint.y * CELL_SIZE + CELL_SIZE / 2
+            (firstPoint.x + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2,
+            (firstPoint.y + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2
           );
           for (let i = 1; i < visiblePoints; i++) {
             const point = activeRoute.route[i];
             ctx.lineTo(
-              point.x * CELL_SIZE + CELL_SIZE / 2,
-              point.y * CELL_SIZE + CELL_SIZE / 2
+              (point.x + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2,
+              (point.y + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2
             );
           }
           ctx.stroke();
@@ -544,12 +547,12 @@ export function WarehouseCanvas({
           ctx.beginPath();
           ctx.fillStyle = activeRoute.color;
           ctx.globalAlpha = 0.3;
-          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
+          ctx.arc((workerPos.x + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, (workerPos.y + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
           ctx.fill();
           ctx.globalAlpha = 1;
           ctx.beginPath();
           ctx.fillStyle = activeRoute.color;
-          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
+          ctx.arc((workerPos.x + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, (workerPos.y + OUTER_PADDING) * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
           ctx.fill();
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;
@@ -561,14 +564,14 @@ export function WarehouseCanvas({
     // Draw border
     ctx.strokeStyle = '#d1d5db';
     ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, width, height);
+    ctx.strokeRect(OUTER_PADDING * CELL_SIZE, OUTER_PADDING * CELL_SIZE, warehouse.width * CELL_SIZE, warehouse.height * CELL_SIZE);
 
     // Draw hover highlight
     if (hoveredCell) {
       const cell = warehouse.grid[hoveredCell.y][hoveredCell.x];
       if (cell.type === 'shelf') {
-        const px = hoveredCell.x * CELL_SIZE;
-        const py = hoveredCell.y * CELL_SIZE;
+        const px = (hoveredCell.x + OUTER_PADDING) * CELL_SIZE;
+        const py = (hoveredCell.y + OUTER_PADDING) * CELL_SIZE;
         ctx.fillStyle = 'rgba(59, 130, 246, 0.2)'; // Blue tint
         ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
         ctx.strokeStyle = '#3b82f6'; // Bright blue border
@@ -578,7 +581,7 @@ export function WarehouseCanvas({
     }
 
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, activeRouteHeatmap, animationProgress, zVisualizationMode, hoveredCell]);
+  }, [warehouse, paddedGrid, panOffset, zoom, activeRoute, activeRouteHeatmap, animationProgress, zVisualizationMode, hoveredCell]);
 
   // Use RAF for smooth animation, avoid 60fps React re-renders
   useEffect(() => {

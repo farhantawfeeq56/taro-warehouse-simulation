@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { OUTER_PADDING } from '@/lib/taro/layout-utils';
 
 interface LayoutConfigOverlayProps {
   onClose: () => void;
@@ -64,8 +65,8 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const cellSize = useMemo(() => {
     if (containerSize.width === 0 || containerSize.height === 0) return 24;
 
-    const wrappedCols = totalWidth + 2;
-    const wrappedRows = gridHeight + 2;
+    const wrappedCols = totalWidth + OUTER_PADDING * 2;
+    const wrappedRows = gridHeight + OUTER_PADDING * 2;
     const padding = 64; // 32px on each side
 
     const availableWidth = containerSize.width - padding;
@@ -79,14 +80,19 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   }, [containerSize, totalWidth, gridHeight]);
 
   const renderGrid = () => {
-    const wrappedCols = totalWidth + 2;
-    const wrappedRows = gridHeight + 2;
+    const wrappedCols = totalWidth + OUTER_PADDING * 2;
+    const wrappedRows = gridHeight + OUTER_PADDING * 2;
     const cells = [];
 
     for (let y = 0; y < wrappedRows; y++) {
       for (let x = 0; x < wrappedCols; x++) {
-        const isBorder = x === 0 || x === wrappedCols - 1 || y === 0 || y === wrappedRows - 1;
-        const cell = isBorder ? 'aisle' : grid[y - 1][x - 1];
+        const isBorder = 
+          x < OUTER_PADDING || 
+          x >= totalWidth + OUTER_PADDING || 
+          y < OUTER_PADDING || 
+          y >= gridHeight + OUTER_PADDING;
+        
+        const cell = isBorder ? 'aisle' : grid[y - OUTER_PADDING][x - OUTER_PADDING];
         
         cells.push(
           <div
@@ -212,7 +218,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
           <div 
             className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
             style={{
-              gridTemplateColumns: `repeat(${totalWidth + 2}, ${cellSize}px)`,
+              gridTemplateColumns: `repeat(${totalWidth + OUTER_PADDING * 2}, ${cellSize}px)`,
               width: 'max-content',
             }}
           >
