@@ -1,8 +1,8 @@
 // A* Pathfinding algorithm for warehouse routes (optimized with binary heap)
 
-import type { Warehouse } from './types';
+import type { Warehouse, Neighbor, NeighborGraph } from './types';
 import { PriorityQueue } from './priority-queue';
-import { calculateManhattanDistance } from './distance';
+import { calculateManhattanDistance, calculateOctileDistance, calculateEuclideanDistance, SQRT2 } from './distance';
 
 interface Node {
   x: number;
@@ -13,10 +13,6 @@ interface Node {
   parent: Node | null;
 }
 
-function heuristic(a: { x: number; y: number }, b: { x: number; y: number }): number {
-  return calculateManhattanDistance(a, b);
-}
-
 export function isWalkable(warehouse: Warehouse, x: number, y: number): boolean {
   if (x < 0 || x >= warehouse.width || y < 0 || y >= warehouse.height) {
     return false;
@@ -25,57 +21,66 @@ export function isWalkable(warehouse: Warehouse, x: number, y: number): boolean 
   return cell.type !== 'shelf';
 }
 
-function getNeighborGraph(warehouse: Warehouse): Map<string, { x: number; y: number }[]> {
-  const walkable: { x: number; y: number }[] = [];
+export function getNeighborGraph(warehouse: Warehouse, allowDiagonals: boolean = false): NeighborGraph {
+  const neighbors = new Map<string, Neighbor[]>();
+
   for (let y = 0; y < warehouse.height; y++) {
     for (let x = 0; x < warehouse.width; x++) {
-      if (isWalkable(warehouse, x, y)) {
-        walkable.push({ x, y });
-      }
-    }
-  }
+      if (!isWalkable(warehouse, x, y)) continue;
 
-  const walkableSet = new Set(walkable.map(loc => `${loc.x},${loc.y}`));
-  const neighbors = new Map<string, { x: number; y: number }[]>();
+      const list: Neighbor[] = [];
+      
+      // Orthogonal neighbors
+      const orthogonals = [
+        { x: x, y: y - 1 },
+        { x: x, y: y + 1 },
+        { x: x - 1, y: y },
+        { x: x + 1, y: y },
+      ];
 
-  for (const loc of walkable) {
-    const list: { x: number; y: number }[] = [];
-    const candidates = [
-      { x: loc.x, y: loc.y - 1 },
-      { x: loc.x, y: loc.y + 1 },
-      { x: loc.x - 1, y: loc.y },
-      { x: loc.x + 1, y: loc.y },
-    ];
-    for (const candidate of candidates) {
-      if (walkableSet.has(`${candidate.x},${candidate.y}`)) {
-        list.push(candidate);
+      for (const cand of orthogonals) {
+        if (isWalkable(warehouse, cand.x, cand.y)) {
+          list.push({ x: cand.x, y: cand.y, weight: 1 });
+        }
       }
+
+      if (allowDiagonals) {
+        // Diagonal neighbors
+        const diagonals = [
+          { x: x - 1, y: y - 1, check: [{ x: x - 1, y }, { x, y: y - 1 }] },
+          { x: x + 1, y: y - 1, check: [{ x: x + 1, y }, { x, y: y - 1 }] },
+          { x: x - 1, y: y + 1, check: [{ x: x - 1, y }, { x, y: y + 1 }] },
+          { x: x + 1, y: y + 1, check: [{ x: x + 1, y }, { x, y: y + 1 }] },
+        ];
+
+        for (const cand of diagonals) {
+          if (isWalkable(warehouse, cand.x, cand.y)) {
+            // Corner cutting check: both adjacent orthogonal cells must be walkable
+            const canPass = cand.check.every(c => isWalkable(warehouse, c.x, c.y));
+            if (canPass) {
+              list.push({ x: cand.x, y: cand.y, weight: SQRT2 });
+            }
+          }
+        }
+      }
+
+      neighbors.set(`${x},${y}`, list);
     }
-    neighbors.set(`${loc.x},${loc.y}`, list);
   }
 
   return neighbors;
 }
 
-function getNeighbors(graph: Map<string, { x: number; y: number }[]>, node: Node): { x: number; y: number }[] {
-  const directions = [
-    { x: 0, y: -1 }, // up
-    { x: 0, y: 1 },  // down
-    { x: -1, y: 0 }, // left
-    { x: 1, y: 0 },  // right
-  ];
-
-  const neighbors = graph.get(`${node.x},${node.y}`);
-  if (neighbors) return neighbors;
-  return directions.map(dir => ({ x: node.x + dir.x, y: node.y + dir.y }));
-}
-
 export function findPath(
   warehouse: Warehouse,
   start: { x: number; y: number },
-  end: { x: number; y: number }
+  end: { x: number; y: number },
+  options: { allowDiagonals?: boolean, neighborGraph?: NeighborGraph } = {}
 ): { x: number; y: number }[] {
-  const neighborGraph = getNeighborGraph(warehouse);
+  const { allowDiagonals = false, neighborGraph: providedGraph } = options;
+  const neighborGraph = providedGraph || getNeighborGraph(warehouse, allowDiagonals);
+  const heuristic = allowDiagonals ? calculateOctileDistance : calculateManhattanDistance;
+
   // If start or end is on a shelf, find nearest walkable cell
   const actualStart = findNearestWalkable(warehouse, start);
   const actualEnd = findNearestWalkable(warehouse, end);
@@ -120,14 +125,16 @@ export function findPath(
     closedSet.add(currentKey);
     openSetNodes.delete(currentKey);
 
-    for (const neighbor of getNeighbors(neighborGraph, current)) {
+    const neighbors = neighborGraph.get(currentKey) || [];
+
+    for (const neighbor of neighbors) {
       const neighborKey = `${neighbor.x},${neighbor.y}`;
 
       if (closedSet.has(neighborKey)) {
         continue;
       }
 
-      const g = current.g + 1;
+      const g = current.g + neighbor.weight;
       const h = heuristic(neighbor, actualEnd);
       const f = g + h;
 
@@ -194,7 +201,7 @@ export function calculatePathDistance(path: { x: number; y: number }[]): number 
 
   let distance = 0;
   for (let i = 1; i < path.length; i++) {
-    distance += calculateManhattanDistance(path[i], path[i - 1]);
+    distance += calculateEuclideanDistance(path[i], path[i - 1]);
   }
 
   return distance;
