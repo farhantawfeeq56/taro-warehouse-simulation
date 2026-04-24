@@ -149,40 +149,37 @@ export function generateParallelLayout(
   let skuId = 1;
   let itemCounter = 1;
 
-  for (let x = 0; x < width; x++) {
-    // Parallel layout: 1 rack column followed by aisleWidth aisle columns
-    const cycleWidth = 1 + aisleWidth;
-    if (x % cycleWidth === 0) {
-      for (let y = 0; y < height; y++) {
-        grid[y][x].type = 'shelf';
-        
-        // Generate storage locations for the shelf
-        const locations: StorageLocation[] = [];
-        const numZLevels = Math.floor(Math.random() * 3) + 1;
-        
-        for (let z = 1; z <= numZLevels; z++) {
-          const sku = `SKU_${String(skuId).padStart(3, '0')}`;
-          const quantity = Math.floor(Math.random() * 90) + 10;
-          locations.push({
-            id: `${sku}@${x},${y},${z}`,
-            locationId: getShelfLocationId(x, y),
-            x,
-            y,
-            z,
-            sku,
-            quantity,
-          });
-          skuId++;
-        }
-        
-        grid[y][x].locations = locations;
-        shelves.push({ x, y });
+  for (let rackIndex = 0; rackIndex < rackCount; rackIndex++) {
+    const x = rackIndex * (1 + aisleWidth);
+    for (let y = 0; y < height; y++) {
+      grid[y][x].type = 'shelf';
+      
+      // Generate storage locations for the shelf
+      const locations: StorageLocation[] = [];
+      const numZLevels = Math.floor(Math.random() * 3) + 1;
+      
+      for (let z = 1; z <= numZLevels; z++) {
+        const sku = `SKU_${String(skuId).padStart(3, '0')}`;
+        const quantity = Math.floor(Math.random() * 90) + 10;
+        locations.push({
+          id: `${sku}@${x},${y},${z}`,
+          locationId: getShelfLocationId(x, y),
+          x,
+          y,
+          z,
+          sku,
+          quantity,
+        });
+        skuId++;
       }
+      
+      grid[y][x].locations = locations;
+      shelves.push({ x, y });
     }
   }
 
   // Set worker start position in the first aisle
-  const workerStartX = rackCount > 1 ? 1 : 0;
+  const workerStartX = width > 1 ? 1 : 0;
   const workerStart = { x: workerStartX, y: height - 1 };
   grid[workerStart.y][workerStart.x] = {
     x: workerStart.x,
