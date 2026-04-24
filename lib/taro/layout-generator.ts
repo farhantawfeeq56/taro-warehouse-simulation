@@ -133,7 +133,7 @@ export function generateParallelLayout(
   rackCount: number,
   aisleWidth: number
 ): Warehouse {
-  const width = rackCount + (rackCount - 1) * aisleWidth;
+  const width = (rackCount * 2) + (rackCount - 1) * aisleWidth;
   const height = gridHeight;
 
   const grid: Cell[][] = Array.from({ length: height }, (_, y) =>
@@ -150,36 +150,39 @@ export function generateParallelLayout(
   let itemCounter = 1;
 
   for (let rackIndex = 0; rackIndex < rackCount; rackIndex++) {
-    const x = rackIndex * (1 + aisleWidth);
-    for (let y = 0; y < height; y++) {
-      grid[y][x].type = 'shelf';
-      
-      // Generate storage locations for the shelf
-      const locations: StorageLocation[] = [];
-      const numZLevels = Math.floor(Math.random() * 3) + 1;
-      
-      for (let z = 1; z <= numZLevels; z++) {
-        const sku = `SKU_${String(skuId).padStart(3, '0')}`;
-        const quantity = Math.floor(Math.random() * 90) + 10;
-        locations.push({
-          id: `${sku}@${x},${y},${z}`,
-          locationId: getShelfLocationId(x, y),
-          x,
-          y,
-          z,
-          sku,
-          quantity,
-        });
-        skuId++;
+    const xBase = rackIndex * (2 + aisleWidth);
+    for (let xOffset = 0; xOffset < 2; xOffset++) {
+      const x = xBase + xOffset;
+      for (let y = 0; y < height; y++) {
+        grid[y][x].type = 'shelf';
+        
+        // Generate storage locations for the shelf
+        const locations: StorageLocation[] = [];
+        const numZLevels = Math.floor(Math.random() * 3) + 1;
+        
+        for (let z = 1; z <= numZLevels; z++) {
+          const sku = `SKU_${String(skuId).padStart(3, '0')}`;
+          const quantity = Math.floor(Math.random() * 90) + 10;
+          locations.push({
+            id: `${sku}@${x},${y},${z}`,
+            locationId: getShelfLocationId(x, y),
+            x,
+            y,
+            z,
+            sku,
+            quantity,
+          });
+          skuId++;
+        }
+        
+        grid[y][x].locations = locations;
+        shelves.push({ x, y });
       }
-      
-      grid[y][x].locations = locations;
-      shelves.push({ x, y });
     }
   }
 
   // Set worker start position in the first aisle
-  const workerStartX = width > 1 ? 1 : 0;
+  const workerStartX = rackCount > 1 ? 2 : 0;
   const workerStart = { x: workerStartX, y: height - 1 };
   grid[workerStart.y][workerStart.x] = {
     x: workerStart.x,

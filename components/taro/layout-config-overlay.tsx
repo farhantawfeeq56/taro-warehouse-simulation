@@ -20,7 +20,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [aisleWidth, setAisleWidth] = useState(2);
 
   const totalWidth = useMemo(() => {
-    return rackCount + (rackCount - 1) * aisleWidth;
+    return (rackCount * 2) + (rackCount - 1) * aisleWidth;
   }, [rackCount, aisleWidth]);
 
   const grid = useMemo(() => {
@@ -29,10 +29,13 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     );
 
     for (let rackIndex = 0; rackIndex < rackCount; rackIndex++) {
-      const x = rackIndex * (1 + aisleWidth);
-      for (let y = 0; y < gridHeight; y++) {
-        if (x < totalWidth) {
-          newGrid[y][x] = 'rack';
+      const xBase = rackIndex * (2 + aisleWidth);
+      for (let xOffset = 0; xOffset < 2; xOffset++) {
+        const x = xBase + xOffset;
+        for (let y = 0; y < gridHeight; y++) {
+          if (x < totalWidth) {
+            newGrid[y][x] = 'rack';
+          }
         }
       }
     }
@@ -99,7 +102,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                   className="py-2"
                 />
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  The number of parallel rack columns in the warehouse.
+                  The number of parallel double-row racks in the warehouse.
                 </p>
               </div>
 
