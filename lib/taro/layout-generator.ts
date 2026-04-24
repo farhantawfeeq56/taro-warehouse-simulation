@@ -4,7 +4,7 @@ import { OUTER_PADDING } from './layout-utils';
 
 /**
  * Generates a fishbone warehouse layout using a geometric approach.
- * 
+ *
  * @param width Width of the warehouse in grid cells
  * @param height Height of the warehouse in grid cells
  * @param theta Angle of diagonal aisles in degrees
@@ -35,7 +35,7 @@ export function generateFishboneLayout(
   const centerX = Math.floor(width / 2);
   const tanTheta = Math.tan((theta * Math.PI) / 180);
   const rowSpacing = s * I2;
-  
+
   const shelves: { x: number; y: number }[] = [];
   let skuId = 1;
   let itemCounter = 1;
@@ -45,35 +45,26 @@ export function generateFishboneLayout(
       const x = lx + OUTER_PADDING;
       const y = ly + OUTER_PADDING;
 
-      // 1. Central Spine (Vertical Aisle)
       if (lx === centerX) {
         grid[y][x].type = 'empty';
         continue;
       }
 
-      // 2. Diagonal Aisles
-      // Expression: ly - |lx - centerX| * tan(theta)
-      // We add a large offset to ensure the value is positive before modulo
       const diagonalValue = (ly - Math.abs(lx - centerX) * tanTheta) + 500;
-      
-      // We want diagonal aisles at regular intervals. 
-      // Using modulo to create repeating diagonal lines.
       const isAisle = (diagonalValue % rowSpacing) < 1.0;
 
       if (isAisle) {
         grid[y][x].type = 'empty';
       } else {
-        // 3. Shelf Placement based on density
         const pseudoRandom = (Math.sin(lx * 12.9898 + ly * 78.233) * 43758.5453123) % 1;
         const normalizedRandom = (pseudoRandom + 1) / 2;
 
         if (normalizedRandom < ap) {
           grid[y][x].type = 'shelf';
-          
-          // Generate storage locations for the shelf
+
           const locations: StorageLocation[] = [];
           const numZLevels = Math.floor(Math.random() * 3) + 1;
-          
+
           for (let z = 1; z <= numZLevels; z++) {
             const sku = `SKU_${String(skuId).padStart(3, '0')}`;
             const quantity = Math.floor(Math.random() * 90) + 10;
@@ -88,7 +79,7 @@ export function generateFishboneLayout(
             });
             skuId++;
           }
-          
+
           grid[y][x].locations = locations;
           shelves.push({ x, y });
         }
@@ -96,7 +87,6 @@ export function generateFishboneLayout(
     }
   }
 
-  // Set worker start position
   const workerStart = { x: centerX + OUTER_PADDING, y: fullHeight - OUTER_PADDING - 1 };
   grid[workerStart.y][workerStart.x] = {
     x: workerStart.x,
@@ -115,7 +105,6 @@ export function generateFishboneLayout(
     items: [],
   };
 
-  // Populate items (one per shelf for consistency with demo generator)
   for (const shelf of shelves) {
     warehouse.items.push({
       id: `ITEM_${String(itemCounter).padStart(3, '0')}`,
@@ -128,107 +117,97 @@ export function generateFishboneLayout(
   return warehouse;
 }
 
-/**
- * Generates a parallel warehouse layout.
- * 
- * @param gridHeight Height of the warehouse in grid cells
- * @param rackCount Number of rack columns
- * @param aisleWidth Spacing between rack columns
- */
-export function generateParallelLayout(
-  gridHeight: number,
-  rackCount: number,
-  aisleWidth: number
-): Warehouse {
-  return generateSegmentedLayout(gridHeight, rackCount, aisleWidth, 1);
-}
-
-/**
- * Generates a segmented warehouse layout (parallel with horizontal breaks).
- * 
- * @param gridHeight Height of the warehouse in grid cells
- * @param rackCount Number of rack columns
- * @param aisleWidth Spacing between rack columns
- * @param segmentCount Number of vertical segments (1 = no breaks)
- */
-export function generateSegmentedLayout(
-  gridHeight: number,
-  rackCount: number,
-  aisleWidth: number,
-  segmentCount: number
-): Warehouse {
-  const width = (rackCount * 2) + (rackCount - 1) * aisleWidth;
-  const height = gridHeight;
-
-  const fullWidth = width + 2 * OUTER_PADDING;
-  const fullHeight = height + 2 * OUTER_PADDING;
-
-  const grid: Cell[][] = Array.from({ length: fullHeight }, (_, y) =>
-    Array.from({ length: fullWidth }, (_, x) => ({
+function createBaseGrid(width: number, height: number): Cell[][] {
+  return Array.from({ length: height }, (_, y) =>
+    Array.from({ length: width }, (_, x) => ({
       x,
       y,
       type: 'empty' as const,
       locations: [],
     }))
   );
+}
 
+function createShelfLocations(x: number, y: number, skuCounter: { value: number }): StorageLocation[] {
+  const locations: StorageLocation[] = [];
+  const numZLevels = Math.floor(Math.random() * 3) + 1;
+
+  for (let z = 1; z <= numZLevels; z++) {
+    const sku = `SKU_${String(skuCounter.value).padStart(3, '0')}`;
+    const quantity = Math.floor(Math.random() * 90) + 10;
+
+    locations.push({
+      id: `${sku}@${x},${y},${z}`,
+      locationId: getShelfLocationId(x, y),
+      x,
+      y,
+      z,
+      sku,
+      quantity,
+    });
+
+    skuCounter.value++;
+  }
+
+  return locations;
+}
+
+function rebuildWarehouseMetadata(warehouse: Warehouse): void {
   const shelves: { x: number; y: number }[] = [];
-  let skuId = 1;
+  const items: Warehouse['items'] = [];
   let itemCounter = 1;
 
-  // Calculate segment heights and break positions
-  const crossAisleHeight = 1;
-  const totalBreakHeight = (segmentCount - 1) * crossAisleHeight;
-  const usableHeight = height - totalBreakHeight;
-  const segmentHeight = Math.floor(usableHeight / segmentCount);
-  
-  const isBreakRow = (ly: number) => {
-    if (segmentCount <= 1) return false;
-    for (let i = 1; i < segmentCount; i++) {
-      const breakStart = i * segmentHeight + (i - 1) * crossAisleHeight;
-      if (ly >= breakStart && ly < breakStart + crossAisleHeight) return true;
-    }
-    return false;
-  };
+  for (let y = 0; y < warehouse.height; y++) {
+    for (let x = 0; x < warehouse.width; x++) {
+      const cell = warehouse.grid[y][x];
 
-  for (let rackIndex = 0; rackIndex < rackCount; rackIndex++) {
-    const xBase = OUTER_PADDING + rackIndex * (2 + aisleWidth);
-    for (let xOffset = 0; xOffset < 2; xOffset++) {
-      const x = xBase + xOffset;
-      for (let ly = 0; ly < height; ly++) {
-        if (isBreakRow(ly)) continue;
-
-        const y = ly + OUTER_PADDING;
-        grid[y][x].type = 'shelf';
-        
-        // Generate storage locations for the shelf
-        const locations: StorageLocation[] = [];
-        const numZLevels = Math.floor(Math.random() * 3) + 1;
-        
-        for (let z = 1; z <= numZLevels; z++) {
-          const sku = `SKU_${String(skuId).padStart(3, '0')}`;
-          const quantity = Math.floor(Math.random() * 90) + 10;
-          locations.push({
-            id: `${sku}@${x},${y},${z}`,
-            locationId: getShelfLocationId(x, y),
-            x,
-            y,
-            z,
-            sku,
-            quantity,
-          });
-          skuId++;
-        }
-        
-        grid[y][x].locations = locations;
+      if (cell.type === 'shelf') {
         shelves.push({ x, y });
+        items.push({
+          id: `ITEM_${String(itemCounter).padStart(3, '0')}`,
+          locationId: getShelfLocationId(x, y),
+        });
+        itemCounter++;
+      } else if (cell.locations.length > 0) {
+        cell.locations = [];
       }
     }
   }
 
-  // Set worker start position in the first aisle
-  const workerStartX = OUTER_PADDING + (rackCount > 1 ? 2 : 0);
+  warehouse.shelves = shelves;
+  warehouse.items = items;
+  warehouse.locations = buildCoordinateLocations(warehouse);
+}
+
+function buildBaseParallelWarehouse(gridHeight: number, rackCount: number, aisleWidth: number): Warehouse {
+  const normalizedHeight = Math.max(1, Math.floor(gridHeight));
+  const normalizedRackCount = Math.max(1, Math.floor(rackCount));
+  const normalizedAisleWidth = Math.max(1, Math.floor(aisleWidth));
+
+  const logicalWidth = (normalizedRackCount * 2) + (normalizedRackCount - 1) * normalizedAisleWidth;
+  const fullWidth = logicalWidth + 2 * OUTER_PADDING;
+  const fullHeight = normalizedHeight + 2 * OUTER_PADDING;
+
+  const grid = createBaseGrid(fullWidth, fullHeight);
+  const skuCounter = { value: 1 };
+
+  for (let rackIndex = 0; rackIndex < normalizedRackCount; rackIndex++) {
+    const xBase = OUTER_PADDING + rackIndex * (2 + normalizedAisleWidth);
+
+    for (let xOffset = 0; xOffset < 2; xOffset++) {
+      const x = xBase + xOffset;
+
+      for (let ly = 0; ly < normalizedHeight; ly++) {
+        const y = ly + OUTER_PADDING;
+        grid[y][x].type = 'shelf';
+        grid[y][x].locations = createShelfLocations(x, y, skuCounter);
+      }
+    }
+  }
+
+  const workerStartX = OUTER_PADDING + (normalizedRackCount > 1 ? 2 : 0);
   const workerStart = { x: workerStartX, y: fullHeight - OUTER_PADDING - 1 };
+
   grid[workerStart.y][workerStart.x] = {
     x: workerStart.x,
     y: workerStart.y,
@@ -240,28 +219,121 @@ export function generateSegmentedLayout(
     width: fullWidth,
     height: fullHeight,
     grid,
-    shelves,
+    shelves: [],
     workerStart,
     locations: [],
     items: [],
   };
 
-  // Populate items (one per shelf)
-  for (const shelf of shelves) {
-    warehouse.items.push({
-      id: `ITEM_${String(itemCounter).padStart(3, '0')}`,
-      locationId: getShelfLocationId(shelf.x, shelf.y),
-    });
-    itemCounter++;
+  rebuildWarehouseMetadata(warehouse);
+  return warehouse;
+}
+
+function getRackColumns(warehouse: Warehouse, gridHeight: number): number[] {
+  const logicalHeight = Math.max(1, Math.floor(gridHeight));
+  const startY = OUTER_PADDING;
+  const endY = startY + logicalHeight;
+  const startX = OUTER_PADDING;
+  const endX = warehouse.width - OUTER_PADDING;
+
+  const rackColumns: number[] = [];
+
+  for (let x = startX; x < endX; x++) {
+    let hasShelf = false;
+
+    for (let y = startY; y < endY; y++) {
+      if (warehouse.grid[y]?.[x]?.type === 'shelf') {
+        hasShelf = true;
+        break;
+      }
+    }
+
+    if (hasShelf) {
+      rackColumns.push(x);
+    }
   }
 
-  warehouse.locations = buildCoordinateLocations(warehouse);
+  return rackColumns;
+}
+
+/**
+ * Generates a parallel warehouse layout.
+ *
+ * @param gridHeight Height of the warehouse in grid cells
+ * @param rackCount Number of rack columns
+ * @param aisleWidth Spacing between rack columns
+ */
+export function generateParallelLayout(
+  gridHeight: number,
+  rackCount: number,
+  aisleWidth: number
+): Warehouse {
+  return buildBaseParallelWarehouse(gridHeight, rackCount, aisleWidth);
+}
+
+/**
+ * Generates a segmented warehouse layout with staggered rack-column breaks.
+ *
+ * @param gridHeight Height of the warehouse in grid cells
+ * @param rackCount Number of rack columns
+ * @param aisleWidth Spacing between rack columns
+ * @param segmentCount Number of vertical segments (1 = no breaks)
+ */
+export function generateSegmentedLayout(
+  gridHeight: number,
+  rackCount: number,
+  aisleWidth: number,
+  segmentCount: number
+): Warehouse {
+  const warehouse = buildBaseParallelWarehouse(gridHeight, rackCount, aisleWidth);
+  const normalizedHeight = Math.max(1, Math.floor(gridHeight));
+  const normalizedSegmentCount = Math.max(1, Math.floor(segmentCount));
+
+  if (normalizedSegmentCount <= 1) {
+    return warehouse;
+  }
+
+  const segmentHeight = Math.floor(normalizedHeight / normalizedSegmentCount);
+  if (segmentHeight <= 1) {
+    return warehouse;
+  }
+
+  const boundaries = Array.from({ length: normalizedSegmentCount - 1 }, (_, index) => (index + 1) * segmentHeight)
+    .filter((row) => row > 0 && row < normalizedHeight);
+
+  if (boundaries.length === 0) {
+    return warehouse;
+  }
+
+  const rackColumns = getRackColumns(warehouse, normalizedHeight);
+  if (rackColumns.length === 0) {
+    return warehouse;
+  }
+
+  for (let columnIndex = 0; columnIndex < rackColumns.length; columnIndex++) {
+    const x = rackColumns[columnIndex];
+
+    for (let boundaryIndex = 0; boundaryIndex < boundaries.length; boundaryIndex++) {
+      const baseRow = boundaries[boundaryIndex];
+      const stagger = (columnIndex + boundaryIndex) % 2;
+      const logicalBreakRow = Math.min(baseRow + stagger, normalizedHeight - 1);
+      const y = logicalBreakRow + OUTER_PADDING;
+
+      const cell = warehouse.grid[y]?.[x];
+      if (cell?.type === 'shelf') {
+        cell.type = 'empty';
+        cell.locations = [];
+      }
+    }
+  }
+
+  rebuildWarehouseMetadata(warehouse);
   return warehouse;
 }
 
 /**
  * Generates a layout with cross-aisles (major horizontal aisles).
- * 
+ *
  * @param gridHeight Height of the warehouse in grid cells
  * @param rackCount Number of rack columns
  * @param aisleWidth Spacing between rack columns
@@ -273,7 +345,46 @@ export function generateCrossAisleLayout(
   aisleWidth: number,
   crossAisleCount: number
 ): Warehouse {
-  // Cross aisle layout is essentially a segmented layout where segments are roughly equal
-  return generateSegmentedLayout(gridHeight, rackCount, aisleWidth, crossAisleCount + 1);
-}
+  const warehouse = buildBaseParallelWarehouse(gridHeight, rackCount, aisleWidth);
+  const normalizedHeight = Math.max(1, Math.floor(gridHeight));
+  const normalizedCrossAisleCount = Math.max(0, Math.floor(crossAisleCount));
 
+  if (normalizedCrossAisleCount === 0) {
+    return warehouse;
+  }
+
+  const segmentCount = normalizedCrossAisleCount + 1;
+  const segmentHeight = Math.floor(normalizedHeight / segmentCount);
+
+  if (segmentHeight <= 0) {
+    return warehouse;
+  }
+
+  const breakRows = Array.from({ length: segmentCount - 1 }, (_, index) => (index + 1) * segmentHeight)
+    .filter((row) => row > 0 && row < normalizedHeight);
+
+  if (breakRows.length === 0) {
+    return warehouse;
+  }
+
+  const logicalWidth = warehouse.width - 2 * OUTER_PADDING;
+
+  for (const logicalRow of breakRows) {
+    const y = logicalRow + OUTER_PADDING;
+
+    for (let lx = 0; lx < logicalWidth; lx++) {
+      const x = lx + OUTER_PADDING;
+      const cell = warehouse.grid[y][x];
+
+      if (cell.type === 'worker-start') {
+        continue;
+      }
+
+      cell.type = 'empty';
+      cell.locations = [];
+    }
+  }
+
+  rebuildWarehouseMetadata(warehouse);
+  return warehouse;
+}
