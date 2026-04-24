@@ -27,6 +27,7 @@ import { WarehouseCanvas } from './warehouse-canvas';
 import { OrdersPanel } from './orders-panel';
 import { SystemStatePanel } from './results-panel';
 import { Toolbar } from './toolbar';
+import { LayoutConfigOverlay } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,7 @@ export function TaroApp() {
   const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
+  const [showLayoutConfig, setShowLayoutConfig] = useState(false);
   const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
 
@@ -325,6 +327,7 @@ export function TaroApp() {
               selectedTool={selectedTool}
               onToolChange={setSelectedTool}
               onClear={handleClearWarehouse}
+              onOpenLayoutConfig={() => setShowLayoutConfig(true)}
               zVisualizationMode={zVisualizationMode}
               onZVisualizationChange={setZVisualizationMode}
             />
@@ -398,6 +401,15 @@ export function TaroApp() {
           validationContext={validationContext}
           onClose={() => setShowValidationModal(false)}
           onFixItems={handleFixItems}
+        />
+      )}
+
+      {showLayoutConfig && (
+        <LayoutConfigOverlay
+          onClose={() => setShowLayoutConfig(false)}
+          onApply={(config) => {
+            // Future implementation: transform this into a real Warehouse layout
+          }}
         />
       )}
     </div>
