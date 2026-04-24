@@ -140,6 +140,23 @@ export function generateParallelLayout(
   rackCount: number,
   aisleWidth: number
 ): Warehouse {
+  return generateSegmentedLayout(gridHeight, rackCount, aisleWidth, 1);
+}
+
+/**
+ * Generates a segmented warehouse layout (parallel with horizontal breaks).
+ * 
+ * @param gridHeight Height of the warehouse in grid cells
+ * @param rackCount Number of rack columns
+ * @param aisleWidth Spacing between rack columns
+ * @param segmentCount Number of vertical segments (1 = no breaks)
+ */
+export function generateSegmentedLayout(
+  gridHeight: number,
+  rackCount: number,
+  aisleWidth: number,
+  segmentCount: number
+): Warehouse {
   const width = (rackCount * 2) + (rackCount - 1) * aisleWidth;
   const height = gridHeight;
 
@@ -159,11 +176,28 @@ export function generateParallelLayout(
   let skuId = 1;
   let itemCounter = 1;
 
+  // Calculate segment heights and break positions
+  const crossAisleHeight = 1;
+  const totalBreakHeight = (segmentCount - 1) * crossAisleHeight;
+  const usableHeight = height - totalBreakHeight;
+  const segmentHeight = Math.floor(usableHeight / segmentCount);
+  
+  const isBreakRow = (ly: number) => {
+    if (segmentCount <= 1) return false;
+    for (let i = 1; i < segmentCount; i++) {
+      const breakStart = i * segmentHeight + (i - 1) * crossAisleHeight;
+      if (ly >= breakStart && ly < breakStart + crossAisleHeight) return true;
+    }
+    return false;
+  };
+
   for (let rackIndex = 0; rackIndex < rackCount; rackIndex++) {
     const xBase = OUTER_PADDING + rackIndex * (2 + aisleWidth);
     for (let xOffset = 0; xOffset < 2; xOffset++) {
       const x = xBase + xOffset;
       for (let ly = 0; ly < height; ly++) {
+        if (isBreakRow(ly)) continue;
+
         const y = ly + OUTER_PADDING;
         grid[y][x].type = 'shelf';
         
@@ -223,5 +257,23 @@ export function generateParallelLayout(
 
   warehouse.locations = buildCoordinateLocations(warehouse);
   return warehouse;
+}
+
+/**
+ * Generates a layout with cross-aisles (major horizontal aisles).
+ * 
+ * @param gridHeight Height of the warehouse in grid cells
+ * @param rackCount Number of rack columns
+ * @param aisleWidth Spacing between rack columns
+ * @param crossAisleCount Number of major horizontal aisles
+ */
+export function generateCrossAisleLayout(
+  gridHeight: number,
+  rackCount: number,
+  aisleWidth: number,
+  crossAisleCount: number
+): Warehouse {
+  // Cross aisle layout is essentially a segmented layout where segments are roughly equal
+  return generateSegmentedLayout(gridHeight, rackCount, aisleWidth, crossAisleCount + 1);
 }
 
