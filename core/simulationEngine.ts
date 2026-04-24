@@ -12,9 +12,10 @@ import type {
   LaborProfile,
   SimulationValidationContext,
   OrderValidationResult,
+  NeighborGraph,
 } from '../lib/taro/types';
-import { findPath, calculatePathDistance } from '../lib/taro/pathfinding';
-import { calculateManhattanDistance } from '../lib/taro/distance';
+import { findPath, calculatePathDistance, getNeighborGraph } from '../lib/taro/pathfinding';
+import { calculateManhattanDistance, calculateOctileDistance } from '../lib/taro/distance';
 import { resolveOrderLocations, validateOrderItemLocations } from '../lib/taro/order-location-resolver';
 import {
   STRATEGY_COLORS,
@@ -168,11 +169,13 @@ function sortStopsByGrid(stops: PickStop[]) {
 
 function orderStopsNearestNeighbor(
   start: { x: number; y: number },
-  stops: PickStop[]
+  stops: PickStop[],
+  allowDiagonals: boolean = false
 ): typeof stops {
   const unvisited = [...stops];
   const orderedStops: typeof stops = [];
   let current = start;
+  const distanceFn = allowDiagonals ? calculateOctileDistance : calculateManhattanDistance;
 
   while (unvisited.length > 0) {
     let nearestIndex = 0;
@@ -180,7 +183,7 @@ function orderStopsNearestNeighbor(
 
     for (let i = 0; i < unvisited.length; i++) {
       const candidate = unvisited[i];
-      const distance = calculateManhattanDistance(candidate.pos, current);
+      const distance = distanceFn(candidate.pos, current);
       if (distance < nearestDistance) {
         nearestDistance = distance;
         nearestIndex = i;
@@ -197,15 +200,18 @@ function orderStopsNearestNeighbor(
 
 function optimizeRoute2Opt(
   start: { x: number; y: number },
-  stops: PickStop[]
+  stops: PickStop[],
+  allowDiagonals: boolean = false
 ): typeof stops {
   if (stops.length < 3) return stops;
+
+  const distanceFn = allowDiagonals ? calculateOctileDistance : calculateManhattanDistance;
 
   const routeDistance = (route: typeof stops) => {
     let total = 0;
     let previous = start;
     for (const stop of route) {
-      total += calculateManhattanDistance(previous, stop.pos);
+      total += distanceFn(previous, stop.pos);
       previous = stop.pos;
     }
     return total;
@@ -243,19 +249,23 @@ function buildRouteForStops(
     strategy: StrategyType;
     workerId: number;
     unitLabel: string;
+    allowDiagonals?: boolean;
+    neighborGraph?: NeighborGraph;
   }
 ): { route: { x: number; y: number }[]; distance: number; orderedStops: PickStop[] } {
   if (stops.length === 0) return { route: [], distance: 0, orderedStops: [] };
 
-  const initial = orderStopsNearestNeighbor(start, stops);
-  const orderedStops = optimizeRoute2Opt(start, initial);
+  const { allowDiagonals = false, neighborGraph } = context;
+
+  const initial = orderStopsNearestNeighbor(start, stops, allowDiagonals);
+  const orderedStops = optimizeRoute2Opt(start, initial, allowDiagonals);
 
   const route: { x: number; y: number }[] = [];
   let distance = 0;
   let current = start;
 
   for (const stop of orderedStops) {
-    const leg = findPath(warehouse, current, stop.pos);
+    const leg = findPath(warehouse, current, stop.pos, { allowDiagonals, neighborGraph });
     if (leg.length === 0) {
       throw new Error(
         `Pathfinding failed for pick leg: strategy=${context.strategy}, worker=${context.workerId}, unit=${context.unitLabel}, from=(${current.x},${current.y}), to=(${stop.pos.x},${stop.pos.y})`
@@ -267,7 +277,7 @@ function buildRouteForStops(
     current = stop.pos;
   }
 
-  const returnLeg = findPath(warehouse, current, start);
+  const returnLeg = findPath(warehouse, current, start, { allowDiagonals, neighborGraph });
   if (returnLeg.length === 0) {
     throw new Error(
       `Pathfinding failed for return leg: strategy=${context.strategy}, worker=${context.workerId}, unit=${context.unitLabel}, from=(${current.x},${current.y}), to=(${start.x},${start.y})`
@@ -284,8 +294,11 @@ function simulateStrategy(
   strategy: StrategyType,
   warehouse: Warehouse,
   orders: ResolvedOrder[],
-  workerCount: number
+  workerCount: number,
+  options: { allowDiagonals?: boolean; neighborGraph?: NeighborGraph } = {}
 ): { route: { x: number; y: number }[]; distance: number; workerRoutes: WorkerRoute[]; workerDistances: number[] } {
+  const { allowDiagonals = false, neighborGraph } = options;
+
   if (!warehouse.workerStart || orders.length === 0) {
     const workers = Math.max(1, Math.min(4, workerCount));
     return {
@@ -419,6 +432,8 @@ function simulateStrategy(
         strategy,
         workerId,
         unitLabel: unit.zoneLabel,
+        allowDiagonals,
+        neighborGraph,
       });
       route.push(...unitResult.route);
       distance += unitResult.distance;
@@ -501,6 +516,7 @@ function resolveWarehouseProfile(profile?: Partial<WarehouseProfile>): Warehouse
     scale: profile?.scale ?? DEFAULT_WAREHOUSE_PROFILE.scale,
     workerSpeed: profile?.workerSpeed ?? DEFAULT_WAREHOUSE_PROFILE.workerSpeed,
     pickTimePerItem: profile?.pickTimePerItem ?? DEFAULT_WAREHOUSE_PROFILE.pickTimePerItem,
+    allowDiagonals: profile?.allowDiagonals ?? DEFAULT_WAREHOUSE_PROFILE.allowDiagonals,
   };
 }
 
@@ -593,10 +609,18 @@ export function runSimulation(
   }
 
   const ordersForSimulation = validOrders.length > 0 ? validOrders : resolvedOrders;
+  const allowDiagonals = warehouseProfile.allowDiagonals;
+  const neighborGraph = getNeighborGraph(warehouse, allowDiagonals);
 
   const simulationByStrategy = new Map<StrategyType, ReturnType<typeof simulateStrategy>>();
   for (const strategy of strategies) {
-    simulationByStrategy.set(strategy, simulateStrategy(strategy, warehouse, ordersForSimulation, workerCount));
+    simulationByStrategy.set(
+      strategy,
+      simulateStrategy(strategy, warehouse, ordersForSimulation, workerCount, {
+        allowDiagonals,
+        neighborGraph,
+      })
+    );
   }
 
   // Compute baseline time (critical path) for single strategy
