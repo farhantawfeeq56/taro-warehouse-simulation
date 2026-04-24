@@ -5,7 +5,6 @@ export const DEFAULT_WAREHOUSE_PROFILE = {
   scale: 2, // meters per grid cell
   workerSpeed: 60, // meters per minute
   pickTimePerItem: 6, // seconds per pick
-  allowDiagonals: false,
 } as const;
 
 export const DEFAULT_LABOR_PROFILE = {

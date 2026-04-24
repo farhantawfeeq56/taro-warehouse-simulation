@@ -73,13 +73,12 @@ export interface WarehouseProfile {
   scale: number; // meters per grid cell
   workerSpeed: number; // meters per minute
   pickTimePerItem: number; // seconds per pick
-  allowDiagonals: boolean;
 }
 
 export interface Neighbor {
   x: number;
   y: number;
-  weight: number;
+  edgeCost: number;
 }
 
 export type NeighborGraph = Map<string, Neighbor[]>;
