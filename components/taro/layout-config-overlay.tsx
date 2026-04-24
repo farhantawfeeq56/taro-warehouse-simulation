@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -18,6 +18,25 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [gridHeight, setGridHeight] = useState(12);
   const [rackCount, setRackCount] = useState(10);
   const [aisleWidth, setAisleWidth] = useState(2);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const totalWidth = useMemo(() => {
     return (rackCount * 2) + (rackCount - 1) * aisleWidth;
@@ -41,6 +60,49 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     }
     return newGrid;
   }, [gridHeight, totalWidth, rackCount, aisleWidth]);
+
+  const cellSize = useMemo(() => {
+    if (containerSize.width === 0 || containerSize.height === 0) return 24;
+
+    const wrappedCols = totalWidth + 2;
+    const wrappedRows = gridHeight + 2;
+    const padding = 64; // 32px on each side
+
+    const availableWidth = containerSize.width - padding;
+    const availableHeight = containerSize.height - padding;
+
+    const optimalWidth = (availableWidth - (wrappedCols - 1)) / wrappedCols;
+    const optimalHeight = (availableHeight - (wrappedRows - 1)) / wrappedRows;
+
+    // Constrain cellSize between 4px and 40px
+    return Math.floor(Math.min(Math.max(Math.min(optimalWidth, optimalHeight), 4), 40));
+  }, [containerSize, totalWidth, gridHeight]);
+
+  const renderGrid = () => {
+    const wrappedCols = totalWidth + 2;
+    const wrappedRows = gridHeight + 2;
+    const cells = [];
+
+    for (let y = 0; y < wrappedRows; y++) {
+      for (let x = 0; x < wrappedCols; x++) {
+        const isBorder = x === 0 || x === wrappedCols - 1 || y === 0 || y === wrappedRows - 1;
+        const cell = isBorder ? 'aisle' : grid[y - 1][x - 1];
+        
+        cells.push(
+          <div
+            key={`${x}-${y}`}
+            style={{ width: cellSize, height: cellSize }}
+            className={`
+              transition-colors duration-200
+              ${cell === 'rack' ? 'bg-slate-800' : 'bg-slate-100'}
+            `}
+            title={`${cell} at (${x}, ${y})`}
+          />
+        );
+      }
+    }
+    return cells;
+  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col animate-in fade-in duration-200">
@@ -146,28 +208,15 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         </aside>
 
         {/* Right Panel - Live Preview */}
-        <main className="flex-1 bg-muted/20 overflow-auto flex items-center justify-center p-8">
+        <main ref={containerRef} className="flex-1 bg-muted/20 overflow-auto flex items-center justify-center p-8">
           <div 
             className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
             style={{
-              gridTemplateColumns: `repeat(${totalWidth}, 1fr)`,
+              gridTemplateColumns: `repeat(${totalWidth + 2}, ${cellSize}px)`,
               width: 'max-content',
-              maxWidth: '100%',
-              maxHeight: '100%',
             }}
           >
-            {grid.map((row, y) => (
-              row.map((cell, x) => (
-                <div
-                  key={`${x}-${y}`}
-                  className={`
-                    w-6 h-6 sm:w-8 sm:h-8 transition-colors duration-200
-                    ${cell === 'rack' ? 'bg-slate-800' : 'bg-slate-100'}
-                  `}
-                  title={`${cell} at (${x}, ${y})`}
-                />
-              ))
-            ))}
+            {renderGrid()}
           </div>
         </main>
       </div>
