@@ -2,12 +2,13 @@
 
 import { cn } from '@/lib/utils';
 import type { ToolType, ZVisualizationMode } from '@/lib/taro/types';
-import { Grid3X3, User, Eraser, Layers, Trash2 } from 'lucide-react';
+import { Grid3X3, User, Eraser, Layers, Trash2, Settings } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
   onToolChange: (tool: ToolType) => void;
   onClear: () => void;
+  onOpenLayoutConfig: () => void;
   zVisualizationMode: ZVisualizationMode;
   onZVisualizationChange: (mode: ZVisualizationMode) => void;
 }
@@ -36,6 +37,7 @@ export function Toolbar({
   selectedTool, 
   onToolChange, 
   onClear,
+  onOpenLayoutConfig,
   zVisualizationMode,
   onZVisualizationChange,
 }: ToolbarProps) {
@@ -70,6 +72,17 @@ export function Toolbar({
       >
         <Trash2 className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Clear</span>
+      </button>
+
+      <div className="w-px h-6 bg-border" />
+
+      <button
+        onClick={onOpenLayoutConfig}
+        className="h-8 px-3 rounded-lg border border-border bg-background text-foreground hover:bg-muted transition-colors flex items-center gap-1.5 text-xs font-medium"
+        title="Open layout configuration"
+      >
+        <Settings className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Layout Config</span>
       </button>
 
       <div className="w-px h-6 bg-border" />
