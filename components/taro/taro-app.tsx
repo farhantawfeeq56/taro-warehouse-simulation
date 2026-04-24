@@ -20,7 +20,12 @@ import {
   createEmptyWarehouse,
   generateSkeletonWarehouse,
 } from '@/lib/taro/demo-generator';
-import { generateParallelLayout } from '@/lib/taro/layout-generator';
+import { 
+  generateParallelLayout, 
+  generateSegmentedLayout, 
+  generateCrossAisleLayout, 
+  generateFishboneLayout 
+} from '@/lib/taro/layout-generator';
 import { runSimulation } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -28,7 +33,7 @@ import { WarehouseCanvas } from './warehouse-canvas';
 import { OrdersPanel } from './orders-panel';
 import { SystemStatePanel } from './results-panel';
 import { Toolbar } from './toolbar';
-import { LayoutConfigOverlay } from './layout-config-overlay';
+import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
@@ -65,7 +70,7 @@ export function TaroApp() {
   const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
-  const [showLayoutConfig, setShowLayoutConfig] = useState(false);
+  const [showLayoutConfig, setShowLayoutConfig] = useState(true);
   const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
 
@@ -250,11 +255,7 @@ export function TaroApp() {
 
   // 4. Side Effects
   useEffect(() => {
-    // Generate demo data only on client-side after hydration
-    const w = generateDemoWarehouse();
-    const o = generateRandomOrders(w, 4);
-    setWarehouse(w);
-    setOrders(o);
+    // No longer generating initial demo warehouse as we force layout config on startup
   }, []);
 
   useEffect(() => {
@@ -409,11 +410,25 @@ export function TaroApp() {
         <LayoutConfigOverlay
           onClose={() => setShowLayoutConfig(false)}
           onApply={(config) => {
-            const newWarehouse = generateParallelLayout(
-              config.gridHeight,
-              config.rackCount,
-              config.aisleWidth
-            );
+            let newWarehouse: Warehouse;
+            
+            switch (config.type) {
+              case 'parallel':
+                newWarehouse = generateParallelLayout(config.gridHeight, config.rackCount, config.aisleWidth);
+                break;
+              case 'segmented':
+                newWarehouse = generateSegmentedLayout(config.gridHeight, config.rackCount, config.aisleWidth, config.segmentCount);
+                break;
+              case 'cross-aisle':
+                newWarehouse = generateCrossAisleLayout(config.gridHeight, config.rackCount, config.aisleWidth, config.crossAisleCount);
+                break;
+              case 'fishbone':
+                newWarehouse = generateFishboneLayout(config.fbWidth, config.fbHeight, config.fbTheta, config.fbI2, config.fbS, config.fbAp);
+                break;
+              default:
+                newWarehouse = generateParallelLayout(config.gridHeight, config.rackCount, config.aisleWidth);
+            }
+
             setWarehouse(newWarehouse);
             
             // Regenerate orders to match new layout
