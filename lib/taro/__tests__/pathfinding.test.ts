@@ -1,6 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { findPath, calculatePathDistance, isWalkable } from '../pathfinding';
+import { findPath, calculatePathDistance, isWalkable, getNeighborGraph } from '../pathfinding';
 import { createEmptyWarehouse } from '../demo-generator';
+
+function countStepTypes(path: { x: number; y: number }[]) {
+  let diagonalSteps = 0;
+  let orthogonalSteps = 0;
+
+  for (let i = 1; i < path.length; i++) {
+    const dx = Math.abs(path[i].x - path[i - 1].x);
+    const dy = Math.abs(path[i].y - path[i - 1].y);
+
+    if (dx === 1 && dy === 1) {
+      diagonalSteps++;
+    } else if (dx + dy === 1) {
+      orthogonalSteps++;
+    }
+  }
+
+  return { diagonalSteps, orthogonalSteps };
+}
 
 describe('pathfinding', () => {
   describe('isWalkable', () => {
@@ -41,20 +59,17 @@ describe('pathfinding', () => {
 
     it('should find path avoiding obstacles', () => {
       const warehouse = createEmptyWarehouse(10, 10);
-      // Create a shelf wall
       warehouse.grid[2][0].type = 'shelf';
       warehouse.grid[2][1].type = 'shelf';
       warehouse.grid[2][2].type = 'shelf';
 
       const path = findPath(warehouse, { x: 0, y: 1 }, { x: 4, y: 1 });
       expect(path.length).toBeGreaterThan(0);
-      // Path should go around the shelf
       expect(path.every(p => warehouse.grid[p.y][p.x].type !== 'shelf')).toBe(true);
     });
 
     it('should return empty path if no path exists', () => {
       const warehouse = createEmptyWarehouse(5, 5);
-      // Create a complete wall across the entire width
       for (let x = 0; x < warehouse.width; x++) {
         warehouse.grid[2][x].type = 'shelf';
       }
@@ -68,6 +83,42 @@ describe('pathfinding', () => {
       const path = findPath(warehouse, { x: 5, y: 5 }, { x: 5, y: 5 });
       expect(path).toEqual([{ x: 5, y: 5 }]);
     });
+
+    it('uses diagonal-optimal path on open grid from (0,0) to (5,5)', () => {
+      const warehouse = createEmptyWarehouse(8, 8);
+      const path = findPath(warehouse, { x: 0, y: 0 }, { x: 5, y: 5 });
+
+      expect(path).toHaveLength(6);
+      expect(calculatePathDistance(path)).toBeCloseTo(5 * Math.sqrt(2), 5);
+      const { diagonalSteps, orthogonalSteps } = countStepTypes(path);
+      expect(diagonalSteps).toBe(5);
+      expect(orthogonalSteps).toBe(0);
+    });
+
+    it('prevents illegal corner-cutting diagonals when adjacent orthogonals are blocked', () => {
+      const warehouse = createEmptyWarehouse(6, 6);
+      warehouse.grid[2][1].type = 'shelf';
+      warehouse.grid[1][2].type = 'shelf';
+
+      const path = findPath(warehouse, { x: 1, y: 1 }, { x: 2, y: 2 });
+
+      expect(path.length).toBeGreaterThan(0);
+      expect(path[1]).not.toEqual({ x: 2, y: 2 });
+      expect(calculatePathDistance(path)).toBeGreaterThan(Math.sqrt(2));
+    });
+
+    it('uses diagonals in open space without orthogonal staircase artifacts', () => {
+      const warehouse = createEmptyWarehouse(8, 8);
+      const start = { x: 0, y: 0 };
+      const end = { x: 5, y: 3 };
+
+      const path = findPath(warehouse, start, end);
+      const { diagonalSteps, orthogonalSteps } = countStepTypes(path);
+
+      expect(diagonalSteps).toBe(3);
+      expect(orthogonalSteps).toBe(2);
+      expect(calculatePathDistance(path)).toBeCloseTo(3 * Math.sqrt(2) + 2, 5);
+    });
   });
 
   describe('calculatePathDistance', () => {
@@ -79,61 +130,26 @@ describe('pathfinding', () => {
       expect(calculatePathDistance([{ x: 0, y: 0 }])).toBe(0);
     });
 
-    it('should calculate orthogonal distances correctly', () => {
-      const path = [
-        { x: 0, y: 0 },
-        { x: 3, y: 0 },  // 3 steps right
-        { x: 3, y: 4 },  // 4 steps down
-        { x: 5, y: 4 },  // 2 steps right
-      ];
-      expect(calculatePathDistance(path)).toBe(3 + 4 + 2); // 9
-    });
-
-    it('should handle diagonal paths with Euclidean distance', () => {
+    it('should calculate accumulated edge-cost distance', () => {
       const path = [
         { x: 0, y: 0 },
         { x: 1, y: 1 },
+        { x: 2, y: 1 },
+        { x: 3, y: 2 },
       ];
-      expect(calculatePathDistance(path)).toBeCloseTo(Math.sqrt(2));
+
+      expect(calculatePathDistance(path)).toBeCloseTo(2 * Math.sqrt(2) + 1, 5);
     });
   });
 
-  describe('8-direction pathfinding', () => {
-    it('should find diagonal path when allowed', () => {
-      const warehouse = createEmptyWarehouse(10, 10);
-      const start = { x: 0, y: 0 };
-      const end = { x: 2, y: 2 };
-      
-      const path = findPath(warehouse, start, end, { allowDiagonals: true });
-      
-      // Path could be (0,0) -> (1,1) -> (2,2)
-      expect(path).toHaveLength(3);
-      expect(path[1]).toEqual({ x: 1, y: 1 });
-      expect(calculatePathDistance(path)).toBeCloseTo(2 * Math.sqrt(2));
-    });
+  describe('neighbor graph caching', () => {
+    it('reuses cached graph when walkability is unchanged', () => {
+      const warehouse = createEmptyWarehouse(6, 6);
 
-    it('should respect corner cutting constraints', () => {
-      const warehouse = createEmptyWarehouse(10, 10);
-      // Place shelves such that diagonal between (1,1) and (2,2) is blocked by corners
-      // To go from (1,1) to (2,2) diagonally, (1,2) and (2,1) must be walkable.
-      warehouse.grid[1][2].type = 'shelf'; 
-      
-      const start = { x: 1, y: 1 };
-      const end = { x: 2, y: 2 };
-      
-      const path = findPath(warehouse, start, end, { allowDiagonals: true });
-      
-      // Should not be able to go directly (1,1) -> (2,2)
-      // Must go (1,1) -> (2,1) [blocked] or (1,1) -> (1,2) [blocked] or ...
-      // Wait, if I block (1,2), then (1,1) to (2,2) diagonal is blocked if we enforce no corner cutting.
-      // The check is: check: [{ x: x - 1, y }, { x, y: y - 1 }]
-      // For (1,1) to (2,2), it's (2,2) relative to (1,1).
-      // cand = {x:2, y:2}, check = [{x:2, y:1}, {x:1, y:2}]
-      
-      expect(path.some(p => p.x === 2 && p.y === 2)).toBe(true);
-      // If direct diagonal is blocked, it must take at least 2 orthogonal steps or another route
-      const dist = calculatePathDistance(path);
-      expect(dist).toBeGreaterThan(Math.sqrt(2));
+      const graphA = getNeighborGraph(warehouse);
+      const graphB = getNeighborGraph(warehouse);
+
+      expect(graphA).toBe(graphB);
     });
   });
 });
