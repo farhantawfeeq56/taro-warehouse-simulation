@@ -1,5 +1,6 @@
 import type { Warehouse, Cell, StorageLocation } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
+import { OUTER_PADDING } from './layout-utils';
 
 /**
  * Generates a fishbone warehouse layout using a geometric approach.
@@ -19,8 +20,11 @@ export function generateFishboneLayout(
   s: number = 4,
   ap: number = 0.8
 ): Warehouse {
-  const grid: Cell[][] = Array.from({ length: height }, (_, y) =>
-    Array.from({ length: width }, (_, x) => ({
+  const fullWidth = width + 2 * OUTER_PADDING;
+  const fullHeight = height + 2 * OUTER_PADDING;
+
+  const grid: Cell[][] = Array.from({ length: fullHeight }, (_, y) =>
+    Array.from({ length: fullWidth }, (_, x) => ({
       x,
       y,
       type: 'empty' as const,
@@ -36,18 +40,21 @@ export function generateFishboneLayout(
   let skuId = 1;
   let itemCounter = 1;
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
+  for (let ly = 0; ly < height; ly++) {
+    for (let lx = 0; lx < width; lx++) {
+      const x = lx + OUTER_PADDING;
+      const y = ly + OUTER_PADDING;
+
       // 1. Central Spine (Vertical Aisle)
-      if (x === centerX) {
+      if (lx === centerX) {
         grid[y][x].type = 'empty';
         continue;
       }
 
       // 2. Diagonal Aisles
-      // Expression: y - |x - centerX| * tan(theta)
+      // Expression: ly - |lx - centerX| * tan(theta)
       // We add a large offset to ensure the value is positive before modulo
-      const diagonalValue = (y - Math.abs(x - centerX) * tanTheta) + 500;
+      const diagonalValue = (ly - Math.abs(lx - centerX) * tanTheta) + 500;
       
       // We want diagonal aisles at regular intervals. 
       // Using modulo to create repeating diagonal lines.
@@ -57,7 +64,7 @@ export function generateFishboneLayout(
         grid[y][x].type = 'empty';
       } else {
         // 3. Shelf Placement based on density
-        const pseudoRandom = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453123) % 1;
+        const pseudoRandom = (Math.sin(lx * 12.9898 + ly * 78.233) * 43758.5453123) % 1;
         const normalizedRandom = (pseudoRandom + 1) / 2;
 
         if (normalizedRandom < ap) {
@@ -90,7 +97,7 @@ export function generateFishboneLayout(
   }
 
   // Set worker start position
-  const workerStart = { x: centerX, y: height - 1 };
+  const workerStart = { x: centerX + OUTER_PADDING, y: fullHeight - OUTER_PADDING - 1 };
   grid[workerStart.y][workerStart.x] = {
     x: workerStart.x,
     y: workerStart.y,
@@ -99,8 +106,8 @@ export function generateFishboneLayout(
   };
 
   const warehouse: Warehouse = {
-    width,
-    height,
+    width: fullWidth,
+    height: fullHeight,
     grid,
     shelves,
     workerStart,
@@ -136,8 +143,11 @@ export function generateParallelLayout(
   const width = (rackCount * 2) + (rackCount - 1) * aisleWidth;
   const height = gridHeight;
 
-  const grid: Cell[][] = Array.from({ length: height }, (_, y) =>
-    Array.from({ length: width }, (_, x) => ({
+  const fullWidth = width + 2 * OUTER_PADDING;
+  const fullHeight = height + 2 * OUTER_PADDING;
+
+  const grid: Cell[][] = Array.from({ length: fullHeight }, (_, y) =>
+    Array.from({ length: fullWidth }, (_, x) => ({
       x,
       y,
       type: 'empty' as const,
@@ -150,10 +160,11 @@ export function generateParallelLayout(
   let itemCounter = 1;
 
   for (let rackIndex = 0; rackIndex < rackCount; rackIndex++) {
-    const xBase = rackIndex * (2 + aisleWidth);
+    const xBase = OUTER_PADDING + rackIndex * (2 + aisleWidth);
     for (let xOffset = 0; xOffset < 2; xOffset++) {
       const x = xBase + xOffset;
-      for (let y = 0; y < height; y++) {
+      for (let ly = 0; ly < height; ly++) {
+        const y = ly + OUTER_PADDING;
         grid[y][x].type = 'shelf';
         
         // Generate storage locations for the shelf
@@ -182,8 +193,8 @@ export function generateParallelLayout(
   }
 
   // Set worker start position in the first aisle
-  const workerStartX = rackCount > 1 ? 2 : 0;
-  const workerStart = { x: workerStartX, y: height - 1 };
+  const workerStartX = OUTER_PADDING + (rackCount > 1 ? 2 : 0);
+  const workerStart = { x: workerStartX, y: fullHeight - OUTER_PADDING - 1 };
   grid[workerStart.y][workerStart.x] = {
     x: workerStart.x,
     y: workerStart.y,
@@ -192,8 +203,8 @@ export function generateParallelLayout(
   };
 
   const warehouse: Warehouse = {
-    width,
-    height,
+    width: fullWidth,
+    height: fullHeight,
     grid,
     shelves,
     workerStart,
@@ -213,3 +224,4 @@ export function generateParallelLayout(
   warehouse.locations = buildCoordinateLocations(warehouse);
   return warehouse;
 }
+

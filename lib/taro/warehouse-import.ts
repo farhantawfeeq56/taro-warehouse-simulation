@@ -1,10 +1,11 @@
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
 import type { Cell, StorageLocation, Warehouse } from './types';
+import { OUTER_PADDING } from './layout-utils';
 
 const REQUIRED_COLUMNS = ['originallocation', 'x', 'y', 'z'] as const;
 const MAX_CANVAS_WIDTH = 60;
 const MAX_CANVAS_HEIGHT = 40;
-const EDGE_PADDING = 2;
+const EDGE_PADDING = OUTER_PADDING;
 
 export interface ImportedWarehouseLocation {
   id: string;

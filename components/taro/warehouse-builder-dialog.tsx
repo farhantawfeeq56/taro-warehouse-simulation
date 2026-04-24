@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { X, Wand2, Upload, LayoutGrid } from 'lucide-react';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 import { generateFishboneLayout } from '@/lib/taro/layout-generator';
+import { OUTER_PADDING } from '@/lib/taro/layout-utils';
 
 interface WarehouseBuilderDialogProps {
   onGenerate: (warehouse: Warehouse) => void;
@@ -19,8 +20,11 @@ function buildWarehouseFromParams(
   racksPerAisle: number,
   binsPerRack: number
 ): Warehouse {
-  const width = Math.max(racksPerAisle * 3 + 6, 10);
-  const height = Math.max(aisles * 3 + 6, 10);
+  const logicalWidth = Math.max(racksPerAisle * 3 + 6, 10);
+  const logicalHeight = Math.max(aisles * 3 + 6, 10);
+
+  const width = logicalWidth + 2 * OUTER_PADDING;
+  const height = logicalHeight + 2 * OUTER_PADDING;
 
   const grid: Warehouse['grid'] = Array.from({ length: height }, (_, y) =>
     Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y, locations: [] }))
@@ -30,11 +34,14 @@ function buildWarehouseFromParams(
   let itemId = 1;
 
   for (let a = 0; a < aisles; a++) {
-    const row = 2 + a * 3 + (a % 2); // intentionally irregular row offsets
+    const logicalRow = 2 + a * 3 + (a % 2); // intentionally irregular row offsets
 
     for (let r = 0; r < racksPerAisle; r++) {
-      const col = 2 + r * 3 + ((a + r) % 2); // intentionally irregular rack spacing
-      if (col >= width) break;
+      const logicalCol = 2 + r * 3 + ((a + r) % 2); // intentionally irregular rack spacing
+      if (logicalCol >= logicalWidth) break;
+
+      const x = logicalCol + OUTER_PADDING;
+      const y = logicalRow + OUTER_PADDING;
 
       // Place shelf block with storage locations
       const locations: StorageLocation[] = [];
@@ -49,10 +56,10 @@ function buildWarehouseFromParams(
           const sku = `SKU_${String(itemId).padStart(3, '0')}`;
           const quantity = Math.floor(Math.random() * 90) + 10;
           locations.push({
-            id: `${sku}@${col},${row},${z}`,
-            locationId: getShelfLocationId(col, row),
-            x: col,
-            y: row,
+            id: `${sku}@${x},${y},${z}`,
+            locationId: getShelfLocationId(x, y),
+            x,
+            y,
             z,
             sku,
             quantity,
@@ -61,14 +68,16 @@ function buildWarehouseFromParams(
         itemId++;
       }
 
-      grid[row][col] = { type: 'shelf', x: col, y: row, locations };
-      shelves.push({ x: col, y: row });
+      grid[y][x] = { type: 'shelf', x, y, locations };
+      shelves.push({ x, y });
     }
   }
 
   // Worker start at bottom-left accessible cell
-  const workerStart = { x: 0, y: height - 1 };
-  grid[workerStart.y][workerStart.x] = { type: 'worker-start', x: 0, y: height - 1, locations: [] };
+  const wx = OUTER_PADDING;
+  const wy = height - OUTER_PADDING - 1;
+  const workerStart = { x: wx, y: wy };
+  grid[wy][wx] = { type: 'worker-start', x: wx, y: wy, locations: [] };
 
   const warehouse: Warehouse = {
     width,
@@ -113,8 +122,11 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     const aisleIndex = new Map(aisleLabels.map((a, i) => [a, i]));
     const maxRack = Math.max(...entries.map(e => e.rack));
 
-    const width = Math.max(maxRack * 3 + 6, 10);
-    const height = Math.max(aisleLabels.length * 3 + 6, 10);
+    const logicalWidth = Math.max(maxRack * 3 + 6, 10);
+    const logicalHeight = Math.max(aisleLabels.length * 3 + 6, 10);
+
+    const width = logicalWidth + 2 * OUTER_PADDING;
+    const height = logicalHeight + 2 * OUTER_PADDING;
 
     const grid: Warehouse['grid'] = Array.from({ length: height }, (_, y) =>
       Array.from({ length: width }, (_, x) => ({ type: 'empty' as const, x, y, locations: [] }))
@@ -138,10 +150,13 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
       const rackNum = parseInt(rackStr, 10);
 
       // Shelf cell position
-      const shelfRow = 2 + ai * 3 + (ai % 2);
-      const shelfCol = 2 + (rackNum - 1) * 3 + ((ai + rackNum) % 2);
+      const logicalRow = 2 + ai * 3 + (ai % 2);
+      const logicalCol = 2 + (rackNum - 1) * 3 + ((ai + rackNum) % 2);
 
-      if (shelfRow >= height || shelfCol >= width) continue;
+      const x = logicalCol + OUTER_PADDING;
+      const y = logicalRow + OUTER_PADDING;
+
+      if (y >= height || x >= width) continue;
 
       // Build storage locations for this shelf
       const locations: StorageLocation[] = [];
@@ -151,10 +166,10 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
         const zLevel = entry.z ?? 1;
         const sku = entry.sku || `SKU_${String(itemId).padStart(3, '0')}`;
         locations.push({
-          id: `${sku}@${shelfCol},${shelfRow},${zLevel}`,
-          locationId: getShelfLocationId(shelfCol, shelfRow),
-          x: shelfCol,
-          y: shelfRow,
+          id: `${sku}@${x},${y},${zLevel}`,
+          locationId: getShelfLocationId(x, y),
+          x,
+          y,
           z: zLevel,
           sku,
           quantity: Math.floor(Math.random() * 90) + 10,
@@ -163,13 +178,15 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
       }
 
       // Place the shelf block with locations
-      grid[shelfRow][shelfCol] = { type: 'shelf', x: shelfCol, y: shelfRow, locations };
-      shelves.push({ x: shelfCol, y: shelfRow });
+      grid[y][x] = { type: 'shelf', x, y, locations };
+      shelves.push({ x, y });
     }
 
     // Worker start at bottom-left corner
-    const workerStart = { x: 0, y: height - 1 };
-    grid[workerStart.y][workerStart.x] = { type: 'worker-start', x: 0, y: height - 1, locations: [] };
+    const wx = OUTER_PADDING;
+    const wy = height - OUTER_PADDING - 1;
+    const workerStart = { x: wx, y: wy };
+    grid[wy][wx] = { type: 'worker-start', x: wx, y: wy, locations: [] };
 
     const warehouse: Warehouse = { width, height, grid, shelves, workerStart, locations: [], items: [] };
     warehouse.locations = buildCoordinateLocations(warehouse);
@@ -178,6 +195,7 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     return null;
   }
 }
+
 
 export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilderDialogProps) {
   const [tab, setTab] = useState<Tab>('guided');
