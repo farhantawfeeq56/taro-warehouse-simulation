@@ -24,22 +24,20 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   }, [rackCount, aisleWidth]);
 
   const grid = useMemo(() => {
-    const newGrid: CellType[][] = [];
-    for (let y = 0; y < gridHeight; y++) {
-      const row: CellType[] = [];
-      for (let x = 0; x < totalWidth; x++) {
-        // Parallel layout: 1 rack column followed by aisleWidth aisle columns
-        const cycleWidth = 1 + aisleWidth;
-        if (x % cycleWidth === 0) {
-          row.push('rack');
-        } else {
-          row.push('aisle');
+    const newGrid: CellType[][] = Array.from({ length: gridHeight }, () =>
+      Array.from({ length: totalWidth }, () => 'aisle')
+    );
+
+    for (let rackIndex = 0; rackIndex < rackCount; rackIndex++) {
+      const x = rackIndex * (1 + aisleWidth);
+      for (let y = 0; y < gridHeight; y++) {
+        if (x < totalWidth) {
+          newGrid[y][x] = 'rack';
         }
       }
-      newGrid.push(row);
     }
     return newGrid;
-  }, [gridHeight, totalWidth, aisleWidth]);
+  }, [gridHeight, totalWidth, rackCount, aisleWidth]);
 
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col animate-in fade-in duration-200">
@@ -93,7 +91,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                 </div>
                 <Slider
                   id="rackCount"
-                  min={1}
+                  min={4}
                   max={20}
                   step={1}
                   value={[rackCount]}
