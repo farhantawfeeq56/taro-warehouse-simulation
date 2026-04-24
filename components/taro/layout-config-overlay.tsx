@@ -9,21 +9,25 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface LayoutConfigOverlayProps {
   onClose: () => void;
-  onApply?: (config: { rows: number; rowLength: number; aisleWidth: number }) => void;
+  onApply?: (config: { gridHeight: number; rackCount: number; aisleWidth: number }) => void;
 }
 
 type CellType = 'rack' | 'aisle';
 
 export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayProps) {
-  const [rows, setRows] = useState(12);
-  const [rowLength, setRowLength] = useState(30);
+  const [gridHeight, setGridHeight] = useState(12);
+  const [rackCount, setRackCount] = useState(10);
   const [aisleWidth, setAisleWidth] = useState(2);
+
+  const totalWidth = useMemo(() => {
+    return rackCount + (rackCount - 1) * aisleWidth;
+  }, [rackCount, aisleWidth]);
 
   const grid = useMemo(() => {
     const newGrid: CellType[][] = [];
-    for (let y = 0; y < rows; y++) {
+    for (let y = 0; y < gridHeight; y++) {
       const row: CellType[] = [];
-      for (let x = 0; x < rowLength; x++) {
+      for (let x = 0; x < totalWidth; x++) {
         // Parallel layout: 1 rack column followed by aisleWidth aisle columns
         const cycleWidth = 1 + aisleWidth;
         if (x % cycleWidth === 0) {
@@ -35,7 +39,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       newGrid.push(row);
     }
     return newGrid;
-  }, [rows, rowLength, aisleWidth]);
+  }, [gridHeight, totalWidth, aisleWidth]);
 
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col animate-in fade-in duration-200">
@@ -53,23 +57,23 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         <aside className="w-[320px] border-r bg-card flex flex-col">
           <ScrollArea className="flex-1">
             <div className="p-6 space-y-8">
-              {/* Rows Control */}
+              {/* Grid Height Control */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="rows" className="text-sm font-semibold text-foreground">
-                    Rows
+                  <Label htmlFor="gridHeight" className="text-sm font-semibold text-foreground">
+                    Grid Height
                   </Label>
                   <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                    {rows}
+                    {gridHeight}
                   </span>
                 </div>
                 <Slider
-                  id="rows"
+                  id="gridHeight"
                   min={4}
-                  max={20}
+                  max={40}
                   step={1}
-                  value={[rows]}
-                  onValueChange={(val) => setRows(val[0])}
+                  value={[gridHeight]}
+                  onValueChange={(val) => setGridHeight(val[0])}
                   className="py-2"
                 />
                 <p className="text-xs text-muted-foreground leading-relaxed">
@@ -77,27 +81,27 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                 </p>
               </div>
 
-              {/* Row Length Control */}
+              {/* Rack Count Control */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="rowLength" className="text-sm font-semibold text-foreground">
-                    Row Length
+                  <Label htmlFor="rackCount" className="text-sm font-semibold text-foreground">
+                    Rack Count
                   </Label>
                   <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                    {rowLength}
+                    {rackCount}
                   </span>
                 </div>
                 <Slider
-                  id="rowLength"
-                  min={10}
-                  max={50}
+                  id="rackCount"
+                  min={1}
+                  max={20}
                   step={1}
-                  value={[rowLength]}
-                  onValueChange={(val) => setRowLength(val[0])}
+                  value={[rackCount]}
+                  onValueChange={(val) => setRackCount(val[0])}
                   className="py-2"
                 />
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  The horizontal width of the warehouse grid.
+                  The number of parallel rack columns in the warehouse.
                 </p>
               </div>
 
@@ -131,7 +135,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
             <Button 
               className="w-full" 
               onClick={() => {
-                onApply?.({ rows, rowLength, aisleWidth });
+                onApply?.({ gridHeight, rackCount, aisleWidth });
                 onClose();
               }}
             >
@@ -145,7 +149,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
           <div 
             className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
             style={{
-              gridTemplateColumns: `repeat(${rowLength}, 1fr)`,
+              gridTemplateColumns: `repeat(${totalWidth}, 1fr)`,
               width: 'max-content',
               maxWidth: '100%',
               maxHeight: '100%',
