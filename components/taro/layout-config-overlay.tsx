@@ -39,34 +39,39 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     return () => observer.disconnect();
   }, []);
 
-  const totalWidth = useMemo(() => {
-    return (rackCount * 2) + (rackCount - 1) * aisleWidth;
+  const fullWidth = useMemo(() => {
+    return (rackCount * 2) + (rackCount - 1) * aisleWidth + 2 * OUTER_PADDING;
   }, [rackCount, aisleWidth]);
 
+  const fullHeight = useMemo(() => {
+    return gridHeight + 2 * OUTER_PADDING;
+  }, [gridHeight]);
+
   const grid = useMemo(() => {
-    const newGrid: CellType[][] = Array.from({ length: gridHeight }, () =>
-      Array.from({ length: totalWidth }, () => 'aisle')
+    const newGrid: CellType[][] = Array.from({ length: fullHeight }, () =>
+      Array.from({ length: fullWidth }, () => 'aisle')
     );
 
     for (let rackIndex = 0; rackIndex < rackCount; rackIndex++) {
-      const xBase = rackIndex * (2 + aisleWidth);
+      const xBase = OUTER_PADDING + rackIndex * (2 + aisleWidth);
       for (let xOffset = 0; xOffset < 2; xOffset++) {
         const x = xBase + xOffset;
-        for (let y = 0; y < gridHeight; y++) {
-          if (x < totalWidth) {
+        for (let ly = 0; ly < gridHeight; ly++) {
+          const y = ly + OUTER_PADDING;
+          if (x < fullWidth && y < fullHeight) {
             newGrid[y][x] = 'rack';
           }
         }
       }
     }
     return newGrid;
-  }, [gridHeight, totalWidth, rackCount, aisleWidth]);
+  }, [gridHeight, fullHeight, fullWidth, rackCount, aisleWidth]);
 
   const cellSize = useMemo(() => {
     if (containerSize.width === 0 || containerSize.height === 0) return 24;
 
-    const wrappedCols = totalWidth + OUTER_PADDING * 2;
-    const wrappedRows = gridHeight + OUTER_PADDING * 2;
+    const wrappedCols = fullWidth;
+    const wrappedRows = fullHeight;
     const padding = 64; // 32px on each side
 
     const availableWidth = containerSize.width - padding;
@@ -77,22 +82,16 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
     // Constrain cellSize between 4px and 40px
     return Math.floor(Math.min(Math.max(Math.min(optimalWidth, optimalHeight), 4), 40));
-  }, [containerSize, totalWidth, gridHeight]);
+  }, [containerSize, fullWidth, fullHeight]);
 
   const renderGrid = () => {
-    const wrappedCols = totalWidth + OUTER_PADDING * 2;
-    const wrappedRows = gridHeight + OUTER_PADDING * 2;
+    const wrappedCols = fullWidth;
+    const wrappedRows = fullHeight;
     const cells = [];
 
     for (let y = 0; y < wrappedRows; y++) {
       for (let x = 0; x < wrappedCols; x++) {
-        const isBorder = 
-          x < OUTER_PADDING || 
-          x >= totalWidth + OUTER_PADDING || 
-          y < OUTER_PADDING || 
-          y >= gridHeight + OUTER_PADDING;
-        
-        const cell = isBorder ? 'aisle' : grid[y - OUTER_PADDING][x - OUTER_PADDING];
+        const cell = grid[y][x];
         
         cells.push(
           <div
@@ -218,7 +217,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
           <div 
             className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
             style={{
-              gridTemplateColumns: `repeat(${totalWidth + OUTER_PADDING * 2}, ${cellSize}px)`,
+              gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
               width: 'max-content',
             }}
           >

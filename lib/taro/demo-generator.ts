@@ -2,6 +2,7 @@
 
 import type { Warehouse, Cell, Order, StorageLocation } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
+import { OUTER_PADDING } from './layout-utils';
 
 // Get all pickable locations from warehouse (local copy for demo-generator)
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
@@ -22,19 +23,21 @@ function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number;
 }
 
 export function createEmptyWarehouse(width: number, height: number): Warehouse {
+  const fullWidth = width + 2 * OUTER_PADDING;
+  const fullHeight = height + 2 * OUTER_PADDING;
   const grid: Cell[][] = [];
 
-  for (let y = 0; y < height; y++) {
+  for (let y = 0; y < fullHeight; y++) {
     const row: Cell[] = [];
-    for (let x = 0; x < width; x++) {
+    for (let x = 0; x < fullWidth; x++) {
       row.push({ x, y, type: 'empty', locations: [] });
     }
     grid.push(row);
   }
 
   const warehouse: Warehouse = {
-    width,
-    height,
+    width: fullWidth,
+    height: fullHeight,
     grid,
     shelves: [],
     workerStart: null,
@@ -46,9 +49,9 @@ export function createEmptyWarehouse(width: number, height: number): Warehouse {
 }
 
 export function generateDemoWarehouse(): Warehouse {
-  const width = 30;
-  const height = 24;
-  const warehouse = createEmptyWarehouse(width, height);
+  const logicalWidth = 30;
+  const logicalHeight = 24;
+  const warehouse = createEmptyWarehouse(logicalWidth, logicalHeight);
   let demoItemIndex = 1;
   const createDemoItem = (locationId: string) => {
     warehouse.items.push({
@@ -69,25 +72,26 @@ export function generateDemoWarehouse(): Warehouse {
   for (const row of shelfRows) {
     for (const [startCol, endCol] of shelfCols) {
       for (let col = startCol; col <= endCol; col++) {
-        warehouse.grid[row][col].type = 'shelf';
-        warehouse.shelves.push({ x: col, y: row });
+        const x = col + OUTER_PADDING;
+        const y = row + OUTER_PADDING;
+        warehouse.grid[y][x].type = 'shelf';
+        warehouse.shelves.push({ x, y });
       }
     }
   }
 
   // Add test data at (5, 3) with z-levels
-  // z=1: SKU_A, qty 100
-  // z=2: SKU_B, qty 50
-  // z=3: SKU_C, qty 30
+  const tx = 5 + OUTER_PADDING;
+  const ty = 3 + OUTER_PADDING;
   const testLocations: StorageLocation[] = [
-    { id: 'SKU_A@5,3,1', locationId: getShelfLocationId(5, 3), x: 5, y: 3, z: 1, sku: 'SKU_A', quantity: 100 },
-    { id: 'SKU_B@5,3,2', locationId: getShelfLocationId(5, 3), x: 5, y: 3, z: 2, sku: 'SKU_B', quantity: 50 },
-    { id: 'SKU_C@5,3,3', locationId: getShelfLocationId(5, 3), x: 5, y: 3, z: 3, sku: 'SKU_C', quantity: 30 },
+    { id: `SKU_A@${tx},${ty},1`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 1, sku: 'SKU_A', quantity: 100 },
+    { id: `SKU_B@${tx},${ty},2`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 2, sku: 'SKU_B', quantity: 50 },
+    { id: `SKU_C@${tx},${ty},3`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 3, sku: 'SKU_C', quantity: 30 },
   ];
 
-  // Place locations at (5, 3)
-  warehouse.grid[3][5].locations = testLocations;
-  createDemoItem(getShelfLocationId(5, 3));
+  // Place locations
+  warehouse.grid[ty][tx].locations = testLocations;
+  createDemoItem(getShelfLocationId(tx, ty));
 
   // Add some additional items at shelf edges with locations
   let itemId = 4; // Start after test SKUs
@@ -99,6 +103,8 @@ export function generateDemoWarehouse(): Warehouse {
       const itemPositions = [startCol + 1, startCol + 4, endCol - 3];
       for (const col of itemPositions) {
         if (col <= endCol && Math.random() > 0.3) {
+          const x = col + OUTER_PADDING;
+          const y = row + OUTER_PADDING;
           // Create 1-3 z-levels at this position
           const numZLevels = Math.floor(Math.random() * 3) + 1;
           const cellLocations: StorageLocation[] = [];
@@ -107,10 +113,10 @@ export function generateDemoWarehouse(): Warehouse {
             const sku = `SKU_${String(itemId).padStart(3, '0')}`;
             const quantity = Math.floor(Math.random() * 90) + 10;
             cellLocations.push({
-              id: `${sku}@${col},${row},${z}`,
-              locationId: getShelfLocationId(col, row),
-              x: col,
-              y: row,
+              id: `${sku}@${x},${y},${z}`,
+              locationId: getShelfLocationId(x, y),
+              x,
+              y,
               z,
               sku,
               quantity,
@@ -118,25 +124,27 @@ export function generateDemoWarehouse(): Warehouse {
             itemId++;
           }
 
-          warehouse.grid[row][col].locations = cellLocations;
-          createDemoItem(getShelfLocationId(col, row));
+          warehouse.grid[y][x].locations = cellLocations;
+          createDemoItem(getShelfLocationId(x, y));
         }
       }
     }
   }
 
   // Set worker start position at entrance
-  warehouse.workerStart = { x: 1, y: height - 2 };
-  warehouse.grid[height - 2][1].type = 'worker-start';
+  const wx = 1 + OUTER_PADDING;
+  const wy = logicalHeight - 2 + OUTER_PADDING;
+  warehouse.workerStart = { x: wx, y: wy };
+  warehouse.grid[wy][wx].type = 'worker-start';
   warehouse.locations = buildCoordinateLocations(warehouse);
 
   return warehouse;
 }
 
 export function generateSkeletonWarehouse(): Warehouse {
-  const width = 30;
-  const height = 24;
-  const warehouse = createEmptyWarehouse(width, height);
+  const logicalWidth = 30;
+  const logicalHeight = 24;
+  const warehouse = createEmptyWarehouse(logicalWidth, logicalHeight);
 
   // Create shelf rows with aisles between them
   const shelfRows = [2, 3, 6, 7, 10, 11, 14, 15, 18, 19];
@@ -149,8 +157,10 @@ export function generateSkeletonWarehouse(): Warehouse {
   for (const row of shelfRows) {
     for (const [startCol, endCol] of shelfCols) {
       for (let col = startCol; col <= endCol; col++) {
-        warehouse.grid[row][col].type = 'shelf';
-        warehouse.shelves.push({ x: col, y: row });
+        const x = col + OUTER_PADDING;
+        const y = row + OUTER_PADDING;
+        warehouse.grid[y][x].type = 'shelf';
+        warehouse.shelves.push({ x, y });
       }
     }
   }
