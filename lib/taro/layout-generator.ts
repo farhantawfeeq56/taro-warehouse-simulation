@@ -120,3 +120,96 @@ export function generateFishboneLayout(
   warehouse.locations = buildCoordinateLocations(warehouse);
   return warehouse;
 }
+
+/**
+ * Generates a parallel warehouse layout.
+ * 
+ * @param gridHeight Height of the warehouse in grid cells
+ * @param rackCount Number of rack columns
+ * @param aisleWidth Spacing between rack columns
+ */
+export function generateParallelLayout(
+  gridHeight: number,
+  rackCount: number,
+  aisleWidth: number
+): Warehouse {
+  const width = rackCount + (rackCount - 1) * aisleWidth;
+  const height = gridHeight;
+
+  const grid: Cell[][] = Array.from({ length: height }, (_, y) =>
+    Array.from({ length: width }, (_, x) => ({
+      x,
+      y,
+      type: 'empty' as const,
+      locations: [],
+    }))
+  );
+
+  const shelves: { x: number; y: number }[] = [];
+  let skuId = 1;
+  let itemCounter = 1;
+
+  for (let x = 0; x < width; x++) {
+    // Parallel layout: 1 rack column followed by aisleWidth aisle columns
+    const cycleWidth = 1 + aisleWidth;
+    if (x % cycleWidth === 0) {
+      for (let y = 0; y < height; y++) {
+        grid[y][x].type = 'shelf';
+        
+        // Generate storage locations for the shelf
+        const locations: StorageLocation[] = [];
+        const numZLevels = Math.floor(Math.random() * 3) + 1;
+        
+        for (let z = 1; z <= numZLevels; z++) {
+          const sku = `SKU_${String(skuId).padStart(3, '0')}`;
+          const quantity = Math.floor(Math.random() * 90) + 10;
+          locations.push({
+            id: `${sku}@${x},${y},${z}`,
+            locationId: getShelfLocationId(x, y),
+            x,
+            y,
+            z,
+            sku,
+            quantity,
+          });
+          skuId++;
+        }
+        
+        grid[y][x].locations = locations;
+        shelves.push({ x, y });
+      }
+    }
+  }
+
+  // Set worker start position in the first aisle
+  const workerStartX = rackCount > 1 ? 1 : 0;
+  const workerStart = { x: workerStartX, y: height - 1 };
+  grid[workerStart.y][workerStart.x] = {
+    x: workerStart.x,
+    y: workerStart.y,
+    type: 'worker-start',
+    locations: [],
+  };
+
+  const warehouse: Warehouse = {
+    width,
+    height,
+    grid,
+    shelves,
+    workerStart,
+    locations: [],
+    items: [],
+  };
+
+  // Populate items (one per shelf)
+  for (const shelf of shelves) {
+    warehouse.items.push({
+      id: `ITEM_${String(itemCounter).padStart(3, '0')}`,
+      locationId: getShelfLocationId(shelf.x, shelf.y),
+    });
+    itemCounter++;
+  }
+
+  warehouse.locations = buildCoordinateLocations(warehouse);
+  return warehouse;
+}

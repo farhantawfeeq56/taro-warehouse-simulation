@@ -20,6 +20,7 @@ import {
   createEmptyWarehouse,
   generateSkeletonWarehouse,
 } from '@/lib/taro/demo-generator';
+import { generateParallelLayout } from '@/lib/taro/layout-generator';
 import { runSimulation } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -408,7 +409,33 @@ export function TaroApp() {
         <LayoutConfigOverlay
           onClose={() => setShowLayoutConfig(false)}
           onApply={(config) => {
-            // Future implementation: transform this into a real Warehouse layout
+            const newWarehouse = generateParallelLayout(
+              config.gridHeight,
+              config.rackCount,
+              config.aisleWidth
+            );
+            setWarehouse(newWarehouse);
+            
+            // Regenerate orders to match new layout
+            const newOrders = generateRandomOrders(newWarehouse, 4);
+            setOrders(newOrders);
+
+            // Reset simulation state
+            setSimulationResults(null);
+            setIsSimulating(false);
+            setActiveStrategy(null);
+            setAnimationProgress(0);
+            setExecutionPlanStrategy(null);
+            setValidationContext(null);
+            setValidationResult(null);
+            setShowValidationModal(false);
+            setHighlightedMissingItemIds(null);
+            setSimulationBlockState(null);
+            setImportSummary('');
+            if (animationRef.current) {
+              cancelAnimationFrame(animationRef.current);
+              animationRef.current = null;
+            }
           }}
         />
       )}
