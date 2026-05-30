@@ -8,6 +8,7 @@ import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout'
 import { generateFishboneLayout } from '@/lib/taro/layout-generator';
 import { OUTER_PADDING } from '@/lib/taro/layout-utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
 
 interface WarehouseBuilderDialogProps {
   onGenerate: (warehouse: Warehouse) => void;
@@ -278,122 +279,129 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
         <ScrollArea className="flex-1">
           <div className="p-5">
             {tab === 'guided' ? (
-            <div className="space-y-5">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Enter your warehouse dimensions and the system will auto-generate the layout with aisles, racks, and storage locations at multiple z-levels.
-              </p>
+              <div className="space-y-5">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Enter your warehouse dimensions and the system will auto-generate the layout with aisles, racks, and storage locations at multiple z-levels.
+                </p>
 
-              {[
-                { label: 'Number of Aisles', desc: 'Rows of shelving in your warehouse', value: aisles, min: 1, max: 12, set: setAisles },
-                { label: 'Racks per Aisle', desc: 'Shelf units along each aisle', value: racks, min: 1, max: 16, set: setRacks },
-                { label: 'Bins per Rack', desc: 'Storage slots per rack unit', value: bins, min: 1, max: 8, set: setBins },
-              ].map(({ label, desc, value, min, max, set }) => (
-                <div key={label} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium">{label}</label>
-                    <span className="text-xs font-mono text-muted-foreground">{value}</span>
+                {[
+                  { label: 'Number of Aisles', desc: 'Rows of shelving in your warehouse', value: aisles, min: 1, max: 12, set: setAisles },
+                  { label: 'Racks per Aisle', desc: 'Shelf units along each aisle', value: racks, min: 1, max: 16, set: setRacks },
+                  { label: 'Bins per Rack', desc: 'Storage slots per rack unit', value: bins, min: 1, max: 8, set: setBins },
+                ].map(({ label, desc, value, min, max, set }) => (
+                  <div key={label} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium">{label}</label>
+                      <span className="text-xs font-mono text-muted-foreground">{value}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                    <input
+                      type="range"
+                      min={min}
+                      max={max}
+                      value={value}
+                      onChange={e => set(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground/60">
+                      <span>{min}</span><span>{max}</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">{desc}</p>
-                  <input
-                    type="range"
-                    min={min}
-                    max={max}
-                    value={value}
-                    onChange={e => set(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground/60">
-                    <span>{min}</span><span>{max}</span>
-                  </div>
+                ))}
+
+                <div className="bg-muted/30 rounded-lg px-4 py-3 text-xs text-muted-foreground space-y-0.5">
+                  <div className="font-medium text-foreground">Preview</div>
+                  <div>{aisles} aisles × {racks} racks = {aisles * racks} rack units</div>
+                  <div>{aisles * racks * bins} bin slots with z-levels</div>
                 </div>
-              ))}
-
-              <div className="bg-muted/30 rounded-lg px-4 py-3 text-xs text-muted-foreground space-y-0.5">
-                <div className="font-medium text-foreground">Preview</div>
-                <div>{aisles} aisles × {racks} racks = {aisles * racks} rack units</div>
-                <div>{aisles * racks * bins} bin slots with z-levels</div>
               </div>
+            ) : tab === 'fishbone' ? (
+              <div className="space-y-5">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Generate a complex fishbone layout with diagonal aisles and a central spine. Ideal for high-density pick optimizations.
+                </p>
 
-              <button
-                onClick={handleGenerate}
-                className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-              >
-                <Wand2 className="h-4 w-4" />
-                Generate Layout
-              </button>
-            </div>
-          ) : tab === 'fishbone' ? (
-            <div className="space-y-5">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Generate a complex fishbone layout with diagonal aisles and a central spine. Ideal for high-density pick optimizations.
-              </p>
-
-              {[
-                { label: 'Warehouse Width', desc: 'Total grid columns', value: fbWidth, min: 10, max: 60, set: setFbWidth },
-                { label: 'Warehouse Height', desc: 'Total grid rows', value: fbHeight, min: 10, max: 60, set: setFbHeight },
-                { label: 'Angle (θ)', desc: 'Aisle angle in degrees', value: theta, min: 15, max: 75, set: setTheta },
-                { label: 'Growth Factor (I₂)', desc: 'Spacing multiplier', value: i2, min: 1, max: 5, set: setI2 },
-                { label: 'Row Spacing (s)', desc: 'Base gap between diagonal aisles', value: s, min: 2, max: 12, set: setS },
-                { label: 'Shelf Density (ap)', desc: 'Probability of shelf placement', value: Math.round(ap * 100), min: 0, max: 100, set: (v: number) => setAp(v / 100) },
-              ].map(({ label, desc, value, min, max, set }) => (
-                <div key={label} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium">{label}</label>
-                    <span className="text-xs font-mono text-muted-foreground">{label.includes('Density') ? `${value}%` : value}</span>
+                {[
+                  { label: 'Warehouse Width', desc: 'Total grid columns', value: fbWidth, min: 10, max: 60, set: setFbWidth },
+                  { label: 'Warehouse Height', desc: 'Total grid rows', value: fbHeight, min: 10, max: 60, set: setFbHeight },
+                  { label: 'Angle (θ)', desc: 'Aisle angle in degrees', value: theta, min: 15, max: 75, set: setTheta },
+                  { label: 'Growth Factor (I₂)', desc: 'Spacing multiplier', value: i2, min: 1, max: 5, set: setI2 },
+                  { label: 'Row Spacing (s)', desc: 'Base gap between diagonal aisles', value: s, min: 2, max: 12, set: setS },
+                  { label: 'Shelf Density (ap)', desc: 'Probability of shelf placement', value: Math.round(ap * 100), min: 0, max: 100, set: (v: number) => setAp(v / 100) },
+                ].map(({ label, desc, value, min, max, set }) => (
+                  <div key={label} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium">{label}</label>
+                      <span className="text-xs font-mono text-muted-foreground">{label.includes('Density') ? `${value}%` : value}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                    <input
+                      type="range"
+                      min={min}
+                      max={max}
+                      value={value}
+                      onChange={e => set(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
                   </div>
-                  <p className="text-xs text-muted-foreground">{desc}</p>
-                  <input
-                    type="range"
-                    min={min}
-                    max={max}
-                    value={value}
-                    onChange={e => set(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                </div>
-              ))}
-
-              <button
-                onClick={handleGenerateFishbone}
-                className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-              >
-                <LayoutGrid className="h-4 w-4" />
-                Generate Fishbone
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Paste your warehouse location data as CSV. Expected columns: <span className="font-mono text-foreground">Aisle, Rack, Bin, [Level], SKU</span>
-              </p>
-              <div className="bg-muted/30 rounded p-3 font-mono text-xs text-muted-foreground space-y-0.5">
-                <div className="text-foreground font-medium mb-1">Example format:</div>
-                <div>Aisle,Rack,Bin,SKU</div>
-                <div>A1,1,1,ITEM-001</div>
-                <div>A1,1,2,ITEM-002</div>
-                <div>A2,3,1,LEVEL,ITEM-015</div>
-                <div className="text-xs text-muted-foreground/70 mt-2">Level column is optional (defaults to 1)</div>
+                ))}
               </div>
-              <textarea
-                value={csvText}
-                onChange={e => { setCsvText(e.target.value); setCsvError(''); }}
-                rows={6}
-                placeholder="Paste your warehouse CSV here..."
-                className="w-full text-xs font-mono border border-border rounded-lg p-3 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
-              />
-              {csvError && <p className="text-xs text-red-500">{csvError}</p>}
-              <button
-                onClick={handleCSVImport}
-                className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                Import Layout
-              </button>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Paste your warehouse location data as CSV. Expected columns: <span className="font-mono text-foreground">Aisle, Rack, Bin, [Level], SKU</span>
+                </p>
+                <div className="bg-muted/30 rounded p-3 font-mono text-xs text-muted-foreground space-y-0.5">
+                  <div className="text-foreground font-medium mb-1">Example format:</div>
+                  <div>Aisle,Rack,Bin,SKU</div>
+                  <div>A1,1,1,ITEM-001</div>
+                  <div>A1,1,2,ITEM-002</div>
+                  <div>A2,3,1,LEVEL,ITEM-015</div>
+                  <div className="text-xs text-muted-foreground/70 mt-2">Level column is optional (defaults to 1)</div>
+                </div>
+                <textarea
+                  value={csvText}
+                  onChange={e => { setCsvText(e.target.value); setCsvError(''); }}
+                  rows={6}
+                  placeholder="Paste your warehouse CSV here..."
+                  className="w-full text-xs font-mono border border-border rounded-lg p-3 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                />
+                {csvError && <p className="text-xs text-red-500">{csvError}</p>}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+
+        <div className="p-5 border-t flex flex-col gap-3">
+          {tab === 'guided' && (
+            <Button
+              onClick={handleGenerate}
+              className="w-full py-6 text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <Wand2 className="h-4 w-4" />
+              Generate Layout
+            </Button>
+          )}
+          {tab === 'fishbone' && (
+            <Button
+              onClick={handleGenerateFishbone}
+              className="w-full py-6 text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Generate Fishbone
+            </Button>
+          )}
+          {tab === 'csv' && (
+            <Button
+              onClick={handleCSVImport}
+              className="w-full py-6 text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Import Layout
+            </Button>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
-  </div>
-);
+  );
 }

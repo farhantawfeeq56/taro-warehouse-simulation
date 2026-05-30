@@ -234,7 +234,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                 )}
 
                 {layoutType === 'segmented' && (
-                  <div className="space-y-4 border-t pt-8">
+                  <div className="space-y-4 border-t pt-6">
                     <Alert className="bg-amber-50/50 border-amber-200/50 p-3 mb-4">
                       <AlertTriangle className="h-4 w-4 text-amber-600" />
                       <AlertDescription className="text-amber-800 text-[11px] font-medium">
@@ -333,16 +333,20 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         </aside>
 
         {/* Right Panel - Live Preview */}
-        <main ref={containerRef} className="flex-1 bg-muted/20 overflow-auto flex items-center justify-center p-8">
-          <div 
-            className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
-            style={{
-              gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
-              width: 'max-content',
-            }}
-          >
-            {renderGrid()}
-          </div>
+        <main ref={containerRef} className="flex-1 bg-muted/20 overflow-hidden">
+          <ScrollArea className="h-full w-full">
+            <div className="flex min-h-full items-center justify-center p-8">
+              <div 
+                className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
+                style={{
+                  gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
+                  width: 'max-content',
+                }}
+              >
+                {renderGrid()}
+              </div>
+            </div>
+          </ScrollArea>
         </main>
       </div>
     </div>
