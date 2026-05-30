@@ -1,6 +1,13 @@
 'use client';
 
-import type { SimulationResults, StrategyResult, StrategyType, SimulationValidationContext, ZVisualizationMode } from '@/lib/taro/types';
+import type { 
+  SimulationResults, 
+  StrategyResult, 
+  StrategyType, 
+  SimulationValidationContext, 
+  ZVisualizationMode,
+  SimulationBlockState,
+} from '@/lib/taro/types';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -27,12 +34,6 @@ import {
   EmptyMedia,
 } from '@/components/ui/empty';
 
-interface ResultsBlockState {
-  simulationState?: 'NO_VALID_ITEMS';
-  title: string;
-  description: string;
-}
-
 interface SystemStatePanelProps {
   results: SimulationResults | null;
   readiness?: SimulationReadiness;
@@ -43,7 +44,7 @@ interface SystemStatePanelProps {
   workerCount: number;
   executionPlan: StrategyResult | null;
   validationContext?: SimulationValidationContext | null;
-  blockState?: ResultsBlockState | null;
+  blockState?: SimulationBlockState | null;
   onViewUnresolvableItems?: (itemIds: string[]) => void;
   onSimulate?: () => void;
   onAddShelves?: () => void;
@@ -111,7 +112,42 @@ export function SystemStatePanel({
     );
   }
 
-  // 2. NOT READY State
+  // 2. BLOCKED State (e.g. Unreachable locations)
+  if (blockState) {
+    return (
+      <div className="w-80 border-l border-border bg-background flex flex-col">
+        <div className="p-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-destructive" />
+            <h2 className="text-sm font-semibold text-foreground">System State</h2>
+            <Badge variant="destructive" className="ml-auto text-[10px] uppercase font-bold">
+              Blocked
+            </Badge>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-6">
+          <Empty className="border-0 p-0">
+            <EmptyMedia variant="icon">
+              <MapPinOff className="h-6 w-6 text-destructive" />
+            </EmptyMedia>
+            <EmptyHeader>
+              <EmptyTitle>{blockState.title}</EmptyTitle>
+              <EmptyDescription>
+                {blockState.description}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={onAddShelves} className="w-full" variant="outline">
+                Check Layout
+              </Button>
+            </EmptyContent>
+          </Empty>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. NOT READY State
   if (!readiness?.isReady && !results) {
     const nextFix = readiness?.nextFix;
     const progress = readiness ? (readiness.completedSteps / readiness.totalSteps) * 100 : 0;
