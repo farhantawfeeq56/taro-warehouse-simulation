@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { X, Columns, Layout, Grid, Hash } from 'lucide-react';
+import { X, Columns, Layout, Grid, Hash, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   generateParallelLayout, 
   generateSegmentedLayout, 
@@ -234,6 +235,12 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
                 {layoutType === 'segmented' && (
                   <div className="space-y-4 border-t pt-8">
+                    <Alert className="bg-amber-50/50 border-amber-200/50 p-3 mb-4">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800 text-[11px] font-medium">
+                        Experimental: Segmented layout algorithm is still being refined.
+                      </AlertDescription>
+                    </Alert>
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-semibold">Segment Count</Label>
                       <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{segmentCount}</span>
@@ -264,6 +271,12 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
                 {layoutType === 'fishbone' && (
                   <div className="space-y-6">
+                    <Alert className="bg-amber-50/50 border-amber-200/50 p-3 mb-4">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800 text-[11px] font-medium">
+                        Experimental: Fishbone layout algorithm is still being refined.
+                      </AlertDescription>
+                    </Alert>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Width</Label>
