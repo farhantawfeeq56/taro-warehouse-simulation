@@ -67,7 +67,6 @@ export function TaroApp() {
   const [showLayoutConfig, setShowLayoutConfig] = useState(true);
   const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
-  const [importSummary, setImportSummary] = useState<string>('');
 
   const handleWarehouseChange = useCallback((newWarehouse: Warehouse) => {
     setWarehouse(newWarehouse);
@@ -81,6 +80,7 @@ export function TaroApp() {
     setValidationResult(null);
     setShowValidationModal(false);
     setHighlightedMissingItemIds(null);
+    setImportSummary('');
   }, []);
 
   // 1. Derived Data
