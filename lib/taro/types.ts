@@ -156,3 +156,10 @@ export interface PickTask {
   location: string;
   item: string;
 }
+
+export interface SimulationBlockState {
+  /** Set when simulation cannot run; drives right-panel blocked UI. */
+  simulationState?: 'NO_VALID_ITEMS' | 'UNREACHABLE_LOCATIONS';
+  title: string;
+  description: string;
+}
