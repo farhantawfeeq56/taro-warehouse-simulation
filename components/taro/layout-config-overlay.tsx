@@ -176,7 +176,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
             className="flex-1 flex flex-col"
           >
             <div className="px-6 pt-6">
-              <TabsList className="grid grid-cols-2 w-full mb-6">
+              <TabsList className="grid grid-cols-4 w-full mb-6">
                 <TabsTrigger value="parallel" className="text-xs">Parallel</TabsTrigger>
                 <TabsTrigger value="segmented" className="text-xs">Segmented</TabsTrigger>
                 <TabsTrigger value="cross-aisle" className="text-xs">Cross Aisle</TabsTrigger>

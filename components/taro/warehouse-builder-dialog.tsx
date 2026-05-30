@@ -7,6 +7,7 @@ import { X, Wand2, Upload, LayoutGrid } from 'lucide-react';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 import { generateFishboneLayout } from '@/lib/taro/layout-generator';
 import { OUTER_PADDING } from '@/lib/taro/layout-utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface WarehouseBuilderDialogProps {
   onGenerate: (warehouse: Warehouse) => void;
@@ -244,7 +245,7 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
@@ -274,8 +275,9 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
           ))}
         </div>
 
-        <div className="p-5">
-          {tab === 'guided' ? (
+        <ScrollArea className="flex-1">
+          <div className="p-5">
+            {tab === 'guided' ? (
             <div className="space-y-5">
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Enter your warehouse dimensions and the system will auto-generate the layout with aisles, racks, and storage locations at multiple z-levels.
@@ -390,7 +392,8 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
             </div>
           )}
         </div>
-      </div>
+      </ScrollArea>
     </div>
-  );
+  </div>
+);
 }
