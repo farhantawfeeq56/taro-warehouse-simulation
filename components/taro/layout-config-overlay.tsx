@@ -168,7 +168,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left Panel - Controls */}
         <aside className="w-[360px] border-r bg-card flex flex-col min-h-0">
           <Tabs 
@@ -185,7 +185,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
               </TabsList>
             </div>
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="p-6 pt-0 space-y-8">
                 {(layoutType === 'parallel' || layoutType === 'segmented' || layoutType === 'cross-aisle') && (
                   <>
