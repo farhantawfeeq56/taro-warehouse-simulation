@@ -22,7 +22,7 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
 interface Project {
@@ -215,7 +215,6 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
                 </div>
               ))}
             </div>
-            <ScrollBar orientation="horizontal" />
           </ScrollArea>
         </section>
       </div>
