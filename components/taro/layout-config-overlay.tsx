@@ -335,9 +335,9 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         {/* Right Panel - Live Preview */}
         <main ref={containerRef} className="flex-1 bg-muted/20 overflow-hidden">
           <ScrollArea className="h-full w-full">
-            <div className="flex min-h-full items-center justify-center p-8">
+            <div className="flex min-h-full min-w-full w-fit p-8">
               <div 
-                className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
+                className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm m-auto"
                 style={{
                   gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
                   width: 'max-content',
