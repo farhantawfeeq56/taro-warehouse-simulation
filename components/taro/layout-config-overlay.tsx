@@ -170,11 +170,11 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - Controls */}
-        <aside className="w-[360px] border-r bg-card flex flex-col">
+        <aside className="w-[360px] border-r bg-card flex flex-col min-h-0">
           <Tabs 
             value={layoutType} 
             onValueChange={(v) => setLayoutType(v as LayoutType)} 
-            className="flex-1 flex flex-col"
+            className="flex-1 flex flex-col min-h-0"
           >
             <div className="px-6 pt-6">
               <TabsList className="grid grid-cols-4 w-full mb-6">
@@ -333,7 +333,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         </aside>
 
         {/* Right Panel - Live Preview */}
-        <main ref={containerRef} className="flex-1 bg-muted/20 overflow-hidden">
+        <main ref={containerRef} className="flex-1 bg-muted/20 overflow-hidden min-h-0">
           <ScrollArea className="h-full w-full">
             <div className="flex min-h-full min-w-full w-fit p-8">
               <div 
