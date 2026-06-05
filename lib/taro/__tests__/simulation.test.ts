@@ -108,15 +108,9 @@ describe('simulation', () => {
     expect(results.heatmap).toEqual(expectedHeatmap);
   });
 
-  it('should handle empty orders', () => {
+  it('should handle empty orders by throwing an error', () => {
     const warehouse = generateDemoWarehouse();
-    const results = runSimulation(warehouse, [], 2);
-
-    expect(results.strategies).toHaveLength(4);
-    for (const strategy of results.strategies) {
-      expect(strategy.totalDistance).toBe(0);
-      expect(strategy.estimatedTime).toBe(0);
-    }
+    expect(() => runSimulation(warehouse, [], 2)).toThrow(/Simulation requirements not met/);
   });
 
   it('should allow overriding simulation profiles from input', () => {
@@ -367,7 +361,7 @@ describe('simulation', () => {
     expect(() => runSimulation(warehouse, orders, 1)).toThrow(/cannot be resolved/);
   });
 
-  it('should handle orders with items that have invalid locationIds gracefully', () => {
+  it('should handle orders with items that have invalid locationIds by throwing an error', () => {
     const warehouse: Warehouse = {
       width: 6,
       height: 6,
@@ -394,17 +388,11 @@ describe('simulation', () => {
       { id: 'order-1', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_INVALID' }], assignedWorkerId: null },
     ];
 
-    // Partial resolution requires explicit allowPartial (UI confirms via modal)
-    const results = runSimulation(warehouse, orders, 1, { allowPartial: true });
-    expect(results).toBeDefined();
-    expect(results.strategies).toHaveLength(4);
-    // Should have validation context indicating missing items
-    expect(results.validationContext).toBeDefined();
-    expect(results.validationContext?.missingItems).toBe(1);
-    expect(results.validationContext?.affectedOrders).toBe(1);
+    // Partial resolution is no longer permitted in the engine
+    expect(() => runSimulation(warehouse, orders, 1, { allowPartial: true })).toThrow(/cannot be resolved/);
   });
 
-  it('should handle mixed valid/invalid orders and run partial simulation', () => {
+  it('should handle mixed valid/invalid orders by throwing an error', () => {
     const warehouse: Warehouse = {
       width: 8,
       height: 6,
@@ -434,9 +422,6 @@ describe('simulation', () => {
       { id: 'order-mixed', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_BAD' }], assignedWorkerId: null },
     ];
 
-    const results = runSimulation(warehouse, orders, 1, { allowPartial: true });
-    expect(results).toBeDefined();
-    expect(results.validationContext).toBeDefined();
-    expect(results.validationContext?.missingItems).toBe(1);
+    expect(() => runSimulation(warehouse, orders, 1, { allowPartial: true })).toThrow(/cannot be resolved/);
   });
 });
