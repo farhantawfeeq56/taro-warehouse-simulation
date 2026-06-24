@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { X, Columns, Layout, Grid, Hash, AlertTriangle, Boxes, Flame } from 'lucide-react';
+import { X, Columns, Layout, Grid, Hash, AlertTriangle, Boxes, Flame, PackageSearch, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
