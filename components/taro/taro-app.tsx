@@ -20,12 +20,13 @@ import {
   createEmptyWarehouse,
   generateSkeletonWarehouse,
 } from '@/lib/taro/demo-generator';
-import { 
-  generateParallelLayout, 
-  generateSegmentedLayout, 
-  generateCrossAisleLayout, 
-  generateFishboneLayout 
+import {
+  generateParallelLayout,
+  generateSegmentedLayout,
+  generateCrossAisleLayout,
+  generateFishboneLayout
 } from '@/lib/taro/layout-generator';
+import { applyInventoryPlacement } from '@/lib/taro/inventory-placement';
 import { runSimulation } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -429,10 +430,15 @@ export function TaroApp() {
                 newWarehouse = generateParallelLayout(config.gridHeight, config.rackCount, config.aisleWidth);
             }
 
-            setWarehouse(newWarehouse);
-            
+            const warehouseWithInventory = applyInventoryPlacement(
+              newWarehouse,
+              config.inventoryPlacement
+            );
+
+            setWarehouse(warehouseWithInventory);
+
             // Regenerate orders to match new layout
-            const newOrders = generateRandomOrders(newWarehouse, 4);
+            const newOrders = generateRandomOrders(warehouseWithInventory, 4);
             setOrders(newOrders);
 
             // Reset simulation state
