@@ -24,6 +24,16 @@ import {
   DEFAULT_LABOR_PROFILE,
 } from '../lib/taro/constants';
 
+export class UnreachableLocationError extends Error {
+  constructor(
+    message: string,
+    public readonly location: { x: number; y: number }
+  ) {
+    super(message);
+    this.name = 'UnreachableLocationError';
+  }
+}
+
 // Generate a stable location key for StorageLocation
 export function getLocationKey(x: number, y: number, z: number, sku: string): string {
   return `${x},${y},${z}-${sku}`;
@@ -260,8 +270,9 @@ function buildRouteForStops(
   for (const stop of orderedStops) {
     const leg = findPath(warehouse, current, stop.pos, { neighborGraph });
     if (leg.length === 0) {
-      throw new Error(
-        `Pathfinding failed for pick leg: strategy=${context.strategy}, worker=${context.workerId}, unit=${context.unitLabel}, from=(${current.x},${current.y}), to=(${stop.pos.x},${stop.pos.y})`
+      throw new UnreachableLocationError(
+        `The warehouse layout blocks workers from reaching some pick locations. Please check the layout; workers might not be able to go through.`,
+        stop.pos
       );
     }
     route.push(...leg);
@@ -272,8 +283,9 @@ function buildRouteForStops(
 
   const returnLeg = findPath(warehouse, current, start, { neighborGraph });
   if (returnLeg.length === 0) {
-    throw new Error(
-      `Pathfinding failed for return leg: strategy=${context.strategy}, worker=${context.workerId}, unit=${context.unitLabel}, from=(${current.x},${current.y}), to=(${start.x},${start.y})`
+    throw new UnreachableLocationError(
+      `The warehouse layout blocks workers from returning to the start position from some pick locations. Please check the layout; workers might not be able to go through.`,
+      current
     );
   }
   route.push(...returnLeg);
