@@ -7,6 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
   generateParallelLayout, 
   generateSegmentedLayout, 
@@ -234,6 +235,12 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
                 {layoutType === 'segmented' && (
                   <div className="space-y-4 border-t pt-8">
+                    <Alert variant="default" className="border-amber-500/50 text-amber-700 dark:text-amber-400 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-400">
+                      <AlertTitle>Experimental</AlertTitle>
+                      <AlertDescription>
+                        Segmented layout algorithm is still being refined.
+                      </AlertDescription>
+                    </Alert>
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-semibold">Segment Count</Label>
                       <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{segmentCount}</span>
