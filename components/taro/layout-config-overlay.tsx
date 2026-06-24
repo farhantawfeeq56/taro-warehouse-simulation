@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { X, Columns, Layout, Grid, Hash, PackageSearch, Boxes, Flame, Layers } from 'lucide-react';
+import { X, Columns, Layout, Grid, Hash, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -311,16 +311,16 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left Panel - Controls */}
-        <aside className="w-[360px] border-r bg-card flex flex-col">
-          <Tabs
-            value={layoutType}
-            onValueChange={(v) => setLayoutType(v as LayoutType)}
-            className="flex-1 flex flex-col"
+        <aside className="w-[360px] border-r bg-card flex flex-col min-h-0">
+          <Tabs 
+            value={layoutType} 
+            onValueChange={(v) => setLayoutType(v as LayoutType)} 
+            className="flex-1 flex flex-col min-h-0"
           >
             <div className="px-6 pt-6">
-              <TabsList className="grid grid-cols-2 w-full mb-6">
+              <TabsList className="grid grid-cols-4 w-full mb-6">
                 <TabsTrigger value="parallel" className="text-xs">Parallel</TabsTrigger>
                 <TabsTrigger value="segmented" className="text-xs">Segmented</TabsTrigger>
                 <TabsTrigger value="cross-aisle" className="text-xs">Cross Aisle</TabsTrigger>
@@ -328,7 +328,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
               </TabsList>
             </div>
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="p-6 pt-0 space-y-8">
                 <div className="space-y-1">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Warehouse Geometry</h2>
@@ -382,11 +382,11 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                 )}
 
                 {layoutType === 'segmented' && (
-                  <div className="space-y-4 border-t pt-8">
-                    <Alert variant="default" className="border-amber-500/50 text-amber-700 dark:text-amber-400 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-400">
-                      <AlertTitle>Experimental</AlertTitle>
-                      <AlertDescription>
-                        Segmented layout algorithm is still being refined.
+                  <div className="space-y-4 border-t pt-6">
+                    <Alert className="bg-amber-50/50 border-amber-200/50 p-3 mb-4">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800 text-[11px] font-medium">
+                        Experimental: Segmented layout algorithm is still being refined.
                       </AlertDescription>
                     </Alert>
                     <div className="flex items-center justify-between">
@@ -419,6 +419,12 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
                 {layoutType === 'fishbone' && (
                   <div className="space-y-6">
+                    <Alert className="bg-amber-50/50 border-amber-200/50 p-3 mb-4">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800 text-[11px] font-medium">
+                        Experimental: Fishbone layout algorithm is still being refined.
+                      </AlertDescription>
+                    </Alert>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Width</Label>
@@ -571,40 +577,55 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         </aside>
 
         {/* Right Panel - Live Preview */}
-        <main ref={containerRef} className="flex-1 bg-muted/20 overflow-auto flex items-center justify-center p-8">
-          <div className="flex flex-col items-center gap-4">
-            <div
-              className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
-              style={{
-                gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
-                width: 'max-content',
-              }}
-            >
-              {renderGrid()}
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 bg-slate-800 inline-block rounded-sm" />
-                <span>Shelf</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
-                <span>Dispatch</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 bg-sky-400/70 inline-block rounded-sm" />
-                <span>Inventory Density</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 inline-block rounded-sm ring-2 ring-red-500" style={{ boxShadow: 'inset 0 0 4px rgba(239,68,68,0.8)' }} />
-                <span>Fast-Mover / Hotspot</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 bg-rose-500/70 inline-block rounded-sm" />
-                <span>Product Group</span>
-              </span>
-            </div>
-          </div>
+<main
+  ref={containerRef}
+  className="flex-1 bg-muted/20 overflow-hidden min-h-0"
+>
+  <ScrollArea className="h-full w-full">
+    <div className="flex flex-col items-center justify-center min-h-full min-w-full p-8 gap-4">
+      <div
+        className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
+        style={{
+          gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
+          width: "max-content",
+        }}
+      >
+        {renderGrid()}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 bg-slate-800 inline-block rounded-sm" />
+          <span>Shelf</span>
+        </span>
+
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
+          <span>Dispatch</span>
+        </span>
+
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 bg-sky-400/70 inline-block rounded-sm" />
+          <span>Inventory Density</span>
+        </span>
+
+        <span className="flex items-center gap-1.5">
+          <span
+            className="w-3 h-3 inline-block rounded-sm ring-2 ring-red-500"
+            style={{
+              boxShadow: "inset 0 0 4px rgba(239,68,68,0.8)",
+            }}
+          />
+          <span>Fast-Mover / Hotspot</span>
+        </span>
+
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 bg-rose-500/70 inline-block rounded-sm" />
+          <span>Product Group</span>
+        </span>
+      </div>
+    </div>
+  </ScrollArea>
         </main>
       </div>
     </div>

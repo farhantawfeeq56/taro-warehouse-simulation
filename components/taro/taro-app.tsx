@@ -13,6 +13,7 @@ import type {
   WarehouseProfile,
   LaborProfile,
   SimulationValidationContext,
+  SimulationBlockState,
 } from '@/lib/taro/types';
 import {
   generateDemoWarehouse,
@@ -43,13 +44,6 @@ import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 
-interface SimulationBlockState {
-  /** Set when simulation cannot run; drives right-panel blocked UI. */
-  simulationState?: 'NO_VALID_ITEMS';
-  title: string;
-  description: string;
-}
-
 export function TaroApp() {
   const [warehouse, setWarehouse] = useState<Warehouse>(() => generateSkeletonWarehouse());
   const [orders, setOrders] = useState<Order[]>([]);
@@ -74,6 +68,21 @@ export function TaroApp() {
   const [showLayoutConfig, setShowLayoutConfig] = useState(true);
   const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
+
+  const handleWarehouseChange = useCallback((newWarehouse: Warehouse) => {
+    setWarehouse(newWarehouse);
+    setSimulationResults(null);
+    setSimulationBlockState(null);
+    setIsSimulating(false);
+    setAnimationProgress(0);
+    setActiveStrategy(null);
+    setExecutionPlanStrategy(null);
+    setValidationContext(null);
+    setValidationResult(null);
+    setShowValidationModal(false);
+    setHighlightedMissingItemIds(null);
+    setImportSummary('');
+  }, []);
 
   // 1. Derived Data
   const readiness = useMemo(() => evaluateReadiness(warehouse, orders, zVisualizationMode), [warehouse, orders, zVisualizationMode]);
@@ -150,6 +159,14 @@ export function TaroApp() {
         } catch (error) {
           console.error('Simulation failed:', error);
           setIsSimulating(false);
+
+          if (error instanceof UnreachableLocationError) {
+            setSimulationBlockState({
+              simulationState: 'UNREACHABLE_LOCATIONS',
+              title: 'Unreachable Locations',
+              description: 'The warehouse layout blocks workers from reaching some pick locations. Please check the layout; workers might not be able to go through.',
+            });
+          }
         }
       });
     },
@@ -158,25 +175,15 @@ export function TaroApp() {
 
   const handleClearWarehouse = useCallback(() => {
     if (window.confirm('Are you sure you want to clear the entire warehouse layout and all orders? This cannot be undone.')) {
-      setWarehouse(createEmptyWarehouse(30, 24));
+      handleWarehouseChange(createEmptyWarehouse(30, 24));
       setOrders([]);
-      setSimulationResults(null);
-      setIsSimulating(false);
-      setActiveStrategy(null);
-      setAnimationProgress(0);
-      setExecutionPlanStrategy(null);
-      setValidationContext(null);
-      setValidationResult(null);
-      setShowValidationModal(false);
-      setHighlightedMissingItemIds(null);
-      setSimulationBlockState(null);
       setImportSummary('');
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
       }
     }
-  }, []);
+  }, [handleWarehouseChange]);
 
   const handleSimulateClick = useCallback(() => {
     if (!readiness.isReady) {
@@ -229,25 +236,16 @@ export function TaroApp() {
     try {
       const csvText = await file.text();
       const { warehouse: importedWarehouse, summary } = parseWarehouseCsv(csvText);
-      setWarehouse(importedWarehouse);
+      handleWarehouseChange(importedWarehouse);
       setOrders([]);
-      setSimulationResults(null);
-      setActiveStrategy(null);
-      setAnimationProgress(0);
       setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
-      setExecutionPlanStrategy(null);
-      setValidationContext(null);
-      setValidationResult(null);
-      setShowValidationModal(false);
-      setHighlightedMissingItemIds(null);
-      setSimulationBlockState(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
       alert(`CSV import failed: ${message}`);
     } finally {
       event.target.value = '';
     }
-  }, []);
+  }, [handleWarehouseChange]);
 
   const handleAddDemoOrders = useCallback(() => {
     const demoOrders = generateRandomOrders(warehouse, 4);
@@ -339,7 +337,7 @@ export function TaroApp() {
           {/* Canvas */}
           <WarehouseCanvas
             warehouse={warehouse}
-            onWarehouseChange={setWarehouse}
+            onWarehouseChange={handleWarehouseChange}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
             animationProgress={animationProgress}
@@ -441,17 +439,6 @@ export function TaroApp() {
             const newOrders = generateRandomOrders(warehouseWithInventory, 4);
             setOrders(newOrders);
 
-            // Reset simulation state
-            setSimulationResults(null);
-            setIsSimulating(false);
-            setActiveStrategy(null);
-            setAnimationProgress(0);
-            setExecutionPlanStrategy(null);
-            setValidationContext(null);
-            setValidationResult(null);
-            setShowValidationModal(false);
-            setHighlightedMissingItemIds(null);
-            setSimulationBlockState(null);
             setImportSummary('');
             if (animationRef.current) {
               cancelAnimationFrame(animationRef.current);
