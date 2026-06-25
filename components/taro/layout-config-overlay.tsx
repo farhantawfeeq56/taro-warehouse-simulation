@@ -69,6 +69,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [productGrouping, setProductGrouping] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.productGrouping);
   const [inventorySpread, setInventorySpread] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.inventorySpread);
   const [hotspotIntensity, setHotspotIntensity] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.hotspotIntensity);
+  const [productCount, setProductCount] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.productCount);
 
   const inventoryConfig: InventoryPlacementConfig = useMemo(
     () => ({
@@ -76,8 +77,9 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       productGrouping,
       inventorySpread,
       hotspotIntensity,
+      productCount,
     }),
-    [fastMoverPlacement, productGrouping, inventorySpread, hotspotIntensity]
+    [fastMoverPlacement, productGrouping, inventorySpread, hotspotIntensity, productCount]
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -559,6 +561,26 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <span>Even Demand</span>
                     <span>Few Items Dominate</span>
+                  </div>
+                </div>
+
+                {/* Product Catalog Size */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Hash className="h-3.5 w-3.5 text-indigo-500" />
+                      <Label className="text-sm font-semibold">Product Catalog Size</Label>
+                    </div>
+                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{productCount}</span>
+                  </div>
+                  <Slider
+                    min={50} max={1000} step={50}
+                    value={[productCount]}
+                    onValueChange={(val) => setProductCount(val[0])}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>50 SKUs</span>
+                    <span>1000 SKUs</span>
                   </div>
                 </div>
 

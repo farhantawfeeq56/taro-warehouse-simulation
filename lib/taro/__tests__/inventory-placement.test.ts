@@ -66,10 +66,10 @@ describe('inventory-placement', () => {
     expect(top).toBeDefined();
     if (warehouse.workerStart && top) {
       // The dominant hotspot should be closer to dispatch than the average active shelf.
-      const dist = Math.abs(top.x - warehouse.workerStart.x) + Math.abs(top.y - warehouse.workerStart.y);
+      const dist = Math.abs(top.x - warehouse.workerStart!.x) + Math.abs(top.y - warehouse.workerStart!.y);
       const otherDistances = preview.shelves
         .filter((s) => s.active && s.x !== top.x && s.y !== top.y)
-        .map((s) => Math.abs(s.x - warehouse.workerStart.x) + Math.abs(s.y - warehouse.workerStart.y));
+        .map((s) => Math.abs(s.x - warehouse.workerStart!.x) + Math.abs(s.y - warehouse.workerStart!.y));
       const avgOther = otherDistances.reduce((a, b) => a + b, 0) / Math.max(1, otherDistances.length);
       expect(dist).toBeLessThanOrEqual(avgOther);
     }
@@ -105,6 +105,7 @@ describe('inventory-placement', () => {
       productGrouping: 150,
       inventorySpread: 50,
       hotspotIntensity: 50,
+      productCount: 100,
     });
     expect(norm.fastMoverPlacement).toBe(0);
     expect(norm.productGrouping).toBe(1);
