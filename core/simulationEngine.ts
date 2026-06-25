@@ -127,14 +127,11 @@ function safelyResolveOrderLocations(
     for (const item of order.items) {
       const resolvedItem = warehouse.items.find(i => i.id === item.itemId);
       if (!resolvedItem) {
-        console.log(`Missing item: ${item.itemId}. Available items count: ${warehouse.items.length}`);
-        missingItemIds.add(item.itemId);
-        continue;
+        throw new Error(`Missing item: ${item.itemId}. Available items: ${warehouse.items.slice(0, 5).map(i => i.id).join(', ')}... Total items: ${warehouse.items.length}`);
       }
       if (!validLocationIds.has(resolvedItem.locationId)) {
-        console.log(`Invalid location: ${resolvedItem.locationId} for item ${item.itemId}. Valid locations count: ${validLocationIds.size}`);
-        invalidLocationItemIds.add(item.itemId);
-        continue;
+        const foundMatch = Array.from(validLocationIds).find(id => id.includes(`${resolvedItem.locationId}`));
+        throw new Error(`Invalid location: "${resolvedItem.locationId}" for item ${item.itemId}. foundMatch: ${foundMatch}. Valid locations: ${Array.from(validLocationIds).slice(0, 10).join(', ')}... Total valid: ${validLocationIds.size}`);
       }
       locations.push(resolvedItem.locationId);
     }

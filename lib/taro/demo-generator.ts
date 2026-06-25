@@ -55,6 +55,7 @@ export function generateDemoWarehouse(): Warehouse {
   let demoItemIndex = 1;
   const createDemoItemsForCell = (x: number, y: number) => {
     const cell = warehouse.grid[y][x];
+    console.log(`createDemoItemsForCell(${x}, ${y}) - cell.locations.length: ${cell.locations.length}`);
     for (const loc of cell.locations) {
       warehouse.items.push({
         id: `DEMO_ITEM_${String(demoItemIndex).padStart(3, '0')}`,
@@ -93,7 +94,9 @@ export function generateDemoWarehouse(): Warehouse {
   ];
 
   // Place locations
+  console.log(`Setting locations for (${tx}, ${ty})`);
   warehouse.grid[ty][tx].locations = testLocations;
+  console.log(`Grid at (${tx}, ${ty}) now has ${warehouse.grid[ty][tx].locations.length} locations`);
   createDemoItemsForCell(tx, ty);
 
   // Add some additional items at shelf edges with locations

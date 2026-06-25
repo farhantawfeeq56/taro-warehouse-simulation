@@ -9,6 +9,14 @@ describe('simulation', () => {
 
   it('should run simulation with demo warehouse', () => {
     const warehouse = generateDemoWarehouse();
+    console.log(`Warehouse dimensions: ${warehouse.width}x${warehouse.height}`);
+    console.log(`Warehouse locations count: ${warehouse.locations.length}`);
+    console.log(`Warehouse items count: ${warehouse.items.length}`);
+    if (warehouse.items.length > 0) {
+      console.log(`First item: ${JSON.stringify(warehouse.items[0])}`);
+      const loc = warehouse.locations.find(l => l.id === warehouse.items[0].locationId);
+      console.log(`Location for first item found: ${!!loc}`);
+    }
     const orders = generateRandomOrders(warehouse, 3);
     const results = runSimulation(warehouse, orders, 2);
 
@@ -327,7 +335,7 @@ describe('simulation', () => {
     ];
 
     expect(() => runSimulation(warehouse, invalidOrders, 2)).toThrow(
-      'Order "invalid-order" references unknown itemId "DOES_NOT_EXIST" at index 0.'
+      /Missing item: DOES_NOT_EXIST/
     );
   });
 
