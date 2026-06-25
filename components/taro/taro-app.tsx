@@ -28,7 +28,7 @@ import {
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
 import { applyInventoryPlacement } from '@/lib/taro/inventory-placement';
-import { runSimulation } from '@/core/simulationEngine';
+import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
