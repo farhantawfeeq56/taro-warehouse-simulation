@@ -15,15 +15,17 @@ describe('inventory-placement', () => {
     const totalShelves = out.grid
       .flat()
       .filter((cell) => cell.type === 'shelf').length;
-    const activeShelves = out.items.length;
-    expect(activeShelves).toBeGreaterThan(0);
-    expect(activeShelves).toBeLessThanOrEqual(totalShelves);
+    
+    const activeShelvesWithItems = out.grid.flat().filter(cell => cell.type === 'shelf' && cell.locations.length > 0).length;
+    
+    expect(activeShelvesWithItems).toBeGreaterThan(0);
+    expect(activeShelvesWithItems).toBeLessThanOrEqual(totalShelves);
 
-    // Every active shelf should have at least one storage location.
+    // Every item should have a valid location mapping.
     for (const item of out.items) {
       const cell = out.grid
         .flat()
-        .find((c) => `shelf-${c.x}-${c.y}` === item.locationId);
+        .find((c) => c.locations.some(loc => loc.id === item.locationId));
       expect(cell).toBeDefined();
       expect(cell!.locations.length).toBeGreaterThan(0);
     }
@@ -105,6 +107,7 @@ describe('inventory-placement', () => {
       productGrouping: 150,
       inventorySpread: 50,
       hotspotIntensity: 50,
+      productCount: 100,
     });
     expect(norm.fastMoverPlacement).toBe(0);
     expect(norm.productGrouping).toBe(1);

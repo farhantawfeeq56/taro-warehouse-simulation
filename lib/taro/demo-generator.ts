@@ -13,7 +13,7 @@ function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number;
       const cell = warehouse.grid[y][x];
       if (cell.type === 'shelf' && cell.locations.length > 0) {
         for (const loc of cell.locations) {
-          locations.set(`${loc.x},${loc.y},${loc.z}-${loc.sku}`, { x: loc.x, y: loc.y, z: loc.z, sku: loc.sku });
+          locations.set(loc.id, { x: loc.x, y: loc.y, z: loc.z, sku: loc.sku });
         }
       }
     }
@@ -53,12 +53,15 @@ export function generateDemoWarehouse(): Warehouse {
   const logicalHeight = 24;
   const warehouse = createEmptyWarehouse(logicalWidth, logicalHeight);
   let demoItemIndex = 1;
-  const createDemoItem = (locationId: string) => {
-    warehouse.items.push({
-      id: `DEMO_ITEM_${String(demoItemIndex).padStart(3, '0')}`,
-      locationId,
-    });
-    demoItemIndex++;
+  const createDemoItemsForCell = (x: number, y: number) => {
+    const cell = warehouse.grid[y][x];
+    for (const loc of cell.locations) {
+      warehouse.items.push({
+        id: `DEMO_ITEM_${String(demoItemIndex).padStart(3, '0')}`,
+        locationId: loc.id,
+      });
+      demoItemIndex++;
+    }
   };
 
   // Create shelf rows with aisles between them
@@ -84,14 +87,14 @@ export function generateDemoWarehouse(): Warehouse {
   const tx = 5 + OUTER_PADDING;
   const ty = 3 + OUTER_PADDING;
   const testLocations: StorageLocation[] = [
-    { id: `SKU_A@${tx},${ty},1`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 1, sku: 'SKU_A', quantity: 100 },
-    { id: `SKU_B@${tx},${ty},2`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 2, sku: 'SKU_B', quantity: 50 },
-    { id: `SKU_C@${tx},${ty},3`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 3, sku: 'SKU_C', quantity: 30 },
+    { id: getShelfLocationId(tx, ty, 1, 'SKU_A'), locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 1, sku: 'SKU_A', quantity: 100 },
+    { id: getShelfLocationId(tx, ty, 2, 'SKU_B'), locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 2, sku: 'SKU_B', quantity: 50 },
+    { id: getShelfLocationId(tx, ty, 3, 'SKU_C'), locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 3, sku: 'SKU_C', quantity: 30 },
   ];
 
   // Place locations
   warehouse.grid[ty][tx].locations = testLocations;
-  createDemoItem(getShelfLocationId(tx, ty));
+  createDemoItemsForCell(tx, ty);
 
   // Add some additional items at shelf edges with locations
   let itemId = 4; // Start after test SKUs
@@ -113,7 +116,7 @@ export function generateDemoWarehouse(): Warehouse {
             const sku = `SKU_${String(itemId).padStart(3, '0')}`;
             const quantity = Math.floor(Math.random() * 90) + 10;
             cellLocations.push({
-              id: `${sku}@${x},${y},${z}`,
+              id: getShelfLocationId(x, y, z, sku),
               locationId: getShelfLocationId(x, y),
               x,
               y,
@@ -125,7 +128,7 @@ export function generateDemoWarehouse(): Warehouse {
           }
 
           warehouse.grid[y][x].locations = cellLocations;
-          createDemoItem(getShelfLocationId(x, y));
+          createDemoItemsForCell(x, y);
         }
       }
     }
