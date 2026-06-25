@@ -4,6 +4,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import { X, Columns, Layout, Grid, Hash, AlertTriangle, Boxes, Flame, PackageSearch, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -486,22 +487,24 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
                 {/* Products Catalog Count */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Hash className="h-3.5 w-3.5 text-blue-500" />
-                      <Label className="text-sm font-semibold">Products</Label>
-                    </div>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{productCount}</span>
+                  <div className="flex items-center gap-2">
+                    <Hash className="h-3.5 w-3.5 text-blue-500" />
+                    <Label className="text-sm font-semibold">Products</Label>
                   </div>
-                  <Slider
-                    min={10} max={1000} step={10}
-                    value={[productCount]}
-                    onValueChange={(val) => setProductCount(val[0])}
+                  <Input
+                    type="number"
+                    min={1}
+                    value={productCount === 0 ? '' : productCount}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val)) setProductCount(val);
+                      else if (e.target.value === '') setProductCount(0);
+                    }}
+                    className="h-9"
                   />
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>10 SKUs</span>
-                    <span>1,000 SKUs</span>
-                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Total number of unique SKUs in the catalog.
+                  </p>
                 </div>
 
                 {/* Fast-Mover Placement */}

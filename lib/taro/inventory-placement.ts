@@ -461,5 +461,5 @@ export const DEFAULT_INVENTORY_PLACEMENT: InventoryPlacementConfig = {
   productGrouping: 50,
   inventorySpread: 50,
   hotspotIntensity: 50,
-  productCount: 100,
+  productCount: 250,
 };

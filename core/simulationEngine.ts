@@ -127,10 +127,12 @@ function safelyResolveOrderLocations(
     for (const item of order.items) {
       const resolvedItem = warehouse.items.find(i => i.id === item.itemId);
       if (!resolvedItem) {
+        console.log(`Missing item: ${item.itemId}. Available items count: ${warehouse.items.length}`);
         missingItemIds.add(item.itemId);
         continue;
       }
       if (!validLocationIds.has(resolvedItem.locationId)) {
+        console.log(`Invalid location: ${resolvedItem.locationId} for item ${item.itemId}. Valid locations count: ${validLocationIds.size}`);
         invalidLocationItemIds.add(item.itemId);
         continue;
       }

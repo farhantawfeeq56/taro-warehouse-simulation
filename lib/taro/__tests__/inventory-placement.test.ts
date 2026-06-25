@@ -40,7 +40,11 @@ describe('inventory-placement', () => {
       ...DEFAULT_INVENTORY_PLACEMENT,
       inventorySpread: 100,
     });
-    expect(compact.items.length).toBeLessThan(distributed.items.length);
+    
+    const compactActiveShelves = compact.grid.flat().filter(c => c.type === 'shelf' && c.locations.length > 0).length;
+    const distributedActiveShelves = distributed.grid.flat().filter(c => c.type === 'shelf' && c.locations.length > 0).length;
+    
+    expect(compactActiveShelves).toBeLessThan(distributedActiveShelves);
   });
 
   it('preview reflects active density of shelves', () => {
@@ -67,11 +71,12 @@ describe('inventory-placement', () => {
     const top = [...preview.shelves].sort((a, b) => b.fastMoverScore - a.fastMoverScore)[0];
     expect(top).toBeDefined();
     if (warehouse.workerStart && top) {
+      const start = warehouse.workerStart;
       // The dominant hotspot should be closer to dispatch than the average active shelf.
-      const dist = Math.abs(top.x - warehouse.workerStart.x) + Math.abs(top.y - warehouse.workerStart.y);
+      const dist = Math.abs(top.x - start.x) + Math.abs(top.y - start.y);
       const otherDistances = preview.shelves
         .filter((s) => s.active && s.x !== top.x && s.y !== top.y)
-        .map((s) => Math.abs(s.x - warehouse.workerStart.x) + Math.abs(s.y - warehouse.workerStart.y));
+        .map((s) => Math.abs(s.x - start.x) + Math.abs(s.y - start.y));
       const avgOther = otherDistances.reduce((a, b) => a + b, 0) / Math.max(1, otherDistances.length);
       expect(dist).toBeLessThanOrEqual(avgOther);
     }
