@@ -40,7 +40,7 @@ import { ValidationModal } from './validation-modal';
 import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
 import { RotateCcw } from 'lucide-react';
-import { getMissingItemIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
+import { getMissingSkuIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 
@@ -66,7 +66,7 @@ export function TaroApp() {
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showLayoutConfig, setShowLayoutConfig] = useState(true);
-  const [highlightedMissingItemIds, setHighlightedMissingItemIds] = useState<Set<string> | null>(null);
+  const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
 
   const handleWarehouseChange = useCallback((newWarehouse: Warehouse) => {
@@ -139,7 +139,7 @@ export function TaroApp() {
       setActiveStrategy(null);
       setAnimationProgress(0);
       setExecutionPlanStrategy(null);
-      setHighlightedMissingItemIds(null);
+      setHighlightedMissingSkuIds(null);
       setValidationContext(null);
       setValidationResult(null);
       setShowValidationModal(false);
@@ -177,6 +177,19 @@ export function TaroApp() {
     if (window.confirm('Are you sure you want to clear the entire warehouse layout and all orders? This cannot be undone.')) {
       handleWarehouseChange(createEmptyWarehouse(30, 24));
       setOrders([]);
+<<<<<<< Updated upstream
+=======
+      setSimulationResults(null);
+      setIsSimulating(false);
+      setActiveStrategy(null);
+      setAnimationProgress(0);
+      setExecutionPlanStrategy(null);
+      setValidationContext(null);
+      setValidationResult(null);
+      setShowValidationModal(false);
+      setHighlightedMissingSkuIds(null);
+      setSimulationBlockState(null);
+>>>>>>> Stashed changes
       setImportSummary('');
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
@@ -216,8 +229,8 @@ export function TaroApp() {
     setShowValidationModal(false);
     setValidationResult(null);
     if (validationContext) {
-      const missingItemIds = getMissingItemIds(validationContext);
-      setHighlightedMissingItemIds(missingItemIds);
+      const missingSkuIds = getMissingSkuIds(validationContext);
+      setHighlightedMissingSkuIds(missingSkuIds);
     }
   }, [validationContext]);
 
@@ -239,6 +252,15 @@ export function TaroApp() {
       handleWarehouseChange(importedWarehouse);
       setOrders([]);
       setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
+<<<<<<< Updated upstream
+=======
+      setExecutionPlanStrategy(null);
+      setValidationContext(null);
+      setValidationResult(null);
+      setShowValidationModal(false);
+      setHighlightedMissingSkuIds(null);
+      setSimulationBlockState(null);
+>>>>>>> Stashed changes
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
       alert(`CSV import failed: ${message}`);
@@ -316,8 +338,8 @@ export function TaroApp() {
           onOrdersChange={setOrders}
           warehouse={warehouse}
           workerCount={workerCount}
-          highlightedMissingItemIds={highlightedMissingItemIds}
-          onClearHighlights={() => setHighlightedMissingItemIds(null)}
+          highlightedMissingSkuIds={highlightedMissingSkuIds}
+          onClearHighlights={() => setHighlightedMissingSkuIds(null)}
         />
 
         {/* Center - Canvas */}
@@ -386,7 +408,7 @@ export function TaroApp() {
           executionPlan={executionPlan}
           validationContext={validationContext}
           blockState={simulationBlockState}
-          onViewUnresolvableItems={(itemIds) => setHighlightedMissingItemIds(new Set(itemIds))}
+          onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
           onSimulate={handleSimulateClick}
           onAddShelves={() => setSelectedTool('shelf')}
           onAddDemoOrders={handleAddDemoOrders}
@@ -439,6 +461,20 @@ export function TaroApp() {
             const newOrders = generateRandomOrders(warehouseWithInventory, 4);
             setOrders(newOrders);
 
+<<<<<<< Updated upstream
+=======
+            // Reset simulation state
+            setSimulationResults(null);
+            setIsSimulating(false);
+            setActiveStrategy(null);
+            setAnimationProgress(0);
+            setExecutionPlanStrategy(null);
+            setValidationContext(null);
+            setValidationResult(null);
+            setShowValidationModal(false);
+            setHighlightedMissingSkuIds(null);
+            setSimulationBlockState(null);
+>>>>>>> Stashed changes
             setImportSummary('');
             if (animationRef.current) {
               cancelAnimationFrame(animationRef.current);

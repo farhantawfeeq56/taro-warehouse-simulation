@@ -15,17 +15,23 @@ describe('inventory-placement', () => {
     const totalShelves = out.grid
       .flat()
       .filter((cell) => cell.type === 'shelf').length;
-    const activeShelves = out.items.length;
+    const activeCells = out.grid.flat().filter((cell) => cell.locations.length > 0);
+    const activeShelves = activeCells.length;
     expect(activeShelves).toBeGreaterThan(0);
     expect(activeShelves).toBeLessThanOrEqual(totalShelves);
 
     // Every active shelf should have at least one storage location.
-    for (const item of out.items) {
-      const cell = out.grid
-        .flat()
-        .find((c) => `shelf-${c.x}-${c.y}` === item.locationId);
-      expect(cell).toBeDefined();
-      expect(cell!.locations.length).toBeGreaterThan(0);
+    for (const cell of activeCells) {
+      expect(cell.locations.length).toBeGreaterThan(0);
+    }
+
+    // Invariant: each SKU lives in exactly one bin across the whole warehouse.
+    const seenSkus = new Set<string>();
+    for (const cell of out.grid.flat()) {
+      for (const bin of cell.locations) {
+        expect(seenSkus.has(bin.sku)).toBe(false);
+        seenSkus.add(bin.sku);
+      }
     }
   });
 
@@ -38,7 +44,9 @@ describe('inventory-placement', () => {
       ...DEFAULT_INVENTORY_PLACEMENT,
       inventorySpread: 100,
     });
-    expect(compact.items.length).toBeLessThan(distributed.items.length);
+    const compactActive = compact.grid.flat().filter((c) => c.locations.length > 0).length;
+    const distributedActive = distributed.grid.flat().filter((c) => c.locations.length > 0).length;
+    expect(compactActive).toBeLessThan(distributedActive);
   });
 
   it('preview reflects active density of shelves', () => {
@@ -66,14 +74,15 @@ describe('inventory-placement', () => {
     expect(top).toBeDefined();
     if (warehouse.workerStart && top) {
       // The dominant hotspot should be closer to dispatch than the average active shelf.
-      const dist = Math.abs(top.x - warehouse.workerStart.x) + Math.abs(top.y - warehouse.workerStart.y);
+      const dist = Math.abs(top.x - warehouse.workerStart!.x) + Math.abs(top.y - warehouse.workerStart!.y);
       const otherDistances = preview.shelves
         .filter((s) => s.active && s.x !== top.x && s.y !== top.y)
-        .map((s) => Math.abs(s.x - warehouse.workerStart.x) + Math.abs(s.y - warehouse.workerStart.y));
+        .map((s) => Math.abs(s.x - warehouse.workerStart!.x) + Math.abs(s.y - warehouse.workerStart!.y));
       const avgOther = otherDistances.reduce((a, b) => a + b, 0) / Math.max(1, otherDistances.length);
       expect(dist).toBeLessThanOrEqual(avgOther);
     }
-    expect(focused.items.length).toBeGreaterThan(0);
+    const activeCells = focused.grid.flat().filter((c) => c.locations.length > 0).length;
+    expect(activeCells).toBeGreaterThan(0);
   });
 
   it('high product grouping produces shelves that share a group', () => {

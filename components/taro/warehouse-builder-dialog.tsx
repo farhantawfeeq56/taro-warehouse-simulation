@@ -88,7 +88,6 @@ function buildWarehouseFromParams(
     shelves,
     workerStart,
     locations: [],
-    items: [],
   };
   warehouse.locations = buildCoordinateLocations(warehouse);
   return warehouse;
@@ -190,7 +189,7 @@ function parseCSVWarehouse(csvText: string): Warehouse | null {
     const workerStart = { x: wx, y: wy };
     grid[wy][wx] = { type: 'worker-start', x: wx, y: wy, locations: [] };
 
-    const warehouse: Warehouse = { width, height, grid, shelves, workerStart, locations: [], items: [] };
+    const warehouse: Warehouse = { width, height, grid, shelves, workerStart, locations: [] };
     warehouse.locations = buildCoordinateLocations(warehouse);
     return warehouse;
   } catch {

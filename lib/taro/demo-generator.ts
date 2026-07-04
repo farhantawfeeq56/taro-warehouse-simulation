@@ -3,6 +3,7 @@
 import type { Warehouse, Cell, Order, StorageLocation } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
 import { OUTER_PADDING } from './layout-utils';
+import { collectSkuIds } from './inventory';
 
 // Get all pickable locations from warehouse (local copy for demo-generator)
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
@@ -13,7 +14,7 @@ function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number;
       const cell = warehouse.grid[y][x];
       if (cell.type === 'shelf' && cell.locations.length > 0) {
         for (const loc of cell.locations) {
-          locations.set(`${loc.x},${loc.y},${loc.z}-${loc.sku}`, { x: loc.x, y: loc.y, z: loc.z, sku: loc.sku });
+          locations.set(loc.id, { x: loc.x, y: loc.y, z: loc.z, sku: loc.sku });
         }
       }
     }
@@ -41,10 +42,8 @@ export function createEmptyWarehouse(width: number, height: number): Warehouse {
     grid,
     shelves: [],
     workerStart: null,
-    locations: [],
-    items: [],
+    locations: buildCoordinateLocations({ grid, width: fullWidth, height: fullHeight, workerStart: null }),
   };
-  warehouse.locations = buildCoordinateLocations(warehouse);
   return warehouse;
 }
 
@@ -52,14 +51,6 @@ export function generateDemoWarehouse(): Warehouse {
   const logicalWidth = 30;
   const logicalHeight = 24;
   const warehouse = createEmptyWarehouse(logicalWidth, logicalHeight);
-  let demoItemIndex = 1;
-  const createDemoItem = (locationId: string) => {
-    warehouse.items.push({
-      id: `DEMO_ITEM_${String(demoItemIndex).padStart(3, '0')}`,
-      locationId,
-    });
-    demoItemIndex++;
-  };
 
   // Create shelf rows with aisles between them
   const shelfRows = [2, 3, 6, 7, 10, 11, 14, 15, 18, 19];
@@ -84,14 +75,13 @@ export function generateDemoWarehouse(): Warehouse {
   const tx = 5 + OUTER_PADDING;
   const ty = 3 + OUTER_PADDING;
   const testLocations: StorageLocation[] = [
-    { id: `SKU_A@${tx},${ty},1`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 1, sku: 'SKU_A', quantity: 100 },
-    { id: `SKU_B@${tx},${ty},2`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 2, sku: 'SKU_B', quantity: 50 },
-    { id: `SKU_C@${tx},${ty},3`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 3, sku: 'SKU_C', quantity: 30 },
+    { id: `SKU_001@${tx},${ty},1`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 1, sku: 'SKU_001', quantity: 100 },
+    { id: `SKU_002@${tx},${ty},2`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 2, sku: 'SKU_002', quantity: 50 },
+    { id: `SKU_003@${tx},${ty},3`, locationId: getShelfLocationId(tx, ty), x: tx, y: ty, z: 3, sku: 'SKU_003', quantity: 30 },
   ];
 
   // Place locations
   warehouse.grid[ty][tx].locations = testLocations;
-  createDemoItem(getShelfLocationId(tx, ty));
 
   // Add some additional items at shelf edges with locations
   let itemId = 4; // Start after test SKUs
@@ -125,7 +115,6 @@ export function generateDemoWarehouse(): Warehouse {
           }
 
           warehouse.grid[y][x].locations = cellLocations;
-          createDemoItem(getShelfLocationId(x, y));
         }
       }
     }
@@ -174,18 +163,18 @@ export function generateRandomOrders(warehouse: Warehouse, count: number): Order
   const orders: Order[] = [];
   const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  const availableItemIds = warehouse.items.map(item => item.id);
-  if (availableItemIds.length === 0) return orders;
+  const availableSkuIds = collectSkuIds(warehouse);
+  if (availableSkuIds.length === 0) return orders;
 
   for (let i = 0; i < count; i++) {
     const itemCount = Math.floor(Math.random() * 4) + 2; // 2-5 items per order
     const orderItems: Order['items'] = [];
-    const availableItemIdsCopy = [...availableItemIds];
+    const availableSkuIdsCopy = [...availableSkuIds];
 
-    for (let j = 0; j < itemCount && availableItemIdsCopy.length > 0; j++) {
-      const idx = Math.floor(Math.random() * availableItemIdsCopy.length);
-      orderItems.push({ itemId: availableItemIdsCopy[idx] });
-      availableItemIdsCopy.splice(idx, 1);
+    for (let j = 0; j < itemCount && availableSkuIdsCopy.length > 0; j++) {
+      const idx = Math.floor(Math.random() * availableSkuIdsCopy.length);
+      orderItems.push({ skuId: availableSkuIdsCopy[idx] });
+      availableSkuIdsCopy.splice(idx, 1);
     }
 
     orders.push({

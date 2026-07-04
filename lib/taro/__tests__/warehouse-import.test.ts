@@ -13,7 +13,7 @@ B-01-01,450,220,1,rear`;
     expect(summary.locationCount).toBe(3);
     expect(summary.rackCount).toBe(2);
     expect(warehouse.shelves.length).toBe(2);
-    expect(warehouse.items).toEqual([]);
+    expect(warehouse.grid.flat().reduce((sum, c) => sum + c.locations.length, 0)).toBe(3);
   });
 
   it('throws when required columns are missing', () => {

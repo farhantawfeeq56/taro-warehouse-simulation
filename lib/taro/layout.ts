@@ -15,9 +15,8 @@ export function buildCoordinateLocations(warehouse: Pick<Warehouse, 'grid' | 'wi
           id: getShelfLocationId(x, y),
           x,
           y,
-          z: 1,
           type: 'shelf',
-          items: cell.locations.map(location => location.sku),
+          binIds: cell.locations.map(location => location.id),
         });
       }
     }

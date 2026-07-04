@@ -1,35 +1,63 @@
-import { getItemById } from './items';
-import type { Order, Warehouse } from './types';
+import { assertWarehouseInvariants, getBinForSku } from './inventory';
+import type { Order, StorageLocation, Warehouse } from './types';
 
-export function resolveOrderLocations(
-  order: Order,
-  warehouse: Pick<Warehouse, 'items'>
-): string[] {
-  return order.items.map((item, index) => {
-    const itemId = item.itemId;
-    const resolvedItem = getItemById(warehouse, itemId);
-    if (!resolvedItem) {
-      throw new Error(`Order \"${order.id}\" references unknown itemId \"${itemId}\" at index ${index}.`);
-    }
-    return resolvedItem.locationId;
-  });
+export interface ResolvedLine {
+  skuId: string;
+  bin: StorageLocation;
+  quantity: number;
 }
 
+export interface ResolvedOrder {
+  orderId: string;
+  lines: ResolvedLine[];
+  missingSkuIds: string[];
+}
+
+/**
+ * Resolve every line of an order to its unique StorageLocation by SKU.
+ * Missing SKUs are returned in `missingSkuIds` (the resolver never throws on
+ * missing SKUs — callers decide whether to abort or run partial).
+ */
+export function resolveOrderToLocations(
+  order: Order,
+  warehouse: Pick<Warehouse, 'grid'>
+): ResolvedOrder {
+  assertWarehouseInvariants(warehouse);
+
+  const lines: ResolvedLine[] = [];
+  const missingSkuIds: string[] = [];
+
+  for (const item of order.items) {
+    const bin = getBinForSku(warehouse, item.skuId);
+    if (!bin) {
+      missingSkuIds.push(item.skuId);
+      continue;
+    }
+    lines.push({
+      skuId: item.skuId,
+      bin,
+      quantity: item.quantity ?? 1,
+    });
+  }
+
+  return { orderId: order.id, lines, missingSkuIds };
+}
+
+/**
+ * Strict variant: throws on the first missing SKU or invariant violation.
+ * Used by tests and pre-flight checks.
+ */
 export function validateOrderItemLocations(
   order: Order,
-  warehouse: Pick<Warehouse, 'items' | 'locations'>
+  warehouse: Pick<Warehouse, 'grid'>
 ): void {
-  const validLocationIds = new Set(warehouse.locations.map(location => location.id));
+  assertWarehouseInvariants(warehouse);
 
   order.items.forEach((item, index) => {
-    const itemId = item.itemId;
-    const resolvedItem = getItemById(warehouse, itemId);
-    if (!resolvedItem) {
-      throw new Error(`Order \"${order.id}\" references unknown itemId \"${itemId}\" at index ${index}.`);
-    }
-    if (!validLocationIds.has(resolvedItem.locationId)) {
+    const bin = getBinForSku(warehouse, item.skuId);
+    if (!bin) {
       throw new Error(
-        `Order \"${order.id}\" itemId \"${itemId}\" resolves to invalid locationId \"${resolvedItem.locationId}\" at index ${index}.`
+        `Order "${order.id}" references unknown skuId "${item.skuId}" at index ${index}.`
       );
     }
   });

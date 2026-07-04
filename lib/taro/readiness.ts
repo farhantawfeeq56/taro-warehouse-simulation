@@ -80,12 +80,14 @@ export function evaluateReadiness(
   orders: Order[], 
   activeZVisualizationMode: ZVisualizationMode = 'all'
 ): SimulationReadiness {
-  const itemsExist = warehouse.items.length > 0;
-  
+  const itemsExist = warehouse.grid.some(row =>
+    row.some(cell => cell.locations.length > 0)
+  );
+
   // Check if any items exist in the currently active Z-level
   let hasItemsInActiveZ = false;
   if (activeZVisualizationMode === 'all') {
-    hasItemsInActiveZ = warehouse.grid.some(row => 
+    hasItemsInActiveZ = warehouse.grid.some(row =>
       row.some(cell => cell.locations.length > 0)
     );
   } else {

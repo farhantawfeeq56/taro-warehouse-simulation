@@ -38,7 +38,6 @@ export function generateFishboneLayout(
 
   const shelves: { x: number; y: number }[] = [];
   let skuId = 1;
-  let itemCounter = 1;
 
   for (let ly = 0; ly < height; ly++) {
     for (let lx = 0; lx < width; lx++) {
@@ -101,19 +100,9 @@ export function generateFishboneLayout(
     grid,
     shelves,
     workerStart,
-    locations: [],
-    items: [],
+    locations: buildCoordinateLocations({ grid, width: fullWidth, height: fullHeight, workerStart }),
   };
 
-  for (const shelf of shelves) {
-    warehouse.items.push({
-      id: `ITEM_${String(itemCounter).padStart(3, '0')}`,
-      locationId: getShelfLocationId(shelf.x, shelf.y),
-    });
-    itemCounter++;
-  }
-
-  warehouse.locations = buildCoordinateLocations(warehouse);
   return warehouse;
 }
 
@@ -154,8 +143,6 @@ function createShelfLocations(x: number, y: number, skuCounter: { value: number 
 
 function rebuildWarehouseMetadata(warehouse: Warehouse): void {
   const shelves: { x: number; y: number }[] = [];
-  const items: Warehouse['items'] = [];
-  let itemCounter = 1;
 
   for (let y = 0; y < warehouse.height; y++) {
     for (let x = 0; x < warehouse.width; x++) {
@@ -163,11 +150,6 @@ function rebuildWarehouseMetadata(warehouse: Warehouse): void {
 
       if (cell.type === 'shelf') {
         shelves.push({ x, y });
-        items.push({
-          id: `ITEM_${String(itemCounter).padStart(3, '0')}`,
-          locationId: getShelfLocationId(x, y),
-        });
-        itemCounter++;
       } else if (cell.locations.length > 0) {
         cell.locations = [];
       }
@@ -175,7 +157,6 @@ function rebuildWarehouseMetadata(warehouse: Warehouse): void {
   }
 
   warehouse.shelves = shelves;
-  warehouse.items = items;
   warehouse.locations = buildCoordinateLocations(warehouse);
 }
 
@@ -222,7 +203,6 @@ function buildBaseParallelWarehouse(gridHeight: number, rackCount: number, aisle
     shelves: [],
     workerStart,
     locations: [],
-    items: [],
   };
 
   rebuildWarehouseMetadata(warehouse);

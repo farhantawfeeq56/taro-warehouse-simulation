@@ -10,14 +10,19 @@ export const gridY = (value: number): GridY => value as GridY;
 
 export type CellType = 'empty' | 'shelf' | 'worker-start';
 
-// Storage location represents the canonical data model
-// Key: ${x},${y},${z}-${sku} for stable references
+/**
+ * A StorageLocation is a single bin: one slot on one shelf at one z-level.
+ * Each bin carries exactly one SKU and its stock quantity.
+ *
+ * Invariant: every `sku` value across all StorageLocations in a Warehouse is unique.
+ *            One SKU lives in exactly one bin.
+ */
 export interface StorageLocation {
   id: string;
   locationId: string;
   x: number;
   y: number;
-  z: number; // z-level (1-4 typically)
+  z: number;
   sku: string;
   quantity: number;
 }
@@ -29,11 +34,24 @@ export interface Cell {
   locations: StorageLocation[];
 }
 
-export interface OrderItem {
-  itemId: string;
+/**
+ * A WarehouseLocation is a physical shelf (the shelf itself, not a single bin).
+ * It groups the bins that sit on that shelf so callers can answer shelf-level
+ * questions (which aisle/rack/column) without scanning every StorageLocation.
+ */
+export interface WarehouseLocation {
+  id: string;
+  x: number;
+  y: number;
+  type: 'shelf';
+  binIds: string[];
 }
 
-// Orders now reference item IDs.
+export interface OrderItem {
+  skuId: string;
+  quantity?: number;
+}
+
 export interface Order {
   id: string;
   items: OrderItem[];
@@ -45,20 +63,6 @@ export interface WorkerPosition {
   y: number;
 }
 
-export interface WarehouseLocation {
-  id: string;
-  x: number;
-  y: number;
-  z: number;
-  type: 'shelf';
-  items: string[];
-}
-
-export interface Item {
-  id: string;
-  locationId: string;
-}
-
 export interface Warehouse {
   width: number;
   height: number;
@@ -66,7 +70,6 @@ export interface Warehouse {
   shelves: { x: number; y: number }[];
   workerStart: WorkerPosition | null;
   locations: WarehouseLocation[];
-  items: Item[];
 }
 
 export interface WarehouseProfile {
@@ -135,7 +138,7 @@ export interface SimulationResults {
 
 export interface OrderValidationResult {
   orderId: string;
-  missingItemIds: string[];
+  missingSkuIds: string[];
 }
 
 export interface SimulationValidationContext {
@@ -154,6 +157,7 @@ export interface PickTask {
   step: number;
   zone: string;
   location: string;
+<<<<<<< Updated upstream
   item: string;
 }
 
@@ -163,3 +167,7 @@ export interface SimulationBlockState {
   title: string;
   description: string;
 }
+=======
+  sku: string;
+}
+>>>>>>> Stashed changes

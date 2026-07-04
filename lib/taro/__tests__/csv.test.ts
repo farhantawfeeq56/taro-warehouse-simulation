@@ -53,7 +53,7 @@ describe('csv', () => {
         },
       ];
       const csv = generateTaskCSV(routes);
-      expect(csv.startsWith('workerId,step,zone,location,item')).toBe(true);
+      expect(csv.startsWith('workerId,step,zone,location,sku')).toBe(true);
     });
 
     it('should include all worker picks', () => {
@@ -103,7 +103,7 @@ describe('csv', () => {
 
   describe('parseTaskCSV', () => {
     it('should parse CSV with 5 columns', () => {
-      const csv = `workerId,step,zone,location,item
+      const csv = `workerId,step,zone,location,sku
 1,1,Zone 1,X:0, Y:0, Z:1,SKU_A
 1,2,Zone 2,X:2, Y:1, Z:2,SKU_B`;
 
@@ -114,41 +114,41 @@ describe('csv', () => {
         step: 1,
         zone: 'Zone 1',
         location: 'X:0, Y:0, Z:1',
-        item: 'SKU_A',
+        sku: 'SKU_A',
       });
       expect(tasks[1]).toEqual({
         workerId: 1,
         step: 2,
         zone: 'Zone 2',
         location: 'X:2, Y:1, Z:2',
-        item: 'SKU_B',
+        sku: 'SKU_B',
       });
     });
 
     it('should parse CSV with 4 columns (no zone)', () => {
-      const csv = `workerId,step,location,item
+      const csv = `workerId,step,location,sku
 1,1,X:0, Y:0, Z:1,SKU_A
 1,2,X:2, Y:2, Z:2,SKU_B`;
 
       const tasks = parseTaskCSV(csv);
       expect(tasks).toHaveLength(2);
       expect(tasks[0].zone).toBe('');
-      expect(tasks[0].item).toBe('SKU_A');
+      expect(tasks[0].sku).toBe('SKU_A');
     });
 
     it('should handle SKUs with commas', () => {
-      const csv = `workerId,step,zone,location,item
+      const csv = `workerId,step,zone,location,sku
 1,1,Zone 1,X:0, Y:0,Item, With, Commas,SKU_A`;
 
       const tasks = parseTaskCSV(csv);
       expect(tasks).toHaveLength(1);
-      expect(tasks[0].item).toBe('Item, With, Commas,SKU_A');
+      expect(tasks[0].sku).toBe('Item, With, Commas,SKU_A');
     });
 
     it('should filter invalid entries', () => {
-      const csv = `workerId,step,zone,location,item
+      const csv = `workerId,step,zone,location,sku
 1,1,Zone 1,X:0, Y:0,SKU_A
-invalid,step,zone,location,item
+invalid,step,zone,location,sku
 1,abc,Zone 2,X:2, Y:1,SKU_B`;
 
       const tasks = parseTaskCSV(csv);
@@ -179,8 +179,8 @@ invalid,step,zone,location,item
       const tasks = parseTaskCSV(csv);
 
       expect(tasks).toHaveLength(2);
-      expect(tasks[0].item).toBe('SKU_A');
-      expect(tasks[1].item).toBe('SKU_B');
+      expect(tasks[0].sku).toBe('SKU_A');
+      expect(tasks[1].sku).toBe('SKU_B');
       expect(tasks[0].location).toContain('Z:1');
       expect(tasks[1].location).toContain('Z:2');
     });

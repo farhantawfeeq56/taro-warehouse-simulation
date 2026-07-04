@@ -6,7 +6,7 @@
 // picking strategies, or worker behavior. It only enriches the cells
 // of a warehouse that was already laid out by the layout generator.
 
-import type { Cell, StorageLocation, Warehouse, WarehouseLocation, Item } from './types';
+import type { Cell, StorageLocation, Warehouse } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
 
 export interface InventoryPlacementConfig {
@@ -349,11 +349,8 @@ export function applyInventoryPlacement(
     row.map((cell) => ({ ...cell, locations: [] as StorageLocation[] }))
   );
 
-  // 2. Build the new set of storage locations and items.
+  // 2. Build the new set of storage locations.
   let skuCounter = 1;
-  let itemCounter = 1;
-  const locations: WarehouseLocation[] = [];
-  const items: Item[] = [];
 
   for (const p of planned) {
     if (!p.active || p.zLevels === 0) continue;
@@ -361,13 +358,8 @@ export function applyInventoryPlacement(
     const locationId = getShelfLocationId(p.x, p.y);
     const cell = newGrid[p.y][p.x];
 
-    // Pick the SKU for this shelf. SKU encodes the product group, so
-    // shelves in the same group share a SKU "family" when grouping is high.
-    // We also bias fast-mover shelves to lower SKU numbers so they feel
-    // like the "top sellers".
-    const familyLetter = String.fromCharCode(65 + (p.groupIndex % 26));
-    const skuRank = Math.max(1, Math.round(p.demand * 999 + 1));
-    const sku = `SKU_${familyLetter}${String(skuRank).padStart(3, '0')}`;
+    // Pick the SKU for this shelf. Numeric SKUs match the rest of the codebase.
+    const sku = `SKU_${String(skuCounter).padStart(3, '0')}`;
 
     // Build the storage locations for each z-level of this shelf.
     const cellLocations: StorageLocation[] = [];
@@ -392,21 +384,6 @@ export function applyInventoryPlacement(
     cell.locations = cellLocations;
     cell.type = 'shelf';
 
-    // Add to the warehouse-level index.
-    locations.push({
-      id: locationId,
-      x: p.x,
-      y: p.y,
-      z: 1,
-      type: 'shelf',
-      items: cellLocations.map((loc) => loc.sku),
-    });
-
-    items.push({
-      id: `ITEM_${String(itemCounter).padStart(3, '0')}`,
-      locationId,
-    });
-    itemCounter++;
     skuCounter++;
   }
 
@@ -416,13 +393,9 @@ export function applyInventoryPlacement(
     shelves: planned
       .filter((p) => p.active)
       .map((p) => ({ x: p.x, y: p.y })),
-    locations,
-    items,
+    locations: buildCoordinateLocations({ ...warehouse, grid: newGrid }),
   };
 
-  // Refresh the locations index from the grid in case anything got out of sync
-  // (matches the behaviour of the other generators).
-  next.locations = buildCoordinateLocations(next);
   return next;
 }
 

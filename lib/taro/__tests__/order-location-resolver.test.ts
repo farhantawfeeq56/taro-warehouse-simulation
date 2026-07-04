@@ -1,69 +1,170 @@
 import { describe, expect, it } from 'vitest';
-import { resolveOrderLocations, validateOrderItemLocations } from '../order-location-resolver';
-import type { Warehouse } from '../types';
+import {
+  resolveOrderToLocations,
+  validateOrderItemLocations,
+} from '../order-location-resolver';
+import type { Cell, Order, StorageLocation, Warehouse } from '../types';
+import { getShelfLocationId } from '../layout';
 
-const warehouse: Pick<Warehouse, 'items'> = {
-  items: [
-    { id: 'ITEM_L1', locationId: 'L1' },
-    { id: 'ITEM_L2', locationId: 'L2' },
-  ],
-};
+function makeBin(x: number, y: number, z: number, sku: string, quantity = 10): StorageLocation {
+  return {
+    id: `${sku}@${x},${y},${z}`,
+    locationId: getShelfLocationId(x, y),
+    x,
+    y,
+    z,
+    sku,
+    quantity,
+  };
+}
 
-describe('resolveOrderLocations', () => {
-  it('resolves itemId-based entries to locationId', () => {
-    const order = {
+function makeCell(x: number, y: number, type: 'empty' | 'shelf' | 'worker-start', bins: StorageLocation[] = []): Cell {
+  return { x, y, type, locations: bins };
+}
+
+function makeWarehouse(cells: Cell[], width: number, height: number, workerStart = { x: 0, y: 0 }): Warehouse {
+  const padded: Cell[][] = [];
+  for (let y = 0; y < height; y++) {
+    const row: Cell[] = [];
+    for (let x = 0; x < width; x++) {
+      row.push(makeCell(x, y, 'empty'));
+    }
+    padded.push(row);
+  }
+  for (const cell of cells) {
+    padded[cell.y][cell.x] = cell;
+  }
+  return {
+    width,
+    height,
+    grid: padded,
+    shelves: padded
+      .flat()
+      .filter(c => c.type === 'shelf')
+      .map(c => ({ x: c.x, y: c.y })),
+    workerStart,
+    locations: padded
+      .flat()
+      .filter(c => c.type === 'shelf')
+      .map(c => ({
+        id: getShelfLocationId(c.x, c.y),
+        x: c.x,
+        y: c.y,
+        type: 'shelf',
+        binIds: c.locations.map(loc => loc.id),
+      })),
+  };
+}
+
+describe('resolveOrderToLocations', () => {
+  it('resolves skuId-based entries to their bin coordinates', () => {
+    const warehouse = makeWarehouse(
+      [
+        makeCell(0, 0, 'shelf', [makeBin(0, 0, 1, 'SKU_A', 10)]),
+        makeCell(1, 0, 'shelf', [makeBin(1, 0, 1, 'SKU_B', 5)]),
+        makeCell(0, 0, 'worker-start'),
+      ],
+      3,
+      1
+    );
+    const order: Order = {
       id: 'order-1',
-      items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }],
+      items: [{ skuId: 'SKU_A' }, { skuId: 'SKU_B' }],
       assignedWorkerId: null,
     };
 
-    expect(resolveOrderLocations(order, warehouse)).toEqual(['L1', 'L2']);
+    const resolved = resolveOrderToLocations(order, warehouse);
+    expect(resolved.orderId).toBe('order-1');
+    expect(resolved.lines).toHaveLength(2);
+    expect(resolved.lines[0]).toMatchObject({ skuId: 'SKU_A', bin: { x: 0, y: 0, z: 1, sku: 'SKU_A', quantity: 10 } });
+    expect(resolved.lines[1]).toMatchObject({ skuId: 'SKU_B', bin: { x: 1, y: 0, z: 1, sku: 'SKU_B', quantity: 5 } });
+    expect(resolved.missingSkuIds).toEqual([]);
   });
 
-  it('throws a clear error when itemId cannot be resolved', () => {
-    const order = {
+  it('reports missing SKUs without throwing', () => {
+    const warehouse = makeWarehouse(
+      [makeCell(0, 0, 'shelf', [makeBin(0, 0, 1, 'SKU_A')])],
+      1,
+      1
+    );
+    const order: Order = {
       id: 'order-2',
-      items: [{ itemId: 'MISSING_ITEM' }],
+      items: [{ skuId: 'SKU_A' }, { skuId: 'SKU_NOT_FOUND' }],
       assignedWorkerId: null,
     };
 
-    expect(() => resolveOrderLocations(order, warehouse)).toThrow(
-      'Order "order-2" references unknown itemId "MISSING_ITEM" at index 0.'
+    const resolved = resolveOrderToLocations(order, warehouse);
+    expect(resolved.lines).toHaveLength(1);
+    expect(resolved.missingSkuIds).toEqual(['SKU_NOT_FOUND']);
+  });
+
+  it('respects the requested quantity on each line', () => {
+    const warehouse = makeWarehouse(
+      [makeCell(0, 0, 'shelf', [makeBin(0, 0, 1, 'SKU_A', 100)])],
+      1,
+      1
     );
+    const order: Order = {
+      id: 'order-3',
+      items: [{ skuId: 'SKU_A', quantity: 5 }],
+      assignedWorkerId: null,
+    };
+
+    const resolved = resolveOrderToLocations(order, warehouse);
+    expect(resolved.lines[0].quantity).toBe(5);
   });
 });
 
 describe('validateOrderItemLocations', () => {
-  it('accepts orders where every itemId resolves to a known warehouse location', () => {
-    const order = {
-      id: 'order-3',
-      items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }],
+  it('accepts orders where every skuId resolves to a known bin', () => {
+    const warehouse = makeWarehouse(
+      [makeCell(0, 0, 'shelf', [makeBin(0, 0, 1, 'SKU_A')])],
+      1,
+      1
+    );
+    const order: Order = {
+      id: 'order-1',
+      items: [{ skuId: 'SKU_A' }],
       assignedWorkerId: null,
     };
-    const warehouseWithLocations = {
-      ...warehouse,
-      locations: [
-        { id: 'L1', x: 1, y: 1, z: 1, type: 'shelf' as const, items: ['SKU-1'] },
-        { id: 'L2', x: 2, y: 2, z: 1, type: 'shelf' as const, items: ['SKU-2'] },
-      ],
-    };
 
-    expect(() => validateOrderItemLocations(order, warehouseWithLocations)).not.toThrow();
+    expect(() => validateOrderItemLocations(order, warehouse)).not.toThrow();
   });
 
-  it('throws when an itemId resolves to a location that does not exist', () => {
-    const order = {
-      id: 'order-4',
-      items: [{ itemId: 'ITEM_L2' }],
+  it('throws when an skuId cannot be resolved', () => {
+    const warehouse = makeWarehouse(
+      [makeCell(0, 0, 'shelf', [makeBin(0, 0, 1, 'SKU_A')])],
+      1,
+      1
+    );
+    const order: Order = {
+      id: 'order-2',
+      items: [{ skuId: 'SKU_A' }, { skuId: 'SKU_NOT_FOUND' }],
       assignedWorkerId: null,
     };
-    const warehouseWithMissingLocation = {
-      ...warehouse,
-      locations: [{ id: 'L1', x: 1, y: 1, z: 1, type: 'shelf' as const, items: ['SKU-1'] }],
+
+    expect(() => validateOrderItemLocations(order, warehouse)).toThrowError(
+      /Order "order-2" references unknown skuId "SKU_NOT_FOUND" at index 1/
+    );
+  });
+
+  it('throws when a SKU appears in multiple bins (invariant violation)', () => {
+    const warehouse = makeWarehouse(
+      [
+        makeCell(0, 0, 'shelf', [makeBin(0, 0, 1, 'SKU_DUP')]),
+        makeCell(1, 0, 'shelf', [makeBin(1, 0, 1, 'SKU_DUP')]),
+      ],
+      2,
+      1
+    );
+    const order: Order = {
+      id: 'order-3',
+      items: [{ skuId: 'SKU_DUP' }],
+      assignedWorkerId: null,
     };
 
-    expect(() => validateOrderItemLocations(order, warehouseWithMissingLocation)).toThrow(
-      'Order "order-4" itemId "ITEM_L2" resolves to invalid locationId "L2" at index 0.'
+    expect(() => validateOrderItemLocations(order, warehouse)).toThrowError(
+      /Warehouse invariant violated: SKU "SKU_DUP" appears in multiple bins/
     );
   });
 });
