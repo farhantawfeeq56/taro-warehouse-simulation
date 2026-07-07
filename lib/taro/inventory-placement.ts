@@ -361,10 +361,9 @@ export function applyInventoryPlacement(
     const locationId = getShelfLocationId(p.x, p.y);
     const cell = newGrid[p.y][p.x];
 
-    // Pick the SKU for this shelf. Numeric SKUs match the rest of the codebase.
-    const sku = `SKU_${String(skuCounter).padStart(3, '0')}`;
-
     // Build the storage locations for each z-level of this shelf.
+    // Each z-level gets its own unique SKU, consistent with the
+    // invariant that every SKU lives in exactly one StorageLocation.
     const cellLocations: StorageLocation[] = [];
     for (let z = 1; z <= p.zLevels; z++) {
       // Higher density => more quantity. Also: fast-mover shelves get
@@ -372,6 +371,8 @@ export function applyInventoryPlacement(
       const baseQty = 30 + Math.round(p.density * 60);
       const fastMoverBoost = Math.round(p.fastMoverScore * 30);
       const quantity = Math.max(10, baseQty + fastMoverBoost);
+
+      const sku = `SKU_${String(skuCounter).padStart(3, '0')}`;
 
       cellLocations.push({
         id: `${sku}@${p.x},${p.y},${z}`,
@@ -382,12 +383,12 @@ export function applyInventoryPlacement(
         sku,
         quantity,
       });
+
+      skuCounter++;
     }
 
     cell.locations = cellLocations;
     cell.type = 'shelf';
-
-    skuCounter++;
   }
 
   const next: Warehouse = {
