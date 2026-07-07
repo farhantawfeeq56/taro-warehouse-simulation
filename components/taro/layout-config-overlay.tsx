@@ -56,7 +56,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   // Inventory Generation
   const generateItems = useCallback((count: number): Item[] => {
     return Array.from({ length: count }, (_, i) => ({
-      id: `ITEM-${String(i + 1).padStart(4, '0')}`
+      id: `SKU_${String(i + 1).padStart(3, '0')}`
     }));
   }, []);
 
