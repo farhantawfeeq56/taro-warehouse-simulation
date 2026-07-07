@@ -182,7 +182,6 @@ function buildWarehouse(locations: ImportedWarehouseLocation[]): Warehouse {
     shelves,
     workerStart,
     locations: [],
-    items: [],
   };
 
   warehouse.locations = buildCoordinateLocations(warehouse);

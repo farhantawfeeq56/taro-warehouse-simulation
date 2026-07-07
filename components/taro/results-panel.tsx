@@ -196,7 +196,7 @@ export function SystemStatePanel({
                     if (validationContext && onViewUnresolvableItems) {
                       const missingIds: string[] = [];
                       validationContext.missingItemsByOrder.forEach(o => {
-                        missingIds.push(...o.missingItemIds);
+                        missingIds.push(...o.missingSkuIds);
                       });
                       onViewUnresolvableItems(missingIds);
                     }
@@ -397,7 +397,7 @@ export function SystemStatePanel({
                   <ol className="space-y-1 text-xs">
                     {worker.tasks.map((task) => (
                       <li key={`${worker.workerId}-${task.step}`} className="font-mono">
-                        {task.step}. {task.zone ? `${task.zone} → ` : ''}{task.location} ({task.item})
+                        {task.step}. {task.zone ? `${task.zone} → ` : ''}{task.location} ({task.sku})
                       </li>
                     ))}
                   </ol>

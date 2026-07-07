@@ -30,10 +30,10 @@ export function parseLocationZ(location: string): number | undefined {
 /**
  * Generate a CSV string from worker routes.
  * Exports only actual pick locations — not intermediate path steps.
- * Format: workerId,step,zone,location,item
+ * Format: workerId,step,zone,location,sku
  */
 export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
-  const header = 'workerId,step,zone,location,item';
+  const header = 'workerId,step,zone,location,sku';
   const rows: string[] = [header];
 
   for (const worker of workerRoutes) {
@@ -55,9 +55,9 @@ export function generateTaskCSV(workerRoutes: WorkerRoute[]): string {
 
       const zone = worker.zone || `Zone ${worker.workerId}`;
       const location = coordToLocation(pick.x, pick.y, pick.z);
-      const item = pick.sku;
+      const sku = pick.sku;
 
-      rows.push(`${worker.workerId},${step},${zone},${location},${item}`);
+      rows.push(`${worker.workerId},${step},${zone},${location},${sku}`);
       step++;
     }
   }
@@ -99,10 +99,10 @@ export function parseTaskCSV(csvText: string): PickTask[] {
 
       // Validate parsed integers
       if (isNaN(workerId) || isNaN(step)) {
-        return { workerId: 0, step: 0, zone: '', location: '', item: '' };
+        return { workerId: 0, step: 0, zone: '', location: '', sku: '' };
       }
 
-      const parseLocationAndItem = (rawText: string): { location: string; item: string } => {
+      const parseLocationAndSku = (rawText: string): { location: string; sku: string } => {
         const locationPattern =
           /((?:X:\s*-?\d+,\s*Y:\s*-?\d+)(?:,\s*(?:Z:|Level)\s*\d+)?)(?:,(.*))?$/i;
         const match = rawText.match(locationPattern);
@@ -110,27 +110,27 @@ export function parseTaskCSV(csvText: string): PickTask[] {
         if (match) {
           return {
             location: match[1].trim(),
-            item: (match[2] ?? '').trim(),
+            sku: (match[2] ?? '').trim(),
           };
         }
 
         const fallbackParts = rawText.split(',');
         return {
           location: fallbackParts[0]?.trim() ?? '',
-          item: fallbackParts.slice(1).join(',').trim(),
+          sku: fallbackParts.slice(1).join(',').trim(),
         };
       };
 
       if (hasZone) {
         const zone = parts[2]?.trim() ?? '';
         const remainingText = parts.slice(3).join(',').trim();
-        const { location, item } = parseLocationAndItem(remainingText);
-        return { workerId, step, zone, location, item };
+        const { location, sku } = parseLocationAndSku(remainingText);
+        return { workerId, step, zone, location, sku };
       }
 
       const remainingText = parts.slice(2).join(',').trim();
-      const { location, item } = parseLocationAndItem(remainingText);
-      return { workerId, step, zone: '', location, item };
+      const { location, sku } = parseLocationAndSku(remainingText);
+      return { workerId, step, zone: '', location, sku };
     })
     .filter(task => task.workerId > 0 && task.step > 0);
 }

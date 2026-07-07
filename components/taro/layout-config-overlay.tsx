@@ -1,17 +1,16 @@
 'use client';
 
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { X, Columns, Layout, Grid, Hash, AlertTriangle, Boxes, Flame, PackageSearch, Layers } from 'lucide-react';
+import { X, Layout, Grid, AlertTriangle, Boxes, Flame, PackageSearch, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import {
   generateParallelLayout,
-  generateSegmentedLayout,
   generateCrossAisleLayout,
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
@@ -23,14 +22,13 @@ import {
 } from '@/lib/taro/inventory-placement';
 import type { Warehouse } from '@/lib/taro/types';
 
-export type LayoutType = 'parallel' | 'segmented' | 'cross-aisle' | 'fishbone';
+export type LayoutType = 'parallel' | 'cross-aisle' | 'fishbone';
 
 export interface LayoutConfig {
   type: LayoutType;
   gridHeight: number;
   rackCount: number;
   aisleWidth: number;
-  segmentCount: number;
   crossAisleCount: number;
   fbWidth: number;
   fbHeight: number;
@@ -49,11 +47,10 @@ interface LayoutConfigOverlayProps {
 export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayProps) {
   const [layoutType, setLayoutType] = useState<LayoutType>('parallel');
 
-  // Parallel / Segmented / Cross Aisle Params
+  // Parallel / Cross Aisle Params
   const [gridHeight, setGridHeight] = useState(12);
   const [rackCount, setRackCount] = useState(10);
   const [aisleWidth, setAisleWidth] = useState(2);
-  const [segmentCount, setSegmentCount] = useState(2);
   const [crossAisleCount, setCrossAisleCount] = useState(1);
 
   // Fishbone Params
@@ -69,7 +66,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [productGrouping, setProductGrouping] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.productGrouping);
   const [inventorySpread, setInventorySpread] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.inventorySpread);
   const [hotspotIntensity, setHotspotIntensity] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.hotspotIntensity);
-  const [productCount, setProductCount] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.productCount);
+
 
   const inventoryConfig: InventoryPlacementConfig = useMemo(
     () => ({
@@ -77,9 +74,8 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       productGrouping,
       inventorySpread,
       hotspotIntensity,
-      productCount,
     }),
-    [fastMoverPlacement, productGrouping, inventorySpread, hotspotIntensity, productCount]
+    [fastMoverPlacement, productGrouping, inventorySpread, hotspotIntensity]
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,8 +101,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     switch (layoutType) {
       case 'parallel':
         return generateParallelLayout(gridHeight, rackCount, aisleWidth);
-      case 'segmented':
-        return generateSegmentedLayout(gridHeight, rackCount, aisleWidth, segmentCount);
       case 'cross-aisle':
         return generateCrossAisleLayout(gridHeight, rackCount, aisleWidth, crossAisleCount);
       case 'fishbone':
@@ -115,7 +109,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         return generateParallelLayout(gridHeight, rackCount, aisleWidth);
     }
   }, [
-    layoutType, gridHeight, rackCount, aisleWidth, segmentCount, crossAisleCount,
+    layoutType, gridHeight, rackCount, aisleWidth, crossAisleCount,
     fbWidth, fbHeight, fbTheta, fbI2, fbS, fbAp
   ]);
 
@@ -281,7 +275,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       gridHeight,
       rackCount,
       aisleWidth,
-      segmentCount,
       crossAisleCount,
       fbWidth,
       fbHeight,
@@ -322,9 +315,8 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
             className="flex-1 flex flex-col min-h-0"
           >
             <div className="px-6 pt-6">
-              <TabsList className="grid grid-cols-4 w-full mb-6">
+              <TabsList className="grid grid-cols-3 w-full mb-6">
                 <TabsTrigger value="parallel" className="text-xs">Parallel</TabsTrigger>
-                <TabsTrigger value="segmented" className="text-xs">Segmented</TabsTrigger>
                 <TabsTrigger value="cross-aisle" className="text-xs">Cross Aisle</TabsTrigger>
                 <TabsTrigger value="fishbone" className="text-xs">Fishbone</TabsTrigger>
               </TabsList>
@@ -337,7 +329,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                   <p className="text-xs text-muted-foreground">Define the physical rack layout.</p>
                 </div>
 
-                {(layoutType === 'parallel' || layoutType === 'segmented' || layoutType === 'cross-aisle') && (
+                {(layoutType === 'parallel' || layoutType === 'cross-aisle') && (
                   <>
                     {/* Grid Height Control */}
                     <div className="space-y-4">
@@ -381,27 +373,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                       <p className="text-xs text-muted-foreground">Spacing between rack columns.</p>
                     </div>
                   </>
-                )}
-
-                {layoutType === 'segmented' && (
-                  <div className="space-y-4 border-t pt-6">
-                    <Alert className="bg-amber-50/50 border-amber-200/50 p-3 mb-4">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      <AlertDescription className="text-amber-800 text-[11px] font-medium">
-                        Experimental: Segmented layout algorithm is still being refined.
-                      </AlertDescription>
-                    </Alert>
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-semibold">Segment Count</Label>
-                      <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{segmentCount}</span>
-                    </div>
-                    <Slider
-                      min={1} max={5} step={1}
-                      value={[segmentCount]}
-                      onValueChange={(val) => setSegmentCount(val[0])}
-                    />
-                    <p className="text-xs text-muted-foreground">Breaks racks into vertical segments.</p>
-                  </div>
                 )}
 
                 {layoutType === 'cross-aisle' && (
@@ -564,25 +535,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                   </div>
                 </div>
 
-                {/* Product Catalog Size */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Hash className="h-3.5 w-3.5 text-indigo-500" />
-                      <Label className="text-sm font-semibold">Product Catalog Size</Label>
-                    </div>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{productCount}</span>
-                  </div>
-                  <Slider
-                    min={50} max={1000} step={50}
-                    value={[productCount]}
-                    onValueChange={(val) => setProductCount(val[0])}
-                  />
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>50 SKUs</span>
-                    <span>1000 SKUs</span>
-                  </div>
-                </div>
 
                 <p className="text-[11px] text-muted-foreground italic pt-2">
                   This affects inventory generation patterns only. Order generation, picking strategies, simulation logic, and worker behaviour are not affected.

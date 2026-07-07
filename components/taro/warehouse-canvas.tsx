@@ -1,10 +1,9 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation, Item } from '@/lib/taro/types';
+import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
-import { getItemsByLocation } from '@/lib/taro/items';
 import { getNextSku } from '@/lib/taro/demo-generator';
 
 interface WarehouseCanvasProps {
@@ -115,10 +114,10 @@ export function WarehouseCanvas({
         if (cell.type === 'shelf') {
           // Remove from shelves array
           newWarehouse.shelves = newWarehouse.shelves.filter(s => !(s.x === cellX && s.y === cellY));
-          
-          // Cleanup items associated with this shelf
-          const locationId = getShelfLocationId(cellX, cellY);
-          newWarehouse.items = newWarehouse.items.filter(item => item.locationId !== locationId);
+
+          // Drop any bins stored on this shelf
+          const shelfCell = newWarehouse.grid[cellY][cellX];
+          shelfCell.locations = [];
         }
         if (cell.type === 'worker-start') {
           newWarehouse.workerStart = null;
@@ -247,13 +246,12 @@ export function WarehouseCanvas({
 
     const nextWarehouse = {
       ...warehouse,
-      items: [...warehouse.items],
       grid: warehouse.grid.map(row => row.map(cell => ({ ...cell, locations: [...cell.locations] }))),
     };
 
     const locationId = getShelfLocationId(shelfDetails.cellX, shelfDetails.cellY);
     const cell = nextWarehouse.grid[shelfDetails.cellY][shelfDetails.cellX];
-    
+
     // Determine next z-level (cap at 4 as per suggestions)
     const nextZ = Math.min(cell.locations.length + 1, 4);
     if (cell.locations.length >= 4) {
@@ -262,15 +260,8 @@ export function WarehouseCanvas({
     }
 
     const sku = getNextSku(warehouse);
-    
-    // 1. Add to items list
-    const newItem: Item = {
-      id: `ITEM_${sku.replace('SKU_', '')}`,
-      locationId,
-    };
-    nextWarehouse.items.push(newItem);
 
-    // 2. Add to cell locations
+    // Add a new bin to this shelf's cell. Each bin carries one SKU.
     const newLocation: StorageLocation = {
       id: `${sku}@${shelfDetails.cellX},${shelfDetails.cellY},${nextZ}`,
       locationId,
@@ -286,12 +277,10 @@ export function WarehouseCanvas({
     onWarehouseChange(nextWarehouse);
   }, [onWarehouseChange, shelfDetails, warehouse]);
 
-  const selectedShelfLocationId = shelfDetails
-    ? getShelfLocationId(shelfDetails.cellX, shelfDetails.cellY)
+  const selectedShelfCell = shelfDetails
+    ? warehouse.grid[shelfDetails.cellY]?.[shelfDetails.cellX]
     : null;
-  const shelfItems = selectedShelfLocationId
-    ? getItemsByLocation(warehouse, selectedShelfLocationId)
-    : [];
+  const shelfBins = selectedShelfCell?.locations ?? [];
 
   const activeRouteHeatmap = useCallback((): number[][] | null => {
     if (!activeRoute) return null;
@@ -680,23 +669,24 @@ export function WarehouseCanvas({
             </button>
           </div>
           
-          {shelfItems.length === 0 ? (
+          {shelfBins.length === 0 ? (
             <p className="text-sm text-muted-foreground">No items stored</p>
           ) : (
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {shelfItems.map((item) => (
+              {shelfBins.map((bin) => (
                 <div
-                  key={item.id}
-                  className="flex items-center gap-2 p-2 rounded bg-muted/50 text-xs"
+                  key={bin.id}
+                  className="flex items-center justify-between gap-2 p-2 rounded bg-muted/50 text-xs"
                 >
-                  <div className="font-mono font-medium truncate">{item.id}</div>
+                  <div className="font-mono font-medium truncate">{bin.sku}</div>
+                  <div className="text-muted-foreground">Z{bin.z} · qty {bin.quantity}</div>
                 </div>
               ))}
             </div>
           )}
-          
+
           <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
-            Total items: {shelfItems.length}
+            Total bins: {shelfBins.length}
           </div>
 
           <div className="mt-3">

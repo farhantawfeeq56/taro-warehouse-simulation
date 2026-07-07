@@ -38,7 +38,6 @@ export function generateFishboneLayout(
 
   const shelves: { x: number; y: number }[] = [];
   let skuId = 1;
-  let itemCounter = 1;
 
   for (let ly = 0; ly < height; ly++) {
     for (let lx = 0; lx < width; lx++) {
@@ -101,19 +100,9 @@ export function generateFishboneLayout(
     grid,
     shelves,
     workerStart,
-    locations: [],
-    items: [],
+    locations: buildCoordinateLocations({ grid, width: fullWidth, height: fullHeight, workerStart }),
   };
 
-  for (const shelf of shelves) {
-    warehouse.items.push({
-      id: `ITEM_${String(itemCounter).padStart(3, '0')}`,
-      locationId: getShelfLocationId(shelf.x, shelf.y),
-    });
-    itemCounter++;
-  }
-
-  warehouse.locations = buildCoordinateLocations(warehouse);
   return warehouse;
 }
 
@@ -154,8 +143,6 @@ function createShelfLocations(x: number, y: number, skuCounter: { value: number 
 
 function rebuildWarehouseMetadata(warehouse: Warehouse): void {
   const shelves: { x: number; y: number }[] = [];
-  const items: Warehouse['items'] = [];
-  let itemCounter = 1;
 
   for (let y = 0; y < warehouse.height; y++) {
     for (let x = 0; x < warehouse.width; x++) {
@@ -163,11 +150,6 @@ function rebuildWarehouseMetadata(warehouse: Warehouse): void {
 
       if (cell.type === 'shelf') {
         shelves.push({ x, y });
-        items.push({
-          id: `ITEM_${String(itemCounter).padStart(3, '0')}`,
-          locationId: getShelfLocationId(x, y),
-        });
-        itemCounter++;
       } else if (cell.locations.length > 0) {
         cell.locations = [];
       }
@@ -175,7 +157,6 @@ function rebuildWarehouseMetadata(warehouse: Warehouse): void {
   }
 
   warehouse.shelves = shelves;
-  warehouse.items = items;
   warehouse.locations = buildCoordinateLocations(warehouse);
 }
 
@@ -222,38 +203,10 @@ function buildBaseParallelWarehouse(gridHeight: number, rackCount: number, aisle
     shelves: [],
     workerStart,
     locations: [],
-    items: [],
   };
 
   rebuildWarehouseMetadata(warehouse);
   return warehouse;
-}
-
-function getRackColumns(warehouse: Warehouse, gridHeight: number): number[] {
-  const logicalHeight = Math.max(1, Math.floor(gridHeight));
-  const startY = OUTER_PADDING;
-  const endY = startY + logicalHeight;
-  const startX = OUTER_PADDING;
-  const endX = warehouse.width - OUTER_PADDING;
-
-  const rackColumns: number[] = [];
-
-  for (let x = startX; x < endX; x++) {
-    let hasShelf = false;
-
-    for (let y = startY; y < endY; y++) {
-      if (warehouse.grid[y]?.[x]?.type === 'shelf') {
-        hasShelf = true;
-        break;
-      }
-    }
-
-    if (hasShelf) {
-      rackColumns.push(x);
-    }
-  }
-
-  return rackColumns;
 }
 
 /**
@@ -269,66 +222,6 @@ export function generateParallelLayout(
   aisleWidth: number
 ): Warehouse {
   return buildBaseParallelWarehouse(gridHeight, rackCount, aisleWidth);
-}
-
-/**
- * Generates a segmented warehouse layout with staggered rack-column breaks.
- *
- * @param gridHeight Height of the warehouse in grid cells
- * @param rackCount Number of rack columns
- * @param aisleWidth Spacing between rack columns
- * @param segmentCount Number of vertical segments (1 = no breaks)
- */
-export function generateSegmentedLayout(
-  gridHeight: number,
-  rackCount: number,
-  aisleWidth: number,
-  segmentCount: number
-): Warehouse {
-  const warehouse = buildBaseParallelWarehouse(gridHeight, rackCount, aisleWidth);
-  const normalizedHeight = Math.max(1, Math.floor(gridHeight));
-  const normalizedSegmentCount = Math.max(1, Math.floor(segmentCount));
-
-  if (normalizedSegmentCount <= 1) {
-    return warehouse;
-  }
-
-  const segmentHeight = Math.floor(normalizedHeight / normalizedSegmentCount);
-  if (segmentHeight <= 1) {
-    return warehouse;
-  }
-
-  const boundaries = Array.from({ length: normalizedSegmentCount - 1 }, (_, index) => (index + 1) * segmentHeight)
-    .filter((row) => row > 0 && row < normalizedHeight);
-
-  if (boundaries.length === 0) {
-    return warehouse;
-  }
-
-  const rackColumns = getRackColumns(warehouse, normalizedHeight);
-  if (rackColumns.length === 0) {
-    return warehouse;
-  }
-
-  for (let columnIndex = 0; columnIndex < rackColumns.length; columnIndex++) {
-    const x = rackColumns[columnIndex];
-
-    for (let boundaryIndex = 0; boundaryIndex < boundaries.length; boundaryIndex++) {
-      const baseRow = boundaries[boundaryIndex];
-      const stagger = (columnIndex + boundaryIndex) % 2;
-      const logicalBreakRow = Math.min(baseRow + stagger, normalizedHeight - 1);
-      const y = logicalBreakRow + OUTER_PADDING;
-
-      const cell = warehouse.grid[y]?.[x];
-      if (cell?.type === 'shelf') {
-        cell.type = 'empty';
-        cell.locations = [];
-      }
-    }
-  }
-
-  rebuildWarehouseMetadata(warehouse);
-  return warehouse;
 }
 
 /**

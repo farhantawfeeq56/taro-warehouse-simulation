@@ -23,6 +23,7 @@ import {
   DEFAULT_WAREHOUSE_PROFILE,
   DEFAULT_LABOR_PROFILE,
 } from '../lib/taro/constants';
+import { assertWarehouseInvariants } from '../lib/taro/inventory';
 
 export class UnreachableLocationError extends Error {
   constructor(
@@ -51,19 +52,24 @@ export function parseLocationKey(key: string): { x: number; y: number; z: number
   };
 }
 
-// Get all pickable items from warehouse locations
-// Single source of truth for location mapping
+// Get all pickable bins from warehouse locations.
+// Single source of truth for bin mapping. A bin is a StorageLocation; the SKU
+// is on the bin itself, not derived from a shelf-level list.
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
   const locationMap = new Map<string, { x: number; y: number; z: number; sku: string }>();
 
-  for (const location of warehouse.locations) {
-    if (location.items.length === 0) continue;
-    locationMap.set(location.id, {
-      x: location.x,
-      y: location.y,
-      z: location.z,
-      sku: location.items[0],
-    });
+  for (const row of warehouse.grid) {
+    for (const cell of row) {
+      for (const bin of cell.locations) {
+        if (bin.quantity <= 0) continue;
+        locationMap.set(bin.id, {
+          x: bin.x,
+          y: bin.y,
+          z: bin.z,
+          sku: bin.sku,
+        });
+      }
+    }
   }
 
   return locationMap;
@@ -110,36 +116,48 @@ interface ResolvedOrder {
 }
 
 /**
- * Safely resolves order locations, filtering out items that don't have valid location mappings.
- * Returns both the resolved orders and information about invalid items.
+ * Safely resolves order SKUs to bin ids, dropping lines that don't have a
+ * matching StorageLocation. Returns both the resolved orders and information
+ * about invalid lines.
  */
 function safelyResolveOrderLocations(
   orders: Order[],
   warehouse: Warehouse
-): { resolvedOrders: ResolvedOrder[]; missingItemIds: Set<string>; invalidLocationItemIds: Set<string> } {
+): { resolvedOrders: ResolvedOrder[]; missingSkuIds: Set<string>; invalidLocationItemIds: Set<string> } {
+  assertWarehouseInvariants(warehouse);
+
   const resolvedOrders: ResolvedOrder[] = [];
-  const missingItemIds = new Set<string>();
+  const missingSkuIds = new Set<string>();
   const invalidLocationItemIds = new Set<string>();
-  const validLocationIds = new Set(warehouse.locations.map(loc => loc.id));
 
   for (const order of orders) {
     const locations: string[] = [];
     for (const item of order.items) {
-      const resolvedItem = warehouse.items.find(i => i.id === item.itemId);
-      if (!resolvedItem) {
-        missingItemIds.add(item.itemId);
+      const bin = findBinBySku(warehouse, item.skuId);
+      if (!bin) {
+        missingSkuIds.add(item.skuId);
         continue;
       }
-      if (!validLocationIds.has(resolvedItem.locationId)) {
-        invalidLocationItemIds.add(item.itemId);
-        continue;
-      }
-      locations.push(resolvedItem.locationId);
+      locations.push(bin.id);
     }
     resolvedOrders.push({ id: order.id, locations });
   }
 
-  return { resolvedOrders, missingItemIds, invalidLocationItemIds };
+  return { resolvedOrders, missingSkuIds, invalidLocationItemIds };
+}
+
+function findBinBySku(
+  warehouse: Warehouse,
+  skuId: string
+): { id: string } | undefined {
+  for (const row of warehouse.grid) {
+    for (const cell of row) {
+      for (const bin of cell.locations) {
+        if (bin.sku === skuId) return bin;
+      }
+    }
+  }
+  return undefined;
 }
 
 function dedupeLocationsByFirstSeen(
@@ -447,7 +465,7 @@ function simulateStrategy(
           step: step++,
           zone: unit.zoneLabel,
           location: `${stop.pos.x},${stop.pos.y},${stop.pos.z}`,
-          item: stop.pos.sku,
+          sku: stop.pos.sku,
         });
         picks.push({
           locationKey: stop.key,
@@ -557,7 +575,7 @@ export function runSimulation(
 
   const warehouseProfile = resolveWarehouseProfile(profiles.warehouseProfile);
   const laborProfile = resolveLaborProfile(profiles.laborProfile);
-  const allowPartial = false; // Forced to false: partial simulations are no longer permitted
+  const allowPartial = profiles.allowPartial ?? false;
   const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
   const results: StrategyResult[] = [];
 
@@ -565,24 +583,24 @@ export function runSimulation(
   const ordersToSimulate = orders;
 
   // Safely resolve locations, filtering out any items with invalid location mappings
-  const { resolvedOrders, missingItemIds, invalidLocationItemIds } = safelyResolveOrderLocations(ordersToSimulate, warehouse);
+  const { resolvedOrders, missingSkuIds, invalidLocationItemIds } = safelyResolveOrderLocations(ordersToSimulate, warehouse);
 
   // Filter out orders that have no valid locations after safety check
   const validOrders = resolvedOrders.filter(order => order.locations.length > 0);
 
-  const unresolvableItemIds = new Set([...missingItemIds, ...invalidLocationItemIds]);
+  const unresolvableSkuIds = new Set([...missingSkuIds, ...invalidLocationItemIds]);
 
   // If ALL items are invalid, throw a descriptive error (preserve old behavior)
   if (validOrders.length === 0 && ordersToSimulate.length > 0) {
     if (!allowPartial) {
       // Find first invalid item to report in error
-      const firstInvalidItem = Array.from(unresolvableItemIds)[0];
+      const firstInvalidSku = Array.from(unresolvableSkuIds)[0];
       const firstOrder = ordersToSimulate[0];
-      throw new Error(`Order "${firstOrder.id}" references unknown itemId "${firstInvalidItem}" at index 0.`);
+      throw new Error(`Order "${firstOrder.id}" references unknown skuId "${firstInvalidSku}" at index 0.`);
     }
   }
 
-  if (unresolvableItemIds.size > 0 && !allowPartial) {
+  if (unresolvableSkuIds.size > 0 && !allowPartial) {
     throw new Error(
       'Orders contain items that cannot be resolved (missing from the layout or linked to an invalid location). ' +
         'Pass allowPartial: true in simulation profiles to run using only resolvable lines.'
@@ -591,20 +609,20 @@ export function runSimulation(
 
   // When any lines are unresolvable, attach validation context for partial runs and UI
   let finalValidationContext = validationContext;
-  if (unresolvableItemIds.size > 0) {
+  if (unresolvableSkuIds.size > 0) {
     const missingItemsByOrder: OrderValidationResult[] = [];
     for (const order of ordersToSimulate) {
       const orderInvalidItems = order.items
-        .filter(item => unresolvableItemIds.has(item.itemId))
-        .map(item => item.itemId);
+        .filter(item => unresolvableSkuIds.has(item.skuId))
+        .map(item => item.skuId);
       if (orderInvalidItems.length > 0) {
-        missingItemsByOrder.push({ orderId: order.id, missingItemIds: orderInvalidItems });
+        missingItemsByOrder.push({ orderId: order.id, missingSkuIds: orderInvalidItems });
       }
     }
     if (missingItemsByOrder.length > 0) {
       finalValidationContext = {
         totalItems: ordersToSimulate.reduce((sum, o) => sum + o.items.length, 0),
-        missingItems: unresolvableItemIds.size,
+        missingItems: unresolvableSkuIds.size,
         affectedOrders: missingItemsByOrder.length,
         missingItemsByOrder,
       };
@@ -686,7 +704,7 @@ export function runSimulation(
       ? bestStrategyResult.workerRoutes.map(workerRoute => workerRoute.route)
       : [bestStrategyResult.route];
 
-  const unresolvableItems = [...new Set(finalValidationContext?.missingItemsByOrder.flatMap(order => order.missingItemIds) ?? [])];
+  const unresolvableItems = [...new Set(finalValidationContext?.missingItemsByOrder.flatMap(order => order.missingSkuIds) ?? [])];
   const fallbackMissingCount = finalValidationContext?.missingItems ?? 0;
 
   return {
@@ -695,7 +713,7 @@ export function runSimulation(
     bestStrategy,
     isPartial: false,
     unresolvableItems,
-    missingItemsCount: missingItemIds.size > 0 ? missingItemIds.size : fallbackMissingCount,
+    missingItemsCount: missingSkuIds.size > 0 ? missingSkuIds.size : fallbackMissingCount,
     invalidLocationCount: invalidLocationItemIds.size,
     validationContext: finalValidationContext,
   };

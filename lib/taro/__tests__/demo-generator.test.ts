@@ -3,11 +3,10 @@ import { createEmptyWarehouse, generateDemoWarehouse, getNextSku } from '../demo
 
 describe('demo-generator', () => {
   describe('createEmptyWarehouse', () => {
-    it('should create warehouse with correct dimensions', () => {
+    it('should create warehouse with correct dimensions (logical + outer padding)', () => {
       const warehouse = createEmptyWarehouse(30, 24);
-      // Dimensions are logically requested, but createEmptyWarehouse adds OUTER_PADDING (2 cells) to each side
-      expect(warehouse.width).toBe(34);
-      expect(warehouse.height).toBe(28);
+      expect(warehouse.width).toBe(30 + 2 * 2);
+      expect(warehouse.height).toBe(24 + 2 * 2);
     });
 
     it('should initialize all cells as empty', () => {
@@ -22,7 +21,8 @@ describe('demo-generator', () => {
 
     it('should have no items or shelves initially', () => {
       const warehouse = createEmptyWarehouse(10, 10);
-      expect(warehouse.items).toEqual([]);
+      const totalBins = warehouse.grid.flat().reduce((sum, c) => sum + c.locations.length, 0);
+      expect(totalBins).toBe(0);
       expect(warehouse.shelves).toHaveLength(0);
       expect(warehouse.workerStart).toBeNull();
     });
@@ -34,7 +34,8 @@ describe('demo-generator', () => {
       expect(warehouse.width).toBeGreaterThan(0);
       expect(warehouse.height).toBeGreaterThan(0);
       expect(warehouse.shelves.length).toBeGreaterThan(0);
-      expect(warehouse.items.length).toBeGreaterThan(0);
+      const totalBins = warehouse.grid.flat().reduce((sum, c) => sum + c.locations.length, 0);
+      expect(totalBins).toBeGreaterThan(0);
     });
 
     it('should have worker start position', () => {

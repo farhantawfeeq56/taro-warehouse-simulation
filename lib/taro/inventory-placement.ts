@@ -6,7 +6,7 @@
 // picking strategies, or worker behavior. It only enriches the cells
 // of a warehouse that was already laid out by the layout generator.
 
-import type { Cell, StorageLocation, Warehouse, WarehouseLocation, Item } from './types';
+import type { Cell, StorageLocation, Warehouse } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
 
 export interface InventoryPlacementConfig {
@@ -18,20 +18,11 @@ export interface InventoryPlacementConfig {
   inventorySpread: number;
   /** 0-100: 0 = even demand across items, 100 = few items dominate */
   hotspotIntensity: number;
-  /** Number of unique products in the catalog (50-1000) */
-  productCount: number;
+
   /** Optional seed for reproducible generation */
   seed?: number;
 }
 
-export type Velocity = 'High' | 'Medium' | 'Low';
-
-export interface Product {
-  sku: string;
-  family: string;
-  velocity: Velocity;
-  quantity: number;
-}
 
 /** Normalised 0..1 placement value derived from a 0..100 slider. */
 export interface NormalisedPlacement {
@@ -100,53 +91,11 @@ function defaultSeedForConfig(config: InventoryPlacementConfig): number {
   const f = (n: number) => Math.round(n);
   return (
     hashString(
-      `inv:${f(config.fastMoverPlacement)}|${f(config.productGrouping)}|${f(config.inventorySpread)}|${f(config.hotspotIntensity)}|${config.productCount}`
+      `inv:${f(config.fastMoverPlacement)}|${f(config.productGrouping)}|${f(config.inventorySpread)}|${f(config.hotspotIntensity)}`
     )
   );
 }
 
-/**
- * Generates a stable catalog of N products.
- * The catalog depends only on the productCount to ensure stability
- * when other placement sliders are moved.
- */
-export function generateCatalog(productCount: number): Product[] {
-  // Use a fixed seed based on productCount so the catalog is stable
-  const rand = mulberry32(hashString(`catalog-${productCount}`));
-  
-  const catalog: Product[] = [];
-  
-  // Velocity distribution: 10% High, 30% Medium, 60% Low
-  const highCount = Math.max(1, Math.floor(productCount * 0.1));
-  const mediumCount = Math.max(1, Math.floor(productCount * 0.3));
-  const lowCount = Math.max(1, productCount - highCount - mediumCount);
-  
-  const velocities: { v: Velocity; count: number; qtyRange: [number, number] }[] = [
-    { v: 'High', count: highCount, qtyRange: [500, 1000] },
-    { v: 'Medium', count: mediumCount, qtyRange: [100, 300] },
-    { v: 'Low', count: lowCount, qtyRange: [20, 100] },
-  ];
-  
-  let globalSkuIndex = 1;
-  
-  for (const group of velocities) {
-    for (let i = 0; i < group.count; i++) {
-      const familyLetter = String.fromCharCode(65 + (Math.floor(rand() * 26)));
-      const sku = `SKU-${familyLetter}${String(globalSkuIndex).padStart(4, '0')}`;
-      const quantity = group.qtyRange[0] + Math.floor(rand() * (group.qtyRange[1] - group.qtyRange[0] + 1));
-      
-      catalog.push({
-        sku,
-        family: familyLetter,
-        velocity: group.v,
-        quantity,
-      });
-      globalSkuIndex++;
-    }
-  }
-  
-  return catalog;
-}
 
 /* -------------------------------------------------------------------------- */
 /* Preview metadata (used by the live preview in the modal)                   */
@@ -398,118 +347,47 @@ export function applyInventoryPlacement(
   const rand = mulberry32(config.seed ?? defaultSeedForConfig(config));
   const planned = planShelves(warehouse, placement, rand);
 
-  // 1. Generate the stable catalog.
-  const catalog = generateCatalog(config.productCount);
-
-  // 2. Sort catalog by velocity (High -> Medium -> Low) then Family.
-  const velocityScore: Record<Velocity, number> = { 'High': 0, 'Medium': 1, 'Low': 2 };
-  const sortedCatalog = [...catalog].sort((a, b) => 
-    velocityScore[a.velocity] - velocityScore[b.velocity] || 
-    a.family.localeCompare(b.family) ||
-    a.sku.localeCompare(b.sku)
-  );
-
-  // 3. Clear existing storage locations on every shelf cell.
+  // 1. Clear existing storage locations on every shelf cell.
   const newGrid: Cell[][] = warehouse.grid.map((row) =>
     row.map((cell) => ({ ...cell, locations: [] as StorageLocation[] }))
   );
 
-  // 4. Collect all available (x, y, z) slots.
-  interface Slot {
-    x: number;
-    y: number;
-    z: number;
-    fastMoverScore: number;
-    groupIndex: number;
-  }
-  const slots: Slot[] = [];
+  // 2. Build the new set of storage locations.
+  let skuCounter = 1;
+
   for (const p of planned) {
     if (!p.active || p.zLevels === 0) continue;
+
+    const locationId = getShelfLocationId(p.x, p.y);
+    const cell = newGrid[p.y][p.x];
+
+    // Pick the SKU for this shelf. Numeric SKUs match the rest of the codebase.
+    const sku = `SKU_${String(skuCounter).padStart(3, '0')}`;
+
+    // Build the storage locations for each z-level of this shelf.
+    const cellLocations: StorageLocation[] = [];
     for (let z = 1; z <= p.zLevels; z++) {
-      slots.push({
+      // Higher density => more quantity. Also: fast-mover shelves get
+      // more stock to make them feel like "high-throughput" SKUs.
+      const baseQty = 30 + Math.round(p.density * 60);
+      const fastMoverBoost = Math.round(p.fastMoverScore * 30);
+      const quantity = Math.max(10, baseQty + fastMoverBoost);
+
+      cellLocations.push({
+        id: `${sku}@${p.x},${p.y},${z}`,
+        locationId,
         x: p.x,
         y: p.y,
         z,
-        fastMoverScore: p.fastMoverScore,
-        groupIndex: p.groupIndex
+        sku,
+        quantity,
       });
     }
-  }
 
-  // 5. Sort slots by fastMoverScore descending.
-  // We use groupIndex as secondary sort to help keep families together.
-  slots.sort((a, b) => b.fastMoverScore - a.fastMoverScore || a.groupIndex - b.groupIndex);
+    cell.locations = cellLocations;
+    cell.type = 'shelf';
 
-  // 6. Map products to slots.
-  const skuToSlots = new Map<string, Slot[]>();
-
-  if (sortedCatalog.length <= slots.length) {
-    // Each product gets at least one slot.
-    for (let i = 0; i < slots.length; i++) {
-      const product = sortedCatalog[i % sortedCatalog.length];
-      const s = skuToSlots.get(product.sku) || [];
-      s.push(slots[i]);
-      skuToSlots.set(product.sku, s);
-    }
-  } else {
-    // More products than slots. Some slots get multiple products.
-    for (let i = 0; i < sortedCatalog.length; i++) {
-      const product = sortedCatalog[i];
-      const slot = slots[i % slots.length];
-      const s = skuToSlots.get(product.sku) || [];
-      s.push(slot);
-      skuToSlots.set(product.sku, s);
-    }
-  }
-
-  // 7. Build the new set of storage locations.
-  for (const product of sortedCatalog) {
-    const assignedSlots = skuToSlots.get(product.sku) || [];
-    if (assignedSlots.length === 0) continue;
-
-    // Distribute quantity among slots.
-    const qtyPerSlot = Math.floor(product.quantity / assignedSlots.length);
-    const remainder = product.quantity % assignedSlots.length;
-
-    assignedSlots.forEach((slot, i) => {
-      const cell = newGrid[slot.y][slot.x];
-      const quantity = i === 0 ? qtyPerSlot + remainder : qtyPerSlot;
-      
-      if (quantity > 0) {
-        cell.locations.push({
-          id: `${product.sku}@${slot.x},${slot.y},${slot.z}`,
-          locationId: getShelfLocationId(slot.x, slot.y),
-          x: slot.x,
-          y: slot.y,
-          z: slot.z,
-          sku: product.sku,
-          quantity,
-        });
-      }
-    });
-  }
-
-  // 8. Build the items array.
-  // We create an Item entry for each shelf location that has products.
-  const items: Item[] = [];
-  let itemCounter = 1;
-  const seenLocationIds = new Set<string>();
-
-  for (let y = 0; y < warehouse.height; y++) {
-    for (let x = 0; x < warehouse.width; x++) {
-      const cell = newGrid[y][x];
-      if (cell.locations.length > 0) {
-        const locationId = getShelfLocationId(x, y);
-        if (!seenLocationIds.has(locationId)) {
-          items.push({
-            id: `ITEM_${String(itemCounter).padStart(4, '0')}`,
-            locationId,
-          });
-          itemCounter++;
-          seenLocationIds.add(locationId);
-        }
-      }
-    }
+    skuCounter++;
   }
 
   const next: Warehouse = {
@@ -518,12 +396,8 @@ export function applyInventoryPlacement(
     shelves: planned
       .filter((p) => p.active)
       .map((p) => ({ x: p.x, y: p.y })),
-    locations: [], // will be filled by buildCoordinateLocations
-    items,
+    locations: buildCoordinateLocations({ ...warehouse, grid: newGrid }),
   };
-
-  // Refresh the locations index from the grid.
-  next.locations = buildCoordinateLocations(next);
   return next;
 }
 
@@ -532,5 +406,5 @@ export const DEFAULT_INVENTORY_PLACEMENT: InventoryPlacementConfig = {
   productGrouping: 50,
   inventorySpread: 50,
   hotspotIntensity: 50,
-  productCount: 100,
+
 };

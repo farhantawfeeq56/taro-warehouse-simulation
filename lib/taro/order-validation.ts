@@ -1,42 +1,39 @@
-import { getItemById } from './items';
+import { assertWarehouseInvariants, getBinForSku } from './inventory';
 import type { Order, Warehouse, OrderValidationResult, SimulationValidationContext } from './types';
 
-/** Result of validating order lines against the warehouse catalog and location graph. */
+/** Result of validating order lines against the warehouse catalog. */
 export interface ItemsValidationResult {
   hasUnresolvableItems: boolean;
   context: SimulationValidationContext;
 }
 
 /**
- * Validates that every order line resolves to an item on the layout with a valid storage location.
- * Aligns with simulation resolution: unknown item IDs and broken location links count as unresolvable.
+ * Validates that every order line resolves to a SKU present in the warehouse.
+ * Aligns with simulation resolution: unknown SKUs count as unresolvable.
  */
 export function validateItems(orders: Order[], warehouse: Warehouse): ItemsValidationResult {
-  const validLocationIds = new Set(warehouse.locations.map(loc => loc.id));
+  assertWarehouseInvariants(warehouse);
+
   const missingItemsByOrder: OrderValidationResult[] = [];
   let totalItems = 0;
 
   for (const order of orders) {
-    const unresolvableLineIds: string[] = [];
+    const unresolvableSkuIds: string[] = [];
 
     for (const line of order.items) {
       totalItems++;
-      const resolvedItem = getItemById(warehouse, line.itemId);
-      if (!resolvedItem) {
-        unresolvableLineIds.push(line.itemId);
-        continue;
-      }
-      if (!validLocationIds.has(resolvedItem.locationId)) {
-        unresolvableLineIds.push(line.itemId);
+      const bin = getBinForSku(warehouse, line.skuId);
+      if (!bin) {
+        unresolvableSkuIds.push(line.skuId);
       }
     }
 
-    if (unresolvableLineIds.length > 0) {
-      missingItemsByOrder.push({ orderId: order.id, missingItemIds: unresolvableLineIds });
+    if (unresolvableSkuIds.length > 0) {
+      missingItemsByOrder.push({ orderId: order.id, missingSkuIds: unresolvableSkuIds });
     }
   }
 
-  const missingItems = missingItemsByOrder.reduce((sum, row) => sum + row.missingItemIds.length, 0);
+  const missingItems = missingItemsByOrder.reduce((sum, row) => sum + row.missingSkuIds.length, 0);
 
   const context: SimulationValidationContext = {
     totalItems,
@@ -52,34 +49,35 @@ export function validateItems(orders: Order[], warehouse: Warehouse): ItemsValid
 }
 
 /**
- * Validates order items against warehouse items without throwing errors.
- * Returns information about missing items that could not be found in the warehouse.
+ * Validates order lines against warehouse SKUs without throwing errors.
+ * Returns information about missing SKUs that could not be found in the warehouse.
  */
 export function validateOrderItems(
   orders: Order[],
-  warehouse: Pick<Warehouse, 'items'>
+  warehouse: Pick<Warehouse, 'grid'>
 ): SimulationValidationContext {
+  assertWarehouseInvariants(warehouse);
+
   const missingItemsByOrder: OrderValidationResult[] = [];
   let totalItems = 0;
   let missingItems = 0;
 
   for (const order of orders) {
-    const missingItemIds: string[] = [];
+    const missingSkuIds: string[] = [];
 
     for (const item of order.items) {
       totalItems++;
-      const resolvedItem = getItemById(warehouse, item.itemId);
-
-      if (!resolvedItem) {
+      const bin = getBinForSku(warehouse, item.skuId);
+      if (!bin) {
         missingItems++;
-        missingItemIds.push(item.itemId);
+        missingSkuIds.push(item.skuId);
       }
     }
 
-    if (missingItemIds.length > 0) {
+    if (missingSkuIds.length > 0) {
       missingItemsByOrder.push({
         orderId: order.id,
-        missingItemIds: [...missingItemIds],
+        missingSkuIds: [...missingSkuIds],
       });
     }
   }
@@ -93,30 +91,31 @@ export function validateOrderItems(
 }
 
 /**
- * Creates a filtered list of orders containing only items that exist in the warehouse.
+ * Creates a filtered list of orders containing only lines whose SKU exists in the warehouse.
  */
 export function filterValidOrderItems(
   orders: Order[],
-  warehouse: Pick<Warehouse, 'items'>
+  warehouse: Pick<Warehouse, 'grid'>
 ): Order[] {
-  return orders.map(order => ({
-    ...order,
-    items: order.items.filter(item => {
-      const resolvedItem = getItemById(warehouse, item.itemId);
-      return resolvedItem !== undefined;
-    }),
-  })).filter(order => order.items.length > 0);
+  assertWarehouseInvariants(warehouse);
+
+  return orders
+    .map(order => ({
+      ...order,
+      items: order.items.filter(item => getBinForSku(warehouse, item.skuId) !== undefined),
+    }))
+    .filter(order => order.items.length > 0);
 }
 
 /**
- * Gets a Set of all missing item IDs from validation context.
+ * Gets a Set of all missing SKU ids from validation context.
  */
-export function getMissingItemIds(validationContext: SimulationValidationContext): Set<string> {
-  const missingItemIds = new Set<string>();
+export function getMissingSkuIds(validationContext: SimulationValidationContext): Set<string> {
+  const missingSkuIds = new Set<string>();
   for (const orderResult of validationContext.missingItemsByOrder) {
-    for (const itemId of orderResult.missingItemIds) {
-      missingItemIds.add(itemId);
+    for (const skuId of orderResult.missingSkuIds) {
+      missingSkuIds.add(skuId);
     }
   }
-  return missingItemIds;
+  return missingSkuIds;
 }
