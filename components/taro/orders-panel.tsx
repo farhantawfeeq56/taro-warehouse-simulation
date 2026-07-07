@@ -16,8 +16,6 @@ interface OrdersPanelProps {
   onClearHighlights?: () => void;
 }
 
-<<<<<<< Updated upstream
-=======
 interface ParsedOrderRow {
   rowNumber: number;
   orderId: string;
@@ -39,7 +37,6 @@ const LOCATION_CSV_NOT_SUPPORTED_MESSAGE = 'Location-based CSV is not supported.
 const SKU_NOT_FOUND_ERROR_MESSAGE = 'SKU not found in warehouse. Please add the SKU to the layout before importing orders.';
 const SAMPLE_ORDERS_CSV = ['order_id,sku_id,quantity', 'A,SKU_001,2', 'A,SKU_004,1', 'B,SKU_011,3'].join('\n');
 
->>>>>>> Stashed changes
 export function OrdersPanel({
   orders,
   onOrdersChange,
@@ -49,6 +46,10 @@ export function OrdersPanel({
   onClearHighlights,
 }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
+  const [parsedCsv, setParsedCsv] = useState<ParsedOrdersState | null>(null);
+  const [isParsingCsv, setIsParsingCsv] = useState(false);
+  const [csvParseError, setCsvParseError] = useState<string | null>(null);
+  const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const getLocationLabelForSku = (skuId: string): string => {
     if (!warehouse) return 'Unknown location';
@@ -72,10 +73,7 @@ export function OrdersPanel({
       }))
       .sort((a, b) => a.skuId.localeCompare(b.skuId));
   }, [warehouse]);
-<<<<<<< Updated upstream
-=======
   const availableSkuSet = useMemo(() => new Set(availableSkus.map(item => item.skuId)), [availableSkus]);
->>>>>>> Stashed changes
 
   const addOrder = () => {
     const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -133,8 +131,6 @@ export function OrdersPanel({
     onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
   };
 
-<<<<<<< Updated upstream
-=======
   const parseOrdersCsv = (csvText: string): ParsedOrdersState => {
     const lines = csvText.split(/\r?\n/);
     const firstNonEmptyLine = lines.find(line => line.trim().length > 0);
@@ -303,7 +299,6 @@ export function OrdersPanel({
     return { totalRows, validRows, invalidRows, totalOrders, totalItems, uniqueLocations };
   }, [parsedCsv]);
 
->>>>>>> Stashed changes
   const WORKER_COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
 
   useEffect(() => {
@@ -366,8 +361,6 @@ export function OrdersPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-<<<<<<< Updated upstream
-=======
         {parsedCsv && (
           <div className="border border-border rounded-lg bg-card p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -450,7 +443,6 @@ export function OrdersPanel({
           </div>
         )}
 
->>>>>>> Stashed changes
         {orders.length === 0 ? (
           <div className="text-xs text-muted-foreground text-center py-8 space-y-2">
             <div className="text-sm text-foreground">No orders yet</div>

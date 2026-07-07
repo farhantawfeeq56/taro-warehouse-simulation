@@ -157,8 +157,7 @@ export interface PickTask {
   step: number;
   zone: string;
   location: string;
-<<<<<<< Updated upstream
-  item: string;
+  sku: string;
 }
 
 export interface SimulationBlockState {
@@ -167,7 +166,3 @@ export interface SimulationBlockState {
   title: string;
   description: string;
 }
-=======
-  sku: string;
-}
->>>>>>> Stashed changes
