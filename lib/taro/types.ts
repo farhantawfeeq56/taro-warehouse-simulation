@@ -11,6 +11,13 @@ export const gridY = (value: number): GridY => value as GridY;
 export type CellType = 'empty' | 'shelf' | 'worker-start';
 
 /**
+ * An Item is a discrete unit of inventory. Each Item has a unique id.
+ */
+export interface Item {
+  id: string;
+}
+
+/**
  * A StorageLocation is a single bin: one slot on one shelf at one z-level.
  * Each bin carries exactly one SKU and its stock quantity.
  *

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { X, Layout, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import type { Item } from '@/lib/taro/types';
 import {
   generateParallelLayout,
   generateCrossAisleLayout,
@@ -51,6 +52,20 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [fbI2, setFbI2] = useState(1);
   const [fbS, setFbS] = useState(4);
   const [fbAp, setFbAp] = useState(0.8);
+
+  // Inventory Generation
+  const generateItems = useCallback((count: number): Item[] => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: `ITEM-${String(i + 1).padStart(4, '0')}`
+    }));
+  }, []);
+
+  const [skuCount, setSkuCount] = useState(10);
+  const [inventory, setInventory] = useState<Item[]>(() => generateItems(10));
+
+  useEffect(() => {
+    setInventory(generateItems(skuCount));
+  }, [skuCount, generateItems]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -303,6 +318,25 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                     </div>
                   </div>
                 )}
+
+                {/* Inventory Generation Section */}
+                <div className="space-y-1 pt-8 border-t">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Inventory Generation</h2>
+                  <p className="text-xs text-muted-foreground">Define what inventory exists.</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">SKU Count</Label>
+                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{skuCount}</span>
+                  </div>
+                  <Slider
+                    min={1} max={200} step={1}
+                    value={[skuCount]}
+                    onValueChange={(val) => setSkuCount(val[0])}
+                  />
+                  <p className="text-xs text-muted-foreground">Number of unique SKUs to generate.</p>
+                </div>
               </div>
             </ScrollArea>
           </Tabs>
