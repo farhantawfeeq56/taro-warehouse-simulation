@@ -395,7 +395,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                     <Alert className="bg-amber-50/50 border-amber-200/50 p-3 mb-4">
                       <AlertTriangle className="h-4 w-4 text-amber-600" />
                       <AlertDescription className="text-amber-800 text-[11px] font-medium">
-                        Experimental: Fishbone layout algorithm is still being refined.
+                        Experimental: Research-backed Fishbone simulation is under development and is not yet recommended for production comparisons.
                       </AlertDescription>
                     </Alert>
                     <div className="space-y-4">
