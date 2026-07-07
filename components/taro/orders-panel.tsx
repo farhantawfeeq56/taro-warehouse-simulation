@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
-import { Plus, Shuffle, Trash2, X } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Plus, Shuffle, Trash2, X, AlertTriangle, Upload, Download } from 'lucide-react';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 import { collectSkuIds, getBinForSku, getShelfIdForSku } from '@/lib/taro/inventory';
 
@@ -45,6 +46,7 @@ export function OrdersPanel({
   highlightedMissingSkuIds,
   onClearHighlights,
 }: OrdersPanelProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
   const [parsedCsv, setParsedCsv] = useState<ParsedOrdersState | null>(null);
   const [isParsingCsv, setIsParsingCsv] = useState(false);
@@ -358,6 +360,34 @@ export function OrdersPanel({
             <Shuffle className="h-3 w-3" />
           </Button>
         </div>
+        {/* CSV Import */}
+        <div className="flex gap-1.5 pt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleUploadCsvClick}
+            className="h-7 text-xs px-2"
+          >
+            <Upload className="h-3 w-3 mr-1" />
+            Upload CSV
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDownloadSampleCsv}
+            className="h-7 text-xs px-2"
+          >
+            <Download className="h-3 w-3 mr-1" />
+            Sample
+          </Button>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={handleCsvSelected}
+          className="hidden"
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
