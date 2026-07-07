@@ -26,7 +26,7 @@ import {
   generateCrossAisleLayout,
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
-import { applyInventoryPlacement } from '@/lib/taro/inventory-placement';
+import { applyInventoryPlacement, DEFAULT_INVENTORY_PLACEMENT } from '@/lib/taro/inventory-placement';
 import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -442,7 +442,7 @@ export function TaroApp() {
 
             const warehouseWithInventory = applyInventoryPlacement(
               newWarehouse,
-              config.inventoryPlacement
+              DEFAULT_INVENTORY_PLACEMENT
             );
 
             setWarehouse(warehouseWithInventory);

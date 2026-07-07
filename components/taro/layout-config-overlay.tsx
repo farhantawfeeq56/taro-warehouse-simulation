@@ -1,26 +1,18 @@
 'use client';
 
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { X, Layout, Grid, AlertTriangle, Boxes, Flame, PackageSearch, Layers } from 'lucide-react';
+import { X, Layout, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
 import {
   generateParallelLayout,
   generateCrossAisleLayout,
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
-import {
-  applyInventoryPlacement,
-  computePlacementPreview,
-  DEFAULT_INVENTORY_PLACEMENT,
-  type InventoryPlacementConfig
-} from '@/lib/taro/inventory-placement';
-import type { Warehouse } from '@/lib/taro/types';
 
 export type LayoutType = 'parallel' | 'cross-aisle' | 'fishbone';
 
@@ -36,7 +28,6 @@ export interface LayoutConfig {
   fbI2: number;
   fbS: number;
   fbAp: number;
-  inventoryPlacement: InventoryPlacementConfig;
 }
 
 interface LayoutConfigOverlayProps {
@@ -60,23 +51,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [fbI2, setFbI2] = useState(1);
   const [fbS, setFbS] = useState(4);
   const [fbAp, setFbAp] = useState(0.8);
-
-  // Inventory Placement Params
-  const [fastMoverPlacement, setFastMoverPlacement] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.fastMoverPlacement);
-  const [productGrouping, setProductGrouping] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.productGrouping);
-  const [inventorySpread, setInventorySpread] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.inventorySpread);
-  const [hotspotIntensity, setHotspotIntensity] = useState<number>(DEFAULT_INVENTORY_PLACEMENT.hotspotIntensity);
-
-
-  const inventoryConfig: InventoryPlacementConfig = useMemo(
-    () => ({
-      fastMoverPlacement,
-      productGrouping,
-      inventorySpread,
-      hotspotIntensity,
-    }),
-    [fastMoverPlacement, productGrouping, inventorySpread, hotspotIntensity]
-  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -113,34 +87,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     fbWidth, fbHeight, fbTheta, fbI2, fbS, fbAp
   ]);
 
-  const placementPreview = useMemo(
-    () => computePlacementPreview(previewWarehouse, inventoryConfig),
-    [previewWarehouse, inventoryConfig]
-  );
-
-  // Quick lookup of preview data for rendering.
-  const previewCellMap = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof computePlacementPreview>['shelves'][number]>();
-    for (const s of placementPreview.shelves) {
-      map.set(`${s.x},${s.y}`, s);
-    }
-    return map;
-  }, [placementPreview]);
-
-  // A small palette for product groups.
-  const GROUP_PALETTE = [
-    'bg-rose-500/70',
-    'bg-amber-500/70',
-    'bg-emerald-500/70',
-    'bg-sky-500/70',
-    'bg-violet-500/70',
-    'bg-pink-500/70',
-    'bg-lime-500/70',
-    'bg-cyan-500/70',
-    'bg-orange-500/70',
-    'bg-teal-500/70',
-  ];
-
   const fullWidth = previewWarehouse.width;
   const fullHeight = previewWarehouse.height;
 
@@ -160,99 +106,17 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
   const renderGrid = () => {
     const cells = [];
-    const maxGroupIndex = placementPreview.shelves.reduce(
-      (m, s) => Math.max(m, s.groupIndex),
-      0
-    );
-    const useGroupColors = productGrouping >= 30 && maxGroupIndex > 0;
 
     for (let y = 0; y < fullHeight; y++) {
       for (let x = 0; x < fullWidth; x++) {
         const cell = previewWarehouse.grid[y][x];
-        const preview = previewCellMap.get(`${x},${y}`);
 
         let bgColor = 'bg-slate-100';
-        let overlay: React.ReactNode = null;
 
         if (cell.type === 'worker-start') {
           bgColor = 'bg-orange-500';
         } else if (cell.type === 'shelf') {
           bgColor = 'bg-slate-800';
-
-          if (preview && preview.active) {
-            // Density-based blue overlay (z-levels filled)
-            const alpha = 0.15 + 0.55 * preview.density;
-            const groupColor = useGroupColors
-              ? GROUP_PALETTE[preview.groupIndex % GROUP_PALETTE.length]
-              : null;
-
-            if (groupColor) {
-              overlay = (
-                <div
-                  className={`absolute inset-0 ${groupColor}`}
-                  style={{ opacity: alpha.toFixed(2) }}
-                />
-              );
-            } else {
-              overlay = (
-                <div
-                  className="absolute inset-0 bg-sky-400"
-                  style={{ opacity: alpha.toFixed(2) }}
-                />
-              );
-            }
-
-            // Hotspot intensity ring (red glow) — strongest on dominant items
-            if (preview.fastMoverScore > 0.15) {
-              const glowAlpha = Math.min(0.9, preview.fastMoverScore * 1.2);
-              overlay = (
-                <>
-                  {overlay}
-                  <div
-                    className="absolute inset-0 ring-2 ring-red-500 pointer-events-none"
-                    style={{
-                      boxShadow: `inset 0 0 ${Math.round(8 * preview.fastMoverScore)}px rgba(239,68,68,${glowAlpha.toFixed(2)})`,
-                      borderColor: `rgba(239,68,68,${glowAlpha.toFixed(2)})`,
-                    }}
-                  />
-                </>
-              );
-            }
-
-            // Z-level indicators — small dots in the bottom-right
-            const dotColor = preview.fastMoverScore > 0.4
-              ? 'bg-red-300'
-              : 'bg-sky-200';
-            const dots = [];
-            for (let z = 0; z < preview.zLevels; z++) {
-              dots.push(
-                <div
-                  key={z}
-                  className={`absolute w-1 h-1 rounded-full ${dotColor}`}
-                  style={{
-                    right: 1 + z * 3,
-                    bottom: 1,
-                  }}
-                />
-              );
-            }
-            if (dots.length) {
-              overlay = (
-                <>
-                  {overlay}
-                  {dots}
-                </>
-              );
-            }
-          } else if (preview) {
-            // Inactive shelf — show a faint dotted pattern to communicate "empty"
-            overlay = (
-              <div
-                className="absolute inset-0 bg-slate-700/40"
-                style={{ opacity: 0.4 }}
-              />
-            );
-          }
         }
 
         cells.push(
@@ -260,9 +124,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
             key={`${x}-${y}`}
             style={{ width: cellSize, height: cellSize }}
             className={`relative transition-colors duration-200 ${bgColor}`}
-          >
-            {overlay}
-          </div>
+          />
         );
       }
     }
@@ -282,7 +144,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       fbI2,
       fbS,
       fbAp,
-      inventoryPlacement: inventoryConfig,
     });
     onClose();
   };
@@ -442,103 +303,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                     </div>
                   </div>
                 )}
-
-                {/* Inventory Placement Section */}
-                <Separator className="my-6" />
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Boxes className="h-3.5 w-3.5 text-muted-foreground" />
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Inventory Placement</h2>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Shape how SKUs are distributed across the generated warehouse. Affects inventory generation only.
-                  </p>
-                </div>
-
-                {/* Fast-Mover Placement */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Flame className="h-3.5 w-3.5 text-rose-500" />
-                      <Label className="text-sm font-semibold">Fast-Mover Placement</Label>
-                    </div>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{fastMoverPlacement}</span>
-                  </div>
-                  <Slider
-                    min={0} max={100} step={1}
-                    value={[fastMoverPlacement]}
-                    onValueChange={(val) => setFastMoverPlacement(val[0])}
-                  />
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>Spread Out</span>
-                    <span>Concentrated Near Dispatch</span>
-                  </div>
-                </div>
-
-                {/* Product Grouping */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <PackageSearch className="h-3.5 w-3.5 text-sky-500" />
-                      <Label className="text-sm font-semibold">Product Grouping</Label>
-                    </div>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{productGrouping}</span>
-                  </div>
-                  <Slider
-                    min={0} max={100} step={1}
-                    value={[productGrouping]}
-                    onValueChange={(val) => setProductGrouping(val[0])}
-                  />
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>Scattered</span>
-                    <span>Strongly Grouped</span>
-                  </div>
-                </div>
-
-                {/* Inventory Spread */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Grid className="h-3.5 w-3.5 text-emerald-500" />
-                      <Label className="text-sm font-semibold">Inventory Spread</Label>
-                    </div>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{inventorySpread}</span>
-                  </div>
-                  <Slider
-                    min={0} max={100} step={1}
-                    value={[inventorySpread]}
-                    onValueChange={(val) => setInventorySpread(val[0])}
-                  />
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>Compact</span>
-                    <span>Fully Distributed</span>
-                  </div>
-                </div>
-
-                {/* Hotspot Intensity */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Layers className="h-3.5 w-3.5 text-amber-500" />
-                      <Label className="text-sm font-semibold">Hotspot Intensity</Label>
-                    </div>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{hotspotIntensity}</span>
-                  </div>
-                  <Slider
-                    min={0} max={100} step={1}
-                    value={[hotspotIntensity]}
-                    onValueChange={(val) => setHotspotIntensity(val[0])}
-                  />
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>Even Demand</span>
-                    <span>Few Items Dominate</span>
-                  </div>
-                </div>
-
-
-                <p className="text-[11px] text-muted-foreground italic pt-2">
-                  This affects inventory generation patterns only. Order generation, picking strategies, simulation logic, and worker behaviour are not affected.
-                </p>
               </div>
             </ScrollArea>
           </Tabs>
@@ -576,26 +340,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
           <span>Dispatch</span>
-        </span>
-
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 bg-sky-400/70 inline-block rounded-sm" />
-          <span>Inventory Density</span>
-        </span>
-
-        <span className="flex items-center gap-1.5">
-          <span
-            className="w-3 h-3 inline-block rounded-sm ring-2 ring-red-500"
-            style={{
-              boxShadow: "inset 0 0 4px rgba(239,68,68,0.8)",
-            }}
-          />
-          <span>Fast-Mover / Hotspot</span>
-        </span>
-
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 bg-rose-500/70 inline-block rounded-sm" />
-          <span>Product Group</span>
         </span>
       </div>
     </div>
