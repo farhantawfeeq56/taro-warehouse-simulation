@@ -122,49 +122,7 @@ describe('simulation', () => {
     }
   });
 
-<<<<<<< Updated upstream
-  it('should reflect exact path frequency counts without weighting', () => {
-    const warehouse = generateDemoWarehouse();
-    const routes = [[
-      { x: 1, y: 1 },
-      { x: 2, y: 1 },
-      { x: 2, y: 1 },
-      { x: 1, y: 1 },
-    ]];
-
-    const heatmap = buildRouteFrequencyHeatmap(warehouse, routes);
-    expect(heatmap[1][1]).toBe(2);
-    expect(heatmap[1][2]).toBe(2);
-    expect(heatmap[0][0]).toBe(0);
-    expect(flattenRoutes(routes)).toBe(4);
-    expect(heatmap.flat().reduce((sum, value) => sum + value, 0)).toBe(4);
-  });
-
-  it('should generate heatmap from the best strategy route data', () => {
-    const warehouse = generateDemoWarehouse();
-    const orders = generateRandomOrders(warehouse, 3);
-    const results = runSimulation(warehouse, orders, 2);
-
-    const best = results.strategies.find(strategy => strategy.strategy === results.bestStrategy);
-    expect(best).toBeDefined();
-
-    const bestRoutes = best!.workerRoutes && best!.workerRoutes.length > 0
-      ? best!.workerRoutes.map(workerRoute => workerRoute.route)
-      : [best!.route];
-
-    const expectedHeatmap = buildRouteFrequencyHeatmap(warehouse, bestRoutes);
-    expect(results.heatmap).toEqual(expectedHeatmap);
-  });
-
-  it('should handle empty orders by throwing an error', () => {
-    const warehouse = generateDemoWarehouse();
-    expect(() => runSimulation(warehouse, [], 2)).toThrow(/Simulation requirements not met/);
-  });
-
-  it('should allow overriding simulation profiles from input', () => {
-=======
   it('should produce heatmap with frequency counts', () => {
->>>>>>> Stashed changes
     const warehouse = generateDemoWarehouse();
     const orders = generateRandomOrders(warehouse, 2);
     const results = runSimulation(warehouse, orders, 2);
@@ -307,67 +265,6 @@ describe('simulation', () => {
     expect(() => runSimulation(warehouse, orders, 1)).toThrow(/cannot be resolved/);
   });
 
-<<<<<<< Updated upstream
-  it('should handle orders with items that have invalid locationIds by throwing an error', () => {
-    const warehouse: Warehouse = {
-      width: 6,
-      height: 6,
-      grid: Array.from({ length: 6 }, (_, y) =>
-        Array.from({ length: 6 }, (_, x) => ({
-          x,
-          y,
-          type: 'empty',
-          locations: [],
-        }))
-      ),
-      shelves: [],
-      workerStart: { x: 0, y: 0 },
-      locations: [
-        { id: 'L1', x: 1, y: 1, z: 1, type: 'shelf', items: ['SKU-1'] },
-      ],
-      items: [
-        { id: 'ITEM_L1', locationId: 'L1' },
-        { id: 'ITEM_INVALID', locationId: 'DOES_NOT_EXIST' },
-      ],
-    };
-
-    const orders = [
-      { id: 'order-1', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_INVALID' }], assignedWorkerId: null },
-    ];
-
-    // Partial resolution is no longer permitted in the engine
-    expect(() => runSimulation(warehouse, orders, 1, { allowPartial: true })).toThrow(/cannot be resolved/);
-  });
-
-  it('should handle mixed valid/invalid orders by throwing an error', () => {
-    const warehouse: Warehouse = {
-      width: 8,
-      height: 6,
-      grid: Array.from({ length: 6 }, (_, y) =>
-        Array.from({ length: 8 }, (_, x) => ({
-          x,
-          y,
-          type: 'empty',
-          locations: [],
-        }))
-      ),
-      shelves: [],
-      workerStart: { x: 0, y: 0 },
-      locations: [
-        { id: 'L1', x: 1, y: 1, z: 1, type: 'shelf', items: ['SKU-1'] },
-        { id: 'L2', x: 3, y: 1, z: 1, type: 'shelf', items: ['SKU-2'] },
-      ],
-      items: [
-        { id: 'ITEM_L1', locationId: 'L1' },
-        { id: 'ITEM_L2', locationId: 'L2' },
-        { id: 'ITEM_BAD', locationId: 'DOES_NOT_EXIST' },
-      ],
-    };
-
-    const orders = [
-      { id: 'order-valid', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_L2' }], assignedWorkerId: null },
-      { id: 'order-mixed', items: [{ itemId: 'ITEM_L1' }, { itemId: 'ITEM_BAD' }], assignedWorkerId: null },
-=======
   it('should run partial simulation when allowPartial is set', () => {
     const warehouse = buildWarehouse(6, 6, [
       [1, 1, [bin(1, 1, 1, 'SKU_A')]],
@@ -392,7 +289,6 @@ describe('simulation', () => {
     const orders: Order[] = [
       { id: 'order-valid', items: [{ skuId: 'SKU_A' }, { skuId: 'SKU_B' }], assignedWorkerId: null },
       { id: 'order-mixed', items: [{ skuId: 'SKU_A' }, { skuId: 'SKU_NOT_FOUND' }], assignedWorkerId: null },
->>>>>>> Stashed changes
     ];
 
     expect(() => runSimulation(warehouse, orders, 1, { allowPartial: true })).toThrow(/cannot be resolved/);

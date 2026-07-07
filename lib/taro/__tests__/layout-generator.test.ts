@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   generateParallelLayout,
-  generateSegmentedLayout,
   generateCrossAisleLayout,
 } from '../layout-generator';
 import type { Warehouse } from '../types';
@@ -48,94 +47,17 @@ function countFullRackCutRows(warehouse: Warehouse, gridHeight: number, rackColu
   return fullCutRows;
 }
 
-describe('layout-generator segmented vs cross-aisle structure', () => {
-  it('segmented only interrupts rack cells and keeps aisle columns intact', () => {
-    const gridHeight = 18;
-    const rackCount = 6;
-    const aisleWidth = 2;
-    const segmentCount = 3;
-
-    const parallel = generateParallelLayout(gridHeight, rackCount, aisleWidth);
-    const segmented = generateSegmentedLayout(gridHeight, rackCount, aisleWidth, segmentCount);
-
-    for (let y = 0; y < parallel.height; y++) {
-      for (let x = 0; x < parallel.width; x++) {
-        if (parallel.grid[y][x].type !== 'shelf') {
-          expect(segmented.grid[y][x].type).toBe(parallel.grid[y][x].type);
-        }
-      }
-    }
-  });
-
-  it('segmented creates rack-only breaks without full horizontal cut rows', () => {
-    const gridHeight = 18;
-    const rackCount = 5;
-    const aisleWidth = 2;
-    const segmentCount = 3;
-
-    const parallel = generateParallelLayout(gridHeight, rackCount, aisleWidth);
-    const segmented = generateSegmentedLayout(gridHeight, rackCount, aisleWidth, segmentCount);
-
-    const rackColumns = getRackColumns(parallel, gridHeight);
-
-    let interruptedRackCells = 0;
-    for (let y = OUTER_PADDING; y < OUTER_PADDING + gridHeight; y++) {
-      for (const x of rackColumns) {
-        if (parallel.grid[y][x].type === 'shelf' && segmented.grid[y][x].type !== 'shelf') {
-          interruptedRackCells++;
-        }
-      }
-    }
-
-    expect(interruptedRackCells).toBeGreaterThan(0);
-    expect(countFullRackCutRows(segmented, gridHeight, rackColumns)).toBe(0);
-  });
-
-  it('cross-aisle retains full horizontal cuts while segmented does not', () => {
+describe('layout-generator cross-aisle structure', () => {
+  it('cross-aisle creates full horizontal cuts across all rack columns', () => {
     const gridHeight = 18;
     const rackCount = 5;
     const aisleWidth = 2;
 
     const parallel = generateParallelLayout(gridHeight, rackCount, aisleWidth);
-    const segmented = generateSegmentedLayout(gridHeight, rackCount, aisleWidth, 3);
     const crossAisle = generateCrossAisleLayout(gridHeight, rackCount, aisleWidth, 2);
 
     const rackColumns = getRackColumns(parallel, gridHeight);
 
-    expect(countFullRackCutRows(segmented, gridHeight, rackColumns)).toBe(0);
     expect(countFullRackCutRows(crossAisle, gridHeight, rackColumns)).toBeGreaterThan(0);
-  });
-
-  it('handles segmentCount <= 1 by matching base parallel structure', () => {
-    const gridHeight = 12;
-    const rackCount = 4;
-    const aisleWidth = 2;
-
-    const parallel = generateParallelLayout(gridHeight, rackCount, aisleWidth);
-    const segmented = generateSegmentedLayout(gridHeight, rackCount, aisleWidth, 1);
-
-    for (let y = 0; y < parallel.height; y++) {
-      for (let x = 0; x < parallel.width; x++) {
-        expect(segmented.grid[y][x].type).toBe(parallel.grid[y][x].type);
-      }
-    }
-  });
-
-  it('handles very small grid heights without invalid break calculations', () => {
-    const gridHeight = 2;
-    const rackCount = 3;
-    const aisleWidth = 2;
-    const segmentCount = 5;
-
-    expect(() => generateSegmentedLayout(gridHeight, rackCount, aisleWidth, segmentCount)).not.toThrow();
-
-    const parallel = generateParallelLayout(gridHeight, rackCount, aisleWidth);
-    const segmented = generateSegmentedLayout(gridHeight, rackCount, aisleWidth, segmentCount);
-
-    for (let y = 0; y < parallel.height; y++) {
-      for (let x = 0; x < parallel.width; x++) {
-        expect(segmented.grid[y][x].type).toBe(parallel.grid[y][x].type);
-      }
-    }
   });
 });

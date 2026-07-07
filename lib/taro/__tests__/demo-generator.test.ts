@@ -5,14 +5,8 @@ describe('demo-generator', () => {
   describe('createEmptyWarehouse', () => {
     it('should create warehouse with correct dimensions (logical + outer padding)', () => {
       const warehouse = createEmptyWarehouse(30, 24);
-<<<<<<< Updated upstream
-      // Dimensions are logically requested, but createEmptyWarehouse adds OUTER_PADDING (2 cells) to each side
-      expect(warehouse.width).toBe(34);
-      expect(warehouse.height).toBe(28);
-=======
       expect(warehouse.width).toBe(30 + 2 * 2);
       expect(warehouse.height).toBe(24 + 2 * 2);
->>>>>>> Stashed changes
     });
 
     it('should initialize all cells as empty', () => {

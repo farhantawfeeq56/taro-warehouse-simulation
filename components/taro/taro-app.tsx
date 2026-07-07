@@ -23,7 +23,6 @@ import {
 } from '@/lib/taro/demo-generator';
 import {
   generateParallelLayout,
-  generateSegmentedLayout,
   generateCrossAisleLayout,
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
@@ -177,8 +176,6 @@ export function TaroApp() {
     if (window.confirm('Are you sure you want to clear the entire warehouse layout and all orders? This cannot be undone.')) {
       handleWarehouseChange(createEmptyWarehouse(30, 24));
       setOrders([]);
-<<<<<<< Updated upstream
-=======
       setSimulationResults(null);
       setIsSimulating(false);
       setActiveStrategy(null);
@@ -189,7 +186,6 @@ export function TaroApp() {
       setShowValidationModal(false);
       setHighlightedMissingSkuIds(null);
       setSimulationBlockState(null);
->>>>>>> Stashed changes
       setImportSummary('');
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
@@ -252,15 +248,12 @@ export function TaroApp() {
       handleWarehouseChange(importedWarehouse);
       setOrders([]);
       setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
-<<<<<<< Updated upstream
-=======
       setExecutionPlanStrategy(null);
       setValidationContext(null);
       setValidationResult(null);
       setShowValidationModal(false);
       setHighlightedMissingSkuIds(null);
       setSimulationBlockState(null);
->>>>>>> Stashed changes
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
       alert(`CSV import failed: ${message}`);
@@ -437,9 +430,6 @@ export function TaroApp() {
               case 'parallel':
                 newWarehouse = generateParallelLayout(config.gridHeight, config.rackCount, config.aisleWidth);
                 break;
-              case 'segmented':
-                newWarehouse = generateSegmentedLayout(config.gridHeight, config.rackCount, config.aisleWidth, config.segmentCount);
-                break;
               case 'cross-aisle':
                 newWarehouse = generateCrossAisleLayout(config.gridHeight, config.rackCount, config.aisleWidth, config.crossAisleCount);
                 break;
@@ -461,8 +451,6 @@ export function TaroApp() {
             const newOrders = generateRandomOrders(warehouseWithInventory, 4);
             setOrders(newOrders);
 
-<<<<<<< Updated upstream
-=======
             // Reset simulation state
             setSimulationResults(null);
             setIsSimulating(false);
@@ -474,7 +462,6 @@ export function TaroApp() {
             setShowValidationModal(false);
             setHighlightedMissingSkuIds(null);
             setSimulationBlockState(null);
->>>>>>> Stashed changes
             setImportSummary('');
             if (animationRef.current) {
               cancelAnimationFrame(animationRef.current);
