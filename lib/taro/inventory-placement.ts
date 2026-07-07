@@ -175,8 +175,6 @@ export function applyInventoryPlacement(
 
       const sku = `SKU_${String(skuCounter).padStart(3, '0')}`;
 
-      const sku = `SKU_${String(skuCounter).padStart(3, '0')}`;
-
       cellLocations.push({
         id: `${sku}@${p.x},${p.y},${z}`,
         locationId,
