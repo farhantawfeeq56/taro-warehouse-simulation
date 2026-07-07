@@ -7,11 +7,10 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import {
   generateParallelLayout,
-  generateSegmentedLayout,
   generateCrossAisleLayout,
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
@@ -23,14 +22,13 @@ import {
 } from '@/lib/taro/inventory-placement';
 import type { Warehouse } from '@/lib/taro/types';
 
-export type LayoutType = 'parallel' | 'segmented' | 'cross-aisle' | 'fishbone';
+export type LayoutType = 'parallel' | 'cross-aisle' | 'fishbone';
 
 export interface LayoutConfig {
   type: LayoutType;
   gridHeight: number;
   rackCount: number;
   aisleWidth: number;
-  segmentCount: number;
   crossAisleCount: number;
   fbWidth: number;
   fbHeight: number;
@@ -49,11 +47,10 @@ interface LayoutConfigOverlayProps {
 export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayProps) {
   const [layoutType, setLayoutType] = useState<LayoutType>('parallel');
 
-  // Parallel / Segmented / Cross Aisle Params
+  // Parallel / Cross Aisle Params
   const [gridHeight, setGridHeight] = useState(12);
   const [rackCount, setRackCount] = useState(10);
   const [aisleWidth, setAisleWidth] = useState(2);
-  const [segmentCount, setSegmentCount] = useState(2);
   const [crossAisleCount, setCrossAisleCount] = useState(1);
 
   // Fishbone Params
@@ -103,8 +100,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     switch (layoutType) {
       case 'parallel':
         return generateParallelLayout(gridHeight, rackCount, aisleWidth);
-      case 'segmented':
-        return generateSegmentedLayout(gridHeight, rackCount, aisleWidth, segmentCount);
       case 'cross-aisle':
         return generateCrossAisleLayout(gridHeight, rackCount, aisleWidth, crossAisleCount);
       case 'fishbone':
@@ -113,7 +108,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         return generateParallelLayout(gridHeight, rackCount, aisleWidth);
     }
   }, [
-    layoutType, gridHeight, rackCount, aisleWidth, segmentCount, crossAisleCount,
+    layoutType, gridHeight, rackCount, aisleWidth, crossAisleCount,
     fbWidth, fbHeight, fbTheta, fbI2, fbS, fbAp
   ]);
 
@@ -279,7 +274,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       gridHeight,
       rackCount,
       aisleWidth,
-      segmentCount,
       crossAisleCount,
       fbWidth,
       fbHeight,
@@ -320,9 +314,8 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
             className="flex-1 flex flex-col min-h-0"
           >
             <div className="px-6 pt-6">
-              <TabsList className="grid grid-cols-4 w-full mb-6">
+              <TabsList className="grid grid-cols-3 w-full mb-6">
                 <TabsTrigger value="parallel" className="text-xs">Parallel</TabsTrigger>
-                <TabsTrigger value="segmented" className="text-xs">Segmented</TabsTrigger>
                 <TabsTrigger value="cross-aisle" className="text-xs">Cross Aisle</TabsTrigger>
                 <TabsTrigger value="fishbone" className="text-xs">Fishbone</TabsTrigger>
               </TabsList>
@@ -335,7 +328,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                   <p className="text-xs text-muted-foreground">Define the physical rack layout.</p>
                 </div>
 
-                {(layoutType === 'parallel' || layoutType === 'segmented' || layoutType === 'cross-aisle') && (
+                {(layoutType === 'parallel' || layoutType === 'cross-aisle') && (
                   <>
                     {/* Grid Height Control */}
                     <div className="space-y-4">
@@ -379,27 +372,6 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                       <p className="text-xs text-muted-foreground">Spacing between rack columns.</p>
                     </div>
                   </>
-                )}
-
-                {layoutType === 'segmented' && (
-                  <div className="space-y-4 border-t pt-6">
-                    <Alert className="bg-amber-50/50 border-amber-200/50 p-3 mb-4">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      <AlertDescription className="text-amber-800 text-[11px] font-medium">
-                        Experimental: Segmented layout algorithm is still being refined.
-                      </AlertDescription>
-                    </Alert>
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-semibold">Segment Count</Label>
-                      <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{segmentCount}</span>
-                    </div>
-                    <Slider
-                      min={1} max={5} step={1}
-                      value={[segmentCount]}
-                      onValueChange={(val) => setSegmentCount(val[0])}
-                    />
-                    <p className="text-xs text-muted-foreground">Breaks racks into vertical segments.</p>
-                  </div>
                 )}
 
                 {layoutType === 'cross-aisle' && (

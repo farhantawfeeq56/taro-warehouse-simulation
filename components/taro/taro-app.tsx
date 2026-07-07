@@ -23,7 +23,6 @@ import {
 } from '@/lib/taro/demo-generator';
 import {
   generateParallelLayout,
-  generateSegmentedLayout,
   generateCrossAisleLayout,
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
@@ -436,9 +435,6 @@ export function TaroApp() {
             switch (config.type) {
               case 'parallel':
                 newWarehouse = generateParallelLayout(config.gridHeight, config.rackCount, config.aisleWidth);
-                break;
-              case 'segmented':
-                newWarehouse = generateSegmentedLayout(config.gridHeight, config.rackCount, config.aisleWidth, config.segmentCount);
                 break;
               case 'cross-aisle':
                 newWarehouse = generateCrossAisleLayout(config.gridHeight, config.rackCount, config.aisleWidth, config.crossAisleCount);
