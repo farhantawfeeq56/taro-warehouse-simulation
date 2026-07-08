@@ -14,6 +14,10 @@ import {
   generateCrossAisleLayout,
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
+import {
+  generateDemandScores,
+  summarizeDemandScores
+} from '@/lib/taro/demand';
 
 export type LayoutType = 'parallel' | 'cross-aisle' | 'fishbone';
 
@@ -54,18 +58,52 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [fbAp, setFbAp] = useState(0.8);
 
   // Inventory Generation
+  //
+  // `generateItems` only handles SKU identity generation; demand assignment
+  // is a separate, composable step (`assignDemandDistribution`) so future
+  // inventory-generation variables can build on top of the plain item list.
+  //
+  // `demandDistribution` is the Demand Distribution slider value
+  // (0 = Uniform, 100 = Pareto). It controls how customer demand is spread
+  // across the generated SKUs. See `lib/taro/demand.ts` for the algorithm.
   const generateItems = useCallback((count: number): Item[] => {
     return Array.from({ length: count }, (_, i) => ({
-      id: `ITEM-${String(i + 1).padStart(4, '0')}`
+      id: `SKU_${String(i + 1).padStart(3, '0')}`,
     }));
   }, []);
 
+  /** Enrich plain items with `demandScore` values from the demand engine. */
+  const assignDemandDistribution = useCallback(
+    (items: Item[], distribution: number): Item[] => {
+      if (items.length === 0) return items;
+      const scores = generateDemandScores({
+        count: items.length,
+        distribution,
+      });
+      return items.map((item, i) => ({ ...item, demandScore: scores[i] }));
+    },
+    []
+  );
+
   const [skuCount, setSkuCount] = useState(10);
-  const [inventory, setInventory] = useState<Item[]>(() => generateItems(10));
+  const [demandDistribution, setDemandDistribution] = useState(0);
+  const [inventory, setInventory] = useState<Item[]>(() =>
+    assignDemandDistribution(generateItems(10), 0)
+  );
 
   useEffect(() => {
-    setInventory(generateItems(skuCount));
-  }, [skuCount, generateItems]);
+    setInventory(assignDemandDistribution(generateItems(skuCount), demandDistribution));
+  }, [skuCount, demandDistribution, generateItems, assignDemandDistribution]);
+
+  // Lightweight summary used to show the slider's effect inline.
+  const demandSummary = useMemo(
+    () =>
+      summarizeDemandScores(
+        inventory.map((i) => i.demandScore ?? 0),
+        0.2
+      ),
+    [inventory]
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -336,6 +374,31 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                     onValueChange={(val) => setSkuCount(val[0])}
                   />
                   <p className="text-xs text-muted-foreground">Number of unique SKUs to generate.</p>
+                </div>
+
+                {/* Demand Distribution slider */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Demand Distribution</Label>
+                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                      {demandDistribution}%
+                    </span>
+                  </div>
+                  <Slider
+                    min={0} max={100} step={1}
+                    value={[demandDistribution]}
+                    onValueChange={(val) => setDemandDistribution(val[0])}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Uniform</span>
+                    <span>Pareto</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    How customer demand is spread across SKUs.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground font-mono">
+                    Top 20% hold {Math.round(demandSummary.topShare * 100)}% of demand · min {demandSummary.min.toFixed(2)} / max {demandSummary.max.toFixed(2)}
+                  </p>
                 </div>
               </div>
             </ScrollArea>
