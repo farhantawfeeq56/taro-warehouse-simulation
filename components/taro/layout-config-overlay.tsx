@@ -22,6 +22,9 @@ import {
   generateAffinityGroups,
   summarizeAffinityGroups
 } from '@/lib/taro/affinity';
+import {
+  computePlacementPreview,
+} from '@/lib/taro/inventory-placement';
 
 export type LayoutType = 'parallel' | 'cross-aisle' | 'fishbone';
 
@@ -37,6 +40,10 @@ export interface LayoutConfig {
   fbI2: number;
   fbS: number;
   fbAp: number;
+  /** Generated inventory (one Item per SKU, with demandScore). */
+  inventory: Item[];
+  /** Slotting Bias slider value, 0 (Random) .. 100 (Demand-Based). */
+  slottingBias: number;
 }
 
 interface LayoutConfigOverlayProps {
@@ -111,6 +118,10 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [skuCount, setSkuCount] = useState(10);
   const [demandDistribution, setDemandDistribution] = useState(0);
   const [productAffinity, setProductAffinity] = useState(0);
+  // Inventory Placement — Slotting Bias variable.
+  // 0 = Random (SKUs placed almost randomly), 100 = Demand-Based
+  // (high-demand SKUs placed closest to the dispatch area).
+  const [slottingBias, setSlottingBias] = useState(0);
   const [inventory, setInventory] = useState<Item[]>(() =>
     // Start both demand and affinity scores in their default (independent)
     // state so the preview reflects the full, composable pipeline.
@@ -183,6 +194,14 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const fullWidth = previewWarehouse.width;
   const fullHeight = previewWarehouse.height;
 
+  // Live preview of the Slotting Bias placement on the current layout.
+  // Recomputed whenever the layout, inventory, or slotting bias changes so
+  // the summary (overflow, demand near dispatch) always matches the apply.
+  const placementPreview = useMemo(
+    () => computePlacementPreview(previewWarehouse, { items: inventory, slottingBias }),
+    [previewWarehouse, inventory, slottingBias]
+  );
+
   const cellSize = useMemo(() => {
     if (containerSize.width === 0 || containerSize.height === 0) return 24;
 
@@ -237,6 +256,8 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       fbI2,
       fbS,
       fbAp,
+      inventory,
+      slottingBias,
     });
     onClose();
   };
@@ -463,6 +484,42 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                   </p>
                   <p className="text-[11px] text-muted-foreground font-mono">
                     {affinitySummary.groupCount} groups · largest {affinitySummary.largestGroupSize} · {Math.round(affinitySummary.groupedShare * 100)}% of SKUs have a group-mate
+                  </p>
+                </div>
+
+                {/* Inventory Placement Section */}
+                <div className="space-y-1 pt-8 border-t">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Inventory Placement</h2>
+                  <p className="text-xs text-muted-foreground">Decide where inventory lives.</p>
+                </div>
+
+                {/* Slotting Bias slider */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Slotting Bias</Label>
+                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                      {slottingBias}%
+                    </span>
+                  </div>
+                  <Slider
+                    min={0} max={100} step={1}
+                    value={[slottingBias]}
+                    onValueChange={(val) => setSlottingBias(val[0])}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Random</span>
+                    <span>Demand-Based</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    How strongly product demand influences storage location.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground font-mono">
+                    {inventory.length - placementPreview.unplacedCount} / {inventory.length} SKUs placed · {placementPreview.binCount} bins
+                    {placementPreview.unplacedCount > 0 && (
+                      <span className="text-amber-600">
+                        {' · ⚠'} {placementPreview.unplacedCount} overflow (not enough bins)
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
