@@ -12,9 +12,16 @@ export type CellType = 'empty' | 'shelf' | 'worker-start';
 
 /**
  * An Item is a discrete unit of inventory. Each Item has a unique id.
+ *
+ * `demandScore` is an optional, positive number that expresses how much
+ * customer demand a SKU attracts relative to other SKUs. It is produced by
+ * the Demand Distribution inventory-generation variable. A mean of ~1 is
+ * maintained regardless of distribution, so the slider only redistributes
+ * demand across SKUs rather than scaling the total pool.
  */
 export interface Item {
   id: string;
+  demandScore?: number;
 }
 
 /**

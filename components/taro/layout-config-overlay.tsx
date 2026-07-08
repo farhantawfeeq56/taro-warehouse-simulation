@@ -14,6 +14,10 @@ import {
   generateCrossAisleLayout,
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
+import {
+  generateDemandScores,
+  summarizeDemandScores
+} from '@/lib/taro/demand';
 
 export type LayoutType = 'parallel' | 'cross-aisle' | 'fishbone';
 
@@ -54,18 +58,40 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [fbAp, setFbAp] = useState(0.8);
 
   // Inventory Generation
-  const generateItems = useCallback((count: number): Item[] => {
-    return Array.from({ length: count }, (_, i) => ({
-      id: `SKU_${String(i + 1).padStart(3, '0')}`
-    }));
-  }, []);
+  //
+  // `demandDistribution` is the Demand Distribution slider value
+  // (0 = Uniform, 100 = Pareto). It controls how customer demand is spread
+  // across the generated SKUs. See `lib/taro/demand.ts` for the algorithm.
+  const generateItems = useCallback(
+    (count: number, distribution: number): Item[] => {
+      const scores = generateDemandScores({ count, distribution });
+      return Array.from({ length: count }, (_, i) => ({
+        id: `SKU_${String(i + 1).padStart(3, '0')}`,
+        demandScore: scores[i],
+      }));
+    },
+    []
+  );
 
   const [skuCount, setSkuCount] = useState(10);
-  const [inventory, setInventory] = useState<Item[]>(() => generateItems(10));
+  const [demandDistribution, setDemandDistribution] = useState(0);
+  const [inventory, setInventory] = useState<Item[]>(() =>
+    generateItems(10, 0)
+  );
 
   useEffect(() => {
-    setInventory(generateItems(skuCount));
-  }, [skuCount, generateItems]);
+    setInventory(generateItems(skuCount, demandDistribution));
+  }, [skuCount, demandDistribution, generateItems]);
+
+  // Lightweight summary used to show the slider's effect inline.
+  const demandSummary = useMemo(
+    () =>
+      summarizeDemandScores(
+        inventory.map((i) => i.demandScore ?? 0),
+        0.2
+      ),
+    [inventory]
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -336,6 +362,31 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                     onValueChange={(val) => setSkuCount(val[0])}
                   />
                   <p className="text-xs text-muted-foreground">Number of unique SKUs to generate.</p>
+                </div>
+
+                {/* Demand Distribution slider */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Demand Distribution</Label>
+                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                      {demandDistribution}%
+                    </span>
+                  </div>
+                  <Slider
+                    min={0} max={100} step={1}
+                    value={[demandDistribution]}
+                    onValueChange={(val) => setDemandDistribution(val[0])}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Uniform</span>
+                    <span>Pareto</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    How customer demand is spread across SKUs.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground font-mono">
+                    Top 20% hold {Math.round(demandSummary.topShare * 100)}% of demand · min {demandSummary.min.toFixed(2)} / max {demandSummary.max.toFixed(2)}
+                  </p>
                 </div>
               </div>
             </ScrollArea>
