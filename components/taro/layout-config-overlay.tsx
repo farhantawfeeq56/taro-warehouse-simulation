@@ -59,16 +59,28 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
   // Inventory Generation
   //
+  // `generateItems` only handles SKU identity generation; demand assignment
+  // is a separate, composable step (`assignDemandDistribution`) so future
+  // inventory-generation variables can build on top of the plain item list.
+  //
   // `demandDistribution` is the Demand Distribution slider value
   // (0 = Uniform, 100 = Pareto). It controls how customer demand is spread
   // across the generated SKUs. See `lib/taro/demand.ts` for the algorithm.
-  const generateItems = useCallback(
-    (count: number, distribution: number): Item[] => {
-      const scores = generateDemandScores({ count, distribution });
-      return Array.from({ length: count }, (_, i) => ({
-        id: `SKU_${String(i + 1).padStart(3, '0')}`,
-        demandScore: scores[i],
-      }));
+  const generateItems = useCallback((count: number): Item[] => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: `SKU_${String(i + 1).padStart(3, '0')}`,
+    }));
+  }, []);
+
+  /** Enrich plain items with `demandScore` values from the demand engine. */
+  const assignDemandDistribution = useCallback(
+    (items: Item[], distribution: number): Item[] => {
+      if (items.length === 0) return items;
+      const scores = generateDemandScores({
+        count: items.length,
+        distribution,
+      });
+      return items.map((item, i) => ({ ...item, demandScore: scores[i] }));
     },
     []
   );
@@ -76,12 +88,12 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [skuCount, setSkuCount] = useState(10);
   const [demandDistribution, setDemandDistribution] = useState(0);
   const [inventory, setInventory] = useState<Item[]>(() =>
-    generateItems(10, 0)
+    assignDemandDistribution(generateItems(10), 0)
   );
 
   useEffect(() => {
-    setInventory(generateItems(skuCount, demandDistribution));
-  }, [skuCount, demandDistribution, generateItems]);
+    setInventory(assignDemandDistribution(generateItems(skuCount), demandDistribution));
+  }, [skuCount, demandDistribution, generateItems, assignDemandDistribution]);
 
   // Lightweight summary used to show the slider's effect inline.
   const demandSummary = useMemo(
