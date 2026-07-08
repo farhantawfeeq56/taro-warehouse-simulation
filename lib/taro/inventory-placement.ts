@@ -6,23 +6,44 @@
 // simulation logic, picking strategies, or worker behavior. It only
 // writes `StorageLocation` entries onto shelf cells.
 //
-// The first placement variable is **Slotting Bias**, a 0..100 slider that
-// answers: "How strongly should product demand influence storage location?"
+// There are two Inventory Placement variables, and they answer two
+// structurally different questions:
 //
-//   • 0  (Random)        — SKUs are placed almost randomly (seeded).
-//   • 100 (Demand-Based) — high-demand SKUs are placed closest to the
-//                          dispatch point (workerStart).
-//   • in between         — the two signals are blended smoothly.
+//   1. Slotting Bias (0..100) — an ORDERING question:
+//        "How strongly should product demand influence storage location?"
+//        • 0  (Random)        — SKUs are placed almost randomly (seeded).
+//        • 100 (Demand-Based) — high-demand SKUs are placed closest to the
+//                               dispatch point (workerStart).
+//        • in between         — the two signals are blended smoothly.
 //
-// The algorithm is a single linear blend of two per-SKU ranks (see
-// `planSlottingBias` below), which makes the slider transition perfectly
-// continuous and keeps the implementation modular.
+//   2. Category Clustering (0..100) — a SPATIAL PARTITIONING question:
+//        "How strongly should products of the same category be stored
+//         together (in contiguous zones)?"
+//        • 0   (Scattered)   — categories are mixed throughout the warehouse
+//                             (this is exactly the pure Slotting Bias plan).
+//        • 100 (Clustered)   — each category occupies a single contiguous
+//                             zone; Slotting Bias decides WHERE those zones
+//                             and the SKUs within them sit.
+//        • in between         — a smooth transition between the two complete
+//                             placements (see below).
+//
+// The two variables are NOT applied as two sequential steps. Category
+// Clustering is modelled as a complete, valid placement plan of its own
+// (the "clustered layout") and Slotting Bias produces another complete plan
+// (the "scatter layout"). The slider *interpolates between those two complete
+// plans* into a single final ordering, which is then mapped onto the bins.
+// Because both endpoints are real, independent placements (an ordering
+// task for slotting vs. a partitioning task for clustering), the slider does
+// not collapse clustering into "just another ranking" — clustering only
+// exists as a thing because it produces contiguous category zones in its own
+// plan, something a per-SKU rank can never express.
 //
 // Inventory is NEVER generated here. The caller supplies the exact `Item[]`
 // produced by the Inventory Generation section (SKU Count + Demand
-// Distribution + Product Affinity). Placement consumes those items as-is;
-// only their *location* is decided. The inventory itself (which SKUs exist,
-// their demand scores) is not modified.
+// Distribution + Product Affinity, plus the auto-generated `category`
+// supporting field). Placement consumes those items as-is; only their
+// *location* is decided. The inventory itself (which SKUs exist, their demand
+// scores, their categories) is not modified.
 
 import type { Cell, Item, StorageLocation, Warehouse } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
@@ -31,8 +52,9 @@ import { buildCoordinateLocations, getShelfLocationId } from './layout';
  * Inventory placement configuration.
  *
  * `items` is the generated inventory to place (one SKU per item, carrying
- * its `demandScore`). `slottingBias` is the 0..100 slider value. `seed`
- * makes the random end reproducible.
+ * its `demandScore` and `category`). `slottingBias` and the
+ * `categoryClustering` slider both range 0..100. `seed` makes the random end
+ * reproducible.
  */
 export interface InventoryPlacementConfig {
   /** Generated inventory to place. Defaults to an empty list. */
@@ -42,6 +64,15 @@ export interface InventoryPlacementConfig {
    * Values outside this range are clamped. Defaults to 0.
    */
   slottingBias?: number;
+  /**
+   * Category Clustering slider value, 0 (Scattered) .. 100 (Clustered).
+   * Values outside this range are clamped. Defaults to 0. At 0 the result is
+   * identical to the pure Slotting Bias plan (no zone structure). At 100 each
+   * category occupies a single contiguous zone, with Slotting Bias deciding
+   * the zone order (by mean demand) and the SKU order within each zone.
+   * Defaults to 0.
+   */
+  categoryClustering?: number;
   /** Optional seed for reproducible generation. Defaults to a fixed seed. */
   seed?: number;
 }
@@ -227,6 +258,148 @@ function planSlottingBias(items: Item[], slottingBias: number, seed: number): It
 }
 
 /* -------------------------------------------------------------------------- */
+/* Core planner: Category-Zone Clustered Placement                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Decide a placement order for the supplied items under the category-zone
+ * (clustered) model. This is a COMPLETE, valid placement plan expressed as an
+ * ordering of SKUs: because bins are filled in a fixed physical sequence
+ * (`enumerateBins`), consecutive entries in this ordering occupy consecutive
+ * bins — i.e. a contiguous zone. Same-category SKUs are kept in a single
+ * contiguous run, so at `categoryClustering = 100` each category occupies one
+ * compact zone (a contiguous band of the dispatch-proximity sequence).
+ *
+ * Slotting Bias governs two ORDERING decisions on top of that partition:
+ *   • WHICH zone is near dispatch — categories are ordered by mean demand
+ *     (highest-mean-demand category first → nearest dispatch). At slotting 0
+ *     the category order is a seeded random permutation instead.
+ *   • WHICH SKU sits at the front of a zone — within a category, SKUs are
+ *     ordered by demand (highest-demand first → front of the zone). At
+ *     slotting 0 the within-zone order is seeded random instead.
+ *
+ * Both of those are pure ranking decisions (the thing Slotting Bias is), so
+ * clustering never has to invent a spatial "score" — the spatial structure
+ * comes solely from the zone partition, and Slotting Bias only reorders within
+ * and across the already-contiguous zones.
+ *
+ * Note: this plan only reads `item.category`. It does not touch `affinityGroup`
+ * (independent concept). When fewer than two distinct categories exist, the
+ * clustered plan is identical to the scatter plan, so clustering becomes a
+ * no-op and the result equals the pure Slotting Bias placement for any slider
+ * value (graceful fallback for warehouses whose inventory lacks `category`).
+ */
+function planCategoryClustering(
+  items: Item[],
+  slottingBias: number,
+  seed: number
+): Item[] {
+  if (items.length === 0) return items;
+
+  // Identify distinct categories. SKUs with a missing `category` are each
+  // treated as their own singleton pseudo-category, so they cannot spuriously
+  // form zones.
+  const pseudoBase = -1; // negative pseudo-ids never collide with real ones.
+  let pseudoNext = pseudoBase;
+  const catOf = new Map<string, number>();
+  let realCategories = new Set<number>();
+  for (const item of items) {
+    if (item.category != null && item.category > 0) {
+      catOf.set(item.id, item.category);
+      realCategories.add(item.category);
+    } else {
+      catOf.set(item.id, --pseudoNext); // unique singleton pseudo-category
+    }
+  }
+
+  // Graceful fallback: nothing real to cluster → behave as the scatter plan.
+  if (realCategories.size < 2) {
+    return planSlottingBias(items, slottingBias, seed);
+  }
+
+  const t = Math.min(1, Math.max(0, slottingBias / 100));
+
+  // --- Category order (which zone is nearest dispatch) -------------------- //
+  // Each category gets a demand rank (0 = highest mean demand) and a seeded
+  // random rank; the blended priority orders the zones. Identical machinery
+  // to the per-SKU ranks in `planSlottingBias`, just aggregated to the
+  // category level.
+  const catItems = new Map<number, Item[]>();
+  for (const item of items) {
+    const c = catOf.get(item.id)!;
+    const arr = catItems.get(c);
+    if (arr) arr.push(item);
+    else catItems.set(c, [item]);
+  }
+  const cats = Array.from(catItems.keys());
+
+  const catMeanDemand = new Map<number, number>();
+  for (const c of cats) {
+    const arr = catItems.get(c)!;
+    const mean = arr.reduce((s, it) => s + (it.demandScore ?? 0), 0) / arr.length;
+    catMeanDemand.set(c, mean);
+  }
+  const catsByDemand = cats
+    .map((c, idx) => ({ c, idx, mean: catMeanDemand.get(c)! }))
+    .sort((a, b) => (a.mean !== b.mean ? b.mean - a.mean : a.idx - b.idx));
+  const cDemandRank = new Map<number, number>();
+  const k = catsByDemand.length;
+  catsByDemand.forEach((entry, i) => {
+    cDemandRank.set(entry.c, k > 1 ? i / (k - 1) : 0);
+  });
+
+  const catRng = mulberry32(seed ^ 0x9e3779b1); // decorrelate from SKU ranks.
+  const cRandomRank = new Map<number, number>();
+  for (const c of cats) cRandomRank.set(c, catRng());
+
+  const catPriority = new Map<number, number>();
+  for (const c of cats) {
+    const dr = cDemandRank.get(c)!;
+    const rr = cRandomRank.get(c)!;
+    catPriority.set(c, (1 - t) * rr + t * dr);
+  }
+  // Sort categories so the lowest priority comes first (= nearest dispatch).
+  const catsOrdered = cats
+    .slice()
+    .sort((a, b) => catPriority.get(a)! - catPriority.get(b)!);
+
+  // --- Within-category order (which SKU fronts its zone) ------------------ //
+  // Demand rank keyed per SKU, ranked WITHIN its own category, plus the same
+  // seeded per-SKU random rank family used by the scatter plan (but drawn
+  // from a stream seeded independently of the scatter draw so the two plans
+  // are decorrelated — the interpolation only needs the endpoints, not shared
+  // randomness).
+  const rng = mulberry32(seed ^ 0x1521d3f5);
+  const itemRandomRank = new Map<string, number>();
+  for (const item of items) itemRandomRank.set(item.id, rng());
+
+  const order: Item[] = [];
+  for (const c of catsOrdered) {
+    const arr = catItems.get(c)!;
+    const m = arr.length;
+    const byDemand = arr
+      .map((item, idx) => ({ item, idx, score: item.demandScore ?? 0 }))
+      .sort((a, b) => (a.score !== b.score ? b.score - a.score : a.idx - b.idx));
+    const demandRank = new Map<string, number>();
+    byDemand.forEach((entry, i) => {
+      demandRank.set(entry.item.id, m > 1 ? i / (m - 1) : 0);
+    });
+
+    const within = arr
+      .map((item) => {
+        const dr = demandRank.get(item.id) ?? 1;
+        const rr = itemRandomRank.get(item.id) ?? 0;
+        return { item, priority: (1 - t) * rr + t * dr };
+      })
+      .sort((a, b) => a.priority - b.priority)
+      .map((entry) => entry.item);
+    order.push(...within);
+  }
+
+  return order;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Preview metadata (used by the live preview in the modal)                   */
 /* -------------------------------------------------------------------------- */
 
@@ -248,6 +421,12 @@ export interface ShelfPlacementPreview {
   active: boolean;
   /** Z-levels of capacity on this shelf (1..3). */
   zLevels: number;
+  /**
+   * Category id placed on this shelf (undefined when the shelf has no SKU or
+   * when its SKU carries no category). Identical across a contiguous zone at
+   * high clustering, mixed at low clustering.
+   */
+  category?: number;
 }
 
 export interface InventoryPlacementPreview {
@@ -258,6 +437,8 @@ export interface InventoryPlacementPreview {
   unplacedCount: number;
   /** Total bin capacity of the warehouse. */
   binCount: number;
+  /** Number of distinct categories among the placed SKUs (0 if none). */
+  categoryCount: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -278,10 +459,62 @@ function buildPlan(
 ): PlacementPlan {
   const items = config.items ?? [];
   const slottingBias = config.slottingBias ?? 0;
+  const categoryClustering = config.categoryClustering ?? 0;
   const seed = config.seed ?? 42;
 
   const bins = enumerateBins(warehouse);
-  const orderedAll = planSlottingBias(items, slottingBias, seed);
+
+  // Two complete, valid placement plans, each expressed as an ordering of
+  // every SKU. Because bins are filled in a fixed physical sequence
+  // (`enumerateBins`), "ordering position" === "which bin": position 0 is the
+  // first bin in the sequence, etc. Both plans therefore assign every SKU a
+  // concrete tour position along the SAME bin sequence, which is what lets us
+  // interpolate between them.
+  const scatterOrder = planSlottingBias(items, slottingBias, seed);
+  const clusteredOrder = planCategoryClustering(items, slottingBias, seed);
+
+  // Interpolate between the two plans. Each SKU's final tour position is a
+  // convex combination of its position in the scatter plan and its position
+  // in the clustered plan:
+  //     p(sku) = (1 - t) * pScatter(sku) + t * pCluster(sku)
+  // Sorting every SKU by this interpolated position yields a single final
+  // ordering — a new, valid placement in the same family, smoothly
+  // transitioning between the two endpoints.
+  //   • t = 0 ⇒ p = pScatter ⇒ the final ordering IS the scatter plan exactly.
+  //   • t = 1 ⇒ p = pCluster ⇒ the final ordering IS the clustered plan exactly.
+  // The secondary tie-break by pCluster guarantees an exact match at t = 1,
+  // and the input-index tie-break keeps everything deterministic.
+  const t = Math.min(1, Math.max(0, categoryClustering / 100));
+  let orderedAll: Item[];
+  if (t === 0) {
+    // Pure scatter: identical to the pre-clustering behaviour (preserves the
+    // exact Slotting Bias placement for backward compatibility).
+    orderedAll = scatterOrder;
+  } else if (t === 1) {
+    // Pure clustered: each category occupies a single contiguous zone.
+    orderedAll = clusteredOrder;
+  } else {
+    const pScatter = new Map<string, number>();
+    scatterOrder.forEach((item, i) => pScatter.set(item.id, i));
+    const pCluster = new Map<string, number>();
+    clusteredOrder.forEach((item, i) => pCluster.set(item.id, i));
+
+    orderedAll = items
+      .map((item, inputIndex) => {
+        const ps = pScatter.get(item.id) ?? 0;
+        const pc = pCluster.get(item.id) ?? 0;
+        return { item, key: (1 - t) * ps + t * pc, pc, inputIndex };
+      })
+      .sort(
+        (a, b) =>
+          a.key !== b.key
+            ? a.key - b.key
+            : a.pc !== b.pc
+              ? a.pc - b.pc
+              : a.inputIndex - b.inputIndex
+      )
+      .map((entry) => entry.item);
+  }
 
   const placeable = Math.min(bins.length, orderedAll.length);
   const orderedItems = orderedAll.slice(0, placeable);
@@ -331,10 +564,22 @@ export function computePlacementPreview(
     0
   );
 
+  // Distinct categories among the placed SKUs (real ids only, > 0).
+  const placedCategoryIds = new Set<number>();
+  for (const item of orderedItems) {
+    if (item.category != null && item.category > 0) {
+      placedCategoryIds.add(item.category);
+    }
+  }
+
   const shelfPreviews: ShelfPlacementPreview[] = shelves.map((s) => {
     const key = `${s.x},${s.y}`;
     const item = skuByBinKey.get(key);
     const dist = manhattanToDispatch(s.x, s.y, dispatch);
+    const category =
+      item && item.category != null && item.category > 0
+        ? item.category
+        : undefined;
     return {
       x: s.x,
       y: s.y,
@@ -342,6 +587,7 @@ export function computePlacementPreview(
       proximity: (dist - minShelfDist) / shelfSpan,
       active: Boolean(item),
       zLevels: shelfZLevels.get(key) ?? 1,
+      category,
     };
   });
 
@@ -350,6 +596,7 @@ export function computePlacementPreview(
     maxDemand,
     unplacedCount: unplacedSkus.length,
     binCount: bins.length,
+    categoryCount: placedCategoryIds.size,
   };
 }
 
@@ -430,4 +677,5 @@ export function applyInventoryPlacementDetailed(
 export const DEFAULT_INVENTORY_PLACEMENT: InventoryPlacementConfig = {
   items: [],
   slottingBias: 0,
+  categoryClustering: 0,
 };
