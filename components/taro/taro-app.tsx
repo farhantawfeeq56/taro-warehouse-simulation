@@ -26,7 +26,7 @@ import {
   generateCrossAisleLayout,
   generateFishboneLayout
 } from '@/lib/taro/layout-generator';
-import { applyInventoryPlacement, DEFAULT_INVENTORY_PLACEMENT } from '@/lib/taro/inventory-placement';
+import { applyInventoryPlacementDetailed } from '@/lib/taro/inventory-placement';
 import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -440,12 +440,28 @@ export function TaroApp() {
                 newWarehouse = generateParallelLayout(config.gridHeight, config.rackCount, config.aisleWidth);
             }
 
-            const warehouseWithInventory = applyInventoryPlacement(
+            const placementResult = applyInventoryPlacementDetailed(
               newWarehouse,
-              DEFAULT_INVENTORY_PLACEMENT
+              {
+                items: config.inventory,
+                slottingBias: config.slottingBias,
+              }
             );
+            const warehouseWithInventory = placementResult.warehouse;
 
             setWarehouse(warehouseWithInventory);
+
+            // Surface any SKUs that could not be placed (more SKUs than bins)
+            // rather than silently dropping inventory.
+            if (placementResult.unplacedSkus.length > 0) {
+              setSimulationBlockState({
+                simulationState: 'NO_VALID_ITEMS',
+                title: `${placementResult.unplacedSkus.length} SKU${placementResult.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
+                description: `The warehouse layout has only ${placementResult.binCount} storage bins for ${config.inventory.length} generated SKUs. Increase the rack count or reduce the SKU count so every SKU can be slotted. Unplaced: ${placementResult.unplacedSkus.join(', ')}.`,
+              });
+            } else {
+              setSimulationBlockState(null);
+            }
 
             // Regenerate orders to match new layout
             const newOrders = generateRandomOrders(warehouseWithInventory, 4);
