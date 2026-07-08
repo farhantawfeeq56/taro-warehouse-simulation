@@ -18,6 +18,10 @@ import {
   generateDemandScores,
   summarizeDemandScores
 } from '@/lib/taro/demand';
+import {
+  generateAffinityGroups,
+  summarizeAffinityGroups
+} from '@/lib/taro/affinity';
 
 export type LayoutType = 'parallel' | 'cross-aisle' | 'fishbone';
 
@@ -85,23 +89,59 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     []
   );
 
+  /**
+   * Enrich plain items with an `affinityGroup` id from the product-affinity
+   * engine. This is the third Inventory Generation variable. SKUs sharing a
+   * group id are considered related and will be more likely to appear
+   * together in customer orders during Order Generation. Every SKU is
+   * assigned to exactly one affinity group (singletons get their own id).
+   */
+  const assignProductAffinity = useCallback(
+    (items: Item[], affinity: number): Item[] => {
+      if (items.length === 0) return items;
+      const groups = generateAffinityGroups({
+        count: items.length,
+        affinity,
+      });
+      return items.map((item, i) => ({ ...item, affinityGroup: groups[i] }));
+    },
+    []
+  );
+
   const [skuCount, setSkuCount] = useState(10);
   const [demandDistribution, setDemandDistribution] = useState(0);
+  const [productAffinity, setProductAffinity] = useState(0);
   const [inventory, setInventory] = useState<Item[]>(() =>
-    assignDemandDistribution(generateItems(10), 0)
+    // Start both demand and affinity scores in their default (independent)
+    // state so the preview reflects the full, composable pipeline.
+    assignProductAffinity(assignDemandDistribution(generateItems(10), 0), 0)
   );
 
   useEffect(() => {
-    setInventory(assignDemandDistribution(generateItems(skuCount), demandDistribution));
-  }, [skuCount, demandDistribution, generateItems, assignDemandDistribution]);
+    // The three inventory-generation variables are composed in sequence:
+    // SKU Count (identity) -> Demand Distribution -> Product Affinity.
+    // Re-run the whole pipeline whenever any slider changes so the preview
+    // summary always matches the final, enriched item list.
+    setInventory(
+      assignProductAffinity(
+        assignDemandDistribution(generateItems(skuCount), demandDistribution),
+        productAffinity
+      )
+    );
+  }, [skuCount, demandDistribution, productAffinity, generateItems, assignDemandDistribution, assignProductAffinity]);
 
-  // Lightweight summary used to show the slider's effect inline.
+  // Lightweight summary used to show each slider's effect inline.
   const demandSummary = useMemo(
     () =>
       summarizeDemandScores(
         inventory.map((i) => i.demandScore ?? 0),
         0.2
       ),
+    [inventory]
+  );
+
+  const affinitySummary = useMemo(
+    () => summarizeAffinityGroups(inventory.map((i) => i.affinityGroup ?? 0)),
     [inventory]
   );
 
@@ -398,6 +438,31 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                   </p>
                   <p className="text-[11px] text-muted-foreground font-mono">
                     Top 20% hold {Math.round(demandSummary.topShare * 100)}% of demand · min {demandSummary.min.toFixed(2)} / max {demandSummary.max.toFixed(2)}
+                  </p>
+                </div>
+
+                {/* Product Affinity slider */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Product Affinity</Label>
+                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                      {productAffinity}%
+                    </span>
+                  </div>
+                  <Slider
+                    min={0} max={100} step={1}
+                    value={[productAffinity]}
+                    onValueChange={(val) => setProductAffinity(val[0])}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Independent</span>
+                    <span>Highly Related</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Which products tend to be bought together.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground font-mono">
+                    {affinitySummary.groupCount} groups · largest {affinitySummary.largestGroupSize} · {Math.round(affinitySummary.groupedShare * 100)}% of SKUs have a group-mate
                   </p>
                 </div>
               </div>

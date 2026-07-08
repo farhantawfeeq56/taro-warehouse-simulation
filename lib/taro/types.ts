@@ -18,10 +18,18 @@ export type CellType = 'empty' | 'shelf' | 'worker-start';
  * the Demand Distribution inventory-generation variable. A mean of ~1 is
  * maintained regardless of distribution, so the slider only redistributes
  * demand across SKUs rather than scaling the total pool.
+ *
+ * `affinityGroup` is an optional, positive integer that identifies the
+ * Product Affinity group a SKU belongs to. It is produced by the Product
+ * Affinity inventory-generation variable. SKUs that share the same affinity
+ * group are considered related and are more likely to be ordered together.
+ * Every SKU is assigned to exactly one affinity group (singletons get their
+ * own unique group id), so the value is always defined once generated.
  */
 export interface Item {
   id: string;
   demandScore?: number;
+  affinityGroup?: number;
 }
 
 /**
