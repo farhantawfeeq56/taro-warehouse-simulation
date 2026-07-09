@@ -65,8 +65,8 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const [layoutType, setLayoutType] = useState<LayoutType>('parallel');
 
   // Parallel / Cross Aisle Params
-  const [gridHeight, setGridHeight] = useState(12);
-  const [rackCount, setRackCount] = useState(10);
+  const [gridHeight, setGridHeight] = useState(50);
+  const [rackCount, setRackCount] = useState(25);
   const [aisleWidth, setAisleWidth] = useState(2);
   const [crossAisleCount, setCrossAisleCount] = useState(1);
 
@@ -452,7 +452,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                         <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{gridHeight}</span>
                       </div>
                       <Slider
-                        min={4} max={12} step={1}
+                        min={4} max={300} step={1}
                         value={[gridHeight]}
                         onValueChange={(val) => setGridHeight(val[0])}
                       />
@@ -466,7 +466,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                         <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{rackCount}</span>
                       </div>
                       <Slider
-                        min={5} max={80} step={1}
+                        min={5} max={250} step={1}
                         value={[rackCount]}
                         onValueChange={(val) => setRackCount(val[0])}
                       />
