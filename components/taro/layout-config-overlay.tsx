@@ -145,7 +145,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     []
   );
 
-  const [skuCount, setSkuCount] = useState(10);
+  const [skuCount, setSkuCount] = useState(5000);
   const [demandDistribution, setDemandDistribution] = useState(0);
   const [productAffinity, setProductAffinity] = useState(0);
   const [storageFootprint, setStorageFootprint] = useState(0);
@@ -162,7 +162,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     // (independent) state so the preview reflects the full, composable pipeline.
     assignStorageFootprint(
       assignProductCategory(
-        assignProductAffinity(assignDemandDistribution(generateItems(10), 0), 0)
+        assignProductAffinity(assignDemandDistribution(generateItems(5000), 0), 0)
       ),
       0
     )
@@ -452,7 +452,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                         <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{gridHeight}</span>
                       </div>
                       <Slider
-                        min={4} max={60} step={1}
+                        min={4} max={12} step={1}
                         value={[gridHeight]}
                         onValueChange={(val) => setGridHeight(val[0])}
                       />
@@ -466,7 +466,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                         <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{rackCount}</span>
                       </div>
                       <Slider
-                        min={1} max={30} step={1}
+                        min={5} max={80} step={1}
                         value={[rackCount]}
                         onValueChange={(val) => setRackCount(val[0])}
                       />
@@ -569,7 +569,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                     <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{skuCount}</span>
                   </div>
                   <Slider
-                    min={1} max={200} step={1}
+                    min={5000} max={200000} step={1}
                     value={[skuCount]}
                     onValueChange={(val) => setSkuCount(val[0])}
                   />
