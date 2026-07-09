@@ -47,6 +47,7 @@
 
 import type { Cell, Item, StorageLocation, Warehouse } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
+import { FOOTPRINT_FMAX } from './footprint';
 
 /**
  * Inventory placement configuration.
@@ -80,19 +81,28 @@ export interface InventoryPlacementConfig {
 /**
  * Result of applying placement. The `warehouse` is the enriched warehouse;
  * `placement` describes where each SKU landed and — crucially — which SKUs
- * could not be placed when there are more SKUs than bins.
+ * could not be placed when the total required bins exceed available capacity.
  */
 export interface InventoryPlacementResult {
   warehouse: Warehouse;
   /** Number of shelf bins the warehouse has. */
   binCount: number;
-  /** Number of SKUs actually placed (one per bin, never duplicated). */
+  /** Number of SKUs actually placed. */
   placedCount: number;
   /**
-   * SKUs that could NOT be placed because the warehouse has fewer bins
-   * than generated items. Inventory is never silently dropped: this list is
-   * surfaced to the caller so it can react (warn the user, expand the
-   * layout, etc.). Order matches the input `items` order for the overflow.
+   * Number of storage locations actually occupied. Equals `Σ storageFootprint`
+   * over the placed SKUs. With no footprint set this equals `placedCount`.
+   */
+  placedBinCount: number;
+  /**
+   * SKUs that could NOT be placed because the warehouse has insufficient
+   * contiguous capacity for the ordered SKU list. Placement is ORDER-
+   * PRESERVING: bins are allocated in placement order, each SKU consuming
+   * `storageFootprint` contiguous bins; the moment a SKU cannot fit in the
+   * remaining capacity, that SKU AND every subsequent SKU are marked
+   * unplaced (no leapfrogging). Inventory is never silently dropped: this
+   * list is surfaced to the caller so it can react (warn the user, expand
+   * the layout, etc.). Order matches the placement order for the overflow.
    */
   unplacedSkus: string[];
 }
@@ -422,6 +432,11 @@ export interface ShelfPlacementPreview {
   /** Z-levels of capacity on this shelf (1..3). */
   zLevels: number;
   /**
+   * Number of bins on this shelf that are occupied (0..zLevels). When a SKU
+   * has a `storageFootprint` > 1 it may fill multiple bins on the same shelf.
+   */
+  occupiedBins: number;
+  /**
    * Category id placed on this shelf (undefined when the shelf has no SKU or
    * when its SKU carries no category). Identical across a contiguous zone at
    * high clustering, mixed at low clustering.
@@ -433,12 +448,16 @@ export interface InventoryPlacementPreview {
   shelves: ShelfPlacementPreview[];
   /** Highest demand score across all placed SKUs. */
   maxDemand: number;
-  /** Number of SKUs that could not be placed (more SKUs than bins). */
+  /** Number of SKUs that could not be placed (insufficient contiguous capacity). */
   unplacedCount: number;
   /** Total bin capacity of the warehouse. */
   binCount: number;
   /** Number of distinct categories among the placed SKUs (0 if none). */
   categoryCount: number;
+  /** Number of storage locations the inventory requires: `Σ storageFootprint`. */
+  totalBinsWanted: number;
+  /** Number of storage locations actually occupied by the placed SKUs. */
+  placedBinCount: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -447,8 +466,15 @@ export interface InventoryPlacementPreview {
 
 interface PlacementPlan {
   bins: Bin[];
-  /** Items in placement order (length = min(bins.length, items.length)). */
+  /** Items in placement order that were placed (each consumed its full footprint). */
   orderedItems: Item[];
+  /**
+   * Per placed SKU, the bins it occupies (index-aligned with `orderedItems`).
+   * Length === orderedItems.length; each entry is a contiguous slice of `bins`
+   * in dispatch-proximity order. The first bin of each slice is the SKU's
+   * PRIMARY (nearest-to-dispatch) bin.
+   */
+  itemBins: Bin[][];
   /** SKUs that did not fit (overflow). */
   unplacedSkus: string[];
 }
@@ -516,11 +542,50 @@ function buildPlan(
       .map((entry) => entry.item);
   }
 
-  const placeable = Math.min(bins.length, orderedAll.length);
-  const orderedItems = orderedAll.slice(0, placeable);
-  const unplacedSkus = orderedAll.slice(placeable).map((i) => i.id);
+  // --- Footprint-aware, ORDER-PRESERVING bin allocation ------------------- //
+  // Bins are enumerated in dispatch-proximity order (`enumerateBins`), so
+  // consecutive bins in `bins` are physically adjacent — the compactness
+  // order. We walk the ordered SKU list and hand each SKU the next
+  // `storageFootprint` contiguous bins. The FIRST bin a SKU claims is its
+  // PRIMARY (nearest-to-dispatch of its group) — downstream resolution,
+  // simulation, and UI labels treat it as the canonical pick location.
+  //
+  // Overflow is ORDER-PRESERVING: the moment a SKU cannot fit in the
+  // remaining capacity, that SKU AND every subsequent SKU are marked
+  // unplaced. Smaller SKUs never leapfrog larger ones; the meaning of the
+  // placement order is preserved and the result is fully deterministic.
+  //   • With `storageFootprint` absent/1, this walk is byte-identical to the
+  //     pre-footprint slice, so all legacy behaviour is preserved.
+  const orderedItems: Item[] = [];
+  const itemBins: Bin[][] = [];
+  const unplacedSkus: string[] = [];
+  let cursor = 0;
+  let overflowed = false;
+  for (const item of orderedAll) {
+    const f = clampFootprint(item.storageFootprint);
+    if (overflowed || cursor + f > bins.length) {
+      // Stop placing: once one SKU cannot fit, no further SKU is placed.
+      overflowed = true;
+      unplacedSkus.push(item.id);
+      continue;
+    }
+    orderedItems.push(item);
+    itemBins.push(bins.slice(cursor, cursor + f));
+    cursor += f;
+  }
 
-  return { bins, orderedItems, unplacedSkus };
+  return { bins, orderedItems, itemBins, unplacedSkus };
+}
+
+/**
+ * Clamp a raw footprint value to a safe positive integer in [1, FOOTPRINT_FMAX].
+ * Missing/zero/negative footprints default to 1 (the legacy one-bin-per-SKU
+ * behaviour). The cap matches the generator's `FOOTPRINT_FMAX` so placement
+ * never trusts an out-of-range value.
+ */
+function clampFootprint(raw: number | undefined): number {
+  if (raw == null || !Number.isFinite(raw) || raw < 1) return 1;
+  return Math.min(FOOTPRINT_FMAX, Math.max(1, Math.floor(raw)));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -531,15 +596,27 @@ export function computePlacementPreview(
   warehouse: Warehouse,
   config: InventoryPlacementConfig
 ): InventoryPlacementPreview {
-  const { bins, orderedItems, unplacedSkus } = buildPlan(warehouse, config);
+  const { bins, orderedItems, itemBins, unplacedSkus } = buildPlan(warehouse, config);
   const shelves = listShelves(warehouse);
 
-  // Map each placed SKU to its bin.
+  // Count how many bins each shelf occupies. A SKU with footprint > 1 may
+  // fill several bins, potentially on the same shelf.
+  const occupiedBinsByShelf = new Map<string, number>();
+  let placedBinCount = 0;
+  for (const group of itemBins) {
+    for (const bin of group) {
+      const key = `${bin.x},${bin.y}`;
+      occupiedBinsByShelf.set(key, (occupiedBinsByShelf.get(key) ?? 0) + 1);
+      placedBinCount++;
+    }
+  }
+
+  // The SKU occupying each shelf (for demand/category preview). Use the
+  // primary bin's item so a multi-bin SKU reports its own demand/category.
   const skuByBinKey = new Map<string, Item>();
   for (let i = 0; i < orderedItems.length; i++) {
-    const bin = bins[i];
-    const item = orderedItems[i];
-    skuByBinKey.set(`${bin.x},${bin.y}`, item);
+    const primaryBin = itemBins[i][0];
+    skuByBinKey.set(`${primaryBin.x},${primaryBin.y}`, orderedItems[i]);
   }
 
   // Per-shelf proximity (normalized across shelves only, for stable preview).
@@ -572,6 +649,14 @@ export function computePlacementPreview(
     }
   }
 
+  // Total bins the inventory WANTS: `Σ storageFootprint` over the FULL
+  // generated inventory (placed + unplaced). This is the metric the overflow
+  // readout compares against `binCount`.
+  let totalBinsWanted = 0;
+  for (const item of config.items ?? []) {
+    totalBinsWanted += clampFootprint(item.storageFootprint);
+  }
+
   const shelfPreviews: ShelfPlacementPreview[] = shelves.map((s) => {
     const key = `${s.x},${s.y}`;
     const item = skuByBinKey.get(key);
@@ -587,6 +672,7 @@ export function computePlacementPreview(
       proximity: (dist - minShelfDist) / shelfSpan,
       active: Boolean(item),
       zLevels: shelfZLevels.get(key) ?? 1,
+      occupiedBins: occupiedBinsByShelf.get(key) ?? 0,
       category,
     };
   });
@@ -597,6 +683,8 @@ export function computePlacementPreview(
     unplacedCount: unplacedSkus.length,
     binCount: bins.length,
     categoryCount: placedCategoryIds.size,
+    totalBinsWanted,
+    placedBinCount,
   };
 }
 
@@ -613,47 +701,58 @@ export function applyInventoryPlacement(
 
 /**
  * Apply placement and return the detailed result, including any SKUs that
- * could not be placed because the warehouse has fewer bins than items.
- * Prefer this entry point from the UI so overflow is never silently lost.
+ * could not be placed because the total required bins exceed available
+ * capacity. Prefer this entry point from the UI so overflow is never
+ * silently lost.
  */
 export function applyInventoryPlacementDetailed(
   warehouse: Warehouse,
   config: InventoryPlacementConfig
 ): InventoryPlacementResult {
-  const { bins, orderedItems, unplacedSkus } = buildPlan(warehouse, config);
+  const { bins, orderedItems, itemBins, unplacedSkus } = buildPlan(warehouse, config);
 
   // 1. Clear existing storage locations on every shelf cell.
   const newGrid: Cell[][] = warehouse.grid.map((row) =>
     row.map((cell) => ({ ...cell, locations: [] as StorageLocation[] }))
   );
 
-  // 2. Write the placed SKUs into their assigned bins. Quantities and
-  //    z-level capacities are unchanged from the placeholder model — only
-  //    *which* SKU lives in *which* bin is influenced by slotting bias.
+  // 2. Write the placed SKUs into their assigned bins. Each SKU consumes its
+  //    `storageFootprint` contiguous bins (itemBins[i]); the FIRST bin of
+  //    each group is marked `primary: true` so downstream resolution,
+  //    simulation, and UI labels treat it as the canonical pick location.
+  //    Quantities and z-level capacities are unchanged from the placeholder
+  //    model — only *which* SKU lives in *which* bin(s) is influenced by
+  //    slotting bias / clustering / footprint.
+  let placedBinCount = 0;
   for (let i = 0; i < orderedItems.length; i++) {
-    const bin = bins[i];
     const item = orderedItems[i];
-    const locationId = getShelfLocationId(bin.x, bin.y);
-    const quantity = 50; // placeholder uniform stock; inventory not modified.
+    const group = itemBins[i];
+    for (let g = 0; g < group.length; g++) {
+      const bin = group[g];
+      const locationId = getShelfLocationId(bin.x, bin.y);
+      const quantity = 50; // placeholder uniform stock; inventory not modified.
 
-    const storage: StorageLocation = {
-      id: `${item.id}@${bin.x},${bin.y},${bin.z}`,
-      locationId,
-      x: bin.x,
-      y: bin.y,
-      z: bin.z,
-      sku: item.id,
-      quantity,
-    };
+      const storage: StorageLocation = {
+        id: `${item.id}@${bin.x},${bin.y},${bin.z}`,
+        locationId,
+        x: bin.x,
+        y: bin.y,
+        z: bin.z,
+        sku: item.id,
+        quantity,
+        primary: g === 0, // first bin of the group is the pick location
+      };
 
-    newGrid[bin.y][bin.x].locations.push(storage);
-    newGrid[bin.y][bin.x].type = 'shelf';
+      newGrid[bin.y][bin.x].locations.push(storage);
+      newGrid[bin.y][bin.x].type = 'shelf';
+      placedBinCount++;
+    }
   }
 
   // Active shelves = shelves that received at least one SKU.
   const activeKeys = new Set<string>();
-  for (let i = 0; i < orderedItems.length; i++) {
-    activeKeys.add(`${bins[i].x},${bins[i].y}`);
+  for (const group of itemBins) {
+    for (const bin of group) activeKeys.add(`${bin.x},${bin.y}`);
   }
 
   const next: Warehouse = {
@@ -670,6 +769,7 @@ export function applyInventoryPlacementDetailed(
     warehouse: next,
     binCount: bins.length,
     placedCount: orderedItems.length,
+    placedBinCount,
     unplacedSkus,
   };
 }
