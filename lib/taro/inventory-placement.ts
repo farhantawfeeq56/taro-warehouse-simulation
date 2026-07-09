@@ -53,9 +53,9 @@ import { FOOTPRINT_FMAX } from './footprint';
  * Inventory placement configuration.
  *
  * `items` is the generated inventory to place (one SKU per item, carrying
- * its `demandScore` and `category`). `slottingBias` and the
- * `categoryClustering` slider both range 0..100. `seed` makes the random end
- * reproducible.
+ * its `demandScore`, `category`, and `affinityGroup`). `slottingBias` and
+ * the `categoryClustering` slider both range 0..100. `seed` makes the
+ * random end reproducible.
  */
 export interface InventoryPlacementConfig {
   /** Generated inventory to place. Defaults to an empty list. */
@@ -76,6 +76,8 @@ export interface InventoryPlacementConfig {
   categoryClustering?: number;
   /** Optional seed for reproducible generation. Defaults to a fixed seed. */
   seed?: number;
+  /** Generated inventory items to place (one per SKU). Optional. */
+  items?: Item[];
 }
 
 /**
@@ -442,6 +444,13 @@ export interface ShelfPlacementPreview {
    * high clustering, mixed at low clustering.
    */
   category?: number;
+  /**
+   * Affinity-group id of the item placed on this shelf (undefined when no
+   * item is assigned, or the item has no affinityGroup, or the placement
+   * engine runs without inventory). Independent of `category` — affinity
+   * describes co-purchase behaviour, not product family membership.
+   */
+  affinityGroup?: number;
 }
 
 export interface InventoryPlacementPreview {
@@ -611,8 +620,8 @@ export function computePlacementPreview(
     }
   }
 
-  // The SKU occupying each shelf (for demand/category preview). Use the
-  // primary bin's item so a multi-bin SKU reports its own demand/category.
+  // The SKU occupying each shelf (for demand/category/affinity preview).
+  // Use the primary bin's item so a multi-bin SKU reports its own metadata.
   const skuByBinKey = new Map<string, Item>();
   for (let i = 0; i < orderedItems.length; i++) {
     const primaryBin = itemBins[i][0];
@@ -674,6 +683,7 @@ export function computePlacementPreview(
       zLevels: shelfZLevels.get(key) ?? 1,
       occupiedBins: occupiedBinsByShelf.get(key) ?? 0,
       category,
+      affinityGroup: item ? item.affinityGroup : undefined,
     };
   });
 
