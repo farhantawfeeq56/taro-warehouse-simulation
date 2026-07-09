@@ -12,6 +12,7 @@ import type { Item } from '@/lib/taro/types';
 import type { ShelfPlacementPreview } from '@/lib/taro/inventory-placement';
 import {
   computePlacementPreview,
+  PREVIEW_MAX_ITEMS,
 } from '@/lib/taro/inventory-placement';
 import {
   generateParallelLayout,
@@ -260,6 +261,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         items: inventory,
         slottingBias,
         categoryClustering,
+        previewMaxItems: PREVIEW_MAX_ITEMS,
       }),
     [previewWarehouse, inventory, slottingBias, categoryClustering]
   );
