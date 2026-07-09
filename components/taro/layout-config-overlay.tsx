@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { X, Layout, AlertTriangle } from 'lucide-react';
+import { X, Layout, AlertTriangle, Grid3X3, Thermometer, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { Item } from '@/lib/taro/types';
+import type { ShelfPlacementPreview } from '@/lib/taro/inventory-placement';
+import {
+  computePlacementPreview,
+} from '@/lib/taro/inventory-placement';
 import {
   generateParallelLayout,
   generateCrossAisleLayout,
@@ -27,9 +31,6 @@ import {
   generateFootprints,
   summarizeFootprints,
 } from '@/lib/taro/footprint';
-import {
-  computePlacementPreview,
-} from '@/lib/taro/inventory-placement';
 
 export type LayoutType = 'parallel' | 'cross-aisle' | 'fishbone';
 
@@ -167,6 +168,10 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     )
   );
 
+  // Which inventory view to overlay on the grid.
+  type PreviewMode = 'layout' | 'demand' | 'affinity';
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('layout');
+
   useEffect(() => {
     // The four user-facing inventory-generation variables are composed in
     // sequence: SKU Count (identity) -> Demand Distribution -> Product
@@ -273,28 +278,103 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     return Math.floor(Math.min(Math.max(Math.min(optimalWidth, optimalHeight), 4), 40));
   }, [containerSize, fullWidth, fullHeight]);
 
+  /** O(1) lookup: "x,y" → ShelfPlacementPreview for data-driven grid colouring. */
+  const shelfLookup = useMemo(() => {
+    const map = new Map<string, ShelfPlacementPreview>();
+    for (const s of placementPreview.shelves) {
+      map.set(`${s.x},${s.y}`, s);
+    }
+    return map;
+  }, [placementPreview.shelves]);
+
+  /** Global maximum demand (for normalising the demand heatmap). */
+  const maxPlacedDemand = placementPreview.maxDemand;
+
+  /** Unique affinity-group ids among placed shelves (for the legend). */
+  const placedAffinityIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const s of placementPreview.shelves) {
+      if (s.affinityGroup != null && s.affinityGroup > 0) {
+        ids.add(s.affinityGroup);
+      }
+    }
+    return Array.from(ids).sort((a, b) => a - b);
+  }, [placementPreview.shelves]);
+
+  /** Assign a stable colour to each affinity group id using HSL hue cycling. */
+  const affinityColor = useCallback(
+    (groupId: number | undefined): string => {
+      if (groupId == null || groupId <= 0) return '#64748b'; // slate-500 for unassigned
+      const hue =
+        ((groupId * 137.508 + 20) % 360) | 0; // golden-angle spacing
+      return `hsl(${hue}, 65%, 50%)`;
+    },
+    []
+  );
+
+  /** Get the background colour for a shelf cell from the placement engine's output. */
+  const getShelfColor = useCallback(
+    (x: number, y: number): string => {
+      const sp = shelfLookup.get(`${x},${y}`);
+      if (!sp || !sp.active) return '#94a3b8'; // slate-400 — empty shelf
+
+      if (previewMode === 'demand') {
+        const t = maxPlacedDemand > 0 ? Math.min(1, sp.demand / maxPlacedDemand) : 0;
+        // Cool (blue) → Warm (red) HSL gradient
+        const h = (1 - t) * 217 + t * 0; // 217° → 0°
+        const s = 65;
+        const l = 50 + t * 5;
+        return `hsl(${h | 0}, ${s}%, ${l}%)`;
+      }
+
+      if (previewMode === 'affinity') {
+        return affinityColor(sp.affinityGroup);
+      }
+
+      return '#1e293b'; // slate-800 (fallback)
+    },
+    [shelfLookup, previewMode, maxPlacedDemand, affinityColor]
+  );
+
   const renderGrid = () => {
     const cells = [];
 
     for (let y = 0; y < fullHeight; y++) {
       for (let x = 0; x < fullWidth; x++) {
         const cell = previewWarehouse.grid[y][x];
-
-        let bgColor = 'bg-slate-100';
+        const key = `${x}-${y}`;
 
         if (cell.type === 'worker-start') {
-          bgColor = 'bg-orange-500';
+          cells.push(
+            <div
+              key={key}
+              style={{ width: cellSize, height: cellSize }}
+              className="relative transition-colors duration-200 bg-orange-500"
+            />
+          );
         } else if (cell.type === 'shelf') {
-          bgColor = 'bg-slate-800';
+          const isLayoutMode = previewMode === 'layout';
+          const shelfColor = isLayoutMode ? undefined : getShelfColor(x, y);
+          cells.push(
+            <div
+              key={key}
+              style={{
+                width: cellSize,
+                height: cellSize,
+                ...(shelfColor ? { backgroundColor: shelfColor } : {}),
+              }}
+              className={`relative ${isLayoutMode ? 'bg-slate-800' : ''}`}
+            />
+          );
+        } else {
+          cells.push(
+            <div
+              key={key}
+              style={{ width: cellSize, height: cellSize }}
+              className="relative transition-colors duration-200 bg-slate-100"
+            />
+          );
         }
-
-        cells.push(
-          <div
-            key={`${x}-${y}`}
-            style={{ width: cellSize, height: cellSize }}
-            className={`relative transition-colors duration-200 ${bgColor}`}
-          />
-        );
       }
     }
     return cells;
@@ -659,16 +739,98 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
         {renderGrid()}
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 bg-slate-800 inline-block rounded-sm" />
-          <span>Shelf</span>
-        </span>
+      {/* Preview mode selector */}
+      <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-0.5">
+        {([
+          ['layout', Grid3X3, 'Layout'],
+          ['demand', Thermometer, 'Demand'],
+          ['affinity', Tag, 'Affinity'],
+        ] as const).map(([mode, Icon, label]) => (
+          <button
+            key={mode}
+            onClick={() => setPreviewMode(mode)}
+            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+              previewMode === mode
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Icon className="h-3 w-3" />
+            {label}
+          </button>
+        ))}
+      </div>
 
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
-          <span>Dispatch</span>
-        </span>
+      {/* Legend — adapts to the active preview mode */}
+      <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
+        {previewMode === 'layout' && (
+          <>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-slate-800 inline-block rounded-sm" />
+              <span>Shelf</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-slate-400 inline-block rounded-sm" />
+              <span>Empty Shelf</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
+              <span>Dispatch</span>
+            </span>
+          </>
+        )}
+        {previewMode === 'demand' && (
+          <>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="w-3 h-3 inline-block rounded-sm"
+                style={{ backgroundColor: 'hsl(217, 65%, 55%)' }}
+              />
+              <span>Low demand</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="w-3 h-3 inline-block rounded-sm"
+                style={{ backgroundColor: 'hsl(0, 65%, 55%)' }}
+              />
+              <span>High demand</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-slate-400 inline-block rounded-sm" />
+              <span>No item placed</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
+              <span>Dispatch</span>
+            </span>
+          </>
+        )}
+        {previewMode === 'affinity' && (
+          <>
+            {placedAffinityIds.slice(0, 8).map((gid) => (
+              <span key={gid} className="flex items-center gap-1.5">
+                <span
+                  className="w-3 h-3 inline-block rounded-sm"
+                  style={{ backgroundColor: affinityColor(gid) }}
+                />
+                <span>Group {gid}</span>
+              </span>
+            ))}
+            {placedAffinityIds.length > 8 && (
+              <span className="text-muted-foreground/70">
+                +{placedAffinityIds.length - 8} more
+              </span>
+            )}
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-slate-400 inline-block rounded-sm" />
+              <span>No item</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
+              <span>Dispatch</span>
+            </span>
+          </>
+        )}
       </div>
     </div>
   </ScrollArea>
