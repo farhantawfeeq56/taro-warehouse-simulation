@@ -150,14 +150,22 @@ function findBinBySku(
   warehouse: Warehouse,
   skuId: string
 ): { id: string } | undefined {
+  // A SKU may span multiple bins; prefer the primary bin (the canonical
+  // pick location marked by Inventory Placement) so simulation picks happen
+  // at the intended location. Fall back to the first-encountered bin for
+  // legacy warehouses where no bin is marked primary.
+  let fallback: { id: string } | undefined;
   for (const row of warehouse.grid) {
     for (const cell of row) {
       for (const bin of cell.locations) {
-        if (bin.sku === skuId) return bin;
+        if (bin.sku === skuId) {
+          if (bin.primary) return bin;
+          if (!fallback) fallback = bin;
+        }
       }
     }
   }
-  return undefined;
+  return fallback;
 }
 
 function dedupeLocationsByFirstSeen(
