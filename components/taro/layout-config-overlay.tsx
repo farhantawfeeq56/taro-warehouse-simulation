@@ -24,6 +24,10 @@ import {
 } from '@/lib/taro/affinity';
 import { assignProductCategory } from '@/lib/taro/categories';
 import {
+  generateFootprints,
+  summarizeFootprints,
+} from '@/lib/taro/footprint';
+import {
   computePlacementPreview,
 } from '@/lib/taro/inventory-placement';
 
@@ -47,6 +51,8 @@ export interface LayoutConfig {
   slottingBias: number;
   /** Category Clustering slider value, 0 (Scattered) .. 100 (Clustered). */
   categoryClustering: number;
+  /** Storage Footprint slider value, 0 (Compact) .. 100 (Bulky). */
+  storageFootprint: number;
 }
 
 interface LayoutConfigOverlayProps {
@@ -118,9 +124,30 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     []
   );
 
+  /**
+   * Enrich plain items with a `storageFootprint` value from the footprint
+   * engine. This is the fifth Inventory Generation variable. It expresses
+   * how many storage locations each SKU requires — an INTRINSIC property of
+   * the inventory, generated here but consumed only by Inventory Placement
+   * (which decides where those bins sit). Generation never makes a spatial
+   * decision.
+   */
+  const assignStorageFootprint = useCallback(
+    (items: Item[], footprint: number): Item[] => {
+      if (items.length === 0) return items;
+      const footprints = generateFootprints({
+        count: items.length,
+        footprint,
+      });
+      return items.map((item, i) => ({ ...item, storageFootprint: footprints[i] }));
+    },
+    []
+  );
+
   const [skuCount, setSkuCount] = useState(10);
   const [demandDistribution, setDemandDistribution] = useState(0);
   const [productAffinity, setProductAffinity] = useState(0);
+  const [storageFootprint, setStorageFootprint] = useState(0);
   // Inventory Placement — Slotting Bias variable.
   // 0 = Random (SKUs placed almost randomly), 100 = Demand-Based
   // (high-demand SKUs placed closest to the dispatch area).
@@ -130,29 +157,36 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   // 100 = Clustered (each category in a single contiguous zone).
   const [categoryClustering, setCategoryClustering] = useState(0);
   const [inventory, setInventory] = useState<Item[]>(() =>
-    // Start demand, affinity and category in their default (independent)
-    // state so the preview reflects the full, composable pipeline.
-    assignProductCategory(
-      assignProductAffinity(assignDemandDistribution(generateItems(10), 0), 0)
+    // Start demand, affinity, category and footprint in their default
+    // (independent) state so the preview reflects the full, composable pipeline.
+    assignStorageFootprint(
+      assignProductCategory(
+        assignProductAffinity(assignDemandDistribution(generateItems(10), 0), 0)
+      ),
+      0
     )
   );
 
   useEffect(() => {
-    // The three user-facing inventory-generation variables are composed in
+    // The four user-facing inventory-generation variables are composed in
     // sequence: SKU Count (identity) -> Demand Distribution -> Product
-    // Affinity. A fourth, AUTOMATIC supporting step (Product Category) is then
-    // attached. Category is not user-controlled (no slider) and is generated
+    // Affinity -> Storage Footprint. A fifth, AUTOMATIC supporting step
+    // (Product Category) is attached between affinity and footprint.
+    // Category is not user-controlled (no slider) and is generated
     // independently of affinity. Re-run the whole pipeline whenever any slider
     // changes so the preview summary always matches the final item list.
     setInventory(
-      assignProductCategory(
-        assignProductAffinity(
-          assignDemandDistribution(generateItems(skuCount), demandDistribution),
-          productAffinity
-        )
+      assignStorageFootprint(
+        assignProductCategory(
+          assignProductAffinity(
+            assignDemandDistribution(generateItems(skuCount), demandDistribution),
+            productAffinity
+          )
+        ),
+        storageFootprint
       )
     );
-  }, [skuCount, demandDistribution, productAffinity, generateItems, assignDemandDistribution, assignProductAffinity]);
+  }, [skuCount, demandDistribution, productAffinity, storageFootprint, generateItems, assignDemandDistribution, assignProductAffinity, assignStorageFootprint]);
 
   // Lightweight summary used to show each slider's effect inline.
   const demandSummary = useMemo(
@@ -166,6 +200,11 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
   const affinitySummary = useMemo(
     () => summarizeAffinityGroups(inventory.map((i) => i.affinityGroup ?? 0)),
+    [inventory]
+  );
+
+  const footprintSummary = useMemo(
+    () => summarizeFootprints(inventory.map((i) => i.storageFootprint ?? 1)),
     [inventory]
   );
 
@@ -277,6 +316,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       inventory,
       slottingBias,
       categoryClustering,
+      storageFootprint,
     });
     onClose();
   };
@@ -506,6 +546,31 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                   </p>
                 </div>
 
+                {/* Storage Footprint slider */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Storage Footprint</Label>
+                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                      {storageFootprint}%
+                    </span>
+                  </div>
+                  <Slider
+                    min={0} max={100} step={1}
+                    value={[storageFootprint]}
+                    onValueChange={(val) => setStorageFootprint(val[0])}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Compact Products</span>
+                    <span>Bulky Products</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    How much warehouse space each SKU requires.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground font-mono">
+                    {footprintSummary.singleBinCount} single-bin · {footprintSummary.multiBinCount} multi-bin · mean {footprintSummary.meanFootprint.toFixed(2)} · needs {footprintSummary.totalBins} bins
+                  </p>
+                </div>
+
                 {/* Inventory Placement Section */}
                 <div className="space-y-1 pt-8 border-t">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Inventory Placement</h2>
@@ -533,7 +598,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                     How strongly product demand influences storage location.
                   </p>
                   <p className="text-[11px] text-muted-foreground font-mono">
-                    {inventory.length - placementPreview.unplacedCount} / {inventory.length} SKUs placed · {placementPreview.binCount} bins
+                    {inventory.length - placementPreview.unplacedCount} / {inventory.length} SKUs placed · {placementPreview.placedBinCount} / {placementPreview.binCount} bins used
                     {placementPreview.unplacedCount > 0 && (
                       <span className="text-amber-600">
                         {' · ⚠'} {placementPreview.unplacedCount} overflow (not enough bins)

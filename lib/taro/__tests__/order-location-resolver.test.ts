@@ -148,11 +148,38 @@ describe('validateOrderItemLocations', () => {
     );
   });
 
-  it('throws when a SKU appears in multiple bins (invariant violation)', () => {
+  it('accepts a SKU spanning multiple bins (no primary markers — legacy)', () => {
+    // A SKU may now legitimately occupy multiple storage locations (its
+    // storageFootprint). Without any `primary` marker the resolver falls
+    // back to the first-encountered bin, so the order still resolves.
     const warehouse = makeWarehouse(
       [
         makeCell(0, 0, 'shelf', [makeBin(0, 0, 1, 'SKU_DUP')]),
         makeCell(1, 0, 'shelf', [makeBin(1, 0, 1, 'SKU_DUP')]),
+      ],
+      2,
+      1
+    );
+    const order: Order = {
+      id: 'order-multi',
+      items: [{ skuId: 'SKU_DUP' }],
+      assignedWorkerId: null,
+    };
+
+    expect(() => validateOrderItemLocations(order, warehouse)).not.toThrow();
+  });
+
+  it('throws when a SKU has more than one primary bin (invariant violation)', () => {
+    // The relaxed invariant: a SKU may span many bins, but at most one of
+    // them may be marked `primary` (the canonical pick location).
+    const dupPrimary = (x: number, y: number): StorageLocation => ({
+      ...makeBin(x, y, 1, 'SKU_DUP'),
+      primary: true,
+    });
+    const warehouse = makeWarehouse(
+      [
+        makeCell(0, 0, 'shelf', [dupPrimary(0, 0)]),
+        makeCell(1, 0, 'shelf', [dupPrimary(1, 0)]),
       ],
       2,
       1
@@ -164,7 +191,7 @@ describe('validateOrderItemLocations', () => {
     };
 
     expect(() => validateOrderItemLocations(order, warehouse)).toThrowError(
-      /Warehouse invariant violated: SKU "SKU_DUP" appears in multiple bins/
+      /Warehouse invariant violated: SKU "SKU_DUP" has 2 primary bins/
     );
   });
 });

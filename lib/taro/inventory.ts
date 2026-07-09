@@ -1,7 +1,12 @@
 // SKU/bin lookup and warehouse invariants.
 //
-// The post-refactor model: every SKU lives in exactly one StorageLocation (bin)
-// in the warehouse. The resolver walks `grid[*][*].locations` to find it.
+// The post-refactor model: a SKU lives in one or more StorageLocations
+// (bins) in the warehouse. When a SKU spans several bins, exactly one is
+// marked `primary: true` — the canonical pick location used by order
+// resolution, simulation, and UI labels. Secondary bins hold additional
+// capacity but are never added to a pick list directly. The primary is
+// chosen by Inventory Placement as the nearest-to-dispatch bin of the
+// SKU's contiguous group.
 
 import type { StorageLocation, Warehouse } from './types';
 import { getShelfLocationId } from './layout';
@@ -23,18 +28,54 @@ export function buildBinIndex(warehouse: Pick<Warehouse, 'grid'>): Map<string, S
   return binsById;
 }
 
+/**
+ * Returns the CANONICAL (primary) bin for a SKU.
+ *
+ * A SKU may span multiple storage locations (its `storageFootprint`); the
+ * primary bin is the one Inventory Placement marked as the pick location.
+ * If no bin is explicitly marked primary (legacy/manually-built warehouses),
+ * the first-encountered bin for the SKU is returned, preserving the
+ * pre-footprint behaviour.
+ */
 export function getBinForSku(
   warehouse: Pick<Warehouse, 'grid'>,
   skuId: string
 ): StorageLocation | undefined {
+  let fallback: StorageLocation | undefined;
   for (const row of warehouse.grid) {
     for (const cell of row) {
       for (const bin of cell.locations) {
-        if (bin.sku === skuId) return bin;
+        if (bin.sku === skuId) {
+          if (bin.primary) return bin;
+          if (!fallback) fallback = bin;
+        }
       }
     }
   }
-  return undefined;
+  return fallback;
+}
+
+/**
+ * Returns EVERY bin a SKU occupies (primary first, then secondaries in
+ * grid-scan order). Useful for capacity inspection or footprint-aware UI.
+ */
+export function getBinsForSku(
+  warehouse: Pick<Warehouse, 'grid'>,
+  skuId: string
+): StorageLocation[] {
+  const bins: StorageLocation[] = [];
+  let primary: StorageLocation | undefined;
+  for (const row of warehouse.grid) {
+    for (const cell of row) {
+      for (const bin of cell.locations) {
+        if (bin.sku === skuId) {
+          if (bin.primary) primary = bin;
+          else bins.push(bin);
+        }
+      }
+    }
+  }
+  return primary ? [primary, ...bins] : bins;
 }
 
 export function getShelfIdForSku(
@@ -47,8 +88,8 @@ export function getShelfIdForSku(
 }
 
 /**
- * Returns the deduplicated set of all SKU ids available in the warehouse,
- * one per StorageLocation (which is itself unique by SKU).
+ * Returns the deduplicated set of all SKU ids available in the warehouse.
+ * A SKU that spans multiple bins is reported once.
  */
 export function collectSkuIds(warehouse: Pick<Warehouse, 'grid'>): string[] {
   const seen = new Set<string>();
@@ -63,15 +104,22 @@ export function collectSkuIds(warehouse: Pick<Warehouse, 'grid'>): string[] {
 }
 
 /**
- * Asserts the warehouse satisfies the post-refactor invariants:
- *   - Every SKU appears in at most one StorageLocation.
+ * Asserts the warehouse satisfies the storage invariants:
  *   - Every StorageLocation.id is unique.
+ *   - When the `primary` field is used for a SKU, exactly one of that SKU's
+ *     bins is marked primary.
  *
- * Throws with both coordinates of any duplicate so the caller can fix the data.
+ * NOTE: A SKU may legitimately appear in MULTIPLE bins (its
+ * `storageFootprint`). The pre-footprint "one SKU per bin" rule is no longer
+ * enforced. Legacy warehouses where `primary` is absent on every bin pass
+ * unchanged.
+ *
+ * Throws with coordinates/details so the caller can fix the data.
  */
 export function assertWarehouseInvariants(warehouse: Pick<Warehouse, 'grid'>): void {
-  const seenSku = new Map<string, StorageLocation>();
   const seenBinId = new Set<string>();
+  // Map sku -> { primaryCount, anyBin } for the primary-uniqueness check.
+  const bySku = new Map<string, { primaryCount: number; anyBin: StorageLocation }>();
 
   for (const row of warehouse.grid) {
     for (const cell of row) {
@@ -83,16 +131,26 @@ export function assertWarehouseInvariants(warehouse: Pick<Warehouse, 'grid'>): v
         }
         seenBinId.add(bin.id);
 
-        const previous = seenSku.get(bin.sku);
-        if (previous) {
-          throw new Error(
-            `Warehouse invariant violated: SKU "${bin.sku}" appears in multiple bins ` +
-              `(${previous.x},${previous.y},${previous.z}) and (${bin.x},${bin.y},${bin.z}). ` +
-              `Each SKU must live in exactly one storage location.`
-          );
+        const prev = bySku.get(bin.sku);
+        if (prev) {
+          prev.primaryCount += bin.primary ? 1 : 0;
+        } else {
+          bySku.set(bin.sku, {
+            primaryCount: bin.primary ? 1 : 0,
+            anyBin: bin,
+          });
         }
-        seenSku.set(bin.sku, bin);
       }
+    }
+  }
+
+  // Exactly one primary per SKU — but only when the field is used at all.
+  for (const [sku, info] of bySku) {
+    if (info.primaryCount > 1) {
+      throw new Error(
+        `Warehouse invariant violated: SKU "${sku}" has ${info.primaryCount} ` +
+          `primary bins; at most one bin per SKU may be marked primary.`
+      );
     }
   }
 }

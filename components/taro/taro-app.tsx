@@ -452,13 +452,18 @@ export function TaroApp() {
 
             setWarehouse(warehouseWithInventory);
 
-            // Surface any SKUs that could not be placed (more SKUs than bins)
+            // Surface any SKUs that could not be placed (more required bins
+            // than available capacity, considering each SKU's storageFootprint)
             // rather than silently dropping inventory.
+            const totalBinsWanted = config.inventory.reduce(
+              (sum, i) => sum + (i.storageFootprint ?? 1),
+              0
+            );
             if (placementResult.unplacedSkus.length > 0) {
               setSimulationBlockState({
                 simulationState: 'NO_VALID_ITEMS',
                 title: `${placementResult.unplacedSkus.length} SKU${placementResult.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
-                description: `The warehouse layout has only ${placementResult.binCount} storage bins for ${config.inventory.length} generated SKUs. Increase the rack count or reduce the SKU count so every SKU can be slotted. Unplaced: ${placementResult.unplacedSkus.join(', ')}.`,
+                description: `The warehouse layout has only ${placementResult.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${placementResult.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${placementResult.unplacedSkus.join(', ')}.`,
               });
             } else {
               setSimulationBlockState(null);
@@ -478,7 +483,11 @@ export function TaroApp() {
             setValidationResult(null);
             setShowValidationModal(false);
             setHighlightedMissingSkuIds(null);
-            setSimulationBlockState(null);
+            // NOTE: simulationBlockState is NOT reset here because the
+            // if/else above already handles it correctly. Resetting it
+            // unconditionally here would silently erase the overflow block
+            // set when unplacedSkus.length > 0 (React batches synchronous
+            // state updates, so the later null would always win).
             setImportSummary('');
             if (animationRef.current) {
               cancelAnimationFrame(animationRef.current);
