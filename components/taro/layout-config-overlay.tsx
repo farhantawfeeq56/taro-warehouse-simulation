@@ -22,6 +22,7 @@ import {
   generateAffinityGroups,
   summarizeAffinityGroups
 } from '@/lib/taro/affinity';
+import { assignProductCategory } from '@/lib/taro/categories';
 import {
   computePlacementPreview,
 } from '@/lib/taro/inventory-placement';
@@ -44,6 +45,8 @@ export interface LayoutConfig {
   inventory: Item[];
   /** Slotting Bias slider value, 0 (Random) .. 100 (Demand-Based). */
   slottingBias: number;
+  /** Category Clustering slider value, 0 (Scattered) .. 100 (Clustered). */
+  categoryClustering: number;
 }
 
 interface LayoutConfigOverlayProps {
@@ -122,21 +125,31 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   // 0 = Random (SKUs placed almost randomly), 100 = Demand-Based
   // (high-demand SKUs placed closest to the dispatch area).
   const [slottingBias, setSlottingBias] = useState(0);
+  // Inventory Placement — Category Clustering variable.
+  // 0 = Scattered (categories mixed throughout, the pure Slotting Bias plan),
+  // 100 = Clustered (each category in a single contiguous zone).
+  const [categoryClustering, setCategoryClustering] = useState(0);
   const [inventory, setInventory] = useState<Item[]>(() =>
-    // Start both demand and affinity scores in their default (independent)
+    // Start demand, affinity and category in their default (independent)
     // state so the preview reflects the full, composable pipeline.
-    assignProductAffinity(assignDemandDistribution(generateItems(10), 0), 0)
+    assignProductCategory(
+      assignProductAffinity(assignDemandDistribution(generateItems(10), 0), 0)
+    )
   );
 
   useEffect(() => {
-    // The three inventory-generation variables are composed in sequence:
-    // SKU Count (identity) -> Demand Distribution -> Product Affinity.
-    // Re-run the whole pipeline whenever any slider changes so the preview
-    // summary always matches the final, enriched item list.
+    // The three user-facing inventory-generation variables are composed in
+    // sequence: SKU Count (identity) -> Demand Distribution -> Product
+    // Affinity. A fourth, AUTOMATIC supporting step (Product Category) is then
+    // attached. Category is not user-controlled (no slider) and is generated
+    // independently of affinity. Re-run the whole pipeline whenever any slider
+    // changes so the preview summary always matches the final item list.
     setInventory(
-      assignProductAffinity(
-        assignDemandDistribution(generateItems(skuCount), demandDistribution),
-        productAffinity
+      assignProductCategory(
+        assignProductAffinity(
+          assignDemandDistribution(generateItems(skuCount), demandDistribution),
+          productAffinity
+        )
       )
     );
   }, [skuCount, demandDistribution, productAffinity, generateItems, assignDemandDistribution, assignProductAffinity]);
@@ -194,12 +207,17 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const fullWidth = previewWarehouse.width;
   const fullHeight = previewWarehouse.height;
 
-  // Live preview of the Slotting Bias placement on the current layout.
-  // Recomputed whenever the layout, inventory, or slotting bias changes so
-  // the summary (overflow, demand near dispatch) always matches the apply.
+  // Live preview of the placement on the current layout. Recomputed whenever
+  // the layout, inventory, slotting bias, or category clustering changes so
+  // the summary (overflow, demand near dispatch, zones) always matches apply.
   const placementPreview = useMemo(
-    () => computePlacementPreview(previewWarehouse, { items: inventory, slottingBias }),
-    [previewWarehouse, inventory, slottingBias]
+    () =>
+      computePlacementPreview(previewWarehouse, {
+        items: inventory,
+        slottingBias,
+        categoryClustering,
+      }),
+    [previewWarehouse, inventory, slottingBias, categoryClustering]
   );
 
   const cellSize = useMemo(() => {
@@ -258,6 +276,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
       fbAp,
       inventory,
       slottingBias,
+      categoryClustering,
     });
     onClose();
   };
@@ -520,6 +539,31 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                         {' · ⚠'} {placementPreview.unplacedCount} overflow (not enough bins)
                       </span>
                     )}
+                  </p>
+                </div>
+
+                {/* Category Clustering slider */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Category Clustering</Label>
+                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                      {categoryClustering}%
+                    </span>
+                  </div>
+                  <Slider
+                    min={0} max={100} step={1}
+                    value={[categoryClustering]}
+                    onValueChange={(val) => setCategoryClustering(val[0])}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Scattered</span>
+                    <span>Clustered</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    How strongly products of the same category are stored together in contiguous zones.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground font-mono">
+                    {placementPreview.categoryCount} categor{placementPreview.categoryCount === 1 ? 'y' : 'ies'} · clustering {categoryClustering}%
                   </p>
                 </div>
               </div>

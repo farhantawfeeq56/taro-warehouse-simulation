@@ -445,6 +445,7 @@ export function TaroApp() {
               {
                 items: config.inventory,
                 slottingBias: config.slottingBias,
+                categoryClustering: config.categoryClustering,
               }
             );
             const warehouseWithInventory = placementResult.warehouse;
