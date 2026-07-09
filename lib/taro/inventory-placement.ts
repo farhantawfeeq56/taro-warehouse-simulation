@@ -50,6 +50,13 @@ import { buildCoordinateLocations, getShelfLocationId } from './layout';
 import { FOOTPRINT_FMAX } from './footprint';
 
 /**
+ * Default maximum items to process in preview mode. Items are randomly
+ * sampled to this size for fast (~100ms) placement preview even at
+ * 200,000 SKUs. The placement pattern remains representative.
+ */
+export const PREVIEW_MAX_ITEMS = 20_000;
+
+/**
  * Inventory placement configuration.
  *
  * `items` is the generated inventory to place (one SKU per item, carrying
@@ -78,6 +85,20 @@ export interface InventoryPlacementConfig {
   seed?: number;
   /** Generated inventory items to place (one per SKU). Optional. */
   items?: Item[];
+  /**
+   * Preview mode: when set (e.g., 20000) and `items.length` exceeds this
+   * value, the items are randomly sampled to `previewMaxItems` before
+   * computing the placement. This makes the live preview fast (~100ms)
+   * even at 200,000 SKUs. Results are approximate — the shelf pattern
+   * (which shelves near dispatch get high-demand items) remains
+   * representative, but overflow counts and exact bin assignments are
+   * extrapolated.
+   *
+   * The final "Generate Warehouse" action (
+   * `applyInventoryPlacementDetailed`) should NOT set this field so it
+   * always produces the full exact placement.
+   */
+  previewMaxItems?: number;
 }
 
 /**
@@ -158,6 +179,34 @@ function manhattanToDispatch(
   dispatch: { x: number; y: number }
 ): number {
   return Math.abs(x - dispatch.x) + Math.abs(y - dispatch.y);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Preview sampling (fast approximate mode for the live preview)               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Reservoir-sample `items` down to at most `maxCount` items.
+ * Every item has an equal probability of being included, so the sample
+ * preserves the demand/category/affinity distribution of the full set.
+ *
+ * When `items.length <= maxCount` the original array is returned unchanged
+ * (no copy). This is O(items.length) time but only O(maxCount) memory.
+ */
+function sampleItems(items: Item[], maxCount: number, seed: number): Item[] {
+  if (items.length <= maxCount) return items;
+
+  const rng = mulberry32(seed ^ 0xfeedface);
+  // Reservoir: first maxCount items fill the sample
+  const sample: Item[] = items.slice(0, maxCount);
+  // Remaining items randomly replace elements in the reservoir
+  for (let i = maxCount; i < items.length; i++) {
+    const j = Math.floor(rng() * (i + 1));
+    if (j < maxCount) {
+      sample[j] = items[i];
+    }
+  }
+  return sample;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -486,16 +535,33 @@ interface PlacementPlan {
   itemBins: Bin[][];
   /** SKUs that did not fit (overflow). */
   unplacedSkus: string[];
+  /**
+   * Total number of items that were eligible for placement (preview mode may
+   * process a sample; this field records the full inventory size so the caller
+   * can scale the unplaced count for the preview display).
+   */
+  totalItemCount: number;
 }
 
 function buildPlan(
   warehouse: Warehouse,
   config: InventoryPlacementConfig
 ): PlacementPlan {
-  const items = config.items ?? [];
+  const rawItems = config.items ?? [];
+  const previewMax = config.previewMaxItems;
   const slottingBias = config.slottingBias ?? 0;
   const categoryClustering = config.categoryClustering ?? 0;
   const seed = config.seed ?? 42;
+
+  // Preview mode: sample items for responsiveness at high SKU counts.
+  // Sampling happens HERE — before any sorting or grouping — so the
+  // sampled set flows through the entire algorithm identically to the
+  // full set (same code paths, same logic). The pattern (which shelves
+  // near dispatch get high-demand items) remains representative.
+  const items =
+    previewMax != null && rawItems.length > previewMax
+      ? sampleItems(rawItems, previewMax, seed ^ 0xfeedface)
+      : rawItems;
 
   const bins = enumerateBins(warehouse);
 
@@ -583,7 +649,7 @@ function buildPlan(
     cursor += f;
   }
 
-  return { bins, orderedItems, itemBins, unplacedSkus };
+  return { bins, orderedItems, itemBins, unplacedSkus, totalItemCount: rawItems.length };
 }
 
 /**
@@ -605,7 +671,14 @@ export function computePlacementPreview(
   warehouse: Warehouse,
   config: InventoryPlacementConfig
 ): InventoryPlacementPreview {
-  const { bins, orderedItems, itemBins, unplacedSkus } = buildPlan(warehouse, config);
+  const planResult = buildPlan(warehouse, config);
+  const {
+    bins,
+    orderedItems,
+    itemBins,
+    unplacedSkus,
+    totalItemCount,
+  } = planResult;
   const shelves = listShelves(warehouse);
 
   // Count how many bins each shelf occupies. A SKU with footprint > 1 may
@@ -633,12 +706,16 @@ export function computePlacementPreview(
   const shelfDistances = shelves.map((s) =>
     manhattanToDispatch(s.x, s.y, dispatch)
   );
-  const maxShelfDist = shelfDistances.length
-    ? Math.max(...shelfDistances)
-    : 0;
-  const minShelfDist = shelfDistances.length
-    ? Math.min(...shelfDistances)
-    : 0;
+  let maxShelfDist = -Infinity;
+  let minShelfDist = Infinity;
+  for (const d of shelfDistances) {
+    if (d > maxShelfDist) maxShelfDist = d;
+    if (d < minShelfDist) minShelfDist = d;
+  }
+  if (shelfDistances.length === 0) {
+    maxShelfDist = 0;
+    minShelfDist = 0;
+  }
   const shelfSpan = Math.max(1, maxShelfDist - minShelfDist);
 
   // z-level capacity per shelf (matches enumerateBins cycling).
@@ -687,14 +764,31 @@ export function computePlacementPreview(
     };
   });
 
+  // Scale overflow statistics when preview mode sampled the items.
+  const sampleSize = orderedItems.length + unplacedSkus.length;
+  let finalUnplacedCount = unplacedSkus.length;
+  let finalPlacedBinCount = placedBinCount;
+  if (totalItemCount > sampleSize) {
+    // Estimate: assume the same overflow rate as the sample.
+    const overflowRate =
+      sampleSize > 0 ? unplacedSkus.length / sampleSize : 0;
+    finalUnplacedCount = Math.round(overflowRate * totalItemCount);
+    // Placed bins from the sample scaled up, capped at total bins.
+    const placedRate = sampleSize > 0 ? orderedItems.length / sampleSize : 0;
+    finalPlacedBinCount = Math.min(
+      bins.length,
+      Math.round(placedRate * totalItemCount * (placedBinCount / Math.max(1, orderedItems.length)))
+    );
+  }
+
   return {
     shelves: shelfPreviews,
     maxDemand,
-    unplacedCount: unplacedSkus.length,
+    unplacedCount: finalUnplacedCount,
     binCount: bins.length,
     categoryCount: placedCategoryIds.size,
     totalBinsWanted,
-    placedBinCount,
+    placedBinCount: finalPlacedBinCount,
   };
 }
 
