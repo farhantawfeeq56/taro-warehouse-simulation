@@ -62,23 +62,20 @@ interface LayoutConfigOverlayProps {
   onApply?: (config: LayoutConfig) => void;
 }
 
-/** Piecewise‑adaptive step for Grid Height (4–300):
- *  1 at ≤20, 2 at ≤50, 5 at ≤100, 10 at ≤200, 20 at ≤300. */
+/** Piecewise‑adaptive step for Grid Height (4–60):
+ *  1 at ≤20, 2 at ≤50, 5 at ≤60. */
 function getHeightStep(v: number): number {
   if (v <= 20) return 1;
   if (v <= 50) return 2;
-  if (v <= 100) return 5;
-  if (v <= 200) return 10;
-  return 20;
+  return 5;
 }
 
-/** Piecewise‑adaptive step for Rack Count (5–250):
- *  1 at ≤20, 2 at ≤50, 5 at ≤100, 10 at ≤250. */
+/** Piecewise‑adaptive step for Rack Count (5–60):
+ *  1 at ≤20, 2 at ≤50, 5 at ≤60. */
 function getRackStep(v: number): number {
   if (v <= 20) return 1;
   if (v <= 50) return 2;
-  if (v <= 100) return 5;
-  return 10;
+  return 5;
 }
 
 export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayProps) {
@@ -87,10 +84,10 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   // ── Adaptive sliders for Grid Height & Rack Count ──────────────────────
   // Piecewise step sizes give predictable control: fine at low values,
   // coarse at high values to reduce unnecessary preview recomputations.
-  const [gridHeight,          setGridHeight]          = useState(50);
-  const [debouncedGridHeight, setDebouncedGridHeight] = useState(50);
-  const [rackCount,           setRackCount]           = useState(25);
-  const [debouncedRackCount,  setDebouncedRackCount]  = useState(25);
+  const [gridHeight,          setGridHeight]          = useState(30);
+  const [debouncedGridHeight, setDebouncedGridHeight] = useState(30);
+  const [rackCount,           setRackCount]           = useState(30);
+  const [debouncedRackCount,  setDebouncedRackCount]  = useState(30);
 
   // 200 ms debounce while dragging: preview updates after a brief pause.
   useEffect(() => {
@@ -181,7 +178,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     []
   );
 
-  const [skuCount, setSkuCount] = useState(5000);
+  const [skuCount, setSkuCount] = useState(2500);
   const [demandDistribution, setDemandDistribution] = useState(0);
   const [productAffinity, setProductAffinity] = useState(0);
   const [storageFootprint, setStorageFootprint] = useState(0);
@@ -198,7 +195,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     // (independent) state so the preview reflects the full, composable pipeline.
     assignStorageFootprint(
       assignProductCategory(
-        assignProductAffinity(assignDemandDistribution(generateItems(5000), 0), 0)
+        assignProductAffinity(assignDemandDistribution(generateItems(2500), 0), 0)
       ),
       0
     )
@@ -489,13 +486,13 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                         <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{gridHeight}</span>
                       </div>
                       <Slider
-                        min={4} max={300} step={getHeightStep(gridHeight)}
+                        min={4} max={60} step={getHeightStep(gridHeight)}
                         value={[gridHeight]}
                         onValueChange={(val) => setGridHeight(val[0])}
                         onValueCommit={(val) => setDebouncedGridHeight(val[0])}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Vertical height of the storage area. Current step: {getHeightStep(gridHeight)}.
+                        Vertical height of the storage area (4–60). Current step: {getHeightStep(gridHeight)}.
                       </p>
                     </div>
 
@@ -506,13 +503,13 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                         <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{rackCount}</span>
                       </div>
                       <Slider
-                        min={5} max={250} step={getRackStep(rackCount)}
+                        min={5} max={60} step={getRackStep(rackCount)}
                         value={[rackCount]}
                         onValueChange={(val) => setRackCount(val[0])}
                         onValueCommit={(val) => setDebouncedRackCount(val[0])}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Number of double-row racks. Current step: {getRackStep(rackCount)}.
+                        Number of double-row racks (5–60). Current step: {getRackStep(rackCount)}.
                       </p>
                     </div>
 
@@ -612,11 +609,11 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
                     <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{skuCount}</span>
                   </div>
                   <Slider
-                    min={5000} max={200000} step={1}
+                    min={500} max={10000} step={1}
                     value={[skuCount]}
                     onValueChange={(val) => setSkuCount(val[0])}
                   />
-                  <p className="text-xs text-muted-foreground">Number of unique SKUs to generate.</p>
+                  <p className="text-xs text-muted-foreground">Number of unique SKUs to generate (500–10,000).</p>
                 </div>
 
                 {/* Demand Distribution slider */}
