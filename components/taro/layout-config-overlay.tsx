@@ -84,10 +84,10 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   // ── Adaptive sliders for Grid Height & Rack Count ──────────────────────
   // Piecewise step sizes give predictable control: fine at low values,
   // coarse at high values to reduce unnecessary preview recomputations.
-  const [gridHeight,          setGridHeight]          = useState(50);
-  const [debouncedGridHeight, setDebouncedGridHeight] = useState(50);
-  const [rackCount,           setRackCount]           = useState(25);
-  const [debouncedRackCount,  setDebouncedRackCount]  = useState(25);
+  const [gridHeight,          setGridHeight]          = useState(30);
+  const [debouncedGridHeight, setDebouncedGridHeight] = useState(30);
+  const [rackCount,           setRackCount]           = useState(30);
+  const [debouncedRackCount,  setDebouncedRackCount]  = useState(30);
 
   // 200 ms debounce while dragging: preview updates after a brief pause.
   useEffect(() => {
@@ -178,7 +178,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     []
   );
 
-  const [skuCount, setSkuCount] = useState(5000);
+  const [skuCount, setSkuCount] = useState(2500);
   const [demandDistribution, setDemandDistribution] = useState(0);
   const [productAffinity, setProductAffinity] = useState(0);
   const [storageFootprint, setStorageFootprint] = useState(0);
@@ -195,7 +195,7 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
     // (independent) state so the preview reflects the full, composable pipeline.
     assignStorageFootprint(
       assignProductCategory(
-        assignProductAffinity(assignDemandDistribution(generateItems(5000), 0), 0)
+        assignProductAffinity(assignDemandDistribution(generateItems(2500), 0), 0)
       ),
       0
     )
