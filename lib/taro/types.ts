@@ -45,6 +45,17 @@ export type CellType = 'empty' | 'shelf' | 'worker-start';
  * continue to decide WHERE those bins sit. A value of 1 (the default when
  * absent) means the SKU occupies exactly one bin, preserving the legacy
  * one-SKU-one-bin behaviour.
+ *
+ * `totalQuantity` is the total inventory quantity for this SKU across ALL
+ * its storage locations. Storage Footprint only controls HOW MANY bins the
+ * quantity is split across; it does NOT multiply it. When a SKU occupies
+ * N bins, `totalQuantity` is divided evenly among them, with any remainder
+ * assigned to the primary (nearest-to-dispatch) bin. The invariant is:
+ *
+ *     Σ bin.quantity for a SKU == totalQuantity
+ *
+ * A value of 50 (the default when absent) preserves backward compatibility
+ * for the legacy one-SKU-one-bin model where every bin carried 50 units.
  */
 export interface Item {
   id: string;
@@ -54,6 +65,11 @@ export interface Item {
   category?: number;
   /** How many storage locations this SKU requires. Consumed by placement. */
   storageFootprint?: number;
+  /**
+   * Total inventory quantity across all bins for this SKU.
+   * When absent, placement defaults to 50 (backward compatible).
+   */
+  totalQuantity?: number;
 }
 
 /**

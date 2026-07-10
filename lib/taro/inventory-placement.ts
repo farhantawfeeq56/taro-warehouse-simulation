@@ -86,6 +86,13 @@ export interface InventoryPlacementConfig {
   /** Generated inventory items to place (one per SKU). Optional. */
   items?: Item[];
   /**
+   * Fallback total quantity per SKU used when an Item does not carry
+   * an explicit `totalQuantity`. Defaults to 50 (backward compatible).
+   * For single-bin SKUs this is the bin quantity; for multi-bin SKUs
+   * it is split across the footprint — see `Item.totalQuantity` docs.
+   */
+  defaultQuantity?: number;
+  /**
    * Preview mode: when set (e.g., 20000) and `items.length` exceeds this
    * value, the items are randomly sampled to `previewMaxItems` before
    * computing the placement. This makes the live preview fast (~100ms)
@@ -814,6 +821,7 @@ export function applyInventoryPlacementDetailed(
   config: InventoryPlacementConfig
 ): InventoryPlacementResult {
   const { bins, orderedItems, itemBins, unplacedSkus } = buildPlan(warehouse, config);
+  const defaultQuantity = config.defaultQuantity ?? 50;
 
   // 1. Clear existing storage locations on every shelf cell.
   const newGrid: Cell[][] = warehouse.grid.map((row) =>
@@ -824,17 +832,28 @@ export function applyInventoryPlacementDetailed(
   //    `storageFootprint` contiguous bins (itemBins[i]); the FIRST bin of
   //    each group is marked `primary: true` so downstream resolution,
   //    simulation, and UI labels treat it as the canonical pick location.
-  //    Quantities and z-level capacities are unchanged from the placeholder
-  //    model — only *which* SKU lives in *which* bin(s) is influenced by
-  //    slotting bias / clustering / footprint.
+  //
+  //    Quantity distribution: `totalQuantity` (or `defaultQuantity` fallback)
+  //    is the SKU's *total* inventory. It is split evenly across the N bins
+  //    the footprint allocates, with any remainder assigned to the primary.
+  //    Storage Footprint multiplies storage locations, NOT inventory.
   let placedBinCount = 0;
   for (let i = 0; i < orderedItems.length; i++) {
     const item = orderedItems[i];
     const group = itemBins[i];
-    for (let g = 0; g < group.length; g++) {
+    const footprint = group.length;
+
+    // Resolve the SKU's total quantity, then compute per-bin split.
+    const totalQty = item.totalQuantity ?? defaultQuantity;
+    const baseQty = Math.floor(totalQty / footprint);
+    const remainder = totalQty - baseQty * footprint;
+    // Guard: ensure every bin gets at least 0 (clamped during simulation).
+    const clamp = (v: number) => Math.max(0, Math.floor(v));
+
+    for (let g = 0; g < footprint; g++) {
       const bin = group[g];
       const locationId = getShelfLocationId(bin.x, bin.y);
-      const quantity = 50; // placeholder uniform stock; inventory not modified.
+      const quantity = clamp(baseQty + (g === 0 ? remainder : 0));
 
       const storage: StorageLocation = {
         id: `${item.id}@${bin.x},${bin.y},${bin.z}`,

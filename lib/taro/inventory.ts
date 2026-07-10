@@ -8,7 +8,7 @@
 // chosen by Inventory Placement as the nearest-to-dispatch bin of the
 // SKU's contiguous group.
 
-import type { StorageLocation, Warehouse } from './types';
+import type { Item, StorageLocation, Warehouse } from './types';
 import { getShelfLocationId } from './layout';
 
 export interface ResolvedBin {
@@ -153,4 +153,67 @@ export function assertWarehouseInvariants(warehouse: Pick<Warehouse, 'grid'>): v
       );
     }
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Quantity invariant validator                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Describes a SKU whose aggregate bin quantity does not match its declared
+ * total. The caller can use this to surface inventory integrity issues.
+ */
+export interface QuantityInvariantViolation {
+  sku: string;
+  /** The total declared on the Item (or the default 50 when absent). */
+  expected: number;
+  /** The sum of `StorageLocation.quantity` across all bins for this SKU. */
+  actual: number;
+}
+
+/**
+ * Validate that every SKU in the warehouse satisfies the quantity invariant:
+ *
+ *     Σ bin.quantity across all StorageLocations for a SKU == Item.totalQuantity
+ *
+ * Items that span multiple bins (`storageFootprint > 1`) should have had
+ * their total quantity split by the placement algorithm so the sum across
+ * all of their bins matches the declared total. Manual edits or imported
+ * warehouses may break this invariant, so this function returns violations
+ * instead of throwing — the caller decides how to react.
+ *
+ * When `items` is not provided (e.g., warehouses built manually or via CSV
+ * import), the function returns an empty array — there is no declared total
+ * to check against. Only call this when you have the original `Item[]` list
+ * that was used during placement.
+ */
+export function validateSkuQuantityInvariant(
+  warehouse: Pick<Warehouse, 'grid'>,
+  items?: Item[]
+): QuantityInvariantViolation[] {
+  if (!items || items.length === 0) return [];
+
+  // Build the expected quantity for every known SKU.
+  const expectedMap = new Map<string, number>(
+    items.map((i) => [i.id, i.totalQuantity ?? 50])
+  );
+
+  // Aggregate actual quantities across all bins, keyed by SKU.
+  const actualMap = new Map<string, number>();
+  for (const row of warehouse.grid) {
+    for (const cell of row) {
+      for (const bin of cell.locations) {
+        actualMap.set(bin.sku, (actualMap.get(bin.sku) ?? 0) + bin.quantity);
+      }
+    }
+  }
+
+  const violations: QuantityInvariantViolation[] = [];
+  for (const [sku, expected] of expectedMap) {
+    const actual = actualMap.get(sku) ?? 0;
+    if (actual !== expected) {
+      violations.push({ sku, expected, actual });
+    }
+  }
+  return violations;
 }
