@@ -62,12 +62,47 @@ interface LayoutConfigOverlayProps {
   onApply?: (config: LayoutConfig) => void;
 }
 
+/** Piecewise‑adaptive step for Grid Height (4–300):
+ *  1 at ≤20, 2 at ≤50, 5 at ≤100, 10 at ≤200, 20 at ≤300. */
+function getHeightStep(v: number): number {
+  if (v <= 20) return 1;
+  if (v <= 50) return 2;
+  if (v <= 100) return 5;
+  if (v <= 200) return 10;
+  return 20;
+}
+
+/** Piecewise‑adaptive step for Rack Count (5–250):
+ *  1 at ≤20, 2 at ≤50, 5 at ≤100, 10 at ≤250. */
+function getRackStep(v: number): number {
+  if (v <= 20) return 1;
+  if (v <= 50) return 2;
+  if (v <= 100) return 5;
+  return 10;
+}
+
 export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayProps) {
   const [layoutType, setLayoutType] = useState<LayoutType>('parallel');
 
-  // Parallel / Cross Aisle Params
-  const [gridHeight, setGridHeight] = useState(50);
-  const [rackCount, setRackCount] = useState(25);
+  // ── Adaptive sliders for Grid Height & Rack Count ──────────────────────
+  // Piecewise step sizes give predictable control: fine at low values,
+  // coarse at high values to reduce unnecessary preview recomputations.
+  const [gridHeight,          setGridHeight]          = useState(50);
+  const [debouncedGridHeight, setDebouncedGridHeight] = useState(50);
+  const [rackCount,           setRackCount]           = useState(25);
+  const [debouncedRackCount,  setDebouncedRackCount]  = useState(25);
+
+  // 200 ms debounce while dragging: preview updates after a brief pause.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedGridHeight(gridHeight), 200);
+    return () => clearTimeout(t);
+  }, [gridHeight]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedRackCount(rackCount), 200);
+    return () => clearTimeout(t);
+  }, [rackCount]);
+
+  // Other params (no adaptive step needed — narrow ranges)
   const [aisleWidth, setAisleWidth] = useState(2);
   const [crossAisleCount, setCrossAisleCount] = useState(1);
 
@@ -236,16 +271,16 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const previewWarehouse = useMemo(() => {
     switch (layoutType) {
       case 'parallel':
-        return generateParallelLayout(gridHeight, rackCount, aisleWidth);
+        return generateParallelLayout(debouncedGridHeight, debouncedRackCount, aisleWidth);
       case 'cross-aisle':
-        return generateCrossAisleLayout(gridHeight, rackCount, aisleWidth, crossAisleCount);
+        return generateCrossAisleLayout(debouncedGridHeight, debouncedRackCount, aisleWidth, crossAisleCount);
       case 'fishbone':
         return generateFishboneLayout(fbWidth, fbHeight, fbTheta, fbI2, fbS, fbAp);
       default:
-        return generateParallelLayout(gridHeight, rackCount, aisleWidth);
+        return generateParallelLayout(debouncedGridHeight, debouncedRackCount, aisleWidth);
     }
   }, [
-    layoutType, gridHeight, rackCount, aisleWidth, crossAisleCount,
+    layoutType, debouncedGridHeight, debouncedRackCount, aisleWidth, crossAisleCount,
     fbWidth, fbHeight, fbTheta, fbI2, fbS, fbAp
   ]);
 
@@ -385,8 +420,8 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
   const handleApply = () => {
     onApply?.({
       type: layoutType,
-      gridHeight,
-      rackCount,
+      gridHeight: debouncedGridHeight,
+      rackCount: debouncedRackCount,
       aisleWidth,
       crossAisleCount,
       fbWidth,
@@ -447,32 +482,38 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
 
                 {(layoutType === 'parallel' || layoutType === 'cross-aisle') && (
                   <>
-                    {/* Grid Height Control */}
+                    {/* Grid Height Control — piecewise step + debounced preview */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Grid Height</Label>
                         <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{gridHeight}</span>
                       </div>
                       <Slider
-                        min={4} max={300} step={1}
+                        min={4} max={300} step={getHeightStep(gridHeight)}
                         value={[gridHeight]}
                         onValueChange={(val) => setGridHeight(val[0])}
+                        onValueCommit={(val) => setDebouncedGridHeight(val[0])}
                       />
-                      <p className="text-xs text-muted-foreground">Vertical height of the storage area.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Vertical height of the storage area. Current step: {getHeightStep(gridHeight)}.
+                      </p>
                     </div>
 
-                    {/* Rack Count Control */}
+                    {/* Rack Count Control — piecewise step + debounced preview */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Rack Count</Label>
                         <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{rackCount}</span>
                       </div>
                       <Slider
-                        min={5} max={250} step={1}
+                        min={5} max={250} step={getRackStep(rackCount)}
                         value={[rackCount]}
                         onValueChange={(val) => setRackCount(val[0])}
+                        onValueCommit={(val) => setDebouncedRackCount(val[0])}
                       />
-                      <p className="text-xs text-muted-foreground">Number of double-row racks.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Number of double-row racks. Current step: {getRackStep(rackCount)}.
+                      </p>
                     </div>
 
                     {/* Aisle Width Control */}
