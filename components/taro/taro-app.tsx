@@ -42,6 +42,7 @@ import { RotateCcw } from 'lucide-react';
 import { getMissingSkuIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
+import { validateSkuQuantityInvariant } from '@/lib/taro/inventory';
 
 export function TaroApp() {
   const [warehouse, setWarehouse] = useState<Warehouse>(() => generateSkeletonWarehouse());
@@ -451,6 +452,20 @@ export function TaroApp() {
             const warehouseWithInventory = placementResult.warehouse;
 
             setWarehouse(warehouseWithInventory);
+
+            // Verify the quantity invariant: each SKU's total quantity
+            // must equal the sum of its bin quantities. Log violations
+            // as warnings so developers can catch placement bugs.
+            const qtyViolations = validateSkuQuantityInvariant(
+              warehouseWithInventory,
+              config.inventory
+            );
+            if (qtyViolations.length > 0) {
+              console.warn(
+                '[Taro] Quantity invariant violations after placement:',
+                qtyViolations
+              );
+            }
 
             // Surface any SKUs that could not be placed (more required bins
             // than available capacity, considering each SKU's storageFootprint)
