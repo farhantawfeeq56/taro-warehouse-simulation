@@ -1,33 +1,43 @@
 ## Motivation
 
-A SKU with `storageFootprint > 1` was receiving the full 50-unit quantity on EVERY bin, effectively multiplying inventory. For example, a footprint-4 SKU became 4 bins x 50 = 200 units. This is not the intended model — Storage Footprint should affect spatial allocation only, not total inventory.
+Previously, generating random orders used a hardcoded formula (`Math.min(5, Math.max(3, floor(availableSkus / 3)))`) that always produced a small, unpredictable number of orders. There was no way for users to control how many orders to generate or how many SKUs each order should contain. This limited testing at scale and made it impossible to simulate realistic order volumes.
 
 ## Summary
 
-Introduced the invariant: each SKU owns one total quantity, and Storage Footprint controls only how many bins that quantity is split across. When a SKU occupies N bins, `totalQuantity` is divided evenly among them, with any remainder assigned to the primary (pick) bin. The sum across all bins now equals the SKU's total quantity.
+Added a **Order Generation Settings** popover (triggered by a `SlidersHorizontal` icon button next to the Shuffle button) with two configurable sliders:
+
+1. **Order Count** – controls how many orders are generated (range 100–10,000, step 100, default 1,000)
+2. **Average Order Size** – controls the average number of SKUs per order (range 1–20, step 1, default 5)
+
+The settings use an **Apply/Cancel** pattern: sliders modify draft values that only take effect on "Apply"; "Cancel" (or clicking outside) discards changes. The state is lifted to `TaroApp` so all three order generation paths respect the same settings: the Shuffle button, the Add Demo Orders button, and layout config regeneration.
+
+Item count per order now varies naturally around the configured average using a ±40% uniform distribution (via `Math.max(1, Math.round(avgOrderSize * (0.6 + Math.random() * 0.8)))`), replacing the old hardcoded `Math.floor(Math.random() * 4) + 2`.
 
 ## Files Changed
 
-### `lib/taro/types.ts`
-- Added `totalQuantity?: number` to the `Item` interface with JSDoc describing the invariant. Default 50 preserves backward compatibility for single-bin SKUs.
-
-### `lib/taro/inventory-placement.ts`
-- Added `defaultQuantity?: number` to `InventoryPlacementConfig` (falls back to 50).
-- Rewrote the quantity assignment in `applyInventoryPlacementDetailed` to compute per-bin split: `baseQty = floor(totalQty / footprint)`, primary gets `baseQty + remainder`, secondaries get `baseQty`.
-
-### `lib/taro/inventory.ts`
-- Added `validateSkuQuantityInvariant()` function that compares expected vs actual total quantity for every SKU. Returns violations instead of throwing — the caller decides how to react.
-- Added `QuantityInvariantViolation` interface for the return type.
+### `components/taro/orders-panel.tsx`
+- Added `SlidersHorizontal` icon button next to the Shuffle button that opens a `Popover` with Order Generation Settings
+- Added draft state (`draftOrderCount`, `draftAvgOrderSize`) that Apply/Cancel manage
+- Added new props: `orderCount`, `avgOrderSize`, `onOrderCountChange`, `onAvgOrderSizeChange`
+- Updated `generateRandom()` call to pass through `orderCount` and `avgOrderSize` from props (instead of the old hardcoded formula)
+- Removed unused imports (`X`, `Trash2`) and added `Popover`, `PopoverTrigger`, `PopoverContent`, `Slider` imports
 
 ### `components/taro/taro-app.tsx`
-- Imported `validateSkuQuantityInvariant` and wired it into the Generate Warehouse handler. Violations are logged via `console.warn` for developer visibility.
+- Added `orderCount` (default `1000`) and `avgOrderSize` (default `5`) state with `useState`
+- Pass them down to `OrdersPanel` via new props
+- Updated `handleAddDemoOrders` callback to use `orderCount` and `avgOrderSize` instead of hardcoded `4`
+- Updated layout config regeneration to use `orderCount` and `avgOrderSize` instead of hardcoded `4`
+
+### `lib/taro/demo-generator.ts`
+- Added optional `avgOrderSize` parameter (default `5`) to `generateRandomOrders`
+- Replaced hardcoded `Math.floor(Math.random() * 4) + 2` with a natural variation formula that distributes items around the target average: `Math.max(1, Math.round(avgOrderSize * (0.6 + Math.random() * 0.8)))`
 
 ## What to Expect
 
-| Scenario | Before (bug) | After (fix) |
-|----------|-------------|-------------|
-| Single-bin SKU | 1 bin x 50 = 50 | 1 bin x 50 = 50 (unchanged) |
-| Footprint-4 SKU, default qty | 4 bins x 50 = 200 | 14+12+12+12 = 50 |
-| Footprint-3 SKU, totalQuantity=100 | (would be 3x50=150) | 34+33+33 = 100 |
-
-The invariant `SUM(bin.quantity) == SKU.totalQuantity` is enforced at placement time. All existing tests pass (161/163; 2 pre-existing failures unrelated to this change).
+| Feature | UX |
+|---------|----|
+| Sliders icon | A new button next to Shuffle opens the settings popover |
+| Order Count slider | Range 100–10,000, step 100, default 1,000 |
+| Avg Order Size slider | Range 1–20, step 1, default 5 |
+| Apply/Cancel | Changes only take effect when Apply is clicked; Cancel discards |
+| All three generation paths | Shuffle, Add Demo Orders, and layout config regen all respect the settings |
