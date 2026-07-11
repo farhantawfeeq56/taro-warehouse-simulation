@@ -174,7 +174,7 @@ export interface SimulationProfiles {
   allowPartial?: boolean;
 }
 
-export type StrategyType = 'single' | 'batch' | 'zone' | 'wave';
+export type StrategyType = 'single' | 'batch' | 'zone';
 
 export interface WorkerRoute {
   workerId: number;

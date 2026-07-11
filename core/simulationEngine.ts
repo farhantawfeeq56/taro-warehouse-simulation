@@ -424,15 +424,6 @@ function simulateStrategy(
         stops: currentZoneStops,
       });
     }
-  } else {
-    const waveSize = 2;
-    for (let i = 0; i < orders.length; i += waveSize) {
-      const waveOrders = orders.slice(i, i + waveSize);
-      const pickDemandByLocation = countLocationPickDemand(waveOrders, allLocations);
-      const dedupedKeys = dedupeLocationsByFirstSeen(waveOrders, allLocations);
-      const stops = dedupedKeys.map((key) => ({ key, pos: allLocations.get(key)!, pickCount: pickDemandByLocation.get(key) ?? 0 }));
-      units.push({ zoneLabel: `Wave ${Math.floor(i / waveSize) + 1}`, stops });
-    }
   }
 
   const workerBuckets = roundRobinAllocation(units.map((_, i) => `${i}`), numWorkers);
@@ -576,7 +567,7 @@ export function runSimulation(
   const warehouseProfile = resolveWarehouseProfile(profiles.warehouseProfile);
   const laborProfile = resolveLaborProfile(profiles.laborProfile);
   const allowPartial = profiles.allowPartial ?? false;
-  const strategies: StrategyType[] = ['single', 'batch', 'zone', 'wave'];
+  const strategies: StrategyType[] = ['single', 'batch', 'zone'];
   const results: StrategyResult[] = [];
 
   // Use filtered orders if this is a partial simulation (validation context provided)

@@ -66,10 +66,10 @@ describe('simulation', () => {
     const results = runSimulation(warehouse, orders, 2);
 
     expect(results).toBeDefined();
-    expect(results.strategies).toHaveLength(4); // single, batch, zone, wave
+    expect(results.strategies).toHaveLength(3); // single, batch, zone
     expect(results.heatmap).toBeDefined();
     expect(results.bestStrategy).toBeDefined();
-    expect(['single', 'batch', 'zone', 'wave']).toContain(results.bestStrategy);
+    expect(['single', 'batch', 'zone']).toContain(results.bestStrategy);
   });
 
   it('should calculate correct metrics for each strategy', () => {
@@ -161,7 +161,6 @@ describe('simulation', () => {
 
     expect(uniqueDistances.size).toBeGreaterThan(1);
     expect(distancesByStrategy.get('single')).toBeGreaterThanOrEqual(distancesByStrategy.get('batch') ?? 0);
-    expect(distancesByStrategy.get('wave')).toBeGreaterThanOrEqual(distancesByStrategy.get('batch') ?? 0);
   });
 
   it('should accept strictly skuId-based order entries', () => {
@@ -174,7 +173,7 @@ describe('simulation', () => {
     ];
 
     const results = runSimulation(warehouse, orders, 2);
-    expect(results.strategies).toHaveLength(4);
+    expect(results.strategies).toHaveLength(3);
   });
 
   it('should count assignedPickCount as total item picks (including duplicate locations)', () => {
@@ -203,7 +202,7 @@ describe('simulation', () => {
       expect(totalAssignedPicks).toBe(3);
     }
 
-    for (const strategyName of ['single', 'batch', 'zone', 'wave'] as const) {
+    for (const strategyName of ['single', 'batch', 'zone'] as const) {
       const fewer = fewerResults.strategies.find(strategy => strategy.strategy === strategyName);
       const more = moreResults.strategies.find(strategy => strategy.strategy === strategyName);
       expect(fewer).toBeDefined();
@@ -275,7 +274,7 @@ describe('simulation', () => {
 
     const results = runSimulation(warehouse, orders, 1, { allowPartial: true });
     expect(results).toBeDefined();
-    expect(results.strategies).toHaveLength(4);
+    expect(results.strategies).toHaveLength(3);
     expect(results.validationContext).toBeDefined();
     expect(results.validationContext?.missingItems).toBe(1);
     expect(results.validationContext?.affectedOrders).toBe(1);
