@@ -5,7 +5,7 @@ import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
 import { Plus, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
-import { collectSkuIds, getBinForSku } from '@/lib/taro/inventory';
+import { collectSkuIds, getBinForSku, buildSkuToBinIndex } from '@/lib/taro/inventory';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 
@@ -39,9 +39,16 @@ export function OrdersPanel({
   const [draftOrderCount, setDraftOrderCount] = useState(500);
   const [draftAvgOrderSize, setDraftAvgOrderSize] = useState(5);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // Build the SKU → bin index once per warehouse change so every
+  // `getLocationLabelForSku` lookup is O(1) instead of a full grid scan.
+  const skuToBinIndex = useMemo(() => {
+    if (!warehouse) return null;
+    return buildSkuToBinIndex(warehouse);
+  }, [warehouse]);
+
   const getLocationLabelForSku = (skuId: string): string => {
     if (!warehouse) return 'Unknown location';
-    const bin = getBinForSku(warehouse, skuId);
+    const bin = getBinForSku(warehouse, skuId, skuToBinIndex);
     if (!bin) return 'Unknown location';
     return `shelf-${bin.x}-${bin.y}, Z${bin.z}`;
   };

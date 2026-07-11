@@ -1,5 +1,5 @@
-import { assertWarehouseInvariants, getBinForSku } from './inventory';
-import type { Order, Warehouse, OrderValidationResult, SimulationValidationContext } from './types';
+import { assertWarehouseInvariants, getBinForSku, buildSkuToBinIndex } from './inventory';
+import type { Order, Warehouse, OrderValidationResult, SimulationValidationContext, StorageLocation } from './types';
 
 /** Result of validating order lines against the warehouse catalog. */
 export interface ItemsValidationResult {
@@ -11,8 +11,13 @@ export interface ItemsValidationResult {
  * Validates that every order line resolves to a SKU present in the warehouse.
  * Aligns with simulation resolution: unknown SKUs count as unresolvable.
  */
-export function validateItems(orders: Order[], warehouse: Warehouse): ItemsValidationResult {
+export function validateItems(orders: Order[], warehouse: Warehouse, skuIndex?: Map<string, StorageLocation> | null): ItemsValidationResult {
   assertWarehouseInvariants(warehouse);
+
+  // Build a SKU→bin index once so every item lookup is O(1) instead of
+  // O(width×height×bins).  This is the hot path — called from
+  // evaluateReadiness on every warehouse mutation.
+  const index = skuIndex ?? buildSkuToBinIndex(warehouse);
 
   const missingItemsByOrder: OrderValidationResult[] = [];
   let totalItems = 0;
@@ -22,7 +27,7 @@ export function validateItems(orders: Order[], warehouse: Warehouse): ItemsValid
 
     for (const line of order.items) {
       totalItems++;
-      const bin = getBinForSku(warehouse, line.skuId);
+      const bin = getBinForSku(warehouse, line.skuId, index);
       if (!bin) {
         unresolvableSkuIds.push(line.skuId);
       }
@@ -54,9 +59,12 @@ export function validateItems(orders: Order[], warehouse: Warehouse): ItemsValid
  */
 export function validateOrderItems(
   orders: Order[],
-  warehouse: Pick<Warehouse, 'grid'>
+  warehouse: Pick<Warehouse, 'grid'>,
+  skuIndex?: Map<string, StorageLocation> | null
 ): SimulationValidationContext {
   assertWarehouseInvariants(warehouse);
+
+  const index = skuIndex ?? buildSkuToBinIndex(warehouse);
 
   const missingItemsByOrder: OrderValidationResult[] = [];
   let totalItems = 0;
@@ -67,7 +75,7 @@ export function validateOrderItems(
 
     for (const item of order.items) {
       totalItems++;
-      const bin = getBinForSku(warehouse, item.skuId);
+      const bin = getBinForSku(warehouse, item.skuId, index);
       if (!bin) {
         missingItems++;
         missingSkuIds.push(item.skuId);
@@ -99,10 +107,12 @@ export function filterValidOrderItems(
 ): Order[] {
   assertWarehouseInvariants(warehouse);
 
+  const index = buildSkuToBinIndex(warehouse);
+
   return orders
     .map(order => ({
       ...order,
-      items: order.items.filter(item => getBinForSku(warehouse, item.skuId) !== undefined),
+      items: order.items.filter(item => getBinForSku(warehouse, item.skuId, index) !== undefined),
     }))
     .filter(order => order.items.length > 0);
 }
