@@ -68,6 +68,8 @@ export function TaroApp() {
   const [showLayoutConfig, setShowLayoutConfig] = useState(true);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
+  const [orderCount, setOrderCount] = useState(1000);
+  const [avgOrderSize, setAvgOrderSize] = useState(5);
 
   const handleWarehouseChange = useCallback((newWarehouse: Warehouse) => {
     setWarehouse(newWarehouse);
@@ -264,9 +266,9 @@ export function TaroApp() {
   }, [handleWarehouseChange]);
 
   const handleAddDemoOrders = useCallback(() => {
-    const demoOrders = generateRandomOrders(warehouse, 4);
+    const demoOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
     setOrders(demoOrders);
-  }, [warehouse]);
+  }, [warehouse, orderCount, avgOrderSize]);
 
   // 4. Side Effects
   useEffect(() => {
@@ -334,6 +336,10 @@ export function TaroApp() {
           workerCount={workerCount}
           highlightedMissingSkuIds={highlightedMissingSkuIds}
           onClearHighlights={() => setHighlightedMissingSkuIds(null)}
+          orderCount={orderCount}
+          avgOrderSize={avgOrderSize}
+          onOrderCountChange={setOrderCount}
+          onAvgOrderSizeChange={setAvgOrderSize}
         />
 
         {/* Center - Canvas */}
@@ -485,7 +491,7 @@ export function TaroApp() {
             }
 
             // Regenerate orders to match new layout
-            const newOrders = generateRandomOrders(warehouseWithInventory, 4);
+            const newOrders = generateRandomOrders(warehouseWithInventory, orderCount, avgOrderSize);
             setOrders(newOrders);
 
             // Reset simulation state

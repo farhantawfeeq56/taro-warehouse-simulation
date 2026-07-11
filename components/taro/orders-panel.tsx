@@ -16,6 +16,10 @@ interface OrdersPanelProps {
   workerCount: number;
   highlightedMissingSkuIds?: Set<string> | null;
   onClearHighlights?: () => void;
+  orderCount: number;
+  avgOrderSize: number;
+  onOrderCountChange: (value: number) => void;
+  onAvgOrderSizeChange: (value: number) => void;
 }
 
 export function OrdersPanel({
@@ -25,10 +29,12 @@ export function OrdersPanel({
   workerCount,
   highlightedMissingSkuIds,
   onClearHighlights,
+  orderCount,
+  avgOrderSize,
+  onOrderCountChange,
+  onAvgOrderSizeChange,
 }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
-  const [orderCount, setOrderCount] = useState(1000);
-  const [avgOrderSize, setAvgOrderSize] = useState(5);
   const [showSettings, setShowSettings] = useState(false);
   const [draftOrderCount, setDraftOrderCount] = useState(1000);
   const [draftAvgOrderSize, setDraftAvgOrderSize] = useState(5);
@@ -242,8 +248,8 @@ export function OrdersPanel({
                   <Button
                     size="sm"
                     onClick={() => {
-                      setOrderCount(draftOrderCount);
-                      setAvgOrderSize(draftAvgOrderSize);
+                      onOrderCountChange(draftOrderCount);
+                      onAvgOrderSizeChange(draftAvgOrderSize);
                       setShowSettings(false);
                     }}
                     className="h-7 text-xs"
