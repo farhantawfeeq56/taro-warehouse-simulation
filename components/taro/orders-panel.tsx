@@ -36,7 +36,7 @@ export function OrdersPanel({
 }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
   const [showSettings, setShowSettings] = useState(false);
-  const [draftOrderCount, setDraftOrderCount] = useState(1000);
+  const [draftOrderCount, setDraftOrderCount] = useState(500);
   const [draftAvgOrderSize, setDraftAvgOrderSize] = useState(5);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   // Build the SKU → bin index once per warehouse change so every
@@ -216,12 +216,12 @@ export function OrdersPanel({
                     value={[draftOrderCount]}
                     onValueChange={([value]) => setDraftOrderCount(value)}
                     min={100}
-                    max={10000}
+                    max={1000}
                     step={100}
                   />
                   <div className="flex justify-between text-[10px] text-muted-foreground">
                     <span>100</span>
-                    <span>10,000</span>
+                    <span>1,000</span>
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <label className="text-xs text-muted-foreground">Average Order Size</label>
