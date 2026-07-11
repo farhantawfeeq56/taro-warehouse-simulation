@@ -404,7 +404,7 @@ export function TaroApp() {
         <OrdersPanel
           orders={orders}
           onOrdersChange={setOrders}
-          warehouse={deferredWarehouse}
+          warehouse={warehouse}
           workerCount={workerCount}
           highlightedMissingSkuIds={highlightedMissingSkuIds}
           onClearHighlights={() => setHighlightedMissingSkuIds(null)}
