@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, useDeferredValue } from 'react';
 import type { ChangeEvent } from 'react';
 import type {
   Warehouse,
@@ -72,7 +72,7 @@ export function TaroApp() {
   const [showLayoutConfig, setShowLayoutConfig] = useState(true);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
-  const [orderCount, setOrderCount] = useState(500);
+  const [orderCount, setOrderCount] = useState(1000);
   const [avgOrderSize, setAvgOrderSize] = useState(5);
 
   const resetAnimationState = useCallback(() => {
@@ -102,6 +102,14 @@ export function TaroApp() {
 
   // 1. Derived Data
 
+  // Use a deferred snapshot of the warehouse for expensive validation
+  // computations.  During rapid drawing the deferred value stays stale,
+  // so fingerprinting, order validation, and readiness checks are skipped
+  // entirely.  The canvas continues to read the live `warehouse` prop so
+  // visual feedback stays instant.  When drawing pauses, the deferred
+  // value catches up and all validations re-run once.
+  const deferredWarehouse = useDeferredValue(warehouse);
+
   // Stable fingerprint of the warehouse's SKU → bin mapping.
   // Changes ONLY when inventory content changes, NOT when the user draws
   // empty shelves or repositions the worker-start point.  This is the key
@@ -109,28 +117,28 @@ export function TaroApp() {
   // mouse-move while drawing.
   const warehouseSkuFingerprint = useMemo(() => {
     const parts: string[] = [];
-    for (const row of warehouse.grid) {
+    for (const row of deferredWarehouse.grid) {
       for (const cell of row) {
         for (const bin of cell.locations) {
           // Order-stable: sort only the concatenated string, not while building.
-          parts.push(`${bin.sku}\\,${bin.x}\\,${bin.y}\\,${bin.z}`);
+          parts.push(`${bin.sku}\,${bin.x}\,${bin.y}\,${bin.z}`);
         }
       }
     }
     return parts.sort().join('|');
-  }, [warehouse]);
+  }, [deferredWarehouse]);
 
   // Expensive order-line validation — only re-runs when the SKU inventory
   // OR the order list actually changes.
   const cachedOrderValidation = useMemo(
-    () => validateItems(orders, warehouse),
+    () => validateItems(orders, deferredWarehouse),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [warehouseSkuFingerprint, orders]
   );
 
   const readiness = useMemo(
-    () => evaluateReadiness(warehouse, orders, zVisualizationMode, cachedOrderValidation),
-    [warehouse, orders, zVisualizationMode, cachedOrderValidation]
+    () => evaluateReadiness(deferredWarehouse, orders, zVisualizationMode, cachedOrderValidation),
+    [deferredWarehouse, orders, zVisualizationMode, cachedOrderValidation]
   );
   const canSimulate = readiness.isReady;
 
@@ -144,6 +152,8 @@ export function TaroApp() {
     return simulationResults.strategies.find(s => s.strategy === executionPlanStrategy) ?? null;
   }, [executionPlanStrategy, simulationResults]);
 
+  const [animationReplayId, setAnimationReplayId] = useState(0);
+
   const startStrategyAnimation = useCallback((strategy: StrategyType) => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
@@ -154,6 +164,7 @@ export function TaroApp() {
     setAnimationProgress(0);
     animationProgressRef.current = 0;
     animationProgressLastRenderedRef.current = 0;
+    setAnimationReplayId(id => id + 1);
 
     const baseDuration = 3000;
     let lastTime: number | null = null;
@@ -393,7 +404,7 @@ export function TaroApp() {
         <OrdersPanel
           orders={orders}
           onOrdersChange={setOrders}
-          warehouse={warehouse}
+          warehouse={deferredWarehouse}
           workerCount={workerCount}
           highlightedMissingSkuIds={highlightedMissingSkuIds}
           onClearHighlights={() => setHighlightedMissingSkuIds(null)}
@@ -425,6 +436,7 @@ export function TaroApp() {
             activeRoute={activeRoute}
             animationProgressRef={animationProgressRef}
             zVisualizationMode={zVisualizationMode}
+            animationReplayId={animationReplayId}
           />
 
           {/* Status Bar */}
