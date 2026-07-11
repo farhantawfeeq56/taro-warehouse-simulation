@@ -166,16 +166,25 @@ export function generateRandomOrders(warehouse: Warehouse, count: number, avgOrd
   const availableSkuIds = collectSkuIds(warehouse);
   if (availableSkuIds.length === 0) return orders;
 
+  const maxSkuIndex = availableSkuIds.length;
+
   for (let i = 0; i < count; i++) {
     // Item count varies naturally around avgOrderSize (±40%) using a uniform distribution
-    const itemCount = Math.max(1, Math.round(avgOrderSize * (0.6 + Math.random() * 0.8)))
+    const itemCount = Math.min(
+      Math.max(1, Math.round(avgOrderSize * (0.6 + Math.random() * 0.8))),
+      maxSkuIndex
+    );
     const orderItems: Order['items'] = [];
-    const availableSkuIdsCopy = [...availableSkuIds];
+    const picked = new Set<number>();
 
-    for (let j = 0; j < itemCount && availableSkuIdsCopy.length > 0; j++) {
-      const idx = Math.floor(Math.random() * availableSkuIdsCopy.length);
-      orderItems.push({ skuId: availableSkuIdsCopy[idx] });
-      availableSkuIdsCopy.splice(idx, 1);
+    // Rejection sampling: pick itemCount unique random indices.
+    // Avoids cloning the full SKU array and O(n) splice() per item.
+    while (picked.size < itemCount) {
+      const idx = Math.floor(Math.random() * maxSkuIndex);
+      if (!picked.has(idx)) {
+        picked.add(idx);
+        orderItems.push({ skuId: availableSkuIds[idx] });
+      }
     }
 
     orders.push({
