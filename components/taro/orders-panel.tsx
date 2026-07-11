@@ -9,7 +9,7 @@ import { collectSkuIds, getBinForSku, buildSkuToBinIndex } from '@/lib/taro/inve
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import {
-  Command,
+  CommandDialog,
   CommandInput,
   CommandList,
   CommandEmpty,
@@ -43,7 +43,7 @@ export function OrdersPanel({
   onAvgOrderSizeChange,
 }: OrdersPanelProps) {
   const [showSettings, setShowSettings] = useState(false);
-  const [openSkuPicker, setOpenSkuPicker] = useState<Record<string, boolean>>({});
+  const [pickerOrderId, setPickerOrderId] = useState<string | null>(null);
   const [draftOrderCount, setDraftOrderCount] = useState(500);
   const [draftAvgOrderSize, setDraftAvgOrderSize] = useState(5);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -383,52 +383,15 @@ export function OrdersPanel({
                 })}
               </div>
 
-              {/* Add SKU — lazy Popover + Command combobox */}
+              {/* Search SKU — opens shared picker dialog */}
               {availableSkus.length > 0 ? (
-                <Popover
-                  open={openSkuPicker[order.id] || false}
-                  onOpenChange={(open) =>
-                    setOpenSkuPicker((prev) => ({ ...prev, [order.id]: open }))
-                  }
+                <button
+                  onClick={() => setPickerOrderId(order.id)}
+                  className="h-7 text-xs w-full rounded border border-border bg-background text-left text-muted-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary flex items-center gap-1.5 hover:border-foreground/30 transition-colors"
                 >
-                  <PopoverTrigger asChild>
-                    <button className="h-7 text-xs w-full rounded border border-border bg-background text-left text-muted-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary flex items-center gap-1.5 hover:border-foreground/30 transition-colors">
-                      <Search className="h-3 w-3 shrink-0 opacity-50" />
-                      <span className="truncate">Search SKU…</span>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[280px] p-0" align="start" side="bottom">
-                    <Command shouldFilter>
-                      <CommandInput placeholder="Type to search…" className="h-8" />
-                      <CommandList className="max-h-48">
-                        <CommandEmpty className="py-4 text-xs">No SKU found</CommandEmpty>
-                        <CommandGroup heading="Available SKUs">
-                          {availableSkus.map((itemOption) => (
-                            <CommandItem
-                              key={itemOption.skuId}
-                              value={itemOption.label}
-                              onSelect={() => {
-                                addSkuToOrder(order.id, itemOption.skuId);
-                                setOpenSkuPicker((prev) => ({
-                                  ...prev,
-                                  [order.id]: false,
-                                }));
-                              }}
-                              className="text-xs"
-                            >
-                              <span className="font-mono font-medium truncate">
-                                {itemOption.skuId}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground truncate ml-auto shrink-0">
-                                {getLocationLabelForSku(itemOption.skuId)}
-                              </span>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                  <Search className="h-3 w-3 shrink-0 opacity-50" />
+                  <span className="truncate">Search SKU…</span>
+                </button>
               ) : (
                 /* Fallback when no SKUs are available */
                 <button
@@ -444,6 +407,43 @@ export function OrdersPanel({
           })
         )}
       </div>
+
+      {/* Shared SKU picker dialog — one instance at panel level, not per-order.
+          Gated behind `pickerOrderId` so the CommandItem list is only created
+          when the dialog is open (Fix #2: no heavy children while closed). */}
+      {pickerOrderId !== null && (
+        <CommandDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setPickerOrderId(null); }}
+          title={`Add SKU to ${pickerOrderId}`}
+          shouldFilter
+        >
+          <CommandInput placeholder="Type to search…" className="h-8" />
+          <CommandList>
+            <CommandEmpty className="py-4 text-xs">No SKU found</CommandEmpty>
+            <CommandGroup heading="Available SKUs">
+              {availableSkus.map((itemOption) => (
+                <CommandItem
+                  key={itemOption.skuId}
+                  value={itemOption.label}
+                  onSelect={() => {
+                    addSkuToOrder(pickerOrderId!, itemOption.skuId);
+                    setPickerOrderId(null);
+                  }}
+                  className="text-xs"
+                >
+                  <span className="font-mono font-medium truncate">
+                    {itemOption.skuId}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground truncate ml-auto shrink-0">
+                    {getLocationLabelForSku(itemOption.skuId)}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </CommandDialog>
+      )}
     </div>
   );
 }
