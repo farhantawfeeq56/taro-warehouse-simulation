@@ -13,6 +13,10 @@ interface WarehouseCanvasProps {
   activeRoute: StrategyResult | null;
   animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
+  /** Incremented each time `startStrategyAnimation` is called.
+   *  Forces the canvas animation effect to re-run even when the
+   *  same strategy is re-selected after the route completed. */
+  animationReplayId: number;
 }
 
 interface TooltipState {
@@ -38,6 +42,7 @@ export function WarehouseCanvas({
   activeRoute,
   animationProgressRef,
   zVisualizationMode,
+  animationReplayId,
 }: WarehouseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,15 +96,14 @@ export function WarehouseCanvas({
       }
     };
 
-    const targetCell = warehouse.grid[cellY][cellX];
     let newShelves = warehouse.shelves;
     let newWorkerStart = warehouse.workerStart;
 
     switch (selectedTool) {
       case 'shelf':
-        if (targetCell.type === 'empty') {
+        if (newGrid[cellY][cellX].type === 'empty') {
           cloneRow(cellY);
-          newGrid[cellY][cellX] = { ...targetCell, type: 'shelf', locations: [] };
+          newGrid[cellY][cellX] = { ...warehouse.grid[cellY][cellX], type: 'shelf', locations: [] };
           newShelves = [...newShelves, { x: cellX, y: cellY }];
         }
         break;
@@ -112,21 +116,26 @@ export function WarehouseCanvas({
             newGrid[newWorkerStart.y][newWorkerStart.x] = { ...old, type: 'empty', locations: [] };
           }
         }
-        if (targetCell.type === 'empty') {
+        // Read from newGrid so self-click works correctly:
+        // the clear step above sets the cell to empty, making it re-eligible.
+        if (newGrid[cellY][cellX].type === 'empty') {
           cloneRow(cellY);
-          newGrid[cellY][cellX] = { ...targetCell, type: 'worker-start', locations: [] };
+          newGrid[cellY][cellX] = { ...warehouse.grid[cellY][cellX], type: 'worker-start', locations: [] };
           newWorkerStart = { x: cellX, y: cellY };
         }
         break;
       case 'erase':
         cloneRow(cellY);
-        if (targetCell.type === 'shelf') {
-          newShelves = newShelves.filter(s => !(s.x === cellX && s.y === cellY));
+        {
+          const erased = newGrid[cellY][cellX];
+          if (erased.type === 'shelf') {
+            newShelves = newShelves.filter(s => !(s.x === cellX && s.y === cellY));
+          }
+          if (erased.type === 'worker-start') {
+            newWorkerStart = null;
+          }
         }
-        if (targetCell.type === 'worker-start') {
-          newWorkerStart = null;
-        }
-        newGrid[cellY][cellX] = { ...targetCell, type: 'empty', locations: [] };
+        newGrid[cellY][cellX] = { ...warehouse.grid[cellY][cellX], type: 'empty', locations: [] };
         break;
     }
 
@@ -604,7 +613,7 @@ export function WarehouseCanvas({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [drawCanvas, activeRoute]);
+  }, [drawCanvas, activeRoute, animationReplayId]);
 
   const isHoveringShelf = hoveredCell && warehouse.grid[hoveredCell.y][hoveredCell.x].type === 'shelf';
 

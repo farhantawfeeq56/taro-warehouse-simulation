@@ -152,6 +152,8 @@ export function TaroApp() {
     return simulationResults.strategies.find(s => s.strategy === executionPlanStrategy) ?? null;
   }, [executionPlanStrategy, simulationResults]);
 
+  const [animationReplayId, setAnimationReplayId] = useState(0);
+
   const startStrategyAnimation = useCallback((strategy: StrategyType) => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
@@ -162,6 +164,7 @@ export function TaroApp() {
     setAnimationProgress(0);
     animationProgressRef.current = 0;
     animationProgressLastRenderedRef.current = 0;
+    setAnimationReplayId(id => id + 1);
 
     const baseDuration = 3000;
     let lastTime: number | null = null;
@@ -433,6 +436,7 @@ export function TaroApp() {
             activeRoute={activeRoute}
             animationProgressRef={animationProgressRef}
             zVisualizationMode={zVisualizationMode}
+            animationReplayId={animationReplayId}
           />
 
           {/* Status Bar */}
