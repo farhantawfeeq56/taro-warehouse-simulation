@@ -28,6 +28,7 @@ export function OrdersPanel({
 }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
   const [orderCount, setOrderCount] = useState(1000);
+  const [avgOrderSize, setAvgOrderSize] = useState(5);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const getLocationLabelForSku = (skuId: string): string => {
     if (!warehouse) return 'Unknown location';
@@ -104,7 +105,7 @@ export function OrdersPanel({
 
   const generateRandom = () => {
     if (!warehouse || availableSkus.length === 0) return;
-    const randomOrders = generateRandomOrders(warehouse, orderCount);
+    const randomOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
     // Preserve assignedWorkerId=null on generated orders
     onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
   };
@@ -198,6 +199,21 @@ export function OrdersPanel({
                   <div className="flex justify-between text-[10px] text-muted-foreground">
                     <span>100</span>
                     <span>10,000</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <label className="text-xs text-muted-foreground">Average Order Size</label>
+                    <span className="text-xs font-medium text-foreground">{avgOrderSize} SKUs</span>
+                  </div>
+                  <Slider
+                    value={[avgOrderSize]}
+                    onValueChange={([value]) => setAvgOrderSize(value)}
+                    min={1}
+                    max={20}
+                    step={1}
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>1</span>
+                    <span>20</span>
                   </div>
                 </div>
               </div>

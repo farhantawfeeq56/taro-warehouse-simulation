@@ -159,7 +159,7 @@ export function generateSkeletonWarehouse(): Warehouse {
   return warehouse;
 }
 
-export function generateRandomOrders(warehouse: Warehouse, count: number): Order[] {
+export function generateRandomOrders(warehouse: Warehouse, count: number, avgOrderSize: number = 5): Order[] {
   const orders: Order[] = [];
   const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -167,7 +167,8 @@ export function generateRandomOrders(warehouse: Warehouse, count: number): Order
   if (availableSkuIds.length === 0) return orders;
 
   for (let i = 0; i < count; i++) {
-    const itemCount = Math.floor(Math.random() * 4) + 2; // 2-5 items per order
+    // Item count varies naturally around avgOrderSize (±40%) using a uniform distribution
+    const itemCount = Math.max(1, Math.round(avgOrderSize * (0.6 + Math.random() * 0.8)))
     const orderItems: Order['items'] = [];
     const availableSkuIdsCopy = [...availableSkuIds];
 
