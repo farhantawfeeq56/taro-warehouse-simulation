@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
-import { Plus, Shuffle, Trash2, X } from 'lucide-react';
+import { Plus, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 import { collectSkuIds, getBinForSku } from '@/lib/taro/inventory';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Slider } from '@/components/ui/slider';
 
 interface OrdersPanelProps {
   orders: Order[];
@@ -25,6 +27,7 @@ export function OrdersPanel({
   onClearHighlights,
 }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
+  const [orderCount, setOrderCount] = useState(1000);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const getLocationLabelForSku = (skuId: string): string => {
     if (!warehouse) return 'Unknown location';
@@ -101,7 +104,7 @@ export function OrdersPanel({
 
   const generateRandom = () => {
     if (!warehouse || availableSkus.length === 0) return;
-    const randomOrders = generateRandomOrders(warehouse, Math.min(5, Math.max(3, Math.floor(availableSkus.length / 3))));
+    const randomOrders = generateRandomOrders(warehouse, orderCount);
     // Preserve assignedWorkerId=null on generated orders
     onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
   };
@@ -164,6 +167,42 @@ export function OrdersPanel({
           >
             <Shuffle className="h-3 w-3" />
           </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs px-2"
+                title="Order generation settings"
+              >
+                <SlidersHorizontal className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-4" align="end" side="bottom">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">Order Generation Settings</h3>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-muted-foreground">Order Count</label>
+                    <span className="text-xs font-medium text-foreground">{orderCount.toLocaleString()} orders</span>
+                  </div>
+                  <Slider
+                    value={[orderCount]}
+                    onValueChange={([value]) => setOrderCount(value)}
+                    min={100}
+                    max={10000}
+                    step={100}
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>100</span>
+                    <span>10,000</span>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
       </div>
