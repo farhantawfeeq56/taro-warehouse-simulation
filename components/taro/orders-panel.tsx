@@ -29,6 +29,9 @@ export function OrdersPanel({
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
   const [orderCount, setOrderCount] = useState(1000);
   const [avgOrderSize, setAvgOrderSize] = useState(5);
+  const [showSettings, setShowSettings] = useState(false);
+  const [draftOrderCount, setDraftOrderCount] = useState(1000);
+  const [draftAvgOrderSize, setDraftAvgOrderSize] = useState(5);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const getLocationLabelForSku = (skuId: string): string => {
     if (!warehouse) return 'Unknown location';
@@ -168,7 +171,14 @@ export function OrdersPanel({
           >
             <Shuffle className="h-3 w-3" />
           </Button>
-          <Popover>
+          <Popover open={showSettings} onOpenChange={(open) => {
+            if (!open) {
+              // Reset drafts when popover closes without applying
+              setDraftOrderCount(orderCount);
+              setDraftAvgOrderSize(avgOrderSize);
+            }
+            setShowSettings(open);
+          }}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -187,11 +197,11 @@ export function OrdersPanel({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-muted-foreground">Order Count</label>
-                    <span className="text-xs font-medium text-foreground">{orderCount.toLocaleString()} orders</span>
+                    <span className="text-xs font-medium text-foreground">{draftOrderCount.toLocaleString()} orders</span>
                   </div>
                   <Slider
-                    value={[orderCount]}
-                    onValueChange={([value]) => setOrderCount(value)}
+                    value={[draftOrderCount]}
+                    onValueChange={([value]) => setDraftOrderCount(value)}
                     min={100}
                     max={10000}
                     step={100}
@@ -202,11 +212,11 @@ export function OrdersPanel({
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <label className="text-xs text-muted-foreground">Average Order Size</label>
-                    <span className="text-xs font-medium text-foreground">{avgOrderSize} SKUs</span>
+                    <span className="text-xs font-medium text-foreground">{draftAvgOrderSize} SKUs</span>
                   </div>
                   <Slider
-                    value={[avgOrderSize]}
-                    onValueChange={([value]) => setAvgOrderSize(value)}
+                    value={[draftAvgOrderSize]}
+                    onValueChange={([value]) => setDraftAvgOrderSize(value)}
                     min={1}
                     max={20}
                     step={1}
@@ -215,6 +225,31 @@ export function OrdersPanel({
                     <span>1</span>
                     <span>20</span>
                   </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDraftOrderCount(orderCount);
+                      setDraftAvgOrderSize(avgOrderSize);
+                      setShowSettings(false);
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setOrderCount(draftOrderCount);
+                      setAvgOrderSize(draftAvgOrderSize);
+                      setShowSettings(false);
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    Apply
+                  </Button>
                 </div>
               </div>
             </PopoverContent>
