@@ -68,7 +68,7 @@ export function TaroApp() {
   const [showLayoutConfig, setShowLayoutConfig] = useState(true);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
-  const [orderCount, setOrderCount] = useState(1000);
+  const [orderCount, setOrderCount] = useState(500);
   const [avgOrderSize, setAvgOrderSize] = useState(5);
 
   const handleWarehouseChange = useCallback((newWarehouse: Warehouse) => {
