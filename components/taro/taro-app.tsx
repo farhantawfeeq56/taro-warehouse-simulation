@@ -405,7 +405,6 @@ export function TaroApp() {
           orders={orders}
           onOrdersChange={setOrders}
           warehouse={warehouse}
-          workerCount={workerCount}
           highlightedMissingSkuIds={highlightedMissingSkuIds}
           onClearHighlights={() => setHighlightedMissingSkuIds(null)}
           orderCount={orderCount}
