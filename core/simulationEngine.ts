@@ -126,6 +126,20 @@ function safelyResolveOrderLocations(
 ): { resolvedOrders: ResolvedOrder[]; missingSkuIds: Set<string>; invalidLocationItemIds: Set<string> } {
   assertWarehouseInvariants(warehouse);
 
+  // Build SKU → primary-bin-id index once.  With 1 000 orders × 5
+  // items this replaces ~5 000 full-grid scans with a single scan.
+  const skuBinMap = new Map<string, string>();
+  for (const row of warehouse.grid) {
+    for (const cell of row) {
+      for (const bin of cell.locations) {
+        const existing = skuBinMap.get(bin.sku);
+        if (!existing || bin.primary) {
+          skuBinMap.set(bin.sku, bin.id);
+        }
+      }
+    }
+  }
+
   const resolvedOrders: ResolvedOrder[] = [];
   const missingSkuIds = new Set<string>();
   const invalidLocationItemIds = new Set<string>();
@@ -133,39 +147,17 @@ function safelyResolveOrderLocations(
   for (const order of orders) {
     const locations: string[] = [];
     for (const item of order.items) {
-      const bin = findBinBySku(warehouse, item.skuId);
-      if (!bin) {
+      const binId = skuBinMap.get(item.skuId);
+      if (binId === undefined) {
         missingSkuIds.add(item.skuId);
         continue;
       }
-      locations.push(bin.id);
+      locations.push(binId);
     }
     resolvedOrders.push({ id: order.id, locations });
   }
 
   return { resolvedOrders, missingSkuIds, invalidLocationItemIds };
-}
-
-function findBinBySku(
-  warehouse: Warehouse,
-  skuId: string
-): { id: string } | undefined {
-  // A SKU may span multiple bins; prefer the primary bin (the canonical
-  // pick location marked by Inventory Placement) so simulation picks happen
-  // at the intended location. Fall back to the first-encountered bin for
-  // legacy warehouses where no bin is marked primary.
-  let fallback: { id: string } | undefined;
-  for (const row of warehouse.grid) {
-    for (const cell of row) {
-      for (const bin of cell.locations) {
-        if (bin.sku === skuId) {
-          if (bin.primary) return bin;
-          if (!fallback) fallback = bin;
-        }
-      }
-    }
-  }
-  return fallback;
 }
 
 function dedupeLocationsByFirstSeen(
