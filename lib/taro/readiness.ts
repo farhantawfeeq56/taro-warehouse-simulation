@@ -1,5 +1,5 @@
 import { Warehouse, Order, ZVisualizationMode } from './types';
-import { validateItems } from './order-validation';
+import { validateItems, type ItemsValidationResult } from './order-validation';
 
 export type GuidedFixId = 
   | 'add-shelves'
@@ -74,11 +74,17 @@ const FIX_TEMPLATES: Record<string, GuidedFix> = {
 
 /**
  * Evaluates whether the simulation is ready to run based on current warehouse state and orders.
+ *
+ * When `precomputedValidation` is supplied the expensive order-line scan is skipped entirely.
+ * Callers that already have a *fresh* `ItemsValidationResult` (e.g. memoised in the parent)
+ * should pass it here so that structural warehouse mutations (adding a shelf, moving the
+ * worker-start) don't re-trigger an O(orders × items × bins) re-validation on every mouse move.
  */
 export function evaluateReadiness(
   warehouse: Warehouse, 
   orders: Order[], 
-  activeZVisualizationMode: ZVisualizationMode = 'all'
+  activeZVisualizationMode: ZVisualizationMode = 'all',
+  precomputedValidation?: ItemsValidationResult | null
 ): SimulationReadiness {
   const itemsExist = warehouse.grid.some(row =>
     row.some(cell => cell.locations.length > 0)
@@ -100,8 +106,9 @@ export function evaluateReadiness(
   const validOrders = orders.length > 0 && orders.every(o => o.items.length > 0);
   const workerStartMet = warehouse.workerStart !== null;
 
-  // Use existing validation logic to see if all items can be picked
-  const validationResult = validateItems(orders, warehouse);
+  // Use precomputed validation when available so structural warehouse changes
+  // (adding a shelf, moving the worker-start) don't re-scan every order line.
+  const validationResult = precomputedValidation ?? validateItems(orders, warehouse);
   const allItemsPickable = validationResult.context.totalItems > 0 && 
                            validationResult.context.missingItems === 0;
 

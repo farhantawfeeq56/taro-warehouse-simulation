@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo, type MutableRefObject } from 'react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
@@ -11,7 +11,7 @@ interface WarehouseCanvasProps {
   onWarehouseChange: (warehouse: Warehouse) => void;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
-  animationProgress: number;
+  animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
 }
 
@@ -36,7 +36,7 @@ export function WarehouseCanvas({
   onWarehouseChange,
   selectedTool,
   activeRoute,
-  animationProgress,
+  animationProgressRef,
   zVisualizationMode,
 }: WarehouseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -476,7 +476,7 @@ export function WarehouseCanvas({
           if (workerRoute.route.length === 0) continue;
 
           // All workers use the same animationProgress — true parallel execution
-          const visiblePoints = Math.max(1, Math.floor(workerRoute.route.length * animationProgress));
+          const visiblePoints = Math.max(1, Math.floor(workerRoute.route.length * animationProgressRef.current));
 
           // Draw path
           ctx.beginPath();
@@ -513,7 +513,7 @@ export function WarehouseCanvas({
         }
       } else if (activeRoute.route.length > 1) {
         // Fallback: single route
-        const visiblePoints = Math.floor(activeRoute.route.length * animationProgress);
+        const visiblePoints = Math.floor(activeRoute.route.length * animationProgressRef.current);
         if (visiblePoints > 0) {
           ctx.beginPath();
           ctx.strokeStyle = activeRoute.color;
@@ -574,16 +574,18 @@ export function WarehouseCanvas({
     }
 
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, activeRouteHeatmap, animationProgress, zVisualizationMode, hoveredCell]);
+  }, [warehouse, panOffset, zoom, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell]);
 
   // Use RAF for smooth animation, avoid 60fps React re-renders
   useEffect(() => {
     drawCanvas();
 
-    if (activeRoute && animationProgress < 1) {
+    if (activeRoute && animationProgressRef.current < 1) {
       const animate = () => {
         drawCanvas();
-        animationRef.current = requestAnimationFrame(animate);
+        if (animationProgressRef.current < 1) {
+          animationRef.current = requestAnimationFrame(animate);
+        }
       };
       animationRef.current = requestAnimationFrame(animate);
     }
@@ -593,7 +595,7 @@ export function WarehouseCanvas({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [drawCanvas, activeRoute, animationProgress]);
+  }, [drawCanvas, activeRoute]);
 
   const isHoveringShelf = hoveredCell && warehouse.grid[hoveredCell.y][hoveredCell.x].type === 'shelf';
 

@@ -52,7 +52,11 @@ export function TaroApp() {
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
+  // Animation progress ref → read by the canvas at 60 fps without React re-renders.
+  // Throttled state mirror for the SystemStatePanel progress bars (~10 fps).
+  const animationProgressRef = useRef(0);
   const [animationProgress, setAnimationProgress] = useState(0);
+  const animationProgressLastRenderedRef = useRef(0);
   const [workerCount, setWorkerCount] = useState(2);
   const [warehouseProfile, setWarehouseProfile] = useState<WarehouseProfile>({ ...DEFAULT_WAREHOUSE_PROFILE });
   const [laborProfile, setLaborProfile] = useState<LaborProfile>({ ...DEFAULT_LABOR_PROFILE });
@@ -71,12 +75,21 @@ export function TaroApp() {
   const [orderCount, setOrderCount] = useState(1000);
   const [avgOrderSize, setAvgOrderSize] = useState(5);
 
+  const resetAnimationState = useCallback(() => {
+    setAnimationProgress(0);
+    animationProgressRef.current = 0;
+    animationProgressLastRenderedRef.current = 0;
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+  }, []);
+
   const handleWarehouseChange = useCallback((newWarehouse: Warehouse) => {
     setWarehouse(newWarehouse);
     setSimulationResults(null);
     setSimulationBlockState(null);
     setIsSimulating(false);
-    setAnimationProgress(0);
     setActiveStrategy(null);
     setExecutionPlanStrategy(null);
     setValidationContext(null);
@@ -84,10 +97,41 @@ export function TaroApp() {
     setShowValidationModal(false);
     setHighlightedMissingSkuIds(null);
     setImportSummary('');
+    animationProgressRef.current = 0;
   }, []);
 
   // 1. Derived Data
-  const readiness = useMemo(() => evaluateReadiness(warehouse, orders, zVisualizationMode), [warehouse, orders, zVisualizationMode]);
+
+  // Stable fingerprint of the warehouse's SKU → bin mapping.
+  // Changes ONLY when inventory content changes, NOT when the user draws
+  // empty shelves or repositions the worker-start point.  This is the key
+  // that prevents the expensive validateItems() from running on every
+  // mouse-move while drawing.
+  const warehouseSkuFingerprint = useMemo(() => {
+    const parts: string[] = [];
+    for (const row of warehouse.grid) {
+      for (const cell of row) {
+        for (const bin of cell.locations) {
+          // Order-stable: sort only the concatenated string, not while building.
+          parts.push(`${bin.sku}\\,${bin.x}\\,${bin.y}\\,${bin.z}`);
+        }
+      }
+    }
+    return parts.sort().join('|');
+  }, [warehouse]);
+
+  // Expensive order-line validation — only re-runs when the SKU inventory
+  // OR the order list actually changes.
+  const cachedOrderValidation = useMemo(
+    () => validateItems(orders, warehouse),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [warehouseSkuFingerprint, orders]
+  );
+
+  const readiness = useMemo(
+    () => evaluateReadiness(warehouse, orders, zVisualizationMode, cachedOrderValidation),
+    [warehouse, orders, zVisualizationMode, cachedOrderValidation]
+  );
   const canSimulate = readiness.isReady;
 
   const activeRoute = useMemo((): StrategyResult | null => {
@@ -108,6 +152,8 @@ export function TaroApp() {
 
     setActiveStrategy(strategy);
     setAnimationProgress(0);
+    animationProgressRef.current = 0;
+    animationProgressLastRenderedRef.current = 0;
 
     const baseDuration = 3000;
     let lastTime: number | null = null;
@@ -119,10 +165,25 @@ export function TaroApp() {
       elapsed += delta * replaySpeedRef.current;
 
       const progress = Math.min(elapsed / baseDuration, 1);
-      setAnimationProgress(progress);
+
+      // Always update the ref so the canvas reads the latest value at 60 fps.
+      animationProgressRef.current = progress;
+
+      // Throttle React state updates to ~10 fps so the SystemStatePanel
+      // progress bars stay responsive without driving full-tree re-renders.
+      if (
+        progress >= 1 ||
+        currentTime - animationProgressLastRenderedRef.current > 100
+      ) {
+        setAnimationProgress(progress);
+        animationProgressLastRenderedRef.current = currentTime;
+      }
 
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
+      } else {
+        // Ensure the final frame is rendered even when throttled.
+        setAnimationProgress(1);
       }
     };
 
@@ -139,6 +200,8 @@ export function TaroApp() {
       setSimulationBlockState(null);
       setIsSimulating(true);
       setActiveStrategy(null);
+      animationProgressRef.current = 0;
+      animationProgressLastRenderedRef.current = 0;
       setAnimationProgress(0);
       setExecutionPlanStrategy(null);
       setHighlightedMissingSkuIds(null);
@@ -182,7 +245,6 @@ export function TaroApp() {
       setSimulationResults(null);
       setIsSimulating(false);
       setActiveStrategy(null);
-      setAnimationProgress(0);
       setExecutionPlanStrategy(null);
       setValidationContext(null);
       setValidationResult(null);
@@ -190,12 +252,9 @@ export function TaroApp() {
       setHighlightedMissingSkuIds(null);
       setSimulationBlockState(null);
       setImportSummary('');
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
+      resetAnimationState();
     }
-  }, [handleWarehouseChange]);
+  }, [handleWarehouseChange, resetAnimationState]);
 
   const handleSimulateClick = useCallback(() => {
     if (!readiness.isReady) {
@@ -205,6 +264,8 @@ export function TaroApp() {
       }
       setSimulationResults(null);
       setActiveStrategy(null);
+      animationProgressRef.current = 0;
+      animationProgressLastRenderedRef.current = 0;
       setAnimationProgress(0);
       setExecutionPlanStrategy(null);
       setIsSimulating(false);
@@ -362,7 +423,7 @@ export function TaroApp() {
             onWarehouseChange={handleWarehouseChange}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
-            animationProgress={animationProgress}
+            animationProgressRef={animationProgressRef}
             zVisualizationMode={zVisualizationMode}
           />
 
@@ -510,10 +571,7 @@ export function TaroApp() {
             // set when unplacedSkus.length > 0 (React batches synchronous
             // state updates, so the later null would always win).
             setImportSummary('');
-            if (animationRef.current) {
-              cancelAnimationFrame(animationRef.current);
-              animationRef.current = null;
-            }
+            resetAnimationState();
           }}
         />
       )}

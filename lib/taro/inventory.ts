@@ -29,6 +29,29 @@ export function buildBinIndex(warehouse: Pick<Warehouse, 'grid'>): Map<string, S
 }
 
 /**
+ * Builds a SKU → canonical (primary) bin index from the warehouse's grid.
+ *
+ * Uses `buildBinIndex` internally so the full grid is only scanned once;
+ * subsequent lookups via `getBinForSku` with this index are O(1).
+ *
+ * Primary-bins are preferred; when no bin is explicitly marked primary the
+ * first-encountered bin wins (identical to `getBinForSku` scan logic).
+ */
+export function buildSkuToBinIndex(warehouse: Pick<Warehouse, 'grid'>): Map<string, StorageLocation> {
+  const binIndex = buildBinIndex(warehouse);
+  const skuToPrimaryBin = new Map<string, StorageLocation>();
+
+  for (const bin of binIndex.values()) {
+    const existing = skuToPrimaryBin.get(bin.sku);
+    if (!existing || bin.primary) {
+      skuToPrimaryBin.set(bin.sku, bin);
+    }
+  }
+
+  return skuToPrimaryBin;
+}
+
+/**
  * Returns the CANONICAL (primary) bin for a SKU.
  *
  * A SKU may span multiple storage locations (its `storageFootprint`); the
@@ -36,11 +59,19 @@ export function buildBinIndex(warehouse: Pick<Warehouse, 'grid'>): Map<string, S
  * If no bin is explicitly marked primary (legacy/manually-built warehouses),
  * the first-encountered bin for the SKU is returned, preserving the
  * pre-footprint behaviour.
+ *
+ * When `skuIndex` is provided (from `buildSkuToBinIndex`) lookups are O(1);
+ * otherwise the function falls back to a full grid scan.
  */
 export function getBinForSku(
   warehouse: Pick<Warehouse, 'grid'>,
-  skuId: string
+  skuId: string,
+  skuIndex?: Map<string, StorageLocation> | null
 ): StorageLocation | undefined {
+  if (skuIndex) {
+    return skuIndex.get(skuId);
+  }
+
   let fallback: StorageLocation | undefined;
   for (const row of warehouse.grid) {
     for (const cell of row) {
