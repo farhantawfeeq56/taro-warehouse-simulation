@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
-import { Plus, Shuffle, Trash2, X } from 'lucide-react';
+import { Plus, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 import { collectSkuIds, getBinForSku } from '@/lib/taro/inventory';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Slider } from '@/components/ui/slider';
 
 interface OrdersPanelProps {
   orders: Order[];
@@ -14,6 +16,10 @@ interface OrdersPanelProps {
   workerCount: number;
   highlightedMissingSkuIds?: Set<string> | null;
   onClearHighlights?: () => void;
+  orderCount: number;
+  avgOrderSize: number;
+  onOrderCountChange: (value: number) => void;
+  onAvgOrderSizeChange: (value: number) => void;
 }
 
 export function OrdersPanel({
@@ -23,8 +29,15 @@ export function OrdersPanel({
   workerCount,
   highlightedMissingSkuIds,
   onClearHighlights,
+  orderCount,
+  avgOrderSize,
+  onOrderCountChange,
+  onAvgOrderSizeChange,
 }: OrdersPanelProps) {
   const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
+  const [showSettings, setShowSettings] = useState(false);
+  const [draftOrderCount, setDraftOrderCount] = useState(1000);
+  const [draftAvgOrderSize, setDraftAvgOrderSize] = useState(5);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const getLocationLabelForSku = (skuId: string): string => {
     if (!warehouse) return 'Unknown location';
@@ -101,7 +114,7 @@ export function OrdersPanel({
 
   const generateRandom = () => {
     if (!warehouse || availableSkus.length === 0) return;
-    const randomOrders = generateRandomOrders(warehouse, Math.min(5, Math.max(3, Math.floor(availableSkus.length / 3))));
+    const randomOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
     // Preserve assignedWorkerId=null on generated orders
     onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
   };
@@ -164,6 +177,89 @@ export function OrdersPanel({
           >
             <Shuffle className="h-3 w-3" />
           </Button>
+          <Popover open={showSettings} onOpenChange={(open) => {
+            if (!open) {
+              // Reset drafts when popover closes without applying
+              setDraftOrderCount(orderCount);
+              setDraftAvgOrderSize(avgOrderSize);
+            }
+            setShowSettings(open);
+          }}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs px-2"
+                title="Order generation settings"
+              >
+                <SlidersHorizontal className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-4" align="end" side="bottom">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">Order Generation Settings</h3>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-muted-foreground">Order Count</label>
+                    <span className="text-xs font-medium text-foreground">{draftOrderCount.toLocaleString()} orders</span>
+                  </div>
+                  <Slider
+                    value={[draftOrderCount]}
+                    onValueChange={([value]) => setDraftOrderCount(value)}
+                    min={100}
+                    max={10000}
+                    step={100}
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>100</span>
+                    <span>10,000</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <label className="text-xs text-muted-foreground">Average Order Size</label>
+                    <span className="text-xs font-medium text-foreground">{draftAvgOrderSize} SKUs</span>
+                  </div>
+                  <Slider
+                    value={[draftAvgOrderSize]}
+                    onValueChange={([value]) => setDraftAvgOrderSize(value)}
+                    min={1}
+                    max={20}
+                    step={1}
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>1</span>
+                    <span>20</span>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDraftOrderCount(orderCount);
+                      setDraftAvgOrderSize(avgOrderSize);
+                      setShowSettings(false);
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      onOrderCountChange(draftOrderCount);
+                      onAvgOrderSizeChange(draftAvgOrderSize);
+                      setShowSettings(false);
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
       </div>
