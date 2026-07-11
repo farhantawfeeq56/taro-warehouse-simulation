@@ -31,14 +31,12 @@ export const STRATEGY_COLORS = {
   single: '#A72608', // oxidized iron (red)
   batch: '#D30C7B',  // hot rose
   zone: '#FEC601',   // school bus yellow
-  wave: '#8B5D33',   // toffee brown
 } as const;
 
 export const STRATEGY_NAMES = {
   single: 'Single Order (Baseline)',
   batch: 'Batch Picking',
   zone: 'Zone Picking',
-  wave: 'Wave Picking',
 } as const;
 
 // Worker colors
