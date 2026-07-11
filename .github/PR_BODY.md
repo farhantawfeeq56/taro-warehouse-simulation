@@ -1,7 +1,5 @@
 ## Motivation
 
-## Motivation
-
 Previously, generating random orders used a hardcoded formula (`Math.min(5, Math.max(3, floor(availableSkus / 3)))`) that always produced a small, unpredictable number of orders. There was no way for users to control how many orders to generate or how many SKUs each order should contain. This limited testing at scale and made it impossible to simulate realistic order volumes.
 
 Additionally, the inner loop of `generateRandomOrders` cloned the full SKU array per order (`[...availableSkuIds]`) and used `splice(idx, 1)` to remove picked items — an O(n) shift per item. At 1,000 orders with 20 items each and 5,000+ SKUs, this caused quadratic work and significant UI freezes.
