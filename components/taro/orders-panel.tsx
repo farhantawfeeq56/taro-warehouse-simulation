@@ -3,11 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
-import { Plus, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Plus, Shuffle, SlidersHorizontal, Trash2, X, Search } from 'lucide-react';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 import { collectSkuIds, getBinForSku, buildSkuToBinIndex } from '@/lib/taro/inventory';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from '@/components/ui/command';
 
 interface OrdersPanelProps {
   orders: Order[];
@@ -34,8 +42,8 @@ export function OrdersPanel({
   onOrderCountChange,
   onAvgOrderSizeChange,
 }: OrdersPanelProps) {
-  const [newItemInput, setNewItemInput] = useState<Record<string, string>>({});
   const [showSettings, setShowSettings] = useState(false);
+  const [openSkuPicker, setOpenSkuPicker] = useState<Record<string, boolean>>({});
   const [draftOrderCount, setDraftOrderCount] = useState(500);
   const [draftAvgOrderSize, setDraftAvgOrderSize] = useState(5);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -68,8 +76,6 @@ export function OrdersPanel({
       }))
       .sort((a, b) => a.skuId.localeCompare(b.skuId));
   }, [warehouse]);
-  const availableSkuSet = useMemo(() => new Set(availableSkus.map(item => item.skuId)), [availableSkus]);
-
   const addOrder = () => {
     const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const nextLabel = orderLabels[orders.length] || `${orders.length + 1}`;
@@ -98,7 +104,6 @@ export function OrdersPanel({
         o.id === orderId ? { ...o, items: [...o.items, { skuId }] } : o
       )
     );
-    setNewItemInput(prev => ({ ...prev, [orderId]: '' }));
     // Clear highlights when user adds items
     if (onClearHighlights && highlightedMissingSkuIds) {
       onClearHighlights();
@@ -378,38 +383,61 @@ export function OrdersPanel({
                 })}
               </div>
 
-              {/* Add SKU input */}
-              <div className="flex gap-1">
-                <select
-                  value={newItemInput[order.id] || ''}
-                  onChange={e => setNewItemInput(prev => ({ ...prev, [order.id]: e.target.value }))}
-                  disabled={availableSkus.length === 0}
-                  className="h-7 text-xs flex-1 rounded border border-border bg-background text-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+              {/* Add SKU — lazy Popover + Command combobox */}
+              {availableSkus.length > 0 ? (
+                <Popover
+                  open={openSkuPicker[order.id] || false}
+                  onOpenChange={(open) =>
+                    setOpenSkuPicker((prev) => ({ ...prev, [order.id]: open }))
+                  }
                 >
-                  <option value="">{availableSkus.length === 0 ? 'No SKUs available' : 'Select SKU…'}</option>
-                  {availableSkus.map(itemOption => (
-                    <option key={itemOption.skuId} value={itemOption.skuId}>
-                      {itemOption.label}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    const value = newItemInput[order.id] || '';
-                    const isValidSku = availableSkuSet.has(value);
-                    if (value.trim() !== '' && isValidSku) {
-                      addSkuToOrder(order.id, value);
-                    }
-                  }}
-                  disabled={availableSkus.length === 0 || !newItemInput[order.id] || !availableSkuSet.has(newItemInput[order.id])}
-                  className="h-7 px-2"
+                  <PopoverTrigger asChild>
+                    <button className="h-7 text-xs w-full rounded border border-border bg-background text-left text-muted-foreground px-2 focus:outline-none focus:ring-1 focus:ring-primary flex items-center gap-1.5 hover:border-foreground/30 transition-colors">
+                      <Search className="h-3 w-3 shrink-0 opacity-50" />
+                      <span className="truncate">Search SKU…</span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-0" align="start" side="bottom">
+                    <Command shouldFilter>
+                      <CommandInput placeholder="Type to search…" className="h-8" />
+                      <CommandList className="max-h-48">
+                        <CommandEmpty className="py-4 text-xs">No SKU found</CommandEmpty>
+                        <CommandGroup heading="Available SKUs">
+                          {availableSkus.map((itemOption) => (
+                            <CommandItem
+                              key={itemOption.skuId}
+                              value={itemOption.label}
+                              onSelect={() => {
+                                addSkuToOrder(order.id, itemOption.skuId);
+                                setOpenSkuPicker((prev) => ({
+                                  ...prev,
+                                  [order.id]: false,
+                                }));
+                              }}
+                              className="text-xs"
+                            >
+                              <span className="font-mono font-medium truncate">
+                                {itemOption.skuId}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground truncate ml-auto shrink-0">
+                                {getLocationLabelForSku(itemOption.skuId)}
+                              </span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                /* Fallback when no SKUs are available */
+                <button
+                  disabled
+                  className="h-7 text-xs w-full rounded border border-border bg-background text-left text-muted-foreground px-2 cursor-not-allowed opacity-60 flex items-center gap-1.5"
                 >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
-              {availableSkus.length === 0 && (
-                <div className="text-[11px] text-amber-700">No SKUs available. Place items on shelves first.</div>
+                  <Search className="h-3 w-3 shrink-0 opacity-50" />
+                  <span className="truncate">No SKUs available</span>
+                </button>
               )}
             </div>
           );
