@@ -864,6 +864,8 @@ export function applyInventoryPlacementDetailed(
         sku: item.id,
         quantity,
         primary: g === 0, // first bin of the group is the pick location
+        demandScore: item.demandScore,
+        affinityGroup: item.affinityGroup,
       };
 
       newGrid[bin.y][bin.x].locations.push(storage);

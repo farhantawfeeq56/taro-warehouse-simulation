@@ -3,7 +3,7 @@
 import type { Warehouse, Cell, Order, StorageLocation } from './types';
 import { buildCoordinateLocations, getShelfLocationId } from './layout';
 import { OUTER_PADDING } from './layout-utils';
-import { collectSkuIds } from './inventory';
+import { collectSkuMetadata, type SkuMeta } from './inventory';
 
 // Get all pickable locations from warehouse (local copy for demo-generator)
 function getAllPickableLocations(warehouse: Warehouse): Map<string, { x: number; y: number; z: number; sku: string }> {
@@ -159,32 +159,109 @@ export function generateSkeletonWarehouse(): Warehouse {
   return warehouse;
 }
 
+/**
+ * Affinity boost multiplier: how much extra weight same-affinity-group SKUs
+ * get during order generation. At 5×, a same-group SKU is 5× as likely to
+ * be picked as a non-group SKU with the same demandScore, all else equal.
+ *
+ * This is a single fixed constant — not user-configurable. The Product
+ * Affinity slider already controls the existence and size of groups, so
+ * at affinity = 0% the boost never applies (all SKUs are singletons) and
+ * at affinity = 100% it generates strong co-purchase patterns within large
+ * groups. Tweak this value later based on real-world feel.
+ */
+const AFFINITY_BOOST = 5;
+
+/**
+ * Weighted random index selection: pick one index from the given range
+ * proportional to `weights` (an array parallel to the pool).
+ * Returns -1 if total weight is zero.
+ */
+function weightedRandomIndex(weights: number[], totalWeight: number): number {
+  if (totalWeight <= 0) return -1;
+  const r = Math.random() * totalWeight;
+  let cumulative = 0;
+  for (let i = 0; i < weights.length; i++) {
+    cumulative += weights[i];
+    if (r < cumulative) return i;
+  }
+  // Guard against floating-point epsilon at the very end
+  return weights.length - 1;
+}
+
+/**
+ * Generate random orders using demand-weighted and affinity-biased selection.
+ *
+ * The algorithm:
+ * 1. Collect all SKUs with their demandScore and affinityGroup from the warehouse.
+ * 2. For each order, pick the first SKU weighted by demandScore alone.
+ * 3. For the remaining picks, weight by demandScore × AFFINITY_BOOST if the
+ *    candidate shares the first SKU's affinity group, or demandScore alone
+ *    otherwise. This creates realistic co-purchase patterns without making
+ *    them deterministic — high-demand SKUs from other groups still get
+ *    picked regularly.
+ * 4. SKUs are sampled without replacement within a single order.
+ */
 export function generateRandomOrders(warehouse: Warehouse, count: number, avgOrderSize: number = 5): Order[] {
   const orders: Order[] = [];
   const orderLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  const availableSkuIds = collectSkuIds(warehouse);
-  if (availableSkuIds.length === 0) return orders;
+  const pool = collectSkuMetadata(warehouse);
+  if (pool.length === 0) return orders;
 
-  const maxSkuIndex = availableSkuIds.length;
+  const poolSize = pool.length;
 
   for (let i = 0; i < count; i++) {
     // Item count varies naturally around avgOrderSize (±40%) using a uniform distribution
     const itemCount = Math.min(
       Math.max(1, Math.round(avgOrderSize * (0.6 + Math.random() * 0.8))),
-      maxSkuIndex
+      poolSize
     );
-    const orderItems: Order['items'] = [];
-    const picked = new Set<number>();
 
-    // Rejection sampling: pick itemCount unique random indices.
-    // Avoids cloning the full SKU array and O(n) splice() per item.
-    while (picked.size < itemCount) {
-      const idx = Math.floor(Math.random() * maxSkuIndex);
-      if (!picked.has(idx)) {
-        picked.add(idx);
-        orderItems.push({ skuId: availableSkuIds[idx] });
+    const orderItems: Order['items'] = [];
+    // Track picked indices in the pool, not just SKU ids, so we can recompute
+    // weights for the remaining candidates each round.
+    const pickedIndices = new Set<number>();
+
+    if (itemCount === 0) continue;
+
+    // ── Round 1: first pick weighted solely by demandScore ────────────────
+    {
+      const weights = pool.map((meta) => meta.demandScore);
+      const total = weights.reduce((s, w) => s + w, 0);
+      const idx = weightedRandomIndex(weights, total);
+      if (idx < 0) continue;
+      pickedIndices.add(idx);
+      orderItems.push({ skuId: pool[idx].skuId });
+    }
+
+    // Determine the affinity group of the anchor (first) pick
+    const anchorGroup = pool[Array.from(pickedIndices)[0]].affinityGroup;
+
+    // ── Rounds 2..itemCount: demand-score × affinity boost ────────────────
+    while (pickedIndices.size < itemCount) {
+      // Build weights for un-picked candidates
+      const weights: number[] = [];
+      let totalWeight = 0;
+      for (let j = 0; j < poolSize; j++) {
+        if (pickedIndices.has(j)) {
+          weights.push(0);
+          continue;
+        }
+        const meta = pool[j];
+        let w = meta.demandScore;
+        // Apply affinity boost when the candidate shares the anchor's group
+        if (anchorGroup !== undefined && meta.affinityGroup === anchorGroup) {
+          w *= AFFINITY_BOOST;
+        }
+        weights.push(w);
+        totalWeight += w;
       }
+
+      const idx = weightedRandomIndex(weights, totalWeight);
+      if (idx < 0) break; // no pickable candidate left
+      pickedIndices.add(idx);
+      orderItems.push({ skuId: pool[idx].skuId });
     }
 
     orders.push({
