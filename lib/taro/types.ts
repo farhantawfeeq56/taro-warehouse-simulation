@@ -102,6 +102,19 @@ export interface StorageLocation {
    * per SKU is primary (set by Inventory Placement). Absent on legacy bins.
    */
   primary?: boolean;
+  /**
+   * Demand weight from the Demand Distribution variable (0=Uniform, 100=Pareto).
+   * Used by order generation to bias toward high-demand SKUs.
+   * Absent on legacy/demo/CSV/manual bins (order generation defaults to 1).
+   */
+  demandScore?: number;
+  /**
+   * Affinity group id from the Product Affinity variable (0=Independent,
+   * 100=Highly Related). Used by order generation to bias SKU co-purchase
+   * toward items in the same affinity group.
+   * Absent on legacy/demo/CSV/manual bins (no co-purchase bias applied).
+   */
+  affinityGroup?: number;
 }
 
 export interface Cell {

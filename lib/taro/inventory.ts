@@ -134,6 +134,51 @@ export function collectSkuIds(warehouse: Pick<Warehouse, 'grid'>): string[] {
   return Array.from(seen);
 }
 
+/** Deduplicated SKU metadata collected from all bins in the warehouse. */
+export interface SkuMeta {
+  skuId: string;
+  /**
+   * Demand weight (defaults to 1 — uniform — when absent from the bin).
+   * Guaranteed to be > 0 so it can always be used as a sampling weight.
+   */
+  demandScore: number;
+  /**
+   * Affinity group id. `undefined` when the SKU carries no affinity
+   * information (legacy/demo/CSV/manual bins), which causes order
+   * generation to skip the affinity bias for this SKU.
+   */
+  affinityGroup?: number;
+}
+
+/**
+ * Returns deduplicated SKU metadata from all bins in the warehouse.
+ *
+ * The warehouse grid is scanned once; when a SKU spans multiple bins,
+ * the demandScore/affinityGroup values from the first encountered bin
+ * are used (placement guarantees all bins of a SKU share the same
+ * metadata). Missing values default to 1 for demandScore and `undefined`
+ * for affinityGroup, making the result suitable for weighted sampling
+ * without extra null guards.
+ */
+export function collectSkuMetadata(warehouse: Pick<Warehouse, 'grid'>): SkuMeta[] {
+  const seen = new Map<string, SkuMeta>();
+
+  for (const row of warehouse.grid) {
+    for (const cell of row) {
+      for (const bin of cell.locations) {
+        if (seen.has(bin.sku)) continue;
+        seen.set(bin.sku, {
+          skuId: bin.sku,
+          demandScore: bin.demandScore ?? 1,
+          affinityGroup: bin.affinityGroup,
+        });
+      }
+    }
+  }
+
+  return Array.from(seen.values());
+}
+
 /**
  * Asserts the warehouse satisfies the storage invariants:
  *   - Every StorageLocation.id is unique.
