@@ -173,20 +173,24 @@ export function generateSkeletonWarehouse(): Warehouse {
 const AFFINITY_BOOST = 5;
 
 /**
- * Weighted random index selection: pick one index from the given range
- * proportional to `weights` (an array parallel to the pool).
- * Returns -1 if total weight is zero.
+ * Binary-search a cumulative distribution function (CDF) array to pick an
+ * index with probability proportional to the original weight at that index.
+ *
+ * `cdf[i]` is the running total up to and including index `i`.
+ * `total` is the last value in the CDF (total weight).
+ *
+ * Runs in O(log n), used as the inner loop of order generation.
  */
-function weightedRandomIndex(weights: number[], totalWeight: number): number {
-  if (totalWeight <= 0) return -1;
-  const r = Math.random() * totalWeight;
-  let cumulative = 0;
-  for (let i = 0; i < weights.length; i++) {
-    cumulative += weights[i];
-    if (r < cumulative) return i;
+function sampleCdf(cdf: number[], total: number): number {
+  const r = Math.random() * total;
+  let lo = 0;
+  let hi = cdf.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (cdf[mid] <= r) lo = mid + 1;
+    else hi = mid;
   }
-  // Guard against floating-point epsilon at the very end
-  return weights.length - 1;
+  return lo;
 }
 
 /**
@@ -194,13 +198,18 @@ function weightedRandomIndex(weights: number[], totalWeight: number): number {
  *
  * The algorithm:
  * 1. Collect all SKUs with their demandScore and affinityGroup from the warehouse.
- * 2. For each order, pick the first SKU weighted by demandScore alone.
- * 3. For the remaining picks, weight by demandScore × AFFINITY_BOOST if the
- *    candidate shares the first SKU's affinity group, or demandScore alone
- *    otherwise. This creates realistic co-purchase patterns without making
- *    them deterministic — high-demand SKUs from other groups still get
- *    picked regularly.
- * 4. SKUs are sampled without replacement within a single order.
+ * 2. Precompute a global CDF (cumulative distribution function) for O(log N)
+ *    weighted sampling via binary search, and a group→indices map to avoid
+ *    scanning every SKU for each line.
+ * 3. For each order, pick the first (anchor) SKU weighted by demandScore alone.
+ * 4. For the remaining picks, use a two-level rejection sampler:
+ *    a. Decide in-group vs out-group via a weighted coin flip (in-group gets
+ *       AFFINITY_BOOST multiplier when affinity data is present).
+ *    b. Rejection-sample from the global CDF, accepting only candidates that
+ *       belong to the chosen side and haven't been picked yet.
+ *    This yields the same probability distribution as the original exhaustive
+ *    weight-scan but runs in O(log N) expected time per pick instead of O(N).
+ * 5. SKUs are sampled without replacement within a single order.
  */
 export function generateRandomOrders(warehouse: Warehouse, count: number, avgOrderSize: number = 5): Order[] {
   const orders: Order[] = [];
@@ -211,6 +220,23 @@ export function generateRandomOrders(warehouse: Warehouse, count: number, avgOrd
 
   const poolSize = pool.length;
 
+  // ── Precompute global CDF for O(log N) weighted sampling ────────────
+  const allCdf: number[] = [];
+  let allTotal = 0;
+  for (const meta of pool) {
+    allTotal += meta.demandScore;
+    allCdf.push(allTotal);
+  }
+
+  // ── Precompute group → [pool indices] map for fast partitioning ────
+  const groupToIndices = new Map<number | undefined, number[]>();
+  for (let i = 0; i < poolSize; i++) {
+    const g = pool[i].affinityGroup;
+    const arr = groupToIndices.get(g);
+    if (arr) arr.push(i);
+    else groupToIndices.set(g, [i]);
+  }
+
   for (let i = 0; i < count; i++) {
     // Item count varies naturally around avgOrderSize (±40%) using a uniform distribution
     const itemCount = Math.min(
@@ -219,49 +245,68 @@ export function generateRandomOrders(warehouse: Warehouse, count: number, avgOrd
     );
 
     const orderItems: Order['items'] = [];
-    // Track picked indices in the pool, not just SKU ids, so we can recompute
-    // weights for the remaining candidates each round.
     const pickedIndices = new Set<number>();
 
     if (itemCount === 0) continue;
 
-    // ── Round 1: first pick weighted solely by demandScore ────────────────
-    {
-      const weights = pool.map((meta) => meta.demandScore);
-      const total = weights.reduce((s, w) => s + w, 0);
-      const idx = weightedRandomIndex(weights, total);
-      if (idx < 0) continue;
-      pickedIndices.add(idx);
-      orderItems.push({ skuId: pool[idx].skuId });
+    // ── Round 1: anchor pick weighted solely by demandScore ──────────
+    const anchorIdx = sampleCdf(allCdf, allTotal);
+    pickedIndices.add(anchorIdx);
+    orderItems.push({ skuId: pool[anchorIdx].skuId });
+
+    const anchorGroup = pool[anchorIdx].affinityGroup;
+    const useAffinity = anchorGroup !== undefined;
+
+    // ── Compute initial in-group / out-group total demand ────────────
+    let inGroupTotal = 0;
+    for (const idx of groupToIndices.get(anchorGroup) ?? []) {
+      if (idx !== anchorIdx) inGroupTotal += pool[idx].demandScore;
     }
+    let outGroupTotal = allTotal - pool[anchorIdx].demandScore - inGroupTotal;
 
-    // Determine the affinity group of the anchor (first) pick
-    const anchorGroup = pool[Array.from(pickedIndices)[0]].affinityGroup;
-
-    // ── Rounds 2..itemCount: demand-score × affinity boost ────────────────
+    // ── Rounds 2..itemCount ──────────────────────────────────────────
     while (pickedIndices.size < itemCount) {
-      // Build weights for un-picked candidates
-      const weights: number[] = [];
-      let totalWeight = 0;
-      for (let j = 0; j < poolSize; j++) {
-        if (pickedIndices.has(j)) {
-          weights.push(0);
-          continue;
+      const boostedInWeight = useAffinity ? inGroupTotal * AFFINITY_BOOST : inGroupTotal;
+      const totalWeight = boostedInWeight + outGroupTotal;
+
+      if (totalWeight <= 0) break;
+
+      // Weighted coin flip: pick from in-group or out-group
+      const pickInGroup = Math.random() * totalWeight < boostedInWeight;
+
+      // Rejection-sample from the global CDF, accepting only candidates
+      // that match the chosen side and haven't been picked yet.
+      //
+      // Expected iterations per pick ≈ (AFFINITY_BOOST + 1) ≈ 6 when
+      // the catalogue is large and the anchor's group is a small
+      // fraction.  The safety counter guards against edge cases where
+      // the chosen side has been fully exhausted due to floating-point
+      // rounding in the coin flip.
+      let pickedIdx = -1;
+      for (let attempt = 0; attempt < poolSize * 2 && pickedIdx < 0; attempt++) {
+        const candidate = sampleCdf(allCdf, allTotal);
+        if (pickedIndices.has(candidate)) continue;
+
+        const candidateInGroup = pool[candidate].affinityGroup === anchorGroup;
+
+        if (pickInGroup) {
+          if (candidateInGroup) pickedIdx = candidate;
+        } else {
+          if (!useAffinity || !candidateInGroup) pickedIdx = candidate;
         }
-        const meta = pool[j];
-        let w = meta.demandScore;
-        // Apply affinity boost when the candidate shares the anchor's group
-        if (anchorGroup !== undefined && meta.affinityGroup === anchorGroup) {
-          w *= AFFINITY_BOOST;
-        }
-        weights.push(w);
-        totalWeight += w;
       }
 
-      const idx = weightedRandomIndex(weights, totalWeight);
-      if (idx < 0) break; // no pickable candidate left
-      pickedIndices.add(idx);
-      orderItems.push({ skuId: pool[idx].skuId });
+      if (pickedIdx < 0) break; // no acceptable candidate found
+
+      // Update running totals and bookkeeping
+      if (pool[pickedIdx].affinityGroup === anchorGroup) {
+        inGroupTotal -= pool[pickedIdx].demandScore;
+      } else {
+        outGroupTotal -= pool[pickedIdx].demandScore;
+      }
+
+      pickedIndices.add(pickedIdx);
+      orderItems.push({ skuId: pool[pickedIdx].skuId });
     }
 
     orders.push({
