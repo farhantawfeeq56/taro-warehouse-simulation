@@ -313,8 +313,11 @@ export function WarehouseCanvas({
 
     for (const route of routeGroups) {
       for (const pos of route) {
-        if (pos.y >= 0 && pos.y < warehouse.height && pos.x >= 0 && pos.x < warehouse.width) {
-          heatmap[pos.y][pos.x]++;
+        // Round to nearest integer – mock routes may include fractional offsets
+        const rx = Math.round(pos.x);
+        const ry = Math.round(pos.y);
+        if (ry >= 0 && ry < warehouse.height && rx >= 0 && rx < warehouse.width) {
+          heatmap[ry][rx]++;
         }
       }
     }
@@ -344,6 +347,7 @@ export function WarehouseCanvas({
 
   // Draw the canvas - memoized draw function to avoid recreation
   const drawCanvas = useCallback(() => {
+    console.log("[Simulation] Step 6: WarehouseCanvas begins drawing");
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -488,6 +492,7 @@ export function WarehouseCanvas({
     }
 
     // Draw route animation — all workers animate in parallel
+    console.log("[Simulation] Step 9: Before any route rendering");
     if (activeRoute) {
       if (activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0) {
         for (const workerRoute of activeRoute.workerRoutes) {
