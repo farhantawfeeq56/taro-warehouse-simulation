@@ -1,6 +1,5 @@
-// Warehouse picking simulation engine
-// Real pick-path strategies using A* pathfinding.
-// Single Order: real pathfinding. Batch: real pathfinding. Zone: mock (to be implemented).
+// Warehouse picking simulation engine.
+// All three strategies use real A* pathfinding.
 
 import type {
   Warehouse,
@@ -260,7 +259,7 @@ function simulateSingleStrategy(
       tasks: allTasks,
       color: WORKER_COLORS[w % WORKER_COLORS.length],
       zone: `Worker ${workerId} (Single)`,
-      assignedPickCount: allPicks.length,
+      assignedPickCount: allPicks.reduce((sum, p) => sum + (p.pickCount ?? 1), 0),
       progress: 1,
     });
   }
@@ -369,13 +368,11 @@ function simulateBatchStrategy(
 
     for (const batch of assignedBatches) {
       // ── 4. Resolve all items from all orders in this batch ──────────
-      const allResolvedLines: { skuId: string; x: number; y: number; z: number; locationKey: string }[] = [];
-      let batchOrdersCompleted = 0;
-      let batchOrdersSkipped = 0;
+      const allResolvedLines: { skuId: string; x: number; y: number; z: number; locationKey: string; orderId: string }[] = [];
+      const ordersWithNoResolved = new Set(batch.orders.map(o => o.id));
 
       for (const order of batch.orders) {
         const resolved = resolveOrderToLocations(order, warehouse);
-        let orderHasPicks = false;
         for (const line of resolved.lines) {
           allResolvedLines.push({
             skuId: line.skuId,
@@ -383,30 +380,29 @@ function simulateBatchStrategy(
             y: line.bin.y,
             z: line.bin.z,
             locationKey: line.bin.id,
+            orderId: order.id,
           });
-          orderHasPicks = true;
-        }
-        if (orderHasPicks) {
-          batchOrdersCompleted++;
-        } else {
-          batchOrdersSkipped++;
+          ordersWithNoResolved.delete(order.id);
         }
       }
 
-      completedOrdersCount += batchOrdersCompleted;
-      skippedOrdersCount += batchOrdersSkipped;
-
       if (allResolvedLines.length === 0) {
-        // All SKUs in this batch are missing — skip the batch entirely.
-        // Worker returns to start (already there, nothing to do).
+        // All SKUs in this batch are missing — every order in the batch
+        // is skipped.
+        skippedOrdersCount += batch.orders.length;
         continue;
       }
 
+      // Orders whose every SKU was unresolvable are unconditionally skipped;
+      // they cannot have a reachable pick regardless of pathfinding.
+      skippedOrdersCount += ordersWithNoResolved.size;
+
       // ── 5. Merge duplicate pick locations ───────────────────────────
-      // Same bin (x, y, z, sku) visited only once, but pickCount accumulates.
+      // Same bin (x, y, z, sku) visited only once, but pickCount accumulates
+      // and we track which orders are served by each merged location.
       const mergedPicks = new Map<
         string,
-        { x: number; y: number; z: number; sku: string; locationKey: string; pickCount: number }
+        { x: number; y: number; z: number; sku: string; locationKey: string; pickCount: number; orderIds: Set<string> }
       >();
       for (const line of allResolvedLines) {
         // Key: bin coordinates + SKU — unique pick location.
@@ -414,6 +410,7 @@ function simulateBatchStrategy(
         const existing = mergedPicks.get(key);
         if (existing) {
           existing.pickCount++;
+          existing.orderIds.add(line.orderId);
         } else {
           mergedPicks.set(key, {
             x: line.x,
@@ -422,6 +419,7 @@ function simulateBatchStrategy(
             sku: line.skuId,
             locationKey: line.locationKey,
             pickCount: 1,
+            orderIds: new Set([line.orderId]),
           });
         }
       }
@@ -429,6 +427,9 @@ function simulateBatchStrategy(
       // ── 6. Optimise visit order (Nearest Neighbour) ─────────────────
       const pickTargets = [...mergedPicks.values()];
       const visitOrder = nearestNeighborOrder(currentPos, pickTargets);
+
+      // Track which orders had at least one reachable pick in this batch.
+      const reachableOrderIds = new Set<string>();
 
       for (const idx of visitOrder) {
         const target = pickTargets[idx];
@@ -464,7 +465,28 @@ function simulateBatchStrategy(
           sku: target.sku,
         });
 
+        // Mark all orders served by this reachable pick location.
+        for (const oid of target.orderIds) {
+          reachableOrderIds.add(oid);
+        }
+
         currentPos = { x: target.x, y: target.y };
+      }
+
+      // Count completed / skipped orders for this batch:
+      //  * completed = orders that had at least one reachable pick
+      //  * skipped   = orders that had resolved items but none were reachable
+      //    (orders with ALL SKUs missing were already counted above).
+      for (const order of batch.orders) {
+        if (ordersWithNoResolved.has(order.id)) {
+          // Already counted as skipped above.
+          continue;
+        }
+        if (reachableOrderIds.has(order.id)) {
+          completedOrdersCount++;
+        } else {
+          skippedOrdersCount++;
+        }
       }
 
       // ── 7. Return to worker start after completing the batch ────────
@@ -487,7 +509,7 @@ function simulateBatchStrategy(
       tasks: allTasks,
       color: WORKER_COLORS[w % WORKER_COLORS.length],
       zone: `Worker ${workerId} (Batch)`,
-      assignedPickCount: allPicks.length,
+      assignedPickCount: allPicks.reduce((sum, p) => sum + (p.pickCount ?? 1), 0),
       progress: 1,
     });
   }
@@ -585,6 +607,8 @@ function simulateZoneStrategy(
   totalDistance: number;
   workerDistances: number[];
   unreachablePicks: number;
+  completedOrders: number;
+  skippedOrders: number;
 } {
   const start = warehouse.workerStart!;
   const neighborGraph = getNeighborGraph(warehouse);
@@ -636,6 +660,9 @@ function simulateZoneStrategy(
   let totalUnreachablePicks = 0;
   const allWorkerRoutes: WorkerRoute[] = [];
   const workerDistances: number[] = [];
+
+  // Orders that had at least one reachable pick across all zones.
+  const totalReachableOrders = new Set<string>();
 
   for (let z = 0; z < effectiveWorkers; z++) {
     const workerId = z + 1;
@@ -732,6 +759,7 @@ function simulateZoneStrategy(
 
       // Create one task per order being fulfilled from this bin
       for (const orderId of target.orderIds) {
+        totalReachableOrders.add(orderId);
         allTasks.push({
           workerId,
           step: step++,
@@ -766,11 +794,24 @@ function simulateZoneStrategy(
     });
   }
 
+  // ── 4. Compute completed / skipped orders across all zones ─────────
+  let completedOrdersCount = 0;
+  let skippedOrdersCount = 0;
+  for (const order of orders) {
+    if (totalReachableOrders.has(order.id)) {
+      completedOrdersCount++;
+    } else {
+      skippedOrdersCount++;
+    }
+  }
+
   return {
     workerRoutes: allWorkerRoutes,
     totalDistance,
     workerDistances,
     unreachablePicks: totalUnreachablePicks,
+    completedOrders: completedOrdersCount,
+    skippedOrders: skippedOrdersCount,
   };
 }
 
@@ -785,7 +826,7 @@ export function buildRouteFrequencyHeatmap(
 
   for (const route of routes) {
     for (const pos of route) {
-      // Round to nearest integer – mock routes may include fractional offsets
+      // Round to nearest integer
       const rx = Math.round(pos.x);
       const ry = Math.round(pos.y);
       if (ry >= 0 && ry < warehouse.height && rx >= 0 && rx < warehouse.width) {
@@ -874,16 +915,14 @@ export function runSimulation(
   // Resolve order locations to check for missing items
   const { missingSkuIds } = safelyResolveOrderLocations(orders, warehouse);
 
-  const unresolvableSkuIds = new Set([...missingSkuIds]);
-
   // Pre-validation: refuse to run if any order item cannot be resolved
   // to a warehouse location, unless the caller explicitly opts into partial
   // execution via allowPartial.
-  if (!profiles.allowPartial && unresolvableSkuIds.size > 0) {
+  if (!profiles.allowPartial && missingSkuIds.size > 0) {
     for (const order of orders) {
       for (let i = 0; i < order.items.length; i++) {
         const item = order.items[i];
-        if (unresolvableSkuIds.has(item.skuId)) {
+        if (missingSkuIds.has(item.skuId)) {
           throw new Error(
             `Order "${order.id}" references unknown skuId "${item.skuId}" at index ${i}. The item cannot be resolved.`
           );
@@ -894,11 +933,11 @@ export function runSimulation(
 
   // Build validation context for missing items
   let finalValidationContext = validationContext;
-  if (unresolvableSkuIds.size > 0) {
+  if (missingSkuIds.size > 0) {
     const missingItemsByOrder: OrderValidationResult[] = [];
     for (const order of orders) {
       const orderInvalidItems = order.items
-        .filter(item => unresolvableSkuIds.has(item.skuId))
+        .filter(item => missingSkuIds.has(item.skuId))
         .map(item => item.skuId);
       if (orderInvalidItems.length > 0) {
         missingItemsByOrder.push({ orderId: order.id, missingSkuIds: orderInvalidItems });
@@ -907,7 +946,7 @@ export function runSimulation(
     if (missingItemsByOrder.length > 0) {
       finalValidationContext = {
         totalItems: orders.reduce((sum, o) => sum + o.items.length, 0),
-        missingItems: unresolvableSkuIds.size,
+        missingItems: missingSkuIds.size,
         affectedOrders: missingItemsByOrder.length,
         missingItemsByOrder,
       };
@@ -932,14 +971,11 @@ export function runSimulation(
     };
 
     if (strategy === 'single') {
-      // --- Real single-order-picking simulation ---
       routeResult = simulateSingleStrategy(warehouse, orders, workerCount);
     } else if (strategy === 'batch') {
-      // --- Real batch-picking simulation ---
       const batchSize = profiles.batchSize ?? 5;
       routeResult = simulateBatchStrategy(warehouse, orders, workerCount, batchSize);
     } else {
-      // --- Real zone-picking simulation ---
       routeResult = simulateZoneStrategy(warehouse, orders, workerCount);
     }
 
@@ -959,23 +995,12 @@ export function runSimulation(
     const totalLaborMinutes = workerTimes.reduce((sum, m) => sum + m, 0);
     const cost = (totalLaborMinutes / 60) * laborProfile.costPerHour;
 
-    // Efficiency: single is the baseline (0%). Both batch and zone use real results.
+    // Efficiency: single is the baseline (0%). Batch / zone are measured
+    // as % time saved vs. the single-order baseline.
     let efficiency = 0;
     if (strategy === 'single') {
       baselineTime = timeMinutes || 1;
-      efficiency = 0;
-    } else if (strategy === 'zone') {
-      // Real efficiency: time saved vs. single-order baseline
-      efficiency = baselineTime > 0
-        ? Math.round(((baselineTime - timeMinutes) / baselineTime) * 100)
-        : 0;
-    } else if (strategy === 'batch') {
-      // Real efficiency: time saved vs. single-order baseline
-      efficiency = baselineTime > 0
-        ? Math.round(((baselineTime - timeMinutes) / baselineTime) * 100)
-        : 0;
-    } else if (strategy === 'zone') {
-      // Real efficiency: time saved vs. single-order baseline
+    } else {
       efficiency = baselineTime > 0
         ? Math.round(((baselineTime - timeMinutes) / baselineTime) * 100)
         : 0;
@@ -1005,8 +1030,7 @@ export function runSimulation(
     });
   }
 
-  // Determine "best" strategy (by efficiency). Zone is still mock, so batch
-  // or single may be more accurate in practice.
+  // Determine "best" strategy by efficiency (excludes the single baseline).
   const bestStrategy = results
     .filter(r => r.strategy !== 'single')
     .sort((a, b) => b.efficiency - a.efficiency)[0]?.strategy ?? 'zone';
