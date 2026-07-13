@@ -213,6 +213,7 @@ export interface StrategyResult {
   route: { x: number; y: number }[];
   color: string;
   workerRoutes: WorkerRoute[];
+  unreachablePicks: number;
 }
 
 export interface SimulationResults {

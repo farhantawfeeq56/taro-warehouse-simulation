@@ -274,7 +274,7 @@ function simulateSingleStrategy(
 }
 
 // ---------------------------------------------------------------------------
-// Mock route builder (used by Batch and Zone strategies only)
+// Mock route builder (used by Batch strategy only)
 // ---------------------------------------------------------------------------
 
 // Build a mock route that snakes through the warehouse shelves
@@ -389,9 +389,7 @@ function buildMockRoute(
 
     const zoneLabel = strategy === 'single'
       ? `Single Worker ${workerId}`
-      : strategy === 'batch'
-        ? `Batch Worker ${workerId}`
-        : `Zone ${String.fromCharCode(64 + workerId)}`;
+      : `Batch Worker ${workerId}`;
 
     const distance = calculateMockDistance(route);
     totalDistance += distance;
@@ -422,6 +420,278 @@ function calculateMockDistance(route: { x: number; y: number }[]): number {
     distance += Math.sqrt(dx * dx + dy * dy);
   }
   return distance;
+}
+
+// ---------------------------------------------------------------------------
+// Zone Picking Strategy (real pathfinding)
+// ---------------------------------------------------------------------------
+
+/**
+ * A rectangular zone within the warehouse grid.
+ * Zones are defined by Y-row ranges so each worker owns a horizontal band.
+ */
+interface WarehouseZone {
+  zoneId: number;       // 0-indexed
+  yMin: number;         // inclusive
+  yMax: number;         // inclusive
+  label: string;        // display label, e.g. "Zone A"
+}
+
+/**
+ * Divide the warehouse into `workerCount` roughly equal horizontal bands.
+ * Every grid row belongs to exactly one zone.
+ */
+function defineZones(warehouse: Warehouse, workerCount: number): WarehouseZone[] {
+  const workers = Math.max(1, workerCount);
+  const rowsPerZone = Math.ceil(warehouse.height / workers);
+  const zones: WarehouseZone[] = [];
+
+  for (let z = 0; z < workers; z++) {
+    const yMin = z * rowsPerZone;
+    const yMax = Math.min((z + 1) * rowsPerZone - 1, warehouse.height - 1);
+    if (yMin > yMax) break;
+    zones.push({
+      zoneId: z,
+      yMin,
+      yMax,
+      label: `Zone ${String.fromCharCode(65 + z)}`,
+    });
+  }
+
+  return zones;
+}
+
+/**
+ * Find the zone that contains a given (x, y) pick location.
+ * Returns the zoneId or -1 if the location doesn't fall into any zone.
+ */
+function findZoneForLocation(
+  x: number,
+  y: number,
+  zones: WarehouseZone[]
+): number {
+  for (const zone of zones) {
+    if (y >= zone.yMin && y <= zone.yMax) {
+      return zone.zoneId;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Zone Picking strategy implementation.
+ *
+ * Rules:
+ *  - The warehouse is divided into horizontal zones (one per worker).
+ *  - Each worker is assigned exactly one zone and never leaves it.
+ *  - Customer orders may span multiple zones; they are split into
+ *    zone-specific pick tasks.
+ *  - Each worker completes only the picks belonging to their zone.
+ *  - Work is grouped by warehouse location, not by order batches.
+ *  - Within each zone, the visit sequence is optimised via Nearest Neighbour.
+ *  - Real A* pathfinding is used between every pair of consecutive stops.
+ *  - Workers start and end at the configured worker-start position.
+ *
+ * Unlike Single / Batch, zone-picked orders are NOT completed atomically
+ * by one worker — each order may be fulfilled piecemeal by several workers
+ * across different zones.
+ */
+function simulateZoneStrategy(
+  warehouse: Warehouse,
+  orders: Order[],
+  workerCount: number
+): {
+  workerRoutes: WorkerRoute[];
+  totalDistance: number;
+  workerDistances: number[];
+  unreachablePicks: number;
+} {
+  const start = warehouse.workerStart!;
+  const neighborGraph = getNeighborGraph(warehouse);
+
+  // ── 1. Define zones ───────────────────────────────────────────────────
+  const zones = defineZones(warehouse, workerCount);
+  const effectiveWorkers = zones.length;
+
+  // ── 2. Resolve all order items and assign each pick location to a zone ─
+  interface ZonePickTarget {
+    x: number;
+    y: number;
+    z: number;
+    sku: string;
+    locationKey: string;
+    orderId: string;
+    zoneId: number;
+  }
+
+  const zonePickTargets: ZonePickTarget[][] = Array.from(
+    { length: effectiveWorkers },
+    () => []
+  );
+
+  for (const order of orders) {
+    const resolved = resolveOrderToLocations(order, warehouse);
+
+    for (const line of resolved.lines) {
+      const zoneId = findZoneForLocation(line.bin.x, line.bin.y, zones);
+      if (zoneId < 0 || zoneId >= effectiveWorkers) {
+        // Location outside all defined zones — shouldn't happen but guard
+        continue;
+      }
+
+      zonePickTargets[zoneId].push({
+        x: line.bin.x,
+        y: line.bin.y,
+        z: line.bin.z,
+        sku: line.skuId,
+        locationKey: line.bin.id,
+        orderId: order.id,
+        zoneId,
+      });
+    }
+  }
+
+  // ── 3. For each zone: one worker picks all zone-specific tasks ─────────
+  let totalDistance = 0;
+  let totalUnreachablePicks = 0;
+  const allWorkerRoutes: WorkerRoute[] = [];
+  const workerDistances: number[] = [];
+
+  for (let z = 0; z < effectiveWorkers; z++) {
+    const workerId = z + 1;
+    const zone = zones[z];
+    const picks = zonePickTargets[z];
+
+    if (picks.length === 0) {
+      // Idle worker — nothing to pick in this zone
+      allWorkerRoutes.push({
+        workerId,
+        route: [],
+        picks: [],
+        tasks: [],
+        color: WORKER_COLORS[z % WORKER_COLORS.length],
+        zone: `${zone.label} (idle)`,
+        assignedPickCount: 0,
+        progress: 0,
+      });
+      workerDistances.push(0);
+      continue;
+    }
+
+    const fullRoute: { x: number; y: number }[] = [{ x: start.x, y: start.y }];
+    const allPicks: WorkerRoute['picks'] = [];
+    const allTasks: PickTask[] = [];
+    let step = 1;
+    let workerDistance = 0;
+    let currentPos = { x: start.x, y: start.y };
+
+    // ── 4. Merge duplicate pick locations within the zone ──────────────
+    // Same bin visited only once, but pickCount accumulates.
+    const mergedPicks = new Map<
+      string,
+      {
+        x: number;
+        y: number;
+        z: number;
+        sku: string;
+        locationKey: string;
+        orderIds: Set<string>;
+        pickCount: number;
+      }
+    >();
+
+    for (const pick of picks) {
+      const key = `${pick.x},${pick.y},${pick.z}-${pick.sku}`;
+      const existing = mergedPicks.get(key);
+      if (existing) {
+        existing.pickCount++;
+        existing.orderIds.add(pick.orderId);
+      } else {
+        mergedPicks.set(key, {
+          x: pick.x,
+          y: pick.y,
+          z: pick.z,
+          sku: pick.sku,
+          locationKey: pick.locationKey,
+          orderIds: new Set([pick.orderId]),
+          pickCount: 1,
+        });
+      }
+    }
+
+    // ── 5. Optimise visit order (Nearest Neighbour) ────────────────────
+    const pickTargets = [...mergedPicks.values()];
+    const visitOrder = nearestNeighborOrder(currentPos, pickTargets);
+
+    for (const idx of visitOrder) {
+      const target = pickTargets[idx];
+
+      // A* path from current position to the target shelf cell
+      const pathSegment = findPath(warehouse, currentPos, target, { neighborGraph });
+      if (pathSegment.length === 0) {
+        // No walkable route — count and skip this pick
+        totalUnreachablePicks++;
+        continue;
+      }
+
+      const segmentDistance = calculatePathDistance(pathSegment);
+      workerDistance += segmentDistance;
+
+      // Append to the full route (skip first vertex to avoid duplication)
+      fullRoute.push(...pathSegment.slice(1));
+
+      // Record the pick event
+      allPicks.push({
+        locationKey: target.locationKey,
+        x: target.x,
+        y: target.y,
+        z: target.z,
+        sku: target.sku,
+        pickCount: target.pickCount,
+      });
+
+      // Create one task per order being fulfilled from this bin
+      for (const orderId of target.orderIds) {
+        allTasks.push({
+          workerId,
+          step: step++,
+          zone: zone.label,
+          location: `${target.x},${target.y}`,
+          sku: `${target.sku} (Order ${orderId})`,
+        });
+      }
+
+      currentPos = { x: target.x, y: target.y };
+    }
+
+    // ── 6. Return to worker start ──────────────────────────────────────
+    const returnPath = findPath(warehouse, currentPos, start, { neighborGraph });
+    if (returnPath.length > 1) {
+      workerDistance += calculatePathDistance(returnPath);
+      fullRoute.push(...returnPath.slice(1));
+    }
+
+    totalDistance += workerDistance;
+    workerDistances.push(workerDistance);
+
+    allWorkerRoutes.push({
+      workerId,
+      route: fullRoute,
+      picks: allPicks,
+      tasks: allTasks,
+      color: WORKER_COLORS[z % WORKER_COLORS.length],
+      zone: zone.label,
+      assignedPickCount: allPicks.reduce((sum, p) => sum + (p.pickCount ?? 1), 0),
+      progress: 1,
+    });
+  }
+
+  return {
+    workerRoutes: allWorkerRoutes,
+    totalDistance,
+    workerDistances,
+    unreachablePicks: totalUnreachablePicks,
+  };
 }
 
 export function buildRouteFrequencyHeatmap(
@@ -575,13 +845,17 @@ export function runSimulation(
       workerRoutes: WorkerRoute[];
       totalDistance: number;
       workerDistances: number[];
+      unreachablePicks?: number;
     };
 
     if (strategy === 'single') {
       // --- Real single-order-picking simulation ---
       routeResult = simulateSingleStrategy(warehouse, orders, workerCount);
+    } else if (strategy === 'zone') {
+      // --- Real zone-picking simulation ---
+      routeResult = simulateZoneStrategy(warehouse, orders, workerCount);
     } else {
-      // --- Mock (Batch / Zone will be implemented later) ---
+      // --- Mock (Batch will be implemented later) ---
       routeResult = buildMockRoute(warehouse, strategy, workerCount);
     }
 
@@ -601,17 +875,19 @@ export function runSimulation(
     const totalLaborMinutes = workerTimes.reduce((sum, m) => sum + m, 0);
     const cost = (totalLaborMinutes / 60) * laborProfile.costPerHour;
 
-    // Efficiency: single is the baseline (0%).  Batch/Zone are still mock
-    // for now and use the placeholder random efficiency until real
-    // implementations are added.
+    // Efficiency: single is the baseline (0%). Zone uses real results.
+    // Batch is still mock and uses placeholder random efficiency.
     let efficiency = 0;
     if (strategy === 'single') {
       baselineTime = timeMinutes || 1;
       efficiency = 0;
+    } else if (strategy === 'zone') {
+      // Real efficiency: time saved vs. single-order baseline
+      efficiency = baselineTime > 0
+        ? Math.round(((baselineTime - timeMinutes) / baselineTime) * 100)
+        : 0;
     } else if (strategy === 'batch') {
       efficiency = Math.round(Math.min(35 + Math.random() * 15, 45));
-    } else if (strategy === 'zone') {
-      efficiency = Math.round(Math.min(45 + Math.random() * 20, 60));
     }
 
     const activeWorkers = workerRoutes.filter(r => r.assignedPickCount > 0).length;
@@ -632,6 +908,7 @@ export function runSimulation(
       route: workerRoutes.flatMap(r => r.route),
       color: STRATEGY_COLORS[strategy],
       workerRoutes,
+      unreachablePicks: routeResult.unreachablePicks ?? 0,
     });
   }
 
@@ -652,7 +929,7 @@ export function runSimulation(
     strategies: results,
     heatmap: buildRouteFrequencyHeatmap(warehouse, bestStrategyRoutes),
     bestStrategy,
-    isPartial: false,
+    isPartial: results.some(r => r.unreachablePicks > 0) || missingSkuIds.size > 0,
     unresolvableItems,
     missingItemsCount: missingSkuIds.size,
     invalidLocationCount: 0,
