@@ -185,6 +185,8 @@ export interface SimulationProfiles {
   laborProfile?: Partial<LaborProfile>;
   /** When true, unresolvable order lines are skipped instead of aborting the run. */
   allowPartial?: boolean;
+  /** Number of orders to group into one batch (used by Batch Picking strategy). Default: 5. */
+  batchSize?: number;
 }
 
 export type StrategyType = 'single' | 'batch' | 'zone';

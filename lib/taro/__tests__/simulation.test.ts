@@ -228,7 +228,8 @@ describe('simulation', () => {
       { id: 'order-3', items: [{ skuId: 'SKU_E' }, { skuId: 'SKU_F' }], assignedWorkerId: null },
     ];
 
-    const results = runSimulation(warehouse, orders, 3);
+    // batchSize = 1 so each order becomes its own batch, distributed round-robin
+    const results = runSimulation(warehouse, orders, 3, { batchSize: 1 });
     const batch = results.strategies.find(strategy => strategy.strategy === 'batch');
 
     expect(batch).toBeDefined();
@@ -239,7 +240,7 @@ describe('simulation', () => {
 
     const picksPerWorker = activeWorkers.map(route => route.picks.length);
     expect(Math.max(...picksPerWorker) - Math.min(...picksPerWorker)).toBeLessThanOrEqual(1);
-    expect(activeWorkers.every(route => route.zone.startsWith('Batch Worker'))).toBe(true);
+    expect(activeWorkers.every(route => route.zone.startsWith('Worker ') && route.zone.includes('Batch'))).toBe(true);
   });
 
   it('should throw a clear error for unknown skuId entries in orders', () => {
