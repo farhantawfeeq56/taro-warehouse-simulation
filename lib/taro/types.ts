@@ -1,4 +1,4 @@
-// Core data types for Taro warehouse layout editing
+// Core data types for Taro warehouse simulation
 
 // Branded types for grid coordinates to prevent mixing coordinates
 export type GridX = number & { readonly __brand: 'GridX' };
@@ -78,7 +78,7 @@ export interface Item {
  *
  * A SKU may now span MULTIPLE storage locations (its `storageFootprint`).
  * When it does, exactly one of its bins is marked `primary: true` — the bin
- * that downstream code (order resolution, UI labels) treats as
+ * that downstream code (order resolution, simulation, UI labels) treats as
  * the SKU's canonical pick location. Secondary bins hold additional capacity
  * but are never added to a pick list directly. The primary is chosen by
  * Inventory Placement as the nearest-to-dispatch bin of the SKU's contiguous
@@ -162,6 +162,97 @@ export interface Warehouse {
   locations: WarehouseLocation[];
 }
 
+export interface WarehouseProfile {
+  scale: number; // meters per grid cell
+  workerSpeed: number; // meters per minute
+  pickTimePerItem: number; // seconds per pick
+}
+
+export interface Neighbor {
+  x: number;
+  y: number;
+  edgeCost: number;
+}
+
+export type NeighborGraph = Map<string, Neighbor[]>;
+
+export interface LaborProfile {
+  costPerHour: number;
+}
+
+export interface SimulationProfiles {
+  warehouseProfile?: Partial<WarehouseProfile>;
+  laborProfile?: Partial<LaborProfile>;
+  /** When true, unresolvable order lines are skipped instead of aborting the run. */
+  allowPartial?: boolean;
+}
+
+export type StrategyType = 'single' | 'batch' | 'zone';
+
+export interface WorkerRoute {
+  workerId: number;
+  route: { x: number; y: number }[];
+  picks: { locationKey: string; x: number; y: number; z: number; sku: string; pickCount?: number }[];
+  tasks: PickTask[];
+  color: string;
+  zone: string;
+  assignedPickCount: number;
+  progress: number;
+}
+
+export interface StrategyResult {
+  strategy: StrategyType;
+  strategyName: string;
+  distance: number;
+  totalDistance: number;
+  criticalPathDistance: number;
+  estimatedTime: number;
+  efficiency: number;
+  workerUtilization: number;
+  costPerOrder: number;
+  route: { x: number; y: number }[];
+  color: string;
+  workerRoutes: WorkerRoute[];
+}
+
+export interface SimulationResults {
+  strategies: StrategyResult[];
+  heatmap: number[][];
+  bestStrategy: StrategyType;
+  isPartial: boolean;
+  unresolvableItems: string[];
+  missingItemsCount: number;
+  invalidLocationCount: number;
+  validationContext?: SimulationValidationContext;
+}
+
+export interface OrderValidationResult {
+  orderId: string;
+  missingSkuIds: string[];
+}
+
+export interface SimulationValidationContext {
+  totalItems: number;
+  missingItems: number;
+  affectedOrders: number;
+  missingItemsByOrder: OrderValidationResult[];
+}
+
 export type ToolType = 'shelf' | 'worker' | 'erase';
 
 export type ZVisualizationMode = 'all' | 'level1' | 'level2' | 'level3' | 'level4';
+
+export interface PickTask {
+  workerId: number;
+  step: number;
+  zone: string;
+  location: string;
+  sku: string;
+}
+
+export interface SimulationBlockState {
+  /** Set when simulation cannot run; drives right-panel blocked UI. */
+  simulationState?: 'NO_VALID_ITEMS' | 'UNREACHABLE_LOCATIONS';
+  title: string;
+  description: string;
+}

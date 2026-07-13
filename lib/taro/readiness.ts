@@ -1,0 +1,166 @@
+import { Warehouse, Order, ZVisualizationMode } from './types';
+import { validateItems, type ItemsValidationResult } from './order-validation';
+
+export type GuidedFixId = 
+  | 'add-shelves'
+  | 'import-items' 
+  | 'switch-z-level' 
+  | 'add-orders' 
+  | 'place-items' 
+  | 'set-worker-start';
+
+export interface GuidedFix {
+  id: GuidedFixId;
+  label: string;
+  description: string;
+  actionLabel: string;
+}
+
+export interface ReadinessCondition {
+  id: string;
+  label: string;
+  isMet: boolean;
+}
+
+export type ReadinessStatus = 'READY' | 'NOT_READY';
+
+export interface SimulationReadiness {
+  isReady: boolean;
+  status: ReadinessStatus;
+  conditions: ReadinessCondition[];
+  nextFix?: GuidedFix;
+  completedSteps: number;
+  totalSteps: number;
+}
+
+const FIX_TEMPLATES: Record<string, GuidedFix> = {
+  'add-shelves': {
+    id: 'add-shelves',
+    label: 'Add Shelves',
+    description: 'Your warehouse layout is empty. Start by adding shelves to the grid to define storage areas.',
+    actionLabel: 'Add Shelves',
+  },
+  'items-exist': {
+    id: 'import-items',
+    label: 'Add Inventory',
+    description: 'The warehouse has no items. Click on a shelf to add items manually.',
+    actionLabel: 'Add Items',
+  },
+  'active-z-items': {
+    id: 'switch-z-level',
+    label: 'Switch View Level',
+    description: 'The current floor level is empty. Switch to a level with items.',
+    actionLabel: 'View All Levels',
+  },
+  'valid-orders': {
+    id: 'add-orders',
+    label: 'Add Simulation Orders',
+    description: 'No orders exist to simulate. Add demo orders to get started.',
+    actionLabel: 'Add Demo Orders',
+  },
+  'pickable-items': {
+    id: 'place-items',
+    label: 'Resolve Missing Items',
+    description: 'Some items in your orders are not placed in the warehouse.',
+    actionLabel: 'Check Placement',
+  },
+  'worker-start': {
+    id: 'set-worker-start',
+    label: 'Set Worker Start',
+    description: 'Workers need a starting point to begin picking.',
+    actionLabel: 'Set Start Position',
+  },
+};
+
+/**
+ * Evaluates whether the simulation is ready to run based on current warehouse state and orders.
+ *
+ * When `precomputedValidation` is supplied the expensive order-line scan is skipped entirely.
+ * Callers that already have a *fresh* `ItemsValidationResult` (e.g. memoised in the parent)
+ * should pass it here so that structural warehouse mutations (adding a shelf, moving the
+ * worker-start) don't re-trigger an O(orders × items × bins) re-validation on every mouse move.
+ */
+export function evaluateReadiness(
+  warehouse: Warehouse, 
+  orders: Order[], 
+  activeZVisualizationMode: ZVisualizationMode = 'all',
+  precomputedValidation?: ItemsValidationResult | null
+): SimulationReadiness {
+  const itemsExist = warehouse.grid.some(row =>
+    row.some(cell => cell.locations.length > 0)
+  );
+
+  // Check if any items exist in the currently active Z-level
+  let hasItemsInActiveZ = false;
+  if (activeZVisualizationMode === 'all') {
+    hasItemsInActiveZ = warehouse.grid.some(row =>
+      row.some(cell => cell.locations.length > 0)
+    );
+  } else {
+    const targetZ = parseInt(activeZVisualizationMode.replace('level', ''));
+    hasItemsInActiveZ = warehouse.grid.some(row => 
+      row.some(cell => cell.locations.some(loc => loc.z === targetZ))
+    );
+  }
+
+  const validOrders = orders.length > 0 && orders.every(o => o.items.length > 0);
+  const workerStartMet = warehouse.workerStart !== null;
+
+  // Use precomputed validation when available so structural warehouse changes
+  // (adding a shelf, moving the worker-start) don't re-scan every order line.
+  const validationResult = precomputedValidation ?? validateItems(orders, warehouse);
+  const allItemsPickable = validationResult.context.totalItems > 0 && 
+                           validationResult.context.missingItems === 0;
+
+  const conditions: ReadinessCondition[] = [
+    {
+      id: 'items-exist',
+      label: 'Inventory Imported',
+      isMet: itemsExist,
+    },
+    {
+      id: 'active-z-items',
+      label: 'Items in Active Level',
+      isMet: hasItemsInActiveZ,
+    },
+    {
+      id: 'valid-orders',
+      label: 'Orders Active',
+      isMet: validOrders,
+    },
+    {
+      id: 'pickable-items',
+      label: 'Items Placed',
+      isMet: allItemsPickable,
+    },
+    {
+      id: 'worker-start',
+      label: 'Worker Start Position',
+      isMet: workerStartMet,
+    }
+  ];
+
+  const isReady = conditions.every(c => c.isMet);
+  const status: ReadinessStatus = isReady ? 'READY' : 'NOT_READY';
+  
+  // Find the first unmet condition for the guided fix
+  const firstUnmet = conditions.find(c => !c.isMet);
+  let nextFix = firstUnmet ? FIX_TEMPLATES[firstUnmet.id] : undefined;
+  
+  // Special case: if no items exist AND no shelves exist, show "Add Shelves" fix
+  if (firstUnmet?.id === 'items-exist' && warehouse.shelves.length === 0) {
+    nextFix = FIX_TEMPLATES['add-shelves'];
+  }
+  
+  const completedSteps = conditions.filter(c => c.isMet).length;
+  const totalSteps = conditions.length;
+
+  return {
+    isReady,
+    status,
+    conditions,
+    nextFix,
+    completedSteps,
+    totalSteps
+  };
+}

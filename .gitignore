@@ -18,4 +18,3 @@ node_modules/
 .vercel
 CLAUDE.md
 tsconfig.tsbuildinfo
-snapshots/
