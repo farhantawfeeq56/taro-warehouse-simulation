@@ -185,6 +185,8 @@ export interface SimulationProfiles {
   laborProfile?: Partial<LaborProfile>;
   /** When true, unresolvable order lines are skipped instead of aborting the run. */
   allowPartial?: boolean;
+  /** Number of orders to group into one batch (used by Batch Picking strategy). Default: 5. */
+  batchSize?: number;
 }
 
 export type StrategyType = 'single' | 'batch' | 'zone';
@@ -213,6 +215,11 @@ export interface StrategyResult {
   route: { x: number; y: number }[];
   color: string;
   workerRoutes: WorkerRoute[];
+  /** Number of orders that had at least one successful pick. */
+  ordersCompleted: number;
+  /** Number of orders with zero successful picks (all items missing or unreachable). */
+  ordersSkipped: number;
+  /** Number of pick targets that A* could not reach. */
   unreachablePicks: number;
 }
 
