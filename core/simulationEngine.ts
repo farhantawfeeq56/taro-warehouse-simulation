@@ -1,9 +1,11 @@
-// Mock simulation engine for picking strategies
-// Generates plausible-looking routes and metrics without real pathfinding.
+// Warehouse picking simulation engine
+// Real pick-path strategies using A* pathfinding.
+// Single strategy: real pathfinding. Batch/Zone: mock (to be implemented).
 
 import type {
   Warehouse,
   Order,
+  PickTask,
   StrategyResult,
   SimulationResults,
   StrategyType,
@@ -22,6 +24,9 @@ import {
   DEFAULT_LABOR_PROFILE,
 } from '../lib/taro/constants';
 import { assertWarehouseInvariants } from '../lib/taro/inventory';
+import { findPath, calculatePathDistance, getNeighborGraph } from '../lib/taro/pathfinding';
+import { calculateOctileDistance } from '../lib/taro/distance';
+import { resolveOrderToLocations } from '../lib/taro/order-location-resolver';
 
 export class UnreachableLocationError extends Error {
   constructor(
@@ -50,26 +55,251 @@ export function parseLocationKey(key: string): { x: number; y: number; z: number
   };
 }
 
+// ---------------------------------------------------------------------------
+// Single Order Picking Strategy (real pathfinding)
+// ---------------------------------------------------------------------------
+
+/**
+ * Nearest Neighbour heuristic for ordering pick locations within a single
+ * order.  Given a starting position, it greedily picks the closest unvisited
+ * location at each step.  This is not an exact TSP solver, but it is fast
+ * and yields reasonable visit sequences for typical order sizes (5–10 items).
+ *
+ * @returns indices into `points` in visit order.
+ */
+function nearestNeighborOrder(
+  start: { x: number; y: number },
+  points: { x: number; y: number }[]
+): number[] {
+  if (points.length === 0) return [];
+  if (points.length === 1) return [0];
+
+  const remaining = new Set(points.map((_, i) => i));
+  const order: number[] = [];
+  let current = start;
+
+  while (remaining.size > 0) {
+    let bestIdx = -1;
+    let bestDist = Infinity;
+
+    for (const idx of remaining) {
+      const dist = calculateOctileDistance(current, points[idx]);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIdx = idx;
+      }
+    }
+
+    order.push(bestIdx);
+    current = points[bestIdx];
+    remaining.delete(bestIdx);
+  }
+
+  return order;
+}
+
+/**
+ * Single Order Picking strategy implementation.
+ *
+ * Rules:
+ *  - One worker picks one order at a time.
+ *  - Worker starts from the configured start location.
+ *  - Collects every item in the order (visit sequence optimised via nearest
+ *    neighbour).
+ *  - Returns to start after completing the order.
+ *  - Only then begins the next order.
+ *  - Orders are never merged.
+ *  - Orders are distributed round-robin across N workers.
+ *
+ * Uses real A* pathfinding between every pair of consecutive stops.
+ */
+function simulateSingleStrategy(
+  warehouse: Warehouse,
+  orders: Order[],
+  workerCount: number
+): { workerRoutes: WorkerRoute[]; totalDistance: number; workerDistances: number[] } {
+  const workers = Math.max(1, Math.min(4, workerCount));
+
+  if (!warehouse.workerStart) {
+    const idleRoutes = Array.from({ length: workers }, (_, i) => ({
+      workerId: i + 1,
+      route: [],
+      picks: [],
+      tasks: [],
+      color: WORKER_COLORS[i % WORKER_COLORS.length],
+      zone: `Worker ${i + 1} (idle)`,
+      assignedPickCount: 0,
+      progress: 0,
+    }));
+    return {
+      workerRoutes: idleRoutes,
+      totalDistance: 0,
+      workerDistances: new Array(workers).fill(0),
+    };
+  }
+
+  const start = warehouse.workerStart;
+
+  // Distribute orders round-robin across workers
+  const workerOrders: Order[][] = Array.from({ length: workers }, () => []);
+  for (let i = 0; i < orders.length; i++) {
+    workerOrders[i % workers].push(orders[i]);
+  }
+
+  // Build the neighbour graph once – reused across all pathfinding calls
+  const neighborGraph = getNeighborGraph(warehouse);
+
+  const allWorkerRoutes: WorkerRoute[] = [];
+  const workerDistances: number[] = [];
+  let totalDistance = 0;
+
+  for (let w = 0; w < workers; w++) {
+    const workerId = w + 1;
+    const assignedOrders = workerOrders[w];
+
+    if (assignedOrders.length === 0) {
+      allWorkerRoutes.push({
+        workerId,
+        route: [],
+        picks: [],
+        tasks: [],
+        color: WORKER_COLORS[w % WORKER_COLORS.length],
+        zone: `Worker ${workerId} (idle)`,
+        assignedPickCount: 0,
+        progress: 0,
+      });
+      workerDistances.push(0);
+      continue;
+    }
+
+    // Full route array (grid coords) and pick/task lists for this worker
+    const fullRoute: { x: number; y: number }[] = [{ x: start.x, y: start.y }];
+    const allPicks: WorkerRoute['picks'] = [];
+    const allTasks: PickTask[] = [];
+    let step = 1;
+    let workerDistance = 0;
+
+    // Worker always starts from the configured start position.  After each
+    // order they return to start, so `currentPos` is reset to start at the
+    // beginning of every order.
+    let currentPos = { x: start.x, y: start.y };
+
+    for (const order of assignedOrders) {
+      // Resolve order items to their warehouse bin locations
+      const resolved = resolveOrderToLocations(order, warehouse);
+
+      // Build the list of pick targets (only lines with resolved bins)
+      const pickTargets = resolved.lines.map((line) => ({
+        x: line.bin.x,
+        y: line.bin.y,
+        z: line.bin.z,
+        sku: line.skuId,
+        locationKey: line.bin.id,
+      }));
+
+      if (pickTargets.length === 0) {
+        // All SKUs in this order are missing – skip it entirely
+        continue;
+      }
+
+      // Optimise the visit sequence within this order (nearest-neighbour TSP
+      // from the worker's current position, which is start for the first
+      // order and start again for subsequent orders).
+      const visitOrder = nearestNeighborOrder(currentPos, pickTargets);
+
+      for (const idx of visitOrder) {
+        const target = pickTargets[idx];
+
+        // A* path from current position to the target shelf cell
+        const pathSegment = findPath(warehouse, currentPos, target, { neighborGraph });
+        if (pathSegment.length === 0) {
+          // No walkable route – skip this pick
+          continue;
+        }
+
+        const segmentDistance = calculatePathDistance(pathSegment);
+        workerDistance += segmentDistance;
+
+        // Append to the full route (skip the first vertex to avoid
+        // duplication with the previous segment's last vertex).
+        fullRoute.push(...pathSegment.slice(1));
+
+        // Record the pick event
+        allPicks.push({
+          locationKey: target.locationKey,
+          x: target.x,
+          y: target.y,
+          z: target.z,
+          sku: target.sku,
+          pickCount: 1,
+        });
+        allTasks.push({
+          workerId,
+          step: step++,
+          zone: `Worker ${workerId}`,
+          location: `${target.x},${target.y}`,
+          sku: target.sku,
+        });
+
+        currentPos = { x: target.x, y: target.y };
+      }
+
+      // After the last pick, the worker returns to the start location.
+      // This completes the current order.
+      const returnPath = findPath(warehouse, currentPos, start, { neighborGraph });
+      if (returnPath.length > 1) {
+        workerDistance += calculatePathDistance(returnPath);
+        fullRoute.push(...returnPath.slice(1));
+      }
+      // Reset position to start for the next order
+      currentPos = { x: start.x, y: start.y };
+    }
+
+    totalDistance += workerDistance;
+    workerDistances.push(workerDistance);
+
+    allWorkerRoutes.push({
+      workerId,
+      route: fullRoute,
+      picks: allPicks,
+      tasks: allTasks,
+      color: WORKER_COLORS[w % WORKER_COLORS.length],
+      zone: `Worker ${workerId} (Single)`,
+      assignedPickCount: allPicks.length,
+      progress: 0,
+    });
+  }
+
+  return { workerRoutes: allWorkerRoutes, totalDistance, workerDistances };
+}
+
+// ---------------------------------------------------------------------------
+// Mock route builder (used by Batch and Zone strategies only)
+// ---------------------------------------------------------------------------
+
 // Build a mock route that snakes through the warehouse shelves
 function buildMockRoute(
   warehouse: Warehouse,
   strategy: StrategyType,
   workerCount: number
-): { workerRoutes: WorkerRoute[]; totalDistance: number } {
+): { workerRoutes: WorkerRoute[]; totalDistance: number; workerDistances: number[] } {
+  const workers = Math.max(1, Math.min(4, workerCount));
+
   if (!warehouse.workerStart) {
-    const workers = Math.max(1, Math.min(4, workerCount));
+    const idleRoutes = Array.from({ length: workers }, (_, i) => ({
+      workerId: i + 1,
+      route: [],
+      picks: [],
+      tasks: [],
+      color: WORKER_COLORS[i % WORKER_COLORS.length],
+      zone: `Worker ${i + 1} (idle)`,
+      assignedPickCount: 0,
+      progress: 0,
+    }));
     return {
       totalDistance: 0,
-      workerRoutes: Array.from({ length: workers }, (_, i) => ({
-        workerId: i + 1,
-        route: [],
-        picks: [],
-        tasks: [],
-        color: WORKER_COLORS[i % WORKER_COLORS.length],
-        zone: `Worker ${i + 1} (idle)`,
-        assignedPickCount: 0,
-        progress: 0,
-      })),
+      workerRoutes: idleRoutes,
+      workerDistances: new Array(workers).fill(0),
     };
   }
 
@@ -178,7 +408,10 @@ function buildMockRoute(
     });
   }
 
-  return { workerRoutes, totalDistance };
+  const workerDistances = workerRoutes.map(
+    () => totalDistance / Math.max(workerRoutes.filter(r => r.assignedPickCount > 0).length, 1)
+  );
+  return { workerRoutes, totalDistance, workerDistances };
 }
 
 function calculateMockDistance(route: { x: number; y: number }[]): number {
@@ -201,8 +434,11 @@ export function buildRouteFrequencyHeatmap(
 
   for (const route of routes) {
     for (const pos of route) {
-      if (pos.y >= 0 && pos.y < warehouse.height && pos.x >= 0 && pos.x < warehouse.width) {
-        heatmap[pos.y][pos.x]++;
+      // Round to nearest integer – mock routes may include fractional offsets
+      const rx = Math.round(pos.x);
+      const ry = Math.round(pos.y);
+      if (ry >= 0 && ry < warehouse.height && rx >= 0 && rx < warehouse.width) {
+        heatmap[ry][rx]++;
       }
     }
   }
@@ -265,6 +501,10 @@ function safelyResolveOrderLocations(
   return { missingSkuIds };
 }
 
+// ---------------------------------------------------------------------------
+// Main simulation entry point
+// ---------------------------------------------------------------------------
+
 export function runSimulation(
   warehouse: Warehouse,
   orders: Order[],
@@ -284,6 +524,22 @@ export function runSimulation(
   const { missingSkuIds } = safelyResolveOrderLocations(orders, warehouse);
 
   const unresolvableSkuIds = new Set([...missingSkuIds]);
+
+  // Pre-validation: refuse to run if any order item cannot be resolved
+  // to a warehouse location, unless the caller explicitly opts into partial
+  // execution via allowPartial.
+  if (!profiles.allowPartial && unresolvableSkuIds.size > 0) {
+    for (const order of orders) {
+      for (let i = 0; i < order.items.length; i++) {
+        const item = order.items[i];
+        if (unresolvableSkuIds.has(item.skuId)) {
+          throw new Error(
+            `Order "${order.id}" references unknown skuId "${item.skuId}" at index ${i}. The item cannot be resolved.`
+          );
+        }
+      }
+    }
+  }
 
   // Build validation context for missing items
   let finalValidationContext = validationContext;
@@ -307,32 +563,47 @@ export function runSimulation(
     }
   }
 
-  // Generate mock results for each strategy
+  // Generate results for each strategy
   const strategies: StrategyType[] = ['single', 'batch', 'zone'];
   const results: StrategyResult[] = [];
 
   // Baseline (single) serves as reference for efficiency
   let baselineTime = 1;
-  const strategyResults = new Map<StrategyType, { workerRoutes: WorkerRoute[]; totalDistance: number }>();
 
   for (const strategy of strategies) {
-    const mockResult = buildMockRoute(warehouse, strategy, workerCount);
-    strategyResults.set(strategy, mockResult);
+    let routeResult: {
+      workerRoutes: WorkerRoute[];
+      totalDistance: number;
+      workerDistances: number[];
+    };
 
-    const workerRoutes = mockResult.workerRoutes;
-    const totalDistance = Math.round(mockResult.totalDistance * warehouseProfile.scale);
-    const workerDistances = workerRoutes.map(() =>
-      Math.round((totalDistance / Math.max(workerRoutes.length, 1)) * warehouseProfile.scale)
+    if (strategy === 'single') {
+      // --- Real single-order-picking simulation ---
+      routeResult = simulateSingleStrategy(warehouse, orders, workerCount);
+    } else {
+      // --- Mock (Batch / Zone will be implemented later) ---
+      routeResult = buildMockRoute(warehouse, strategy, workerCount);
+    }
+
+    const workerRoutes = routeResult.workerRoutes;
+
+    // Scale distances from raw grid units to meters
+    const totalDistance = Math.round(routeResult.totalDistance * warehouseProfile.scale);
+    const scaledWorkerDistances = routeResult.workerDistances.map(
+      d => Math.round(d * warehouseProfile.scale)
     );
-    const criticalPathDistance = Math.max(...workerDistances, 0);
+
+    const criticalPathDistance = Math.max(...scaledWorkerDistances, 0);
     const workerTimes = workerRoutes.map((route, idx) =>
-      calculateWorkerTimeMinutes(workerDistances[idx], route.assignedPickCount, warehouseProfile)
+      calculateWorkerTimeMinutes(scaledWorkerDistances[idx], route.assignedPickCount, warehouseProfile)
     );
     const timeMinutes = Math.max(...workerTimes, 0);
     const totalLaborMinutes = workerTimes.reduce((sum, m) => sum + m, 0);
     const cost = (totalLaborMinutes / 60) * laborProfile.costPerHour;
 
-    // Scale metrics differently per strategy for visual differentiation
+    // Efficiency: single is the baseline (0%).  Batch/Zone are still mock
+    // for now and use the placeholder random efficiency until real
+    // implementations are added.
     let efficiency = 0;
     if (strategy === 'single') {
       baselineTime = timeMinutes || 1;
