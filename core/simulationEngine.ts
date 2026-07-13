@@ -428,7 +428,6 @@ export function buildRouteFrequencyHeatmap(
   warehouse: Warehouse,
   routes: { x: number; y: number }[][]
 ): number[][] {
-  console.log("[Simulation] Step 7: Before any heatmap generation");
   const heatmap: number[][] = Array(warehouse.height)
     .fill(null)
     .map(() => Array(warehouse.width).fill(0));
@@ -513,7 +512,6 @@ export function runSimulation(
   profiles: SimulationProfiles = {},
   validationContext?: SimulationValidationContext
 ): SimulationResults {
-  console.log("[Simulation] Step 1: Enter runSimulation()");
   // Sanity check
   if (!warehouse.workerStart || orders.length === 0) {
     throw new Error('Simulation requirements not met: Worker start position and orders are required.');
@@ -650,7 +648,6 @@ export function runSimulation(
 
   const unresolvableItems = [...new Set(finalValidationContext?.missingItemsByOrder.flatMap(o => o.missingSkuIds) ?? [])];
 
-  console.log("[Simulation] Step 2: Exit runSimulation() successfully");
   return {
     strategies: results,
     heatmap: buildRouteFrequencyHeatmap(warehouse, bestStrategyRoutes),

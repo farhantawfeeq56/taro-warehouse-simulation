@@ -346,13 +346,7 @@ export function WarehouseCanvas({
   }, [warehouse, shelfDetails?.cellX, shelfDetails?.cellY, shelfDetails?.locations, shelfDetails]);
 
   // Draw the canvas - memoized draw function to avoid recreation
-  let _canvasDrawLogged = false;
-
   const drawCanvas = useCallback(() => {
-    if (!_canvasDrawLogged) {
-      console.log("[Simulation] Step 6: WarehouseCanvas begins drawing");
-      _canvasDrawLogged = true;
-    }
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -497,11 +491,6 @@ export function WarehouseCanvas({
     }
 
     // Draw route animation — all workers animate in parallel
-    let _routeRenderLogged = false;
-    if (!_routeRenderLogged) {
-      console.log("[Simulation] Step 9: Before any route rendering");
-      _routeRenderLogged = true;
-    }
     if (activeRoute) {
       if (activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0) {
         for (const workerRoute of activeRoute.workerRoutes) {

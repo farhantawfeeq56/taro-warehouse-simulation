@@ -69,7 +69,7 @@ export function TaroApp() {
   const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
-  const [showLayoutConfig, setShowLayoutConfig] = useState(false);
+  const [showLayoutConfig, setShowLayoutConfig] = useState(true);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
   const [orderCount, setOrderCount] = useState(1000);
@@ -155,7 +155,6 @@ export function TaroApp() {
   const [animationReplayId, setAnimationReplayId] = useState(0);
 
   const startStrategyAnimation = useCallback((strategy: StrategyType) => {
-    console.log("[Simulation] Step 5: Enter startStrategyAnimation()");
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
@@ -228,9 +227,7 @@ export function TaroApp() {
             laborProfile,
           });
 
-          console.log("[Simulation] Step 3: Before setSimulationResults()");
           setSimulationResults(results);
-          console.log("[Simulation] Step 4: After setSimulationResults()");
           setIsSimulating(false);
           setValidationContext(results.validationContext ?? null);
           setValidationResult(null);
@@ -347,11 +344,7 @@ export function TaroApp() {
 
   // 4. Side Effects
   useEffect(() => {
-    // Generate a demo warehouse and orders on mount for quick testing
-    const demoWarehouse = generateDemoWarehouse();
-    setWarehouse(demoWarehouse);
-    const demoOrders = generateRandomOrders(demoWarehouse, 100, 5);
-    setOrders(demoOrders);
+    // No longer generating initial demo warehouse as we force layout config on startup
   }, []);
 
   useEffect(() => {

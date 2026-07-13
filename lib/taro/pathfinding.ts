@@ -51,13 +51,7 @@ function createWalkabilitySignature(warehouse: Warehouse): string {
   return signature;
 }
 
-let _isWalkableLogged = false;
-
 export function isWalkable(warehouse: Warehouse, x: number, y: number): boolean {
-  if (!_isWalkableLogged) {
-    console.log("[Simulation] Step 8: Before any grid lookup (isWalkable)");
-    _isWalkableLogged = true;
-  }
   if (x < 0 || x >= warehouse.width || y < 0 || y >= warehouse.height) {
     return false;
   }
