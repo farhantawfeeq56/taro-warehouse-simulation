@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback, useMemo, type MutableRefObject } from 'react';
-import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import type { Warehouse, ToolType, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 import { getNextSku } from '@/lib/taro/demo-generator';
@@ -10,13 +10,7 @@ interface WarehouseCanvasProps {
   warehouse: Warehouse;
   onWarehouseChange: (warehouse: Warehouse) => void;
   selectedTool: ToolType;
-  activeRoute: StrategyResult | null;
-  animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
-  /** Incremented each time `startStrategyAnimation` is called.
-   *  Forces the canvas animation effect to re-run even when the
-   *  same strategy is re-selected after the route completed. */
-  animationReplayId: number;
 }
 
 interface TooltipState {
@@ -39,14 +33,10 @@ export function WarehouseCanvas({
   warehouse,
   onWarehouseChange,
   selectedTool,
-  activeRoute,
-  animationProgressRef,
   zVisualizationMode,
-  animationReplayId,
 }: WarehouseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number | null>(null);
 
   const [isPanning, setIsPanning] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -86,8 +76,6 @@ export function WarehouseCanvas({
   }, [panOffset, zoom, warehouse.width, warehouse.height]);
 
   const applyTool = useCallback((cellX: number, cellY: number) => {
-    // Clone only modified rows and cells instead of deep-cloning the entire
-    // grid.  This eliminates ~90 % of the per-mousemove allocation cost.
     const newGrid = [...warehouse.grid];
 
     const cloneRow = (y: number) => {
@@ -116,8 +104,6 @@ export function WarehouseCanvas({
             newGrid[newWorkerStart.y][newWorkerStart.x] = { ...old, type: 'empty', locations: [] };
           }
         }
-        // Read from newGrid so self-click works correctly:
-        // the clear step above sets the cell to empty, making it re-eligible.
         if (newGrid[cellY][cellX].type === 'empty') {
           cloneRow(cellY);
           newGrid[cellY][cellX] = { ...warehouse.grid[cellY][cellX], type: 'worker-start', locations: [] };
@@ -171,7 +157,6 @@ export function WarehouseCanvas({
       const dy = e.clientY - lastPanPoint.y;
       setPanOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
       setLastPanPoint({ x: e.clientX, y: e.clientY });
-      // Hide tooltip while panning
       setTooltip(prev => ({ ...prev, visible: false }));
       return;
     }
@@ -191,7 +176,6 @@ export function WarehouseCanvas({
     if (cell) {
       const cellData = warehouse.grid[cell.y][cell.x];
       if (cellData.type === 'shelf') {
-        // Filter locations based on z-visualization mode
         let filteredLocations = cellData.locations;
         if (zVisualizationMode !== 'all') {
           const selectedLevel = parseInt(zVisualizationMode.replace('level', ''), 10);
@@ -270,16 +254,14 @@ export function WarehouseCanvas({
     const locationId = getShelfLocationId(shelfDetails.cellX, shelfDetails.cellY);
     const cell = nextWarehouse.grid[shelfDetails.cellY][shelfDetails.cellX];
 
-    // Determine next z-level (cap at 4 as per suggestions)
+    // Determine next z-level (cap at 4)
     const nextZ = Math.min(cell.locations.length + 1, 4);
     if (cell.locations.length >= 4) {
-      // Already at max levels for this demo
       return;
     }
 
     const sku = getNextSku(warehouse);
 
-    // Add a new bin to this shelf's cell. Each bin carries one SKU.
     const newLocation: StorageLocation = {
       id: `${sku}@${shelfDetails.cellX},${shelfDetails.cellY},${nextZ}`,
       locationId,
@@ -287,7 +269,7 @@ export function WarehouseCanvas({
       y: shelfDetails.cellY,
       z: nextZ,
       sku,
-      quantity: 50, // Default quantity
+      quantity: 50,
     };
     cell.locations.push(newLocation);
     nextWarehouse.locations = buildCoordinateLocations(nextWarehouse);
@@ -299,28 +281,6 @@ export function WarehouseCanvas({
     ? warehouse.grid[shelfDetails.cellY]?.[shelfDetails.cellX]
     : null;
   const shelfBins = selectedShelfCell?.locations ?? [];
-
-  const activeRouteHeatmap = useCallback((): number[][] | null => {
-    if (!activeRoute) return null;
-
-    const heatmap: number[][] = Array(warehouse.height)
-      .fill(null)
-      .map(() => Array(warehouse.width).fill(0));
-
-    const routeGroups = activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0
-      ? activeRoute.workerRoutes.map(workerRoute => workerRoute.route)
-      : [activeRoute.route];
-
-    for (const route of routeGroups) {
-      for (const pos of route) {
-        if (pos.y >= 0 && pos.y < warehouse.height && pos.x >= 0 && pos.x < warehouse.width) {
-          heatmap[pos.y][pos.x]++;
-        }
-      }
-    }
-
-    return heatmap;
-  }, [activeRoute, warehouse.height, warehouse.width]);
 
   useEffect(() => {
     if (!shelfDetails) return;
@@ -342,8 +302,8 @@ export function WarehouseCanvas({
     }
   }, [warehouse, shelfDetails?.cellX, shelfDetails?.cellY, shelfDetails?.locations, shelfDetails]);
 
-  // Draw the canvas - memoized draw function to avoid recreation
-  const drawCanvas = useCallback(() => {
+  // Draw the canvas
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -378,7 +338,7 @@ export function WarehouseCanvas({
 
         // Draw shelf with visual dominance - darker border
         if (cell.type === 'shelf') {
-          ctx.strokeStyle = '#E7E8EC'; // Darker gray border
+          ctx.strokeStyle = '#E7E8EC';
           ctx.lineWidth = 2;
           ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
         }
@@ -393,7 +353,6 @@ export function WarehouseCanvas({
         // Draw shelf location markers and labels
         if (cell.type === 'shelf' && cell.locations.length > 0) {
           if (zVisualizationMode === 'all') {
-            // Show count badge and mini dots for all levels
             const totalCount = cell.locations.length;
             const levelCounts = new Map<number, number>();
             cell.locations.forEach(loc => {
@@ -445,7 +404,6 @@ export function WarehouseCanvas({
                 ctx.textBaseline = 'middle';
                 ctx.fillText(shortSku, px + CELL_SIZE / 2, py + CELL_SIZE / 2 + 2);
               } else {
-                // Show count for multiple items at same level
                 ctx.fillStyle = markerColor;
                 ctx.font = 'bold 9px sans-serif';
                 ctx.textAlign = 'center';
@@ -456,118 +414,13 @@ export function WarehouseCanvas({
           }
         }
 
-        // Draw worker icon
+        // Draw worker start icon
         if (cell.type === 'worker-start') {
           ctx.fillStyle = '#ffffff';
           ctx.font = '12px sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText('S', px + CELL_SIZE / 2, py + CELL_SIZE / 2);
-        }
-      }
-    }
-
-    // Draw route animation — all workers animate in parallel
-    const heatmap = activeRouteHeatmap();
-    if (heatmap) {
-      const maxHeat = heatmap.reduce((max, row) => Math.max(max, ...row), 0);
-      if (maxHeat > 0) {
-        for (let y = 0; y < warehouse.height; y++) {
-          for (let x = 0; x < warehouse.width; x++) {
-            const heat = heatmap[y][x];
-            if (heat <= 0) continue;
-            const px = x * CELL_SIZE;
-            const py = y * CELL_SIZE;
-            const intensity = heat / maxHeat;
-            const alpha = 0.12 + intensity * 0.43;
-            ctx.fillStyle = `rgba(239, 68, 68, ${alpha.toFixed(3)})`;
-            ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
-          }
-        }
-      }
-    }
-
-    // Draw route animation — all workers animate in parallel
-    if (activeRoute) {
-      if (activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0) {
-        for (const workerRoute of activeRoute.workerRoutes) {
-          if (workerRoute.route.length === 0) continue;
-
-          // All workers use the same animationProgress — true parallel execution
-          const visiblePoints = Math.max(1, Math.floor(workerRoute.route.length * animationProgressRef.current));
-
-          // Draw path
-          ctx.beginPath();
-          ctx.strokeStyle = workerRoute.color;
-          ctx.lineWidth = 3;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.globalAlpha = 0.8;
-
-          const firstPoint = workerRoute.route[0];
-          ctx.moveTo(firstPoint.x * CELL_SIZE + CELL_SIZE / 2, firstPoint.y * CELL_SIZE + CELL_SIZE / 2);
-          for (let i = 1; i < visiblePoints; i++) {
-            const point = workerRoute.route[i];
-            ctx.lineTo(point.x * CELL_SIZE + CELL_SIZE / 2, point.y * CELL_SIZE + CELL_SIZE / 2);
-          }
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-
-          // Animated worker dot
-          const workerPos = workerRoute.route[visiblePoints - 1];
-          ctx.beginPath();
-          ctx.fillStyle = workerRoute.color;
-          ctx.globalAlpha = 0.25;
-          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-          ctx.beginPath();
-          ctx.fillStyle = workerRoute.color;
-          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
-      } else if (activeRoute.route.length > 1) {
-        // Fallback: single route
-        const visiblePoints = Math.floor(activeRoute.route.length * animationProgressRef.current);
-        if (visiblePoints > 0) {
-          ctx.beginPath();
-          ctx.strokeStyle = activeRoute.color;
-          ctx.lineWidth = 3;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.globalAlpha = 0.8;
-          const firstPoint = activeRoute.route[0];
-          ctx.moveTo(
-            firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
-            firstPoint.y * CELL_SIZE + CELL_SIZE / 2
-          );
-          for (let i = 1; i < visiblePoints; i++) {
-            const point = activeRoute.route[i];
-            ctx.lineTo(
-              point.x * CELL_SIZE + CELL_SIZE / 2,
-              point.y * CELL_SIZE + CELL_SIZE / 2
-            );
-          }
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-
-          const workerPos = activeRoute.route[visiblePoints - 1];
-          ctx.beginPath();
-          ctx.fillStyle = activeRoute.color;
-          ctx.globalAlpha = 0.3;
-          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-          ctx.beginPath();
-          ctx.fillStyle = activeRoute.color;
-          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
-          ctx.stroke();
         }
       }
     }
@@ -583,37 +436,16 @@ export function WarehouseCanvas({
       if (cell.type === 'shelf') {
         const px = hoveredCell.x * CELL_SIZE;
         const py = hoveredCell.y * CELL_SIZE;
-        ctx.fillStyle = 'rgba(59, 130, 246, 0.2)'; // Blue tint
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
         ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
-        ctx.strokeStyle = '#3b82f6'; // Bright blue border
+        ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 2;
         ctx.strokeRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
       }
     }
 
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell]);
-
-  // Use RAF for smooth animation, avoid 60fps React re-renders
-  useEffect(() => {
-    drawCanvas();
-
-    if (activeRoute && animationProgressRef.current < 1) {
-      const animate = () => {
-        drawCanvas();
-        if (animationProgressRef.current < 1) {
-          animationRef.current = requestAnimationFrame(animate);
-        }
-      };
-      animationRef.current = requestAnimationFrame(animate);
-    }
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [drawCanvas, activeRoute, animationReplayId]);
+  }, [warehouse, panOffset, zoom, zVisualizationMode, hoveredCell]);
 
   const isHoveringShelf = hoveredCell && warehouse.grid[hoveredCell.y][hoveredCell.x].type === 'shelf';
 

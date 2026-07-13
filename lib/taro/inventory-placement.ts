@@ -83,8 +83,6 @@ export interface InventoryPlacementConfig {
   categoryClustering?: number;
   /** Optional seed for reproducible generation. Defaults to a fixed seed. */
   seed?: number;
-  /** Generated inventory items to place (one per SKU). Optional. */
-  items?: Item[];
   /**
    * Fallback total quantity per SKU used when an Item does not carry
    * an explicit `totalQuantity`. Defaults to 50 (backward compatible).
