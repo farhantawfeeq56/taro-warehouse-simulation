@@ -117,28 +117,12 @@ function simulateSingleStrategy(
   warehouse: Warehouse,
   orders: Order[],
   workerCount: number
-): { workerRoutes: WorkerRoute[]; totalDistance: number; workerDistances: number[] } {
-  const workers = Math.max(1, Math.min(4, workerCount));
-
-  if (!warehouse.workerStart) {
-    const idleRoutes = Array.from({ length: workers }, (_, i) => ({
-      workerId: i + 1,
-      route: [],
-      picks: [],
-      tasks: [],
-      color: WORKER_COLORS[i % WORKER_COLORS.length],
-      zone: `Worker ${i + 1} (idle)`,
-      assignedPickCount: 0,
-      progress: 0,
-    }));
-    return {
-      workerRoutes: idleRoutes,
-      totalDistance: 0,
-      workerDistances: new Array(workers).fill(0),
-    };
-  }
-
-  const start = warehouse.workerStart;
+): { workerRoutes: WorkerRoute[]; totalDistance: number; workerDistances: number[]; completedOrders: number; skippedOrders: number; unreachablePicks: number } {
+  const workers = Math.max(1, workerCount);
+  const start = warehouse.workerStart!;
+  let skippedOrdersCount = 0;
+  let unreachablePickCount = 0;
+  let completedOrdersCount = 0;
 
   // Distribute orders round-robin across workers
   const workerOrders: Order[][] = Array.from({ length: workers }, () => []);
@@ -199,12 +183,14 @@ function simulateSingleStrategy(
 
       if (pickTargets.length === 0) {
         // All SKUs in this order are missing – skip it entirely
+        skippedOrdersCount++;
         continue;
       }
 
       // Optimise the visit sequence within this order (nearest-neighbour TSP
       // from the worker's current position, which is start for the first
       // order and start again for subsequent orders).
+      let picksMadeInOrder = 0;
       const visitOrder = nearestNeighborOrder(currentPos, pickTargets);
 
       for (const idx of visitOrder) {
@@ -214,6 +200,7 @@ function simulateSingleStrategy(
         const pathSegment = findPath(warehouse, currentPos, target, { neighborGraph });
         if (pathSegment.length === 0) {
           // No walkable route – skip this pick
+          unreachablePickCount++;
           continue;
         }
 
@@ -242,6 +229,14 @@ function simulateSingleStrategy(
         });
 
         currentPos = { x: target.x, y: target.y };
+        picksMadeInOrder++;
+      }
+
+      // Determine whether this order was completed or skipped
+      if (picksMadeInOrder > 0) {
+        completedOrdersCount++;
+      } else {
+        skippedOrdersCount++;
       }
 
       // After the last pick, the worker returns to the start location.
@@ -266,11 +261,18 @@ function simulateSingleStrategy(
       color: WORKER_COLORS[w % WORKER_COLORS.length],
       zone: `Worker ${workerId} (Single)`,
       assignedPickCount: allPicks.length,
-      progress: 0,
+      progress: 1,
     });
   }
 
-  return { workerRoutes: allWorkerRoutes, totalDistance, workerDistances };
+  return {
+    workerRoutes: allWorkerRoutes,
+    totalDistance,
+    workerDistances,
+    completedOrders: completedOrdersCount,
+    skippedOrders: skippedOrdersCount,
+    unreachablePicks: unreachablePickCount,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -575,6 +577,9 @@ export function runSimulation(
       workerRoutes: WorkerRoute[];
       totalDistance: number;
       workerDistances: number[];
+      completedOrders?: number;
+      skippedOrders?: number;
+      unreachablePicks?: number;
     };
 
     if (strategy === 'single') {
@@ -632,6 +637,9 @@ export function runSimulation(
       route: workerRoutes.flatMap(r => r.route),
       color: STRATEGY_COLORS[strategy],
       workerRoutes,
+      ordersCompleted: routeResult.completedOrders ?? orders.length,
+      ordersSkipped: routeResult.skippedOrders ?? 0,
+      unreachablePicks: routeResult.unreachablePicks ?? 0,
     });
   }
 
@@ -652,7 +660,7 @@ export function runSimulation(
     strategies: results,
     heatmap: buildRouteFrequencyHeatmap(warehouse, bestStrategyRoutes),
     bestStrategy,
-    isPartial: false,
+    isPartial: missingSkuIds.size > 0 || results.some(r => r.unreachablePicks > 0),
     unresolvableItems,
     missingItemsCount: missingSkuIds.size,
     invalidLocationCount: 0,

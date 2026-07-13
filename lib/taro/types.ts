@@ -213,6 +213,12 @@ export interface StrategyResult {
   route: { x: number; y: number }[];
   color: string;
   workerRoutes: WorkerRoute[];
+  /** Number of orders that had at least one successful pick. */
+  ordersCompleted: number;
+  /** Number of orders with zero successful picks (all items missing or unreachable). */
+  ordersSkipped: number;
+  /** Number of pick targets that A* could not reach. */
+  unreachablePicks: number;
 }
 
 export interface SimulationResults {
