@@ -147,7 +147,7 @@ function simulateSingleStrategy(
         picks: [],
         tasks: [],
         color: WORKER_COLORS[w % WORKER_COLORS.length],
-        zone: `Worker ${workerId} (idle)`,
+        zone: `Worker ${workerId} (no items assigned)`,
         assignedPickCount: 0,
         progress: 0,
       });
@@ -348,7 +348,7 @@ function simulateBatchStrategy(
         picks: [],
         tasks: [],
         color: WORKER_COLORS[w % WORKER_COLORS.length],
-        zone: `Worker ${workerId} (idle)`,
+        zone: `Worker ${workerId} (no items assigned)`,
         assignedPickCount: 0,
         progress: 0,
       });
@@ -542,22 +542,53 @@ interface WarehouseZone {
 /**
  * Divide the warehouse into `workerCount` roughly equal horizontal bands.
  * Every grid row belongs to exactly one zone.
+ *
+ * Uses floor + remainder distribution so ALL requested workers always receive
+ * a valid (possibly empty) zone, unlike the old `Math.ceil + break` approach
+ * which silently dropped workers when height was not evenly divisible.
+ *
+ * A zone with zero shelves is a legitimate simulation outcome — it reflects
+ * the warehouse layout rather than artificially balancing workload.
+ *
+ * When height < workerCount, zones beyond the last available row use an
+ * inverted range (height-1, height-2) that never matches any pick location.
  */
 function defineZones(warehouse: Warehouse, workerCount: number): WarehouseZone[] {
   const workers = Math.max(1, workerCount);
-  const rowsPerZone = Math.ceil(warehouse.height / workers);
+  const height = warehouse.height;
   const zones: WarehouseZone[] = [];
 
+  if (height === 0) return zones;
+
+  // Distribute rows as evenly as possible.
+  // First `extra` zones get one extra row.
+  const baseRows = Math.floor(height / workers);
+  const extra = height % workers;
+  let yStart = 0;
+
   for (let z = 0; z < workers; z++) {
-    const yMin = z * rowsPerZone;
-    const yMax = Math.min((z + 1) * rowsPerZone - 1, warehouse.height - 1);
-    if (yMin > yMax) break;
+    const zoneRows = baseRows + (z < extra ? 1 : 0);
+    let yMin: number;
+    let yMax: number;
+
+    if (zoneRows === 0) {
+      // No rows remain for this zone — use an inverted sentinel range
+      // that findZoneForLocation can never match.
+      yMin = height - 1;
+      yMax = height - 2;
+    } else {
+      yMin = yStart;
+      yMax = Math.min(yStart + zoneRows - 1, height - 1);
+    }
+
     zones.push({
       zoneId: z,
       yMin,
       yMax,
       label: `Zone ${String.fromCharCode(65 + z)}`,
     });
+
+    yStart = yMax + 1;
   }
 
   return zones;
@@ -670,14 +701,14 @@ function simulateZoneStrategy(
     const picks = zonePickTargets[z];
 
     if (picks.length === 0) {
-      // Idle worker — nothing to pick in this zone
+      // Idle worker — no storage locations in this zone range
       allWorkerRoutes.push({
         workerId,
         route: [],
         picks: [],
         tasks: [],
         color: WORKER_COLORS[z % WORKER_COLORS.length],
-        zone: `${zone.label} (idle)`,
+        zone: `${zone.label} (no storage locations)`,
         assignedPickCount: 0,
         progress: 0,
       });

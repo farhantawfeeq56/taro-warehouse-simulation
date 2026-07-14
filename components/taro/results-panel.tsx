@@ -353,7 +353,9 @@ export function SystemStatePanel({
                 Worker Allocation
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-muted-foreground">{workerCount} configured</span>
+                <span className="text-xs font-mono text-muted-foreground">
+                  Req: {workerCount} | Active: {activeResult.workerRoutes.filter(w => w.assignedPickCount > 0).length}
+                </span>
               </div>
             </div>
             <div className="border border-border rounded-lg bg-muted/30 p-3 space-y-2">
@@ -364,6 +366,7 @@ export function SystemStatePanel({
                   Math.floor(totalPicks * animationProgress)
                 );
                 const progress = totalPicks > 0 ? (completedPicks / totalPicks) * 100 : 0;
+                const isIdle = totalPicks === 0;
 
                 return (
                   <div key={worker.workerId} className="space-y-1.5">
@@ -371,6 +374,11 @@ export function SystemStatePanel({
                       <span className="font-semibold">Worker {worker.workerId}</span>
                       <span className="font-mono text-muted-foreground">{completedPicks} / {totalPicks} picks</span>
                     </div>
+                    {isIdle && (
+                      <div className="text-[10px] text-muted-foreground/60 italic leading-tight">
+                        {worker.zone}
+                      </div>
+                    )}
                     <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border/50">
                       <div
                         className="h-full rounded-full transition-all duration-300"
