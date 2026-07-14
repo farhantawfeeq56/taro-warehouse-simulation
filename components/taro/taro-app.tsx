@@ -225,6 +225,7 @@ export function TaroApp() {
           const results = runSimulation(warehouse, orders, workerCount, {
             warehouseProfile,
             laborProfile,
+            debugMode: true,
           });
 
           setSimulationResults(results);
