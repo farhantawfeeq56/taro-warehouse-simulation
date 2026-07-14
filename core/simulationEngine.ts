@@ -115,8 +115,7 @@ function nearestNeighborOrder(
 function simulateSingleStrategy(
   warehouse: Warehouse,
   orders: Order[],
-  workerCount: number,
-  debugMode?: boolean
+  workerCount: number
 ): { workerRoutes: WorkerRoute[]; totalDistance: number; workerDistances: number[]; completedOrders: number; skippedOrders: number; unreachablePicks: number } {
   const workers = Math.max(1, workerCount);
   const start = warehouse.workerStart!;
@@ -128,22 +127,6 @@ function simulateSingleStrategy(
   const workerOrders: Order[][] = Array.from({ length: workers }, () => []);
   for (let i = 0; i < orders.length; i++) {
     workerOrders[i % workers].push(orders[i]);
-  }
-
-  // ── Debug: print order-to-worker assignment ────────────────────────
-  if (debugMode) {
-    console.log('\n═══════════════════════════════════════════════════════');
-    console.log('  SINGLE ORDER PICKING — Debug Summary');
-    console.log('═══════════════════════════════════════════════════════');
-    for (let w = 0; w < workers; w++) {
-      const wOrders = workerOrders[w];
-      console.log(`  Worker ${w + 1} — ${wOrders.length} order(s):`);
-      for (const o of wOrders) {
-        const items = o.items.map(i => `${i.skuId}${i.quantity ? `×${i.quantity}` : ''}`).join(', ');
-        console.log(`    Order ${o.id}: [${items}]`);
-      }
-    }
-    console.log('─────────────────────────────────────────────────────────────');
   }
 
   // Build the neighbour graph once – reused across all pathfinding calls
@@ -209,10 +192,6 @@ function simulateSingleStrategy(
       let picksMadeInOrder = 0;
       const visitOrder = nearestNeighborOrder(currentPos, pickTargets);
 
-      if (debugMode) {
-        console.log(`  Order ${order.id} — visit sequence (${visitOrder.length} target(s)):`);
-      }
-
       for (const idx of visitOrder) {
         const target = pickTargets[idx];
 
@@ -220,21 +199,12 @@ function simulateSingleStrategy(
         const pathSegment = findPath(warehouse, currentPos, target, { neighborGraph });
         if (pathSegment.length === 0) {
           // No walkable route – skip this pick
-          if (debugMode) {
-            console.log(`    ✗ UNREACHABLE — SKU ${target.sku} at (${target.x},${target.y},${target.z})`);
-          }
           unreachablePickCount++;
           continue;
         }
 
         const segmentDistance = calculatePathDistance(pathSegment);
         workerDistance += segmentDistance;
-
-        if (debugMode) {
-          const fromStr = `(${currentPos.x},${currentPos.y})`;
-          const toStr = `(${target.x},${target.y},z=${target.z})`;
-          console.log(`    ${fromStr} → ${toStr}  SKU ${target.sku}   dist=${segmentDistance.toFixed(2)}`);
-        }
 
         // Append to the full route (skip the first vertex to avoid
         // duplication with the previous segment's last vertex).
@@ -294,22 +264,6 @@ function simulateSingleStrategy(
     });
   }
 
-  // ── Debug: single strategy summary ────────────────────────────────
-  if (debugMode) {
-    console.log('─────────────────────────────────────────────────────────────');
-    console.log('  PER-WORKER SUMMARY:');
-    for (let w = 0; w < workers; w++) {
-      const wr = allWorkerRoutes[w];
-      const itemsPicked = wr.picks.reduce((s, p) => s + (p.pickCount ?? 1), 0);
-      console.log(`  Worker ${w + 1}: distance=${workerDistances[w].toFixed(2)}  items=${itemsPicked}`);
-    }
-    console.log(`  Total distance: ${totalDistance.toFixed(2)}`);
-    console.log(`  Orders completed: ${completedOrdersCount}`);
-    console.log(`  Orders skipped:   ${skippedOrdersCount}`);
-    console.log(`  Unreachable picks: ${unreachablePickCount}`);
-    console.log('═══════════════════════════════════════════════════════\n');
-  }
-
   return {
     workerRoutes: allWorkerRoutes,
     totalDistance,
@@ -348,8 +302,7 @@ function simulateBatchStrategy(
   warehouse: Warehouse,
   orders: Order[],
   workerCount: number,
-  batchSize: number,
-  debugMode?: boolean
+  batchSize: number
 ): { workerRoutes: WorkerRoute[]; totalDistance: number; workerDistances: number[]; completedOrders: number; skippedOrders: number; unreachablePicks: number } {
   const workers = Math.max(1, workerCount);
   const start = warehouse.workerStart!;
@@ -375,28 +328,6 @@ function simulateBatchStrategy(
   );
   for (let i = 0; i < batches.length; i++) {
     workerBatches[i % workers].push(batches[i]);
-  }
-
-  // ── Debug: batch structure ─────────────────────────────────────────
-  if (debugMode) {
-    console.log('\n═══════════════════════════════════════════════════════');
-    console.log('  BATCH PICKING — Debug Summary');
-    console.log('═══════════════════════════════════════════════════════');
-    console.log(`  ${batches.length} batch(es) formed (batchSize=${effectiveBatchSize}):`);
-    for (const b of batches) {
-      const orderIds = b.orders.map(o => o.id).join(', ');
-      console.log(`    Batch ${b.batchId}: [${orderIds}]`);
-    }
-    console.log('─────────────────────────────────────────────────────────────');
-    for (let w = 0; w < workers; w++) {
-      const wBatches = workerBatches[w];
-      console.log(`  Worker ${w + 1} — ${wBatches.length} batch(es):`);
-      for (const b of wBatches) {
-        const orderIds = b.orders.map(o => o.id).join(', ');
-        console.log(`    Batch ${b.batchId}: [${orderIds}]`);
-      }
-    }
-    console.log('─────────────────────────────────────────────────────────────');
   }
 
   // ── 3. Build neighbour graph once ───────────────────────────────────
@@ -497,10 +428,6 @@ function simulateBatchStrategy(
       const pickTargets = [...mergedPicks.values()];
       const visitOrder = nearestNeighborOrder(currentPos, pickTargets);
 
-      if (debugMode) {
-        console.log(`  Worker ${w + 1} — Batch ${batch.batchId} — ${visitOrder.length} pick target(s):`);
-      }
-
       // Track which orders had at least one reachable pick in this batch.
       const reachableOrderIds = new Set<string>();
 
@@ -510,22 +437,12 @@ function simulateBatchStrategy(
         // A* path from current position to the target shelf cell
         const pathSegment = findPath(warehouse, currentPos, target, { neighborGraph });
         if (pathSegment.length === 0) {
-          if (debugMode) {
-            console.log(`    ✗ UNREACHABLE — SKU ${target.sku} at (${target.x},${target.y},${target.z})`);
-          }
           unreachablePickCount++;
           continue;
         }
 
         const segmentDistance = calculatePathDistance(pathSegment);
         workerDistance += segmentDistance;
-
-        if (debugMode) {
-          const fromStr = `(${currentPos.x},${currentPos.y})`;
-          const toStr = `(${target.x},${target.y},z=${target.z})`;
-          const serving = [...target.orderIds].join(',');
-          console.log(`    ${fromStr} → ${toStr}  SKU ${target.sku}×${target.pickCount}  orders=[${serving}]  dist=${segmentDistance.toFixed(2)}`);
-        }
 
         // Append to the full route (skip the first vertex to avoid
         // duplication with the previous segment's last vertex).
@@ -595,22 +512,6 @@ function simulateBatchStrategy(
       assignedPickCount: allPicks.reduce((sum, p) => sum + (p.pickCount ?? 1), 0),
       progress: 1,
     });
-  }
-
-  // ── Debug: batch strategy summary ─────────────────────────────────
-  if (debugMode) {
-    console.log('─────────────────────────────────────────────────────────────');
-    console.log('  PER-WORKER SUMMARY:');
-    for (let w = 0; w < workers; w++) {
-      const wr = allWorkerRoutes[w];
-      const itemsPicked = wr.picks.reduce((s, p) => s + (p.pickCount ?? 1), 0);
-      console.log(`  Worker ${w + 1}: distance=${workerDistances[w].toFixed(2)}  items=${itemsPicked}`);
-    }
-    console.log(`  Total distance: ${totalDistance.toFixed(2)}`);
-    console.log(`  Orders completed: ${completedOrdersCount}`);
-    console.log(`  Orders skipped:   ${skippedOrdersCount}`);
-    console.log(`  Unreachable picks: ${unreachablePickCount}`);
-    console.log('═══════════════════════════════════════════════════════\n');
   }
 
   return {
@@ -700,8 +601,7 @@ function findZoneForLocation(
 function simulateZoneStrategy(
   warehouse: Warehouse,
   orders: Order[],
-  workerCount: number,
-  debugMode?: boolean
+  workerCount: number
 ): {
   workerRoutes: WorkerRoute[];
   totalDistance: number;
@@ -753,26 +653,6 @@ function simulateZoneStrategy(
         zoneId,
       });
     }
-  }
-
-  // ── Debug: zones and pick assignment ─────────────────────────────
-  if (debugMode) {
-    console.log('\n═══════════════════════════════════════════════════════');
-    console.log('  ZONE PICKING — Debug Summary');
-    console.log('═══════════════════════════════════════════════════════');
-    console.log(`  ${effectiveWorkers} zone(s) defined:`);
-    for (const z of zones) {
-      console.log(`    ${z.label}: rows ${z.yMin}–${z.yMax} (Worker ${z.zoneId + 1})`);
-    }
-    console.log('─────────────────────────────────────────────────────────────');
-    for (let z = 0; z < effectiveWorkers; z++) {
-      const zPicks = zonePickTargets[z];
-      console.log(`  ${zones[z].label} (Worker ${z + 1}) — ${zPicks.length} pick(s):`);
-      for (const p of zPicks) {
-        console.log(`    SKU ${p.sku} at (${p.x},${p.y},z=${p.z})  Order ${p.orderId}`);
-      }
-    }
-    console.log('─────────────────────────────────────────────────────────────');
   }
 
   // ── 3. For each zone: one worker picks all zone-specific tasks ─────────
@@ -850,10 +730,6 @@ function simulateZoneStrategy(
     const pickTargets = [...mergedPicks.values()];
     const visitOrder = nearestNeighborOrder(currentPos, pickTargets);
 
-    if (debugMode) {
-      console.log(`  ${zone.label} (Worker ${workerId}) — ${visitOrder.length} pick target(s):`);
-    }
-
     for (const idx of visitOrder) {
       const target = pickTargets[idx];
 
@@ -861,22 +737,12 @@ function simulateZoneStrategy(
       const pathSegment = findPath(warehouse, currentPos, target, { neighborGraph });
       if (pathSegment.length === 0) {
         // No walkable route — count and skip this pick
-        if (debugMode) {
-          console.log(`    ✗ UNREACHABLE — SKU ${target.sku} at (${target.x},${target.y},${target.z})`);
-        }
         totalUnreachablePicks++;
         continue;
       }
 
       const segmentDistance = calculatePathDistance(pathSegment);
       workerDistance += segmentDistance;
-
-      if (debugMode) {
-        const fromStr = `(${currentPos.x},${currentPos.y})`;
-        const toStr = `(${target.x},${target.y},z=${target.z})`;
-        const serving = [...target.orderIds].join(',');
-        console.log(`    ${fromStr} → ${toStr}  SKU ${target.sku}×${target.pickCount}  orders=[${serving}]  dist=${segmentDistance.toFixed(2)}`);
-      }
 
       // Append to the full route (skip first vertex to avoid duplication)
       fullRoute.push(...pathSegment.slice(1));
@@ -937,23 +803,6 @@ function simulateZoneStrategy(
     } else {
       skippedOrdersCount++;
     }
-  }
-
-  // ── Debug: zone strategy summary ─────────────────────────────────
-  if (debugMode) {
-    console.log('─────────────────────────────────────────────────────────────');
-    console.log('  PER-WORKER SUMMARY:');
-    for (let z = 0; z < effectiveWorkers; z++) {
-      const wr = allWorkerRoutes[z];
-      if (!wr) continue;
-      const itemsPicked = wr.picks.reduce((s, p) => s + (p.pickCount ?? 1), 0);
-      console.log(`  ${zones[z]?.label ?? `Zone ${z}`} (Worker ${z + 1}): distance=${workerDistances[z]?.toFixed(2) ?? 0}  items=${itemsPicked}`);
-    }
-    console.log(`  Total distance: ${totalDistance.toFixed(2)}`);
-    console.log(`  Orders completed: ${completedOrdersCount}`);
-    console.log(`  Orders skipped:   ${skippedOrdersCount}`);
-    console.log(`  Unreachable picks: ${totalUnreachablePicks}`);
-    console.log('═══════════════════════════════════════════════════════\n');
   }
 
   return {
@@ -1062,7 +911,6 @@ export function runSimulation(
 
   const warehouseProfile = resolveWarehouseProfile(profiles.warehouseProfile);
   const laborProfile = resolveLaborProfile(profiles.laborProfile);
-  const debugMode = profiles.debugMode === true;
 
   // Resolve order locations to check for missing items
   const { missingSkuIds } = safelyResolveOrderLocations(orders, warehouse);
@@ -1123,12 +971,12 @@ export function runSimulation(
     };
 
     if (strategy === 'single') {
-      routeResult = simulateSingleStrategy(warehouse, orders, workerCount, debugMode);
+      routeResult = simulateSingleStrategy(warehouse, orders, workerCount);
     } else if (strategy === 'batch') {
       const batchSize = profiles.batchSize ?? 5;
-      routeResult = simulateBatchStrategy(warehouse, orders, workerCount, batchSize, debugMode);
+      routeResult = simulateBatchStrategy(warehouse, orders, workerCount, batchSize);
     } else {
-      routeResult = simulateZoneStrategy(warehouse, orders, workerCount, debugMode);
+      routeResult = simulateZoneStrategy(warehouse, orders, workerCount);
     }
 
     const workerRoutes = routeResult.workerRoutes;

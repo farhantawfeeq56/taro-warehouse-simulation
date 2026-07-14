@@ -187,8 +187,6 @@ export interface SimulationProfiles {
   allowPartial?: boolean;
   /** Number of orders to group into one batch (used by Batch Picking strategy). Default: 5. */
   batchSize?: number;
-  /** When true, print a detailed per-strategy execution summary to the console for debugging. */
-  debugMode?: boolean;
 }
 
 export type StrategyType = 'single' | 'batch' | 'zone';
