@@ -1,5 +1,7 @@
 'use server';
 
+export const runtime = 'nodejs';
+
 import { getOrCreateProject, getWarehouseForProject, upsertWarehouse } from '@/lib/db/repository';
 import type { Warehouse, Order, Item } from '@/lib/taro/types';
 import {

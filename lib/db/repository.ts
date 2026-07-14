@@ -10,7 +10,7 @@ export async function getOrCreateProject(): Promise<{
   createdAt: Date;
   updatedAt: Date;
 }> {
-  const db = getDb();
+  const db = await getDb();
   const existing = await db.query.projects.findFirst();
   if (existing) return existing;
 
@@ -22,13 +22,13 @@ export async function getOrCreateProject(): Promise<{
 }
 
 export async function getProject(projectId: string) {
-  return getDb().query.projects.findFirst({ where: eq(projects.id, projectId) });
+  return (await getDb()).query.projects.findFirst({ where: eq(projects.id, projectId) });
 }
 
 // ── Warehouse ──────────────────────────────────────────────────────────────
 
 export async function getWarehouseForProject(projectId: string) {
-  return getDb().query.warehouses.findFirst({
+  return (await getDb()).query.warehouses.findFirst({
     where: eq(warehouses.projectId, projectId),
   });
 }
@@ -41,7 +41,7 @@ export async function upsertWarehouse(params: {
   inventoryJson?: Record<string, unknown>;
   ordersJson?: Record<string, unknown>;
 }) {
-  const db = getDb();
+  const db = await getDb();
   const existing = await db.query.warehouses.findFirst({
     where: eq(warehouses.projectId, params.projectId),
   });
@@ -82,7 +82,7 @@ export async function updateWarehouseField(
   field: 'layoutConfig' | 'layoutJson' | 'inventoryJson' | 'ordersJson' | 'name',
   value: Record<string, unknown> | string,
 ) {
-  const [updated] = await getDb()
+  const [updated] = await (await getDb())
     .update(warehouses)
     .set({ [field]: value, updatedAt: new Date() } as any)
     .where(eq(warehouses.id, warehouseId))
