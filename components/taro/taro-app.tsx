@@ -16,17 +16,10 @@ import type {
   SimulationBlockState,
 } from '@/lib/taro/types';
 import {
-  generateDemoWarehouse,
   generateRandomOrders,
   createEmptyWarehouse,
   generateSkeletonWarehouse,
 } from '@/lib/taro/demo-generator';
-import {
-  generateParallelLayout,
-  generateCrossAisleLayout,
-  generateFishboneLayout
-} from '@/lib/taro/layout-generator';
-import { applyInventoryPlacementDetailed } from '@/lib/taro/inventory-placement';
 import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
@@ -43,10 +36,20 @@ import { getMissingSkuIds, validateItems, type ItemsValidationResult } from '@/l
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 import { validateSkuQuantityInvariant } from '@/lib/taro/inventory';
+import {
+  loadWorkspace,
+  generateAndSaveWarehouse,
+  saveOrders,
+  saveWarehouseLayout,
+} from '@/lib/db/actions';
 
 export function TaroApp() {
-  const [warehouse, setWarehouse] = useState<Warehouse>(() => generateSkeletonWarehouse());
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [warehouseId, setWarehouseId] = useState<string | null>(null);
+  const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
@@ -69,7 +72,8 @@ export function TaroApp() {
   const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
-  const [showLayoutConfig, setShowLayoutConfig] = useState(true);
+  const [showLayoutConfig, setShowLayoutConfig] = useState(false);
+  const [hasExistingWarehouse, setHasExistingWarehouse] = useState(false);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
   const [orderCount, setOrderCount] = useState(1000);
@@ -100,7 +104,32 @@ export function TaroApp() {
     animationProgressRef.current = 0;
   }, []);
 
-  // 1. Derived Data
+  // Debounced persistence of canvas edits
+  const saveLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleWarehouseChangePersisted = useCallback((newWarehouse: Warehouse) => {
+    setWarehouse(newWarehouse);
+    setSimulationResults(null);
+    setSimulationBlockState(null);
+    setIsSimulating(false);
+    setActiveStrategy(null);
+    setExecutionPlanStrategy(null);
+    setValidationContext(null);
+    setValidationResult(null);
+    setShowValidationModal(false);
+    setHighlightedMissingSkuIds(null);
+    setImportSummary('');
+    animationProgressRef.current = 0;
+
+    // Debounce DB save to 500ms after last edit
+    if (saveLayoutTimerRef.current) clearTimeout(saveLayoutTimerRef.current);
+    saveLayoutTimerRef.current = setTimeout(() => {
+      if (projectId) {
+        saveWarehouseLayout(projectId, newWarehouse).catch(console.error);
+      }
+    }, 500);
+  }, [projectId]);
+
+  // 1. Derived Data (all guarded by warehouse being non-null)
 
   // Use a deferred snapshot of the warehouse for expensive validation
   // computations.  During rapid drawing the deferred value stays stale,
@@ -116,6 +145,7 @@ export function TaroApp() {
   // that prevents the expensive validateItems() from running on every
   // mouse-move while drawing.
   const warehouseSkuFingerprint = useMemo(() => {
+    if (!deferredWarehouse) return '';
     const parts: string[] = [];
     for (const row of deferredWarehouse.grid) {
       for (const cell of row) {
@@ -131,13 +161,15 @@ export function TaroApp() {
   // Expensive order-line validation — only re-runs when the SKU inventory
   // OR the order list actually changes.
   const cachedOrderValidation = useMemo(
-    () => validateItems(orders, deferredWarehouse),
+    () => deferredWarehouse ? validateItems(orders, deferredWarehouse) : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [warehouseSkuFingerprint, orders]
   );
 
   const readiness = useMemo(
-    () => evaluateReadiness(deferredWarehouse, orders, zVisualizationMode, cachedOrderValidation),
+    () => deferredWarehouse
+      ? evaluateReadiness(deferredWarehouse, orders, zVisualizationMode, cachedOrderValidation)
+      : { isReady: false, missingRequirements: [], checks: [] } as unknown as SimulationReadiness,
     [deferredWarehouse, orders, zVisualizationMode, cachedOrderValidation]
   );
   const canSimulate = readiness.isReady;
@@ -203,7 +235,7 @@ export function TaroApp() {
 
   const runSimulationFlow = useCallback(
     () => {
-      if (!warehouse.workerStart || orders.length === 0) {
+      if (!warehouse || !warehouse.workerStart || orders.length === 0) {
         return;
       }
 
@@ -268,6 +300,7 @@ export function TaroApp() {
   }, [handleWarehouseChange, resetAnimationState]);
 
   const handleSimulateClick = useCallback(() => {
+    if (!warehouse) return;
     if (!readiness.isReady) {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
@@ -337,14 +370,53 @@ export function TaroApp() {
     }
   }, [handleWarehouseChange]);
 
-  const handleAddDemoOrders = useCallback(() => {
-    const demoOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
-    setOrders(demoOrders);
-  }, [warehouse, orderCount, avgOrderSize]);
+  const handleAddDemoOrders = useCallback(async () => {
+    if (!warehouse || !projectId) return;
+    try {
+      const newOrders = await saveOrders(projectId, warehouse, orderCount, avgOrderSize);
+      setOrders(newOrders);
+    } catch (err) {
+      console.error('Failed to save orders:', err);
+      // Fallback: generate client-side
+      const fallbackOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
+      setOrders(fallbackOrders);
+    }
+  }, [warehouse, projectId, orderCount, avgOrderSize]);
 
   // 4. Side Effects
   useEffect(() => {
-    // No longer generating initial demo warehouse as we force layout config on startup
+    // Load workspace from database on mount
+    let cancelled = false;
+    async function init() {
+      try {
+        const snapshot = await loadWorkspace();
+        if (cancelled) return;
+        setProjectId(snapshot.projectId);
+        setWarehouseId(snapshot.warehouseId);
+        if (snapshot.warehouse) {
+          setWarehouse(snapshot.warehouse);
+          setOrders(snapshot.orders);
+          setHasExistingWarehouse(true);
+          setShowLayoutConfig(false);
+        } else {
+          // No warehouse yet — show layout config
+          setWarehouse(generateSkeletonWarehouse());
+          setHasExistingWarehouse(false);
+          setShowLayoutConfig(true);
+        }
+      } catch (err) {
+        console.error('Failed to load workspace:', err);
+        if (!cancelled) {
+          setLoadError('Could not connect to database. Running in offline mode.');
+          setWarehouse(generateSkeletonWarehouse());
+          setShowLayoutConfig(true);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+    init();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -369,14 +441,31 @@ export function TaroApp() {
         className="hidden"
       />
 
+      {/* Loading state */}
+      {isLoading && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-muted-foreground">Loading workspace...</p>
+          </div>
+        </div>
+      )}
+
+      {/* DB error banner */}
+      {loadError && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-800 text-center">
+          {loadError}
+        </div>
+      )}
+
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator
-
-</h1>
-            <p className="text-xs text-muted-foreground leading-tight">Demo warehouse generated for viewing purposes. Refresh for fresh demo.</p>
+            <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator</h1>
+            <p className="text-xs text-muted-foreground leading-tight">
+              {hasExistingWarehouse ? 'Warehouse workspace loaded.' : 'Configure your warehouse layout to get started.'}
+            </p>
             {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
           </div>
         </div>
@@ -404,7 +493,7 @@ export function TaroApp() {
         <OrdersPanel
           orders={orders}
           onOrdersChange={setOrders}
-          warehouse={warehouse}
+          warehouse={warehouse ?? undefined}
           highlightedMissingSkuIds={highlightedMissingSkuIds}
           onClearHighlights={() => setHighlightedMissingSkuIds(null)}
           orderCount={orderCount}
@@ -413,7 +502,19 @@ export function TaroApp() {
           onAvgOrderSizeChange={setAvgOrderSize}
         />
 
-        {/* Center - Canvas */}
+        {/* Center - Canvas (only when warehouse is loaded) */}
+        {!warehouse ? (
+          <div className="flex-1 flex items-center justify-center bg-muted/20">
+            <div className="text-center space-y-4">
+              <p className="text-muted-foreground">{isLoading ? 'Loading...' : 'No warehouse configured.'}</p>
+              {!isLoading && (
+                <Button onClick={() => setShowLayoutConfig(true)}>
+                  Configure Warehouse
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
         <div className="flex-1 flex flex-col overflow-hidden gap-0">
           {/* Toolbar */}
           <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
@@ -432,7 +533,7 @@ export function TaroApp() {
           {/* Canvas */}
           <WarehouseCanvas
             warehouse={warehouse}
-            onWarehouseChange={handleWarehouseChange}
+            onWarehouseChange={handleWarehouseChangePersisted}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
             animationProgressRef={animationProgressRef}
@@ -469,6 +570,7 @@ export function TaroApp() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Right Panel - System State */}
         <SystemStatePanel
@@ -501,90 +603,75 @@ export function TaroApp() {
         />
       )}
 
-      {showLayoutConfig && (
+      {showLayoutConfig && projectId && (
         <LayoutConfigOverlay
-          onClose={() => setShowLayoutConfig(false)}
-          onApply={(config) => {
-            let newWarehouse: Warehouse;
-            
-            switch (config.type) {
-              case 'parallel':
-                newWarehouse = generateParallelLayout(config.gridHeight, config.rackCount, config.aisleWidth);
-                break;
-              case 'cross-aisle':
-                newWarehouse = generateCrossAisleLayout(config.gridHeight, config.rackCount, config.aisleWidth, config.crossAisleCount);
-                break;
-              case 'fishbone':
-                newWarehouse = generateFishboneLayout(config.fbWidth, config.fbHeight, config.fbTheta, config.fbI2, config.fbS, config.fbAp);
-                break;
-              default:
-                newWarehouse = generateParallelLayout(config.gridHeight, config.rackCount, config.aisleWidth);
+          onClose={() => {
+            // Only allow closing if a warehouse already exists
+            if (hasExistingWarehouse) {
+              setShowLayoutConfig(false);
             }
+          }}
+          canClose={hasExistingWarehouse}
+          onApply={async (config) => {
+            setShowLayoutConfig(false);
 
-            const placementResult = applyInventoryPlacementDetailed(
-              newWarehouse,
-              {
+            try {
+              const result = await generateAndSaveWarehouse(projectId, {
+                layoutConfig: {
+                  type: config.type,
+                  gridHeight: config.gridHeight,
+                  rackCount: config.rackCount,
+                  aisleWidth: config.aisleWidth,
+                  crossAisleCount: config.crossAisleCount,
+                  fbWidth: config.fbWidth,
+                  fbHeight: config.fbHeight,
+                  fbTheta: config.fbTheta,
+                  fbI2: config.fbI2,
+                  fbS: config.fbS,
+                  fbAp: config.fbAp,
+                },
                 items: config.inventory,
                 slottingBias: config.slottingBias,
                 categoryClustering: config.categoryClustering,
-              }
-            );
-            const warehouseWithInventory = placementResult.warehouse;
-
-            setWarehouse(warehouseWithInventory);
-
-            // Verify the quantity invariant: each SKU's total quantity
-            // must equal the sum of its bin quantities. Log violations
-            // as warnings so developers can catch placement bugs.
-            const qtyViolations = validateSkuQuantityInvariant(
-              warehouseWithInventory,
-              config.inventory
-            );
-            if (qtyViolations.length > 0) {
-              console.warn(
-                '[Taro] Quantity invariant violations after placement:',
-                qtyViolations
-              );
-            }
-
-            // Surface any SKUs that could not be placed (more required bins
-            // than available capacity, considering each SKU's storageFootprint)
-            // rather than silently dropping inventory.
-            const totalBinsWanted = config.inventory.reduce(
-              (sum, i) => sum + (i.storageFootprint ?? 1),
-              0
-            );
-            if (placementResult.unplacedSkus.length > 0) {
-              setSimulationBlockState({
-                simulationState: 'NO_VALID_ITEMS',
-                title: `${placementResult.unplacedSkus.length} SKU${placementResult.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
-                description: `The warehouse layout has only ${placementResult.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${placementResult.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${placementResult.unplacedSkus.join(', ')}.`,
+                storageFootprint: config.storageFootprint,
+                orderCount,
+                avgOrderSize,
               });
-            } else {
-              setSimulationBlockState(null);
+
+              setWarehouse(result.warehouse);
+              setOrders(result.orders);
+              setHasExistingWarehouse(true);
+
+              if (result.quantityViolations.length > 0) {
+                console.warn('[Taro] Quantity invariant violations after placement:', result.quantityViolations);
+              }
+
+              const totalBinsWanted = config.inventory.reduce((sum, i) => sum + (i.storageFootprint ?? 1), 0);
+              if (result.unplacedSkus.length > 0) {
+                setSimulationBlockState({
+                  simulationState: 'NO_VALID_ITEMS',
+                  title: `${result.unplacedSkus.length} SKU${result.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
+                  description: `The warehouse layout has only ${result.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${result.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${result.unplacedSkus.join(', ')}.`,
+                });
+              } else {
+                setSimulationBlockState(null);
+              }
+
+              setSimulationResults(null);
+              setIsSimulating(false);
+              setActiveStrategy(null);
+              setAnimationProgress(0);
+              setExecutionPlanStrategy(null);
+              setValidationContext(null);
+              setValidationResult(null);
+              setShowValidationModal(false);
+              setHighlightedMissingSkuIds(null);
+              setImportSummary('');
+              resetAnimationState();
+            } catch (err) {
+              console.error('Failed to generate and save warehouse:', err);
+              alert('Failed to save warehouse. Please try again.');
             }
-
-            // Regenerate orders to match new layout
-            const newOrders = generateRandomOrders(warehouseWithInventory, orderCount, avgOrderSize);
-            setOrders(newOrders);
-
-            // Reset simulation state
-            setSimulationResults(null);
-            setIsSimulating(false);
-            setActiveStrategy(null);
-            setAnimationProgress(0);
-            setExecutionPlanStrategy(null);
-            setValidationContext(null);
-            setValidationResult(null);
-            setShowValidationModal(false);
-            setHighlightedMissingSkuIds(null);
-            // NOTE: simulationBlockState is NOT reset here because the
-            // if/else above already handles it correctly. Resetting it
-            // unconditionally here would silently erase the overflow block
-            // set when unplacedSkus.length > 0 (React batches synchronous
-            // state updates, so the later null would always win).
-            setImportSummary('');
-            resetAnimationState();
           }}
         />
       )}

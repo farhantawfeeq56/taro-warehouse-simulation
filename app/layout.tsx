@@ -3,6 +3,8 @@ import { Manrope } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
+export const dynamic = 'force-dynamic';
+
 const manrope = Manrope({
   subsets: ["latin"],
   variable: '--font-manrope',
