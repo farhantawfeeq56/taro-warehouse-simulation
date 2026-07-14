@@ -14,7 +14,7 @@ export function ReadinessIndicator({ readiness }: ReadinessIndicatorProps) {
   
   const relevantIds = ['items-exist', 'active-z-items', 'pickable-items'];
   const relevantConditions = relevantIds.map(id => 
-    readiness.conditions.find(c => c.id === id)
+    readiness.conditions?.find(c => c.id === id)
   ).filter(Boolean);
 
   return (

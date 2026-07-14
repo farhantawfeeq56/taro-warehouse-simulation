@@ -169,7 +169,7 @@ export function TaroApp() {
   const readiness = useMemo(
     () => deferredWarehouse
       ? evaluateReadiness(deferredWarehouse, orders, zVisualizationMode, cachedOrderValidation)
-      : { isReady: false, missingRequirements: [], checks: [] } as unknown as SimulationReadiness,
+      : { isReady: false, status: 'NOT_READY' as const, conditions: [], completedSteps: 0, totalSteps: 5 } as SimulationReadiness,
     [deferredWarehouse, orders, zVisualizationMode, cachedOrderValidation]
   );
   const canSimulate = readiness.isReady;
