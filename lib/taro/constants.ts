@@ -39,8 +39,19 @@ export const STRATEGY_NAMES = {
   zone: 'Zone Picking',
 } as const;
 
-// Worker colors
-export const WORKER_COLORS = ['#606C38', '#BC6C25', '#ECA400', '#AD343E']; // olive, copper, amber, cherry
+// Worker colors (up to 10 workers)
+export const WORKER_COLORS = [
+  '#606C38', // olive
+  '#BC6C25', // copper
+  '#ECA400', // amber
+  '#AD343E', // cherry
+  '#3B82F6', // blue
+  '#8B5CF6', // violet
+  '#EC4899', // pink
+  '#14B8A6', // teal
+  '#F97316', // orange
+  '#6366F1', // indigo
+];
 
 // Animation
 export const REPLAY_DURATION_MS = 3000; // 3 seconds baseline for animation

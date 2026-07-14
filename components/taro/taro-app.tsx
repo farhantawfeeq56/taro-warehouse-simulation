@@ -57,7 +57,7 @@ export function TaroApp() {
   const animationProgressRef = useRef(0);
   const [animationProgress, setAnimationProgress] = useState(0);
   const animationProgressLastRenderedRef = useRef(0);
-  const [workerCount, setWorkerCount] = useState(2);
+  const [workerCount, setWorkerCount] = useState(1);
   const [warehouseProfile, setWarehouseProfile] = useState<WarehouseProfile>({ ...DEFAULT_WAREHOUSE_PROFILE });
   const [laborProfile, setLaborProfile] = useState<LaborProfile>({ ...DEFAULT_LABOR_PROFILE });
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
@@ -424,6 +424,8 @@ export function TaroApp() {
               onOpenLayoutConfig={() => setShowLayoutConfig(true)}
               zVisualizationMode={zVisualizationMode}
               onZVisualizationChange={setZVisualizationMode}
+              workerCount={workerCount}
+              onWorkerCountChange={setWorkerCount}
             />
           </div>
 

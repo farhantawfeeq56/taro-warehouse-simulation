@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { ToolType, ZVisualizationMode } from '@/lib/taro/types';
-import { Grid3X3, User, Eraser, Layers, Trash2, Settings } from 'lucide-react';
+import { Grid3X3, User, Eraser, Layers, Trash2, Settings, Users } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
@@ -11,6 +11,8 @@ interface ToolbarProps {
   onOpenLayoutConfig: () => void;
   zVisualizationMode: ZVisualizationMode;
   onZVisualizationChange: (mode: ZVisualizationMode) => void;
+  workerCount: number;
+  onWorkerCountChange: (count: number) => void;
 }
 
 const tools: { type: ToolType; label: string; icon: typeof Grid3X3 }[] = [
@@ -40,6 +42,8 @@ export function Toolbar({
   onOpenLayoutConfig,
   zVisualizationMode,
   onZVisualizationChange,
+  workerCount,
+  onWorkerCountChange,
 }: ToolbarProps) {
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -102,6 +106,26 @@ export function Toolbar({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="w-px h-6 bg-border" />
+
+      <div className="flex items-center gap-2">
+        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground hidden sm:inline">Workers:</span>
+        <input
+          type="range"
+          min={1}
+          max={10}
+          step={1}
+          value={workerCount}
+          onChange={(e) => onWorkerCountChange(Number(e.target.value))}
+          className="w-20 h-7 accent-primary cursor-pointer"
+          title={`Worker count: ${workerCount}`}
+        />
+        <span className="text-xs font-mono font-semibold text-foreground w-4 text-center">
+          {workerCount}
+        </span>
       </div>
     </div>
   );
