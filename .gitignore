@@ -19,3 +19,24 @@ node_modules/
 CLAUDE.md
 tsconfig.tsbuildinfo
 snapshots/
+pnpm-lock.yaml
+
+# Temporary development artifacts
+.npx-cache/
+.goose/
+.neon
+neon-data.json
+neon-init-runner.mjs
+neon-init.cmd
+neon-init.mjs
+neon-runner.mjs
+run-neon.ps1
+debug-args.mjs
+skills-lock.json
+nul
+
+# Screenshots and diff artifacts
+*.png
+*.jpg
+output.png
+diff.txt

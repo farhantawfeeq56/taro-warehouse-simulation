@@ -60,6 +60,8 @@ export interface LayoutConfig {
 interface LayoutConfigOverlayProps {
   onClose: () => void;
   onApply?: (config: LayoutConfig) => void;
+  /** When false, the close button is hidden — user must generate a warehouse. */
+  canClose?: boolean;
 }
 
 /** Piecewise‑adaptive step for Grid Height (4–60):
@@ -78,7 +80,7 @@ function getRackStep(v: number): number {
   return 5;
 }
 
-export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayProps) {
+export function LayoutConfigOverlay({ onClose, onApply, canClose = true }: LayoutConfigOverlayProps) {
   const [layoutType, setLayoutType] = useState<LayoutType>('parallel');
 
   // ── Adaptive sliders for Grid Height & Rack Count ──────────────────────
@@ -448,9 +450,11 @@ export function LayoutConfigOverlay({ onClose, onApply }: LayoutConfigOverlayPro
             <p className="text-xs text-muted-foreground">Select a template, customise its parameters, and shape how inventory will be distributed</p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
-          <X className="h-5 w-5" />
-        </Button>
+        {canClose && (
+          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+            <X className="h-5 w-5" />
+          </Button>
+        )}
       </header>
 
       {/* Main Content */}
