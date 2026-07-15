@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { ToolType, ZVisualizationMode } from '@/lib/taro/types';
-import { Grid3X3, User, Eraser, Layers, Trash2, Settings, Users } from 'lucide-react';
+import { Grid3X3, User, Eraser, Move, Layers, Trash2, Settings, Users } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
@@ -16,12 +16,14 @@ interface ToolbarProps {
 }
 
 const tools: { type: ToolType; label: string; icon: typeof Grid3X3 }[] = [
+  { type: 'hand', label: 'Pan', icon: Move },
   { type: 'shelf', label: 'Shelf', icon: Grid3X3 },
   { type: 'worker', label: 'Worker', icon: User },
   { type: 'erase', label: 'Erase', icon: Eraser },
 ];
 
 const toolColors: Record<ToolType, { bg: string; textClass: string }> = {
+  hand: { bg: '#6366F1', textClass: 'text-white' },
   shelf: { bg: '#374151', textClass: 'text-white' },
   worker: { bg: '#22C55E', textClass: 'text-white' },
   erase: { bg: '#EEEFF2', textClass: 'text-gray-900' },

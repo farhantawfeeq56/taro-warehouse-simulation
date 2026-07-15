@@ -163,9 +163,10 @@ export function WarehouseCanvas({
         applyTool(cell.x, cell.y);
       }
     }
-  }, [getCellFromMouse, applyTool]);
+  }, [selectedTool, getCellFromMouse, applyTool]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (selectedTool === 'hand') return;
     if (isPanning) {
       const dx = e.clientX - lastPanPoint.x;
       const dy = e.clientY - lastPanPoint.y;
@@ -212,7 +213,7 @@ export function WarehouseCanvas({
     } else {
       setTooltip(prev => ({ ...prev, visible: false }));
     }
-  }, [isPanning, isDrawing, lastPanPoint, getCellFromMouse, applyTool, warehouse.grid, zVisualizationMode]);
+  }, [selectedTool, isPanning, isDrawing, lastPanPoint, getCellFromMouse, applyTool, warehouse.grid, zVisualizationMode]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
@@ -226,23 +227,8 @@ export function WarehouseCanvas({
     setTooltip(prev => ({ ...prev, visible: false }));
   }, []);
 
-  const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(prev => Math.min(Math.max(prev * delta, 0.5), 3));
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    canvas.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      canvas.removeEventListener('wheel', handleWheel);
-    };
-  }, [handleWheel]);
-
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (selectedTool === 'hand') return;
     const cellPosition = getCellFromMouse(e);
     if (!cellPosition) return;
     const cell = warehouse.grid[cellPosition.y][cellPosition.x];
@@ -257,7 +243,7 @@ export function WarehouseCanvas({
       cellY: cellPosition.y,
       locations: cell.locations,
     });
-  }, [getCellFromMouse, warehouse]);
+  }, [selectedTool, getCellFromMouse, warehouse]);
 
   const addItemToShelf = useCallback(() => {
     if (!shelfDetails) return;
@@ -356,7 +342,6 @@ export function WarehouseCanvas({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.translate(panOffset.x, panOffset.y);
-    ctx.scale(zoom, zoom);
 
     // Draw cells
     for (let y = 0; y < warehouse.grid.length; y++) {
@@ -595,7 +580,7 @@ export function WarehouseCanvas({
     }
 
     ctx.restore();
-  }, [warehouse, panOffset, zoom, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell]);
+  }, [warehouse, panOffset, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell]);
 
   // Use RAF for smooth animation, avoid 60fps React re-renders
   useEffect(() => {
@@ -634,7 +619,7 @@ export function WarehouseCanvas({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className={isHoveringShelf ? 'cursor-pointer' : 'cursor-crosshair'}
+        className={selectedTool === 'hand' ? 'cursor-grab' : isHoveringShelf ? 'cursor-pointer' : 'cursor-crosshair'}
         style={{ touchAction: 'none' }}
       />
       
@@ -724,8 +709,6 @@ export function WarehouseCanvas({
       )}
 
       <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded border border-border">
-        <span>Zoom: {Math.round(zoom * 100)}%</span>
-        <span className="text-border">|</span>
         <span>Alt+drag to pan</span>
         <span className="text-border">|</span>
         <span>Hover for tooltip, click for details</span>
