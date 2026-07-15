@@ -49,9 +49,6 @@ export function WarehouseCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
 
-  const [isPanning, setIsPanning] = useState(false);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [isDrawing, setIsDrawing] = useState(false);
   const reactFlowInstance = useReactFlow();
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
@@ -75,8 +72,8 @@ export function WarehouseCanvas({
 
     const rfZoom = reactFlowInstance.getZoom();
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rfZoom - panOffset.x;
-    const y = (e.clientY - rect.top) / rfZoom - panOffset.y;
+    const x = (e.clientX - rect.left) / rfZoom;
+    const y = (e.clientY - rect.top) / rfZoom;
 
     const cellX = Math.floor(x / CELL_SIZE);
     const cellY = Math.floor(y / CELL_SIZE);
@@ -85,7 +82,7 @@ export function WarehouseCanvas({
       return { x: cellX, y: cellY };
     }
     return null;
-  }, [panOffset, warehouse.width, warehouse.height, reactFlowInstance]);
+  }, [warehouse.width, warehouse.height, reactFlowInstance]);
 
   const applyTool = useCallback((cellX: number, cellY: number) => {
     // Clone only modified rows and cells instead of deep-cloning the entire
@@ -153,12 +150,6 @@ export function WarehouseCanvas({
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (selectedTool === 'hand') return;
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
-      setIsPanning(true);
-      setLastPanPoint({ x: e.clientX, y: e.clientY });
-      return;
-    }
-
     if (e.button === 0) {
       setIsDrawing(true);
       const cell = getCellFromMouse(e);
@@ -170,16 +161,6 @@ export function WarehouseCanvas({
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (selectedTool === 'hand') return;
-    if (isPanning) {
-      const dx = e.clientX - lastPanPoint.x;
-      const dy = e.clientY - lastPanPoint.y;
-      setPanOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
-      setLastPanPoint({ x: e.clientX, y: e.clientY });
-      // Hide tooltip while panning
-      setTooltip(prev => ({ ...prev, visible: false }));
-      return;
-    }
-
     if (isDrawing) {
       const cell = getCellFromMouse(e);
       if (cell) {
@@ -216,15 +197,13 @@ export function WarehouseCanvas({
     } else {
       setTooltip(prev => ({ ...prev, visible: false }));
     }
-  }, [selectedTool, isPanning, isDrawing, lastPanPoint, getCellFromMouse, applyTool, warehouse.grid, zVisualizationMode]);
+  }, [selectedTool, isDrawing, getCellFromMouse, applyTool, warehouse.grid, zVisualizationMode]);
 
   const handleMouseUp = useCallback(() => {
-    setIsPanning(false);
     setIsDrawing(false);
   }, []);
 
   const handleMouseLeave = useCallback(() => {
-    setIsPanning(false);
     setIsDrawing(false);
     setHoveredCell(null);
     setTooltip(prev => ({ ...prev, visible: false }));
@@ -344,7 +323,6 @@ export function WarehouseCanvas({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
-    ctx.translate(panOffset.x, panOffset.y);
 
     // Draw cells
     for (let y = 0; y < warehouse.grid.length; y++) {
@@ -583,7 +561,7 @@ export function WarehouseCanvas({
     }
 
     ctx.restore();
-  }, [warehouse, panOffset, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell]);
+  }, [warehouse, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell]);
 
   // Use RAF for smooth animation, avoid 60fps React re-renders
   useEffect(() => {
@@ -712,8 +690,6 @@ export function WarehouseCanvas({
       )}
 
       <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded border border-border">
-        <span>Alt+drag to pan</span>
-        <span className="text-border">|</span>
         <span>Hover for tooltip, click for details</span>
       </div>
     </div>
