@@ -2,13 +2,14 @@
 
 import { cn } from '@/lib/utils';
 import type { ToolType, ZVisualizationMode } from '@/lib/taro/types';
-import { Grid3X3, User, Eraser, Move, Layers, Trash2, Settings, Users } from 'lucide-react';
+import { Grid3X3, User, Eraser, Move, Layers, Trash2, Settings, Users, Plus } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
   onToolChange: (tool: ToolType) => void;
   onClear: () => void;
   onOpenLayoutConfig: () => void;
+  onNewWarehouse: () => void;
   zVisualizationMode: ZVisualizationMode;
   onZVisualizationChange: (mode: ZVisualizationMode) => void;
   workerCount: number;
@@ -42,6 +43,7 @@ export function Toolbar({
   onToolChange, 
   onClear,
   onOpenLayoutConfig,
+  onNewWarehouse,
   zVisualizationMode,
   onZVisualizationChange,
   workerCount,
@@ -85,10 +87,19 @@ export function Toolbar({
       <button
         onClick={onOpenLayoutConfig}
         className="h-8 px-3 rounded-lg border border-border bg-background text-foreground hover:bg-muted transition-colors flex items-center gap-1.5 text-xs font-medium"
-        title="Open layout configuration"
+        title="Edit current warehouse layout configuration"
       >
         <Settings className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Layout Config</span>
+      </button>
+
+      <button
+        onClick={onNewWarehouse}
+        className="h-8 px-3 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-colors flex items-center gap-1.5 text-xs font-medium"
+        title="Add a new warehouse to the project"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">New Warehouse</span>
       </button>
 
       <div className="w-px h-6 bg-border" />
