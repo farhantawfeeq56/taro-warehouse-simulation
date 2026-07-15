@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -18,9 +18,15 @@ import { CELL_SIZE } from '@/lib/taro/constants';
 import WarehouseFlowNode from './warehouse-flow-node';
 import type { WarehouseNodeData } from './warehouse-flow-node';
 
+/** Vertical gap in pixels between warehouse nodes. */
+const NODE_GAP = 40;
+
 interface WarehouseFlowProps {
-  warehouse: Warehouse;
-  onWarehouseChange: (warehouse: Warehouse) => void;
+  warehouses: Warehouse[];
+  warehouseIds: string[];
+  activeWarehouseId: string | null;
+  onSelectWarehouse: (warehouseId: string) => void;
+  onWarehouseChange: (warehouseId: string, warehouse: Warehouse) => void;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
   animationProgressRef: MutableRefObject<number>;
@@ -47,7 +53,10 @@ export function WarehouseFlow(props: WarehouseFlowProps) {
 }
 
 function WarehouseFlowInner({
-  warehouse,
+  warehouses,
+  warehouseIds,
+  activeWarehouseId,
+  onSelectWarehouse,
   onWarehouseChange,
   selectedTool,
   activeRoute,
@@ -55,84 +64,105 @@ function WarehouseFlowInner({
   zVisualizationMode,
   animationReplayId,
 }: WarehouseFlowProps) {
-  const nodeWidth = warehouse.width * CELL_SIZE;
-  const nodeHeight = warehouse.height * CELL_SIZE;
-
-  // Single warehouse node, stable reference via useMemo
-  const initialNodes: Node<WarehouseNodeData>[] = useMemo(
-    () => [
-      {
-        id: 'warehouse',
-        type: 'warehouse',
-        position: { x: 0, y: 0 },
-        width: nodeWidth,
-        height: nodeHeight,
-        draggable: false,
-        selectable: false,
-        focusable: false,
-        data: {
-          warehouse,
-          onWarehouseChange,
-          selectedTool,
-          activeRoute,
-          animationProgressRef,
-          zVisualizationMode,
-          animationReplayId,
-        },
-      },
-    ],
-    // We intentionally keep this stable — data mutations are passed via props
-    // inside the node's render. Recreating the node array only when dimensions
-    // change prevents unnecessary React Flow re-initializations.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodeWidth, nodeHeight]
-  );
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<WarehouseNodeData>>([]);
   const reactFlowInstance = useReactFlow();
-  const prevNodeSizeRef = useRef({ width: nodeWidth, height: nodeHeight });
+  const prevNodesLengthRef = useRef(warehouseIds.length);
 
-  // Keep node data and dimensions in sync with props.
-  // When warehouse dimensions change, update the node's width/height so
-  // React Flow's layout matches the new canvas, then fit the viewport.
+  // Stable layout positions — computed once per warehouse ID set so React Flow
+  // does not reset its internal state on every data change.
+  const nodeLayout = useMemo(() => {
+    let y = 0;
+    return warehouseIds.map((id, i) => {
+      const wh = warehouses[i];
+      const w = wh ? wh.width * CELL_SIZE : 300;
+      const h = wh ? wh.height * CELL_SIZE : 200;
+      const layout = { id, position: { x: 0, y }, width: w, height: h };
+      y += h + NODE_GAP;
+      return layout;
+    });
+  }, [warehouseIds, warehouses]);
+
+  // Re-initialise nodes when the warehouse ID set changes (structural add/remove).
+  const warehouseIdsKey = warehouseIds.join(',');
   useEffect(() => {
-    const prev = prevNodeSizeRef.current;
-    const sizeChanged = prev.width !== nodeWidth || prev.height !== nodeHeight;
-    if (sizeChanged) prevNodeSizeRef.current = { width: nodeWidth, height: nodeHeight };
+    const newNodes: Node<WarehouseNodeData>[] = nodeLayout.map((layout) => ({
+      id: layout.id,
+      type: 'warehouse',
+      position: layout.position,
+      width: layout.width,
+      height: layout.height,
+      draggable: false,
+      selectable: false,
+      focusable: false,
+      data: {
+        warehouseId: layout.id,
+        warehouse: warehouses.find((_, i) => warehouseIds[i] === layout.id)!,
+        onWarehouseChange,
+        onSelect: onSelectWarehouse,
+        selectedTool,
+        activeRoute,
+        animationProgressRef,
+        zVisualizationMode,
+        animationReplayId,
+        isActive: layout.id === activeWarehouseId,
+      },
+    }));
 
-    setNodes((nds) =>
-      nds.map((n) => ({
-        ...n,
-        width: nodeWidth,
-        height: nodeHeight,
-        data: {
-          warehouse,
-          onWarehouseChange,
-          selectedTool,
-          activeRoute,
-          animationProgressRef,
-          zVisualizationMode,
-          animationReplayId,
-        },
-      }))
-    );
+    setNodes(newNodes);
 
-    if (sizeChanged) {
-      requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.1 }));
+    // Fit viewport when the number of nodes changes
+    if (prevNodesLengthRef.current !== warehouseIds.length) {
+      prevNodesLengthRef.current = warehouseIds.length;
+      requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.2 }));
     }
+    // Only recreate nodes on structural changes (IDs added/removed).
+    // Data-only changes are synced by the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warehouseIdsKey]);
+
+  // Sync node data (warehouse content, active state, rendering props) without
+  // recreating the node instances — this preserves React Flow's internal state.
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((n) => {
+        const wh = warehouses.find((_, i) => warehouseIds[i] === n.id)!;
+        return {
+          ...n,
+          data: {
+            warehouseId: n.id,
+            warehouse: wh,
+            onWarehouseChange,
+            onSelect: onSelectWarehouse,
+            selectedTool,
+            activeRoute,
+            animationProgressRef,
+            zVisualizationMode,
+            animationReplayId,
+            isActive: n.id === activeWarehouseId,
+          },
+        };
+      })
+    );
   }, [
-    nodeWidth,
-    nodeHeight,
-    warehouse,
+    warehouses,
+    warehouseIds,
+    activeWarehouseId,
     onWarehouseChange,
+    onSelectWarehouse,
     selectedTool,
     activeRoute,
     animationProgressRef,
     zVisualizationMode,
     animationReplayId,
     setNodes,
-    reactFlowInstance,
   ]);
+
+  const handleNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      onSelectWarehouse(node.id);
+    },
+    [onSelectWarehouse]
+  );
 
   const isHandTool = selectedTool === 'hand';
 
@@ -141,6 +171,7 @@ function WarehouseFlowInner({
       nodes={nodes}
       edges={[]}
       onNodesChange={onNodesChange}
+      onNodeClick={handleNodeClick}
       nodeTypes={nodeTypes}
       defaultEdgeOptions={defaultEdgeOptions}
       panOnDrag={isHandTool}
@@ -162,11 +193,6 @@ function WarehouseFlowInner({
       selectionKeyCode={null}
       multiSelectionKeyCode={null}
       proOptions={{ hideAttribution: true }}
-      // No-op handler: React Flow v12 sets pointer-events: none on nodes when
-      // selectable, draggable, AND all event handler props are falsy. We need
-      // the canvas inside the node to receive pointer events, so we provide a
-      // handler to keep B truthy and pointer-events: all.
-      onNodeClick={() => {}}
     >
       <Background
         variant={BackgroundVariant.Dots}

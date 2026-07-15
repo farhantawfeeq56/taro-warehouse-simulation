@@ -73,6 +73,8 @@ export async function getWarehousesForProject(projectId: string) {
 
 export async function upsertWarehouse(params: {
   projectId: string;
+  /** When specified, updates this exact warehouse instead of the first match. */
+  warehouseId?: string;
   name?: string;
   layoutConfig?: Record<string, unknown>;
   layoutJson?: Record<string, unknown>;
@@ -80,11 +82,19 @@ export async function upsertWarehouse(params: {
   ordersJson?: Record<string, unknown>;
 }) {
   const db = await getDb();
-  // With multi-warehouse support, pick the most recently updated warehouse.
-  const existing = await db.query.warehouses.findFirst({
-    where: eq(warehouses.projectId, params.projectId),
-    orderBy: (warehouses, { desc }) => [desc(warehouses.updatedAt)],
-  });
+  // When a warehouseId is provided, update that exact warehouse.
+  // Otherwise, fall back to the most recently updated warehouse (backward compat).
+  let existing;
+  if (params.warehouseId) {
+    existing = await db.query.warehouses.findFirst({
+      where: eq(warehouses.id, params.warehouseId),
+    });
+  } else {
+    existing = await db.query.warehouses.findFirst({
+      where: eq(warehouses.projectId, params.projectId),
+      orderBy: (warehouses, { desc }) => [desc(warehouses.updatedAt)],
+    });
+  }
 
   if (existing) {
     const updates: Record<string, unknown> = { updatedAt: new Date() };
