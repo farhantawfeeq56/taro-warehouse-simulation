@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { Item } from '@/lib/taro/types';
 import type { ShelfPlacementPreview } from '@/lib/taro/inventory-placement';
+import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import {
   computePlacementPreview,
   PREVIEW_MAX_ITEMS,
@@ -55,6 +56,10 @@ export interface LayoutConfig {
   categoryClustering: number;
   /** Storage Footprint slider value, 0 (Compact) .. 100 (Bulky). */
   storageFootprint: number;
+  /** Demand Distribution slider value, 0 (Uniform) .. 100 (Pareto). */
+  demandDistribution: number;
+  /** Product Affinity slider value, 0 (Independent) .. 100 (Highly Related). */
+  productAffinity: number;
 }
 
 interface LayoutConfigOverlayProps {
@@ -62,6 +67,11 @@ interface LayoutConfigOverlayProps {
   onApply?: (config: LayoutConfig) => void;
   /** When false, the close button is hidden — user must generate a warehouse. */
   canClose?: boolean;
+  /**
+   * When provided, the overlay pre-populates all controls from this
+   * configuration and behaves as an editor (edit header & update button).
+   */
+  initialConfig?: WarehouseConfiguration;
 }
 
 /** Piecewise‑adaptive step for Grid Height (4–60):
@@ -80,16 +90,20 @@ function getRackStep(v: number): number {
   return 5;
 }
 
-export function LayoutConfigOverlay({ onClose, onApply, canClose = true }: LayoutConfigOverlayProps) {
-  const [layoutType, setLayoutType] = useState<LayoutType>('parallel');
+export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initialConfig }: LayoutConfigOverlayProps) {
+  const isEditing = initialConfig != null;
+
+  const [layoutType, setLayoutType] = useState<LayoutType>(
+    initialConfig?.layout.type ?? 'parallel'
+  );
 
   // ── Adaptive sliders for Grid Height & Rack Count ──────────────────────
   // Piecewise step sizes give predictable control: fine at low values,
   // coarse at high values to reduce unnecessary preview recomputations.
-  const [gridHeight,          setGridHeight]          = useState(30);
-  const [debouncedGridHeight, setDebouncedGridHeight] = useState(30);
-  const [rackCount,           setRackCount]           = useState(30);
-  const [debouncedRackCount,  setDebouncedRackCount]  = useState(30);
+  const [gridHeight,          setGridHeight]          = useState(initialConfig?.layout.gridHeight ?? 30);
+  const [debouncedGridHeight, setDebouncedGridHeight] = useState(initialConfig?.layout.gridHeight ?? 30);
+  const [rackCount,           setRackCount]           = useState(initialConfig?.layout.rackCount ?? 30);
+  const [debouncedRackCount,  setDebouncedRackCount]  = useState(initialConfig?.layout.rackCount ?? 30);
 
   // 200 ms debounce while dragging: preview updates after a brief pause.
   useEffect(() => {
@@ -102,16 +116,16 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true }: Layou
   }, [rackCount]);
 
   // Other params (no adaptive step needed — narrow ranges)
-  const [aisleWidth, setAisleWidth] = useState(2);
-  const [crossAisleCount, setCrossAisleCount] = useState(1);
+  const [aisleWidth, setAisleWidth] = useState(initialConfig?.layout.aisleWidth ?? 2);
+  const [crossAisleCount, setCrossAisleCount] = useState(initialConfig?.layout.crossAisleCount ?? 1);
 
   // Fishbone Params
-  const [fbWidth, setFbWidth] = useState(30);
-  const [fbHeight, setFbHeight] = useState(20);
-  const [fbTheta, setFbTheta] = useState(45);
-  const [fbI2, setFbI2] = useState(1);
-  const [fbS, setFbS] = useState(4);
-  const [fbAp, setFbAp] = useState(0.8);
+  const [fbWidth, setFbWidth] = useState(initialConfig?.layout.fbWidth ?? 30);
+  const [fbHeight, setFbHeight] = useState(initialConfig?.layout.fbHeight ?? 20);
+  const [fbTheta, setFbTheta] = useState(initialConfig?.layout.fbTheta ?? 45);
+  const [fbI2, setFbI2] = useState(initialConfig?.layout.fbI2 ?? 1);
+  const [fbS, setFbS] = useState(initialConfig?.layout.fbS ?? 4);
+  const [fbAp, setFbAp] = useState(initialConfig?.layout.fbAp ?? 0.8);
 
   // Inventory Generation
   //
@@ -180,28 +194,31 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true }: Layou
     []
   );
 
-  const [skuCount, setSkuCount] = useState(2500);
-  const [demandDistribution, setDemandDistribution] = useState(0);
-  const [productAffinity, setProductAffinity] = useState(0);
-  const [storageFootprint, setStorageFootprint] = useState(0);
+  const [skuCount, setSkuCount] = useState(initialConfig?.inventory.skuCount ?? 2500);
+  const [demandDistribution, setDemandDistribution] = useState(initialConfig?.inventory.demandDistribution ?? 0);
+  const [productAffinity, setProductAffinity] = useState(initialConfig?.inventory.productAffinity ?? 0);
+  const [storageFootprint, setStorageFootprint] = useState(initialConfig?.inventory.storageFootprint ?? 0);
   // Inventory Placement — Slotting Bias variable.
   // 0 = Random (SKUs placed almost randomly), 100 = Demand-Based
   // (high-demand SKUs placed closest to the dispatch area).
-  const [slottingBias, setSlottingBias] = useState(0);
+  const [slottingBias, setSlottingBias] = useState(initialConfig?.placement.slottingBias ?? 0);
   // Inventory Placement — Category Clustering variable.
   // 0 = Scattered (categories mixed throughout, the pure Slotting Bias plan),
   // 100 = Clustered (each category in a single contiguous zone).
-  const [categoryClustering, setCategoryClustering] = useState(0);
-  const [inventory, setInventory] = useState<Item[]>(() =>
-    // Start demand, affinity, category and footprint in their default
-    // (independent) state so the preview reflects the full, composable pipeline.
-    assignStorageFootprint(
+  const [categoryClustering, setCategoryClustering] = useState(initialConfig?.placement.categoryClustering ?? 0);
+  const [inventory, setInventory] = useState<Item[]>(() => {
+    const initCount = initialConfig?.inventory.skuCount ?? 2500;
+    const initDD = initialConfig?.inventory.demandDistribution ?? 0;
+    const initPA = initialConfig?.inventory.productAffinity ?? 0;
+    const initSF = initialConfig?.inventory.storageFootprint ?? 0;
+    // Use the initial config values so the preview matches right away.
+    return assignStorageFootprint(
       assignProductCategory(
-        assignProductAffinity(assignDemandDistribution(generateItems(2500), 0), 0)
+        assignProductAffinity(assignDemandDistribution(generateItems(initCount), initDD), initPA)
       ),
-      0
-    )
-  );
+      initSF
+    );
+  });
 
   // Which inventory view to overlay on the grid.
   type PreviewMode = 'layout' | 'demand' | 'affinity';
@@ -433,6 +450,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true }: Layou
       slottingBias,
       categoryClustering,
       storageFootprint,
+      demandDistribution,
+      productAffinity,
     });
     onClose();
   };
@@ -446,8 +465,14 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true }: Layou
             <Layout className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Configure Warehouse Layout</h1>
-            <p className="text-xs text-muted-foreground">Select a template, customise its parameters, and shape how inventory will be distributed</p>
+            <h1 className="text-xl font-bold tracking-tight">
+            {isEditing ? 'Edit Warehouse Layout' : 'Configure Warehouse Layout'}
+          </h1>
+            <p className="text-xs text-muted-foreground">
+              {isEditing
+                ? 'Adjust parameters and update your existing warehouse.'
+                : 'Select a template, customise its parameters, and shape how inventory will be distributed'}
+            </p>
           </div>
         </div>
         {canClose && (
@@ -761,7 +786,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true }: Layou
 
           <div className="p-6 border-t bg-card/50">
             <Button className="w-full" onClick={handleApply}>
-              Generate Warehouse
+              {isEditing ? 'Update Warehouse' : 'Generate Warehouse'}
             </Button>
           </div>
         </aside>
