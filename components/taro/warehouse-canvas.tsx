@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback, useMemo, type MutableRefObject } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
@@ -51,8 +52,8 @@ export function WarehouseCanvas({
   const [isPanning, setIsPanning] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
   const [isDrawing, setIsDrawing] = useState(false);
+  const reactFlowInstance = useReactFlow();
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
   
   // Tooltip state for hover
@@ -72,9 +73,10 @@ export function WarehouseCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return null;
 
+    const rfZoom = reactFlowInstance.getZoom();
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left - panOffset.x) / zoom;
-    const y = (e.clientY - rect.top - panOffset.y) / zoom;
+    const x = (e.clientX - rect.left) / rfZoom - panOffset.x;
+    const y = (e.clientY - rect.top) / rfZoom - panOffset.y;
 
     const cellX = Math.floor(x / CELL_SIZE);
     const cellY = Math.floor(y / CELL_SIZE);
@@ -83,7 +85,7 @@ export function WarehouseCanvas({
       return { x: cellX, y: cellY };
     }
     return null;
-  }, [panOffset, zoom, warehouse.width, warehouse.height]);
+  }, [panOffset, warehouse.width, warehouse.height, reactFlowInstance]);
 
   const applyTool = useCallback((cellX: number, cellY: number) => {
     // Clone only modified rows and cells instead of deep-cloning the entire
