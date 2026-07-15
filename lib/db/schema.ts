@@ -15,6 +15,10 @@ export const warehouses = pgTable('warehouses', {
     .references(() => projects.id, { onDelete: 'cascade' }),
   name: text('name').notNull().default('Default Warehouse'),
 
+  // Workspace node position (null = use auto-layout until first drag)
+  positionX: integer('position_x'),
+  positionY: integer('position_y'),
+
   // The complete generation configuration (layout + inventory gen + placement).
   // Persisted as one strongly-typed JSONB unit. Backward-compatible with
   // the old flat layoutConfig format via mergeConfiguration().

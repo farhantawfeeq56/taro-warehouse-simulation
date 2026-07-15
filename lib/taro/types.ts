@@ -162,6 +162,17 @@ export interface Warehouse {
   locations: WarehouseLocation[];
 }
 
+/**
+ * Workspace model — pairs a warehouse layout with its DB metadata (name, position).
+ * This is the canonical representation of a warehouse node on the React Flow canvas.
+ */
+export interface WorkspaceWarehouse {
+  id: string;
+  name: string;
+  position: { x: number; y: number } | null;
+  warehouse: Warehouse;
+}
+
 export interface WarehouseProfile {
   scale: number; // meters per grid cell
   workerSpeed: number; // meters per minute
