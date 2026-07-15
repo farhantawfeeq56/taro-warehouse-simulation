@@ -242,9 +242,12 @@ export async function generateAndSaveWarehouse(
   // 4. Validate quantity invariant
   const quantityViolations = validateSkuQuantityInvariant(warehouseWithInventory, params.items);
 
-  // 5. Persist everything — configuration, layout, inventory, and orders
+  // 5. Persist everything — configuration, layout, inventory, and orders.
+  // Always pass a fresh warehouseId to force INSERT, never update an existing row.
+  const newWarehouseId = crypto.randomUUID();
   const saved = await upsertWarehouse({
     projectId,
+    warehouseId: newWarehouseId,
     layoutConfig: params.configuration as unknown as Record<string, unknown>,
     layoutJson: warehouseWithInventory as unknown as Record<string, unknown>,
     inventoryJson: params.items as unknown as Record<string, unknown>,
