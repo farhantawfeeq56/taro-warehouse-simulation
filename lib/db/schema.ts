@@ -1,4 +1,5 @@
 import { pgTable, text, integer, timestamp, jsonb, unique } from 'drizzle-orm/pg-core';
+import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 
 export const projects = pgTable('projects', {
   id: text('id').primaryKey(),
@@ -14,20 +15,10 @@ export const warehouses = pgTable('warehouses', {
     .references(() => projects.id, { onDelete: 'cascade' }),
   name: text('name').notNull().default('Default Warehouse'),
 
-  // Layout config: the raw params from LayoutConfigOverlay
-  layoutConfig: jsonb('layout_config').$type<{
-    type: 'parallel' | 'cross-aisle' | 'fishbone';
-    gridHeight: number;
-    rackCount: number;
-    aisleWidth: number;
-    crossAisleCount: number;
-    fbWidth: number;
-    fbHeight: number;
-    fbTheta: number;
-    fbI2: number;
-    fbS: number;
-    fbAp: number;
-  }>(),
+  // The complete generation configuration (layout + inventory gen + placement).
+  // Persisted as one strongly-typed JSONB unit. Backward-compatible with
+  // the old flat layoutConfig format via mergeConfiguration().
+  layoutConfig: jsonb('layout_config').$type<WarehouseConfiguration>(),
 
   // Full warehouse layout (grid + cells + worker start) as JSON
   layoutJson: jsonb('layout_json').$type<Record<string, unknown>>(),

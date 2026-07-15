@@ -35,6 +35,7 @@ import { RotateCcw } from 'lucide-react';
 import { getMissingSkuIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
+import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { validateSkuQuantityInvariant } from '@/lib/taro/inventory';
 import {
   loadWorkspace,
@@ -74,6 +75,7 @@ export function TaroApp() {
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showLayoutConfig, setShowLayoutConfig] = useState(false);
   const [hasExistingWarehouse, setHasExistingWarehouse] = useState(false);
+  const [savedConfiguration, setSavedConfiguration] = useState<WarehouseConfiguration | null>(null);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
   const [orderCount, setOrderCount] = useState(1000);
@@ -393,6 +395,7 @@ export function TaroApp() {
         if (cancelled) return;
         setProjectId(snapshot.projectId);
         setWarehouseId(snapshot.warehouseId);
+        setSavedConfiguration(snapshot.configuration);
         if (snapshot.warehouse) {
           setWarehouse(snapshot.warehouse);
           setOrders(snapshot.orders);
@@ -612,12 +615,14 @@ export function TaroApp() {
             }
           }}
           canClose={hasExistingWarehouse}
+          initialConfig={hasExistingWarehouse ? savedConfiguration ?? undefined : undefined}
           onApply={async (config) => {
             setShowLayoutConfig(false);
 
             try {
-              const result = await generateAndSaveWarehouse(projectId, {
-                layoutConfig: {
+              // Build the full WarehouseConfiguration from the overlay output
+              const configuration: WarehouseConfiguration = {
+                layout: {
                   type: config.type,
                   gridHeight: config.gridHeight,
                   rackCount: config.rackCount,
@@ -630,6 +635,20 @@ export function TaroApp() {
                   fbS: config.fbS,
                   fbAp: config.fbAp,
                 },
+                inventory: {
+                  skuCount: config.inventory.length,
+                  demandDistribution: config.demandDistribution,
+                  productAffinity: config.productAffinity,
+                  storageFootprint: config.storageFootprint,
+                },
+                placement: {
+                  slottingBias: config.slottingBias,
+                  categoryClustering: config.categoryClustering,
+                },
+              };
+
+              const result = await generateAndSaveWarehouse(projectId, {
+                configuration,
                 items: config.inventory,
                 slottingBias: config.slottingBias,
                 categoryClustering: config.categoryClustering,
@@ -640,6 +659,7 @@ export function TaroApp() {
 
               setWarehouse(result.warehouse);
               setOrders(result.orders);
+              setSavedConfiguration(configuration);
               setHasExistingWarehouse(true);
 
               if (result.quantityViolations.length > 0) {
