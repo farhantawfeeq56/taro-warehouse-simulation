@@ -23,7 +23,7 @@ import {
 import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
-import { WarehouseCanvas } from './warehouse-canvas';
+import { WarehouseFlow } from './warehouse-flow';
 import { OrdersPanel } from './orders-panel';
 import { SystemStatePanel } from './results-panel';
 import { Toolbar } from './toolbar';
@@ -436,6 +436,25 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     replaySpeedRef.current = replaySpeed;
   }, [replaySpeed]);
 
+  // Keyboard shortcut: 'h' toggles hand/pan tool
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'h' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLTextAreaElement) &&
+        !(e.target instanceof HTMLSelectElement)
+      ) {
+        e.preventDefault();
+        setSelectedTool((prev) => (prev === 'hand' ? 'shelf' : 'hand'));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (animationRef.current) {
@@ -556,8 +575,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             />
           </div>
 
-          {/* Canvas */}
-          <WarehouseCanvas
+          {/* Canvas — React Flow workspace */}
+          <WarehouseFlow
             warehouse={warehouse}
             onWarehouseChange={handleWarehouseChangePersisted}
             selectedTool={selectedTool}
