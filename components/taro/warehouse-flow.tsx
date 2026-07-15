@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   useNodesState,
+  useReactFlow,
   type Node,
   type NodeTypes,
 } from '@xyflow/react';
@@ -75,12 +76,22 @@ export function WarehouseFlow({
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const reactFlowInstance = useReactFlow();
+  const prevNodeSizeRef = useRef({ width: nodeWidth, height: nodeHeight });
 
-  // Keep node data in sync with props without recreating the node array
+  // Keep node data and dimensions in sync with props.
+  // When warehouse dimensions change, update the node's width/height so
+  // React Flow's layout matches the new canvas, then fit the viewport.
   useEffect(() => {
+    const prev = prevNodeSizeRef.current;
+    const sizeChanged = prev.width !== nodeWidth || prev.height !== nodeHeight;
+    if (sizeChanged) prevNodeSizeRef.current = { width: nodeWidth, height: nodeHeight };
+
     setNodes((nds) =>
       nds.map((n) => ({
         ...n,
+        width: nodeWidth,
+        height: nodeHeight,
         data: {
           warehouse,
           onWarehouseChange,
@@ -92,7 +103,13 @@ export function WarehouseFlow({
         },
       }))
     );
+
+    if (sizeChanged) {
+      requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.1 }));
+    }
   }, [
+    nodeWidth,
+    nodeHeight,
     warehouse,
     onWarehouseChange,
     selectedTool,
@@ -101,6 +118,7 @@ export function WarehouseFlow({
     zVisualizationMode,
     animationReplayId,
     setNodes,
+    reactFlowInstance,
   ]);
 
   const isHandTool = selectedTool === 'hand';
