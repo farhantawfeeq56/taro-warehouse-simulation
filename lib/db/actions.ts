@@ -1,6 +1,6 @@
 'use server';
 
-import { getOrCreateProject, getProject, getWarehouseForProject, upsertWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName } from '@/lib/db/repository';
+import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName } from '@/lib/db/repository';
 import type { Warehouse, Order, Item } from '@/lib/taro/types';
 import {
   generateParallelLayout,
@@ -17,8 +17,22 @@ import { mergeConfiguration } from '@/lib/taro/warehouse-configuration';
 
 export interface WarehouseSnapshot {
   projectId: string;
-  warehouseId: string | null;
-  warehouse: Warehouse | null;
+  /**
+   * All warehouse IDs for this project, ordered by most recently updated.
+   *
+   * NOTE: Currently only `warehouses[0]` (the most recently updated warehouse)
+   * is displayed. This is temporary compatibility behaviour — once proper
+   * warehouse selection (multi-warehouse UI) is implemented, replace all
+   * `warehouses[0]` references with the user-chosen warehouse.
+   */
+  warehouseIds: string[];
+  /**
+   * All warehouses for this project, ordered by most recently updated.
+   *
+   * NOTE: Currently only `warehouses[0]` is used. This is a temporary
+   * compatibility shim; replace with explicit warehouse selection later.
+   */
+  warehouses: Warehouse[];
   orders: Order[];
   /** Normalised generation configuration (always set — merged with defaults). */
   configuration: WarehouseConfiguration;
@@ -42,26 +56,29 @@ export async function listProjects(): Promise<ProjectSummary[]> {
 
   const summaries: ProjectSummary[] = [];
   for (const project of projects) {
-    const warehouse = await getWarehouseForProject(project.id);
-    const layout = warehouse?.layoutJson as Record<string, unknown> | null;
+    const warehouses = await getWarehousesForProject(project.id);
+    const hasWarehouse = warehouses.length > 0;
 
     let itemCount = 0;
-    if (layout?.grid && Array.isArray(layout.grid)) {
-      for (const row of layout.grid as Array<Array<Record<string, unknown>>>) {
-        for (const cell of row) {
-          if (Array.isArray(cell.locations)) {
-            itemCount += cell.locations.length;
+    for (const wh of warehouses) {
+      const layout = wh.layoutJson as Record<string, unknown> | null;
+      if (layout?.grid && Array.isArray(layout.grid)) {
+        for (const row of layout.grid as Array<Array<Record<string, unknown>>>) {
+          for (const cell of row) {
+            if (Array.isArray(cell.locations)) {
+              itemCount += cell.locations.length;
+            }
           }
         }
       }
     }
 
-    // Use the latest timestamp available — prefer warehouse.updatedAt if it's
-    // more recent than the project's own timestamp (handles pre-existing
-    // warehouses saved before we started touching the parent project row).
+    // Use the latest timestamp available — prefer the most recent warehouse.updatedAt if it's
+    // more recent than the project's own timestamp.
+    const latestWarehouse = warehouses[0];
     const updatedAt =
-      warehouse && warehouse.updatedAt > project.updatedAt
-        ? warehouse.updatedAt
+      latestWarehouse && latestWarehouse.updatedAt > project.updatedAt
+        ? latestWarehouse.updatedAt
         : project.updatedAt;
 
     summaries.push({
@@ -69,7 +86,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       name: project.name,
       createdAt: project.createdAt,
       updatedAt,
-      hasWarehouse: !!warehouse,
+      hasWarehouse,
       itemCount,
     });
   }
@@ -97,25 +114,26 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
   const project = await getProject(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
 
-  const dbWarehouse = await getWarehouseForProject(project.id);
+  const dbWarehouses = await getWarehousesForProject(project.id);
 
-  if (!dbWarehouse) {
+  if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
-      warehouseId: null,
-      warehouse: null,
+      warehouseIds: [],
+      warehouses: [],
       orders: [],
       configuration: mergeConfiguration(null),
     };
   }
 
-  const configuration = mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null);
+  const firstWarehouse = dbWarehouses[0];
+  const configuration = mergeConfiguration(firstWarehouse.layoutConfig as Record<string, unknown> | null);
 
   // Legacy migration: warehouses saved before the nested layoutConfig format
   // have no `inventory` subsection, so mergeConfiguration defaults skuCount to
   // 2500. Override it with the actual count from inventoryJson when available.
-  if (dbWarehouse.inventoryJson && Array.isArray(dbWarehouse.inventoryJson)) {
-    const actualSkuCount = dbWarehouse.inventoryJson.length;
+  if (firstWarehouse.inventoryJson && Array.isArray(firstWarehouse.inventoryJson)) {
+    const actualSkuCount = firstWarehouse.inventoryJson.length;
     if (configuration.inventory.skuCount !== actualSkuCount) {
       configuration.inventory.skuCount = actualSkuCount;
     }
@@ -123,9 +141,9 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
 
   return {
     projectId: project.id,
-    warehouseId: dbWarehouse.id,
-    warehouse: (dbWarehouse.layoutJson as unknown as Warehouse) ?? null,
-    orders: (dbWarehouse.ordersJson as unknown as Order[]) ?? [],
+    warehouseIds: dbWarehouses.map((w) => w.id),
+    warehouses: dbWarehouses.map((w) => (w.layoutJson as unknown as Warehouse) ?? null).filter(Boolean) as Warehouse[],
+    orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
     configuration,
   };
 }
@@ -134,23 +152,24 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
 
 export async function loadWorkspace(): Promise<WarehouseSnapshot> {
   const project = await getOrCreateProject();
-  const dbWarehouse = await getWarehouseForProject(project.id);
+  const dbWarehouses = await getWarehousesForProject(project.id);
 
-  if (!dbWarehouse) {
+  if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
-      warehouseId: null,
-      warehouse: null,
+      warehouseIds: [],
+      warehouses: [],
       orders: [],
       configuration: mergeConfiguration(null),
     };
   }
 
-  const configuration = mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null);
+  const firstWarehouse = dbWarehouses[0];
+  const configuration = mergeConfiguration(firstWarehouse.layoutConfig as Record<string, unknown> | null);
 
   // Same legacy migration as loadProject
-  if (dbWarehouse.inventoryJson && Array.isArray(dbWarehouse.inventoryJson)) {
-    const actualSkuCount = dbWarehouse.inventoryJson.length;
+  if (firstWarehouse.inventoryJson && Array.isArray(firstWarehouse.inventoryJson)) {
+    const actualSkuCount = firstWarehouse.inventoryJson.length;
     if (configuration.inventory.skuCount !== actualSkuCount) {
       configuration.inventory.skuCount = actualSkuCount;
     }
@@ -158,9 +177,9 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
 
   return {
     projectId: project.id,
-    warehouseId: dbWarehouse.id,
-    warehouse: (dbWarehouse.layoutJson as unknown as Warehouse) ?? null,
-    orders: (dbWarehouse.ordersJson as unknown as Order[]) ?? [],
+    warehouseIds: dbWarehouses.map((w) => w.id),
+    warehouses: dbWarehouses.map((w) => (w.layoutJson as unknown as Warehouse) ?? null).filter(Boolean) as Warehouse[],
+    orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
     configuration,
   };
 }

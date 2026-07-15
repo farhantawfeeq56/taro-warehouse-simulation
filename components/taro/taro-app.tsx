@@ -54,8 +54,18 @@ interface TaroAppProps {
 
 export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [warehouseId, setWarehouseId] = useState<string | null>(null);
-  const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
+  const [warehouseIds, setWarehouseIds] = useState<string[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  // TEMPORARY: Using warehouses[0] (most recently updated) until proper
+  // warehouse selection (multi-warehouse UI) is implemented.
+  const warehouseId = warehouseIds[0] ?? null;
+  const warehouse = warehouses[0] ?? null;
+  const setWarehouseId = useCallback((id: string | null) => {
+    setWarehouseIds(id ? [id] : []);
+  }, []);
+  const setWarehouse = useCallback((wh: Warehouse | null) => {
+    setWarehouses(wh ? [wh] : []);
+  }, []);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -404,10 +414,13 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           : await loadWorkspace();
         if (cancelled) return;
         setActiveProjectId(snapshot.projectId);
-        setWarehouseId(snapshot.warehouseId);
+        setWarehouseIds(snapshot.warehouseIds);
+        setWarehouses(snapshot.warehouses);
         setSavedConfiguration(snapshot.configuration);
-        if (snapshot.warehouse) {
-          setWarehouse(snapshot.warehouse);
+        if (snapshot.warehouses.length > 0) {
+          // NOTE: Using warehouses[0] (most recently updated warehouse).
+          // This is temporary compatibility — once multi-warehouse UI is
+          // implemented, replace with the user-selected warehouse index.
           setOrders(snapshot.orders);
           setHasExistingWarehouse(true);
           setShowLayoutConfig(false);
