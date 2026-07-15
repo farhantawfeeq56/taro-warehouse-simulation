@@ -43,6 +43,7 @@ import {
   generateAndSaveWarehouse,
   saveOrders,
   saveWarehouseLayout,
+  duplicateWarehouseAction,
 } from '@/lib/db/actions';
 
 interface TaroAppProps {
@@ -120,6 +121,45 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       animationRef.current = null;
     }
   }, []);
+
+  const handleDuplicateWarehouse = useCallback(async (sourceWarehouseId: string) => {
+    if (!activeProjectId) return;
+    try {
+      const result = await duplicateWarehouseAction(activeProjectId, sourceWarehouseId);
+
+      // Append the duplicated warehouse to the project
+      setWarehouseIds((prev) => [...prev, result.warehouseId]);
+      setWarehouses((prev) => [...prev, result.warehouse]);
+
+      // Auto-select the new duplicate
+      setActiveWarehouseId(result.warehouseId);
+
+      // If the source was the active warehouse, adopt the duplicate's orders
+      if (sourceWarehouseId === activeWarehouseIdRef.current) {
+        setOrders(result.orders);
+        setSavedConfiguration(
+          typeof result.warehouse === 'object' && result.warehouse !== null
+            ? (result.warehouse as any).configuration ?? savedConfiguration
+            : savedConfiguration,
+        );
+      }
+
+      setSimulationResults(null);
+      setSimulationBlockState(null);
+      setIsSimulating(false);
+      setActiveStrategy(null);
+      setExecutionPlanStrategy(null);
+      setValidationContext(null);
+      setValidationResult(null);
+      setShowValidationModal(false);
+      setHighlightedMissingSkuIds(null);
+      setImportSummary('');
+      resetAnimationState();
+    } catch (err) {
+      console.error('Failed to duplicate warehouse:', err);
+      alert('Failed to duplicate warehouse. Please try again.');
+    }
+  }, [activeProjectId, savedConfiguration, resetAnimationState]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -638,6 +678,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             activeWarehouseId={activeWarehouseId}
             onSelectWarehouse={setActiveWarehouseId}
             onWarehouseChange={handleWarehouseChangePersisted}
+            onDuplicateWarehouse={handleDuplicateWarehouse}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
             animationProgressRef={animationProgressRef}

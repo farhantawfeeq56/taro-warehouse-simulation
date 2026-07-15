@@ -1,6 +1,6 @@
 'use server';
 
-import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName } from '@/lib/db/repository';
+import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, duplicateWarehouse as repoDuplicateWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName } from '@/lib/db/repository';
 import type { Warehouse, Order, Item } from '@/lib/taro/types';
 import {
   generateParallelLayout,
@@ -262,6 +262,32 @@ export async function generateAndSaveWarehouse(
     placedBinCount: placementResult.placedBinCount,
     binCount: placementResult.binCount,
     quantityViolations,
+  };
+}
+
+// ── Duplicate Warehouse ────────────────────────────────────────────────────
+
+export interface DuplicateWarehouseResult {
+  warehouseId: string;
+  warehouse: Warehouse;
+  orders: Order[];
+  name: string;
+}
+
+export async function duplicateWarehouseAction(
+  projectId: string,
+  sourceWarehouseId: string,
+): Promise<DuplicateWarehouseResult> {
+  const duplicated = await repoDuplicateWarehouse(sourceWarehouseId, projectId);
+
+  const warehouse = (duplicated.layoutJson as unknown as Warehouse) ?? null;
+  const orders = (duplicated.ordersJson as unknown as Order[]) ?? [];
+
+  return {
+    warehouseId: duplicated.id,
+    warehouse,
+    orders,
+    name: duplicated.name,
   };
 }
 
