@@ -25,6 +25,37 @@ export async function getProject(projectId: string) {
   return (await getDb()).query.projects.findFirst({ where: eq(projects.id, projectId) });
 }
 
+export async function listProjects() {
+  const db = await getDb();
+  return db.query.projects.findMany({
+    orderBy: (projects, { desc }) => [desc(projects.updatedAt)],
+  });
+}
+
+export async function createProject(name?: string) {
+  const db = await getDb();
+  const [project] = await db
+    .insert(projects)
+    .values({ id: crypto.randomUUID(), name: name ?? 'Untitled Project' })
+    .returning();
+  return project;
+}
+
+export async function deleteProject(id: string) {
+  const db = await getDb();
+  await db.delete(projects).where(eq(projects.id, id));
+}
+
+export async function updateProjectName(id: string, name: string) {
+  const db = await getDb();
+  const [updated] = await db
+    .update(projects)
+    .set({ name, updatedAt: new Date() })
+    .where(eq(projects.id, id))
+    .returning();
+  return updated;
+}
+
 // ── Warehouse ──────────────────────────────────────────────────────────────
 
 export async function getWarehouseForProject(projectId: string) {
@@ -59,6 +90,13 @@ export async function upsertWarehouse(params: {
       .set(updates)
       .where(eq(warehouses.id, existing.id))
       .returning();
+
+    // Touch the parent project so the dashboard sees the latest activity
+    await db
+      .update(projects)
+      .set({ updatedAt: new Date() })
+      .where(eq(projects.id, params.projectId));
+
     return updated;
   }
 
@@ -74,6 +112,13 @@ export async function upsertWarehouse(params: {
       ordersJson: params.ordersJson as any,
     })
     .returning();
+
+  // Also touch the parent project for new warehouse creations
+  await db
+    .update(projects)
+    .set({ updatedAt: new Date() })
+    .where(eq(projects.id, params.projectId));
+
   return created;
 }
 
