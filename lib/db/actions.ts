@@ -199,6 +199,7 @@ export interface GenerateAndSaveParams {
 
 export interface GenerateAndSaveResult {
   warehouse: Warehouse;
+  warehouseId: string;
   orders: Order[];
   unplacedSkus: string[];
   placedBinCount: number;
@@ -242,7 +243,7 @@ export async function generateAndSaveWarehouse(
   const quantityViolations = validateSkuQuantityInvariant(warehouseWithInventory, params.items);
 
   // 5. Persist everything — configuration, layout, inventory, and orders
-  await upsertWarehouse({
+  const saved = await upsertWarehouse({
     projectId,
     layoutConfig: params.configuration as unknown as Record<string, unknown>,
     layoutJson: warehouseWithInventory as unknown as Record<string, unknown>,
@@ -252,6 +253,7 @@ export async function generateAndSaveWarehouse(
 
   return {
     warehouse: warehouseWithInventory,
+    warehouseId: saved.id,
     orders,
     unplacedSkus: placementResult.unplacedSkus,
     placedBinCount: placementResult.placedBinCount,

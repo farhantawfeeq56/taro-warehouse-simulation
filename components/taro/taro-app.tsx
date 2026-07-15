@@ -99,12 +99,17 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showLayoutConfig, setShowLayoutConfig] = useState(false);
+  const [showNewWarehouseConfig, setShowNewWarehouseConfig] = useState(false);
   const [hasExistingWarehouse, setHasExistingWarehouse] = useState(false);
   const [savedConfiguration, setSavedConfiguration] = useState<WarehouseConfiguration | null>(null);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
   const [orderCount, setOrderCount] = useState(1000);
   const [avgOrderSize, setAvgOrderSize] = useState(5);
+
+  const handleNewWarehouse = useCallback(() => {
+    setShowNewWarehouseConfig(true);
+  }, []);
 
   const resetAnimationState = useCallback(() => {
     setAnimationProgress(0);
@@ -618,6 +623,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onToolChange={setSelectedTool}
               onClear={handleClearWarehouse}
               onOpenLayoutConfig={() => setShowLayoutConfig(true)}
+              onNewWarehouse={handleNewWarehouse}
               zVisualizationMode={zVisualizationMode}
               onZVisualizationChange={setZVisualizationMode}
               workerCount={workerCount}
@@ -753,6 +759,97 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               });
 
               updateActiveWarehouse(result.warehouse);
+              setOrders(result.orders);
+              setSavedConfiguration(configuration);
+              setHasExistingWarehouse(true);
+
+              if (result.quantityViolations.length > 0) {
+                console.warn('[Taro] Quantity invariant violations after placement:', result.quantityViolations);
+              }
+
+              const totalBinsWanted = config.inventory.reduce((sum, i) => sum + (i.storageFootprint ?? 1), 0);
+              if (result.unplacedSkus.length > 0) {
+                setSimulationBlockState({
+                  simulationState: 'NO_VALID_ITEMS',
+                  title: `${result.unplacedSkus.length} SKU${result.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
+                  description: `The warehouse layout has only ${result.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${result.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${result.unplacedSkus.join(', ')}.`,
+                });
+              } else {
+                setSimulationBlockState(null);
+              }
+
+              setSimulationResults(null);
+              setIsSimulating(false);
+              setActiveStrategy(null);
+              setAnimationProgress(0);
+              setExecutionPlanStrategy(null);
+              setValidationContext(null);
+              setValidationResult(null);
+              setShowValidationModal(false);
+              setHighlightedMissingSkuIds(null);
+              setImportSummary('');
+              resetAnimationState();
+            } catch (err) {
+              console.error('Failed to generate and save warehouse:', err);
+              alert('Failed to save warehouse. Please try again.');
+            }
+          }}
+        />
+      )}
+
+      {showNewWarehouseConfig && activeProjectId && (
+        <LayoutConfigOverlay
+          onClose={() => {
+            setShowNewWarehouseConfig(false);
+          }}
+          canClose={true}
+          onApply={async (config) => {
+            setShowNewWarehouseConfig(false);
+
+            try {
+              // Build the full WarehouseConfiguration from the overlay output
+              const configuration: WarehouseConfiguration = {
+                layout: {
+                  type: config.type,
+                  gridHeight: config.gridHeight,
+                  rackCount: config.rackCount,
+                  aisleWidth: config.aisleWidth,
+                  crossAisleCount: config.crossAisleCount,
+                  fbWidth: config.fbWidth,
+                  fbHeight: config.fbHeight,
+                  fbTheta: config.fbTheta,
+                  fbI2: config.fbI2,
+                  fbS: config.fbS,
+                  fbAp: config.fbAp,
+                },
+                inventory: {
+                  skuCount: config.inventory.length,
+                  demandDistribution: config.demandDistribution,
+                  productAffinity: config.productAffinity,
+                  storageFootprint: config.storageFootprint,
+                },
+                placement: {
+                  slottingBias: config.slottingBias,
+                  categoryClustering: config.categoryClustering,
+                },
+              };
+
+              const result = await generateAndSaveWarehouse(activeProjectId, {
+                configuration,
+                items: config.inventory,
+                slottingBias: config.slottingBias,
+                categoryClustering: config.categoryClustering,
+                storageFootprint: config.storageFootprint,
+                orderCount,
+                avgOrderSize,
+              });
+
+              // Append new warehouse to the project (don't replace)
+              setWarehouseIds((prev) => [...prev, result.warehouseId]);
+              setWarehouses((prev) => [...prev, result.warehouse]);
+              setActiveWarehouseId(result.warehouseId);
+
+              // Use new warehouse's orders
               setOrders(result.orders);
               setSavedConfiguration(configuration);
               setHasExistingWarehouse(true);
