@@ -25,6 +25,37 @@ export async function getProject(projectId: string) {
   return (await getDb()).query.projects.findFirst({ where: eq(projects.id, projectId) });
 }
 
+export async function listProjects() {
+  const db = await getDb();
+  return db.query.projects.findMany({
+    orderBy: (projects, { desc }) => [desc(projects.updatedAt)],
+  });
+}
+
+export async function createProject(name?: string) {
+  const db = await getDb();
+  const [project] = await db
+    .insert(projects)
+    .values({ id: crypto.randomUUID(), name: name ?? 'Untitled Project' })
+    .returning();
+  return project;
+}
+
+export async function deleteProject(id: string) {
+  const db = await getDb();
+  await db.delete(projects).where(eq(projects.id, id));
+}
+
+export async function updateProjectName(id: string, name: string) {
+  const db = await getDb();
+  const [updated] = await db
+    .update(projects)
+    .set({ name, updatedAt: new Date() })
+    .where(eq(projects.id, id))
+    .returning();
+  return updated;
+}
+
 // ── Warehouse ──────────────────────────────────────────────────────────────
 
 export async function getWarehouseForProject(projectId: string) {
