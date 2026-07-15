@@ -174,6 +174,11 @@ function WarehouseFlowInner({
       selectionKeyCode={null}
       multiSelectionKeyCode={null}
       proOptions={{ hideAttribution: true }}
+      // No-op handler: React Flow v12 sets pointer-events: none on nodes when
+      // selectable, draggable, AND all event handler props are falsy. We need
+      // the canvas inside the node to receive pointer events, so we provide a
+      // handler to keep B truthy and pointer-events: all.
+      onNodeClick={() => {}}
     >
       <Background
         variant={BackgroundVariant.Dots}
