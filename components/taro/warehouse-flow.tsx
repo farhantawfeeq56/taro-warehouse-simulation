@@ -18,8 +18,14 @@ import { CELL_SIZE } from '@/lib/taro/constants';
 import WarehouseFlowNode from './warehouse-flow-node';
 import type { WarehouseNodeData } from './warehouse-flow-node';
 
-/** Vertical gap in pixels between warehouse nodes. */
-const NODE_GAP = 40;
+/**
+ * Temporary auto-layout: simple 2-column grid that avoids overlap.
+ * This is view-state only — node positions are NOT persisted.
+ * In a later PR, positions will become user-controlled (drag + save).
+ */
+const GRID_COLS = 2;
+const GRID_GAP_X = 48;
+const GRID_GAP_Y = 48;
 
 interface WarehouseFlowProps {
   warehouses: Warehouse[];
@@ -68,18 +74,42 @@ function WarehouseFlowInner({
   const reactFlowInstance = useReactFlow();
   const prevNodesLengthRef = useRef(warehouseIds.length);
 
-  // Stable layout positions — computed once per warehouse ID set so React Flow
-  // does not reset its internal state on every data change.
+  /**
+   * Temporary auto-layout: arrange warehouses in a 2-column grid so nodes
+   * never overlap.  Positions are computed deterministically from the
+   * warehouse dimensions and are treated purely as view state — they are
+   * NOT persisted.  Once user-controlled positioning is added (drag +
+   * save workspace layout), this simple grid can be removed.
+   */
   const nodeLayout = useMemo(() => {
-    let y = 0;
-    return warehouseIds.map((id, i) => {
+    // Group warehouses into rows of GRID_COLS
+    const rows: Array<Array<{ id: string; width: number; height: number }>> = [];
+    for (let i = 0; i < warehouseIds.length; i++) {
       const wh = warehouses[i];
       const w = wh ? wh.width * CELL_SIZE : 300;
       const h = wh ? wh.height * CELL_SIZE : 200;
-      const layout = { id, position: { x: 0, y }, width: w, height: h };
-      y += h + NODE_GAP;
-      return layout;
-    });
+      const cell = { id: warehouseIds[i], width: w, height: h };
+      if (rows.length === 0 || rows[rows.length - 1].length >= GRID_COLS) {
+        rows.push([cell]);
+      } else {
+        rows[rows.length - 1].push(cell);
+      }
+    }
+
+    // Compute pixel positions row by row
+    const positions: Array<{ id: string; position: { x: number; y: number }; width: number; height: number }> = [];
+    let y = 0;
+    for (const row of rows) {
+      const maxHeight = Math.max(...row.map((c) => c.height));
+      let x = 0;
+      for (const cell of row) {
+        positions.push({ id: cell.id, position: { x, y }, width: cell.width, height: cell.height });
+        x += cell.width + GRID_GAP_X;
+      }
+      y += maxHeight + GRID_GAP_Y;
+    }
+
+    return positions;
   }, [warehouseIds, warehouses]);
 
   // Re-initialise nodes when the warehouse ID set changes (structural add/remove).
