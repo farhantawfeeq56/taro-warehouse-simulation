@@ -10,6 +10,8 @@ import {
 import { applyInventoryPlacementDetailed } from '@/lib/taro/inventory-placement';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 import { validateSkuQuantityInvariant } from '@/lib/taro/inventory';
+import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
+import { mergeConfiguration } from '@/lib/taro/warehouse-configuration';
 
 // ── Types for serialized warehouse data ────────────────────────────────────
 
@@ -18,7 +20,8 @@ export interface WarehouseSnapshot {
   warehouseId: string | null;
   warehouse: Warehouse | null;
   orders: Order[];
-  layoutConfig: Record<string, unknown> | null;
+  /** Normalised generation configuration (always set — merged with defaults). */
+  configuration: WarehouseConfiguration;
 }
 
 // ── Load ───────────────────────────────────────────────────────────────────
@@ -33,7 +36,7 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
       warehouseId: null,
       warehouse: null,
       orders: [],
-      layoutConfig: null,
+      configuration: mergeConfiguration(null),
     };
   }
 
@@ -42,26 +45,15 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
     warehouseId: dbWarehouse.id,
     warehouse: (dbWarehouse.layoutJson as unknown as Warehouse) ?? null,
     orders: (dbWarehouse.ordersJson as unknown as Order[]) ?? [],
-    layoutConfig: dbWarehouse.layoutConfig as Record<string, unknown> | null,
+    configuration: mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null),
   };
 }
 
 // ── Save: Layout + Inventory + Orders (full generation) ────────────────────
 
 export interface GenerateAndSaveParams {
-  layoutConfig: {
-    type: 'parallel' | 'cross-aisle' | 'fishbone';
-    gridHeight: number;
-    rackCount: number;
-    aisleWidth: number;
-    crossAisleCount: number;
-    fbWidth: number;
-    fbHeight: number;
-    fbTheta: number;
-    fbI2: number;
-    fbS: number;
-    fbAp: number;
-  };
+  /** The complete WarehouseConfiguration to persist and use for generation. */
+  configuration: WarehouseConfiguration;
   items: Item[];
   slottingBias: number;
   categoryClustering: number;
@@ -83,20 +75,21 @@ export async function generateAndSaveWarehouse(
   projectId: string,
   params: GenerateAndSaveParams,
 ): Promise<GenerateAndSaveResult> {
-  // 1. Generate layout (pure domain logic)
+  // 1. Generate layout (pure domain logic) from configuration
+  const cfg = params.configuration;
   let newWarehouse: Warehouse;
-  switch (params.layoutConfig.type) {
+  switch (cfg.layout.type) {
     case 'parallel':
-      newWarehouse = generateParallelLayout(params.layoutConfig.gridHeight, params.layoutConfig.rackCount, params.layoutConfig.aisleWidth);
+      newWarehouse = generateParallelLayout(cfg.layout.gridHeight, cfg.layout.rackCount, cfg.layout.aisleWidth);
       break;
     case 'cross-aisle':
-      newWarehouse = generateCrossAisleLayout(params.layoutConfig.gridHeight, params.layoutConfig.rackCount, params.layoutConfig.aisleWidth, params.layoutConfig.crossAisleCount);
+      newWarehouse = generateCrossAisleLayout(cfg.layout.gridHeight, cfg.layout.rackCount, cfg.layout.aisleWidth, cfg.layout.crossAisleCount);
       break;
     case 'fishbone':
-      newWarehouse = generateFishboneLayout(params.layoutConfig.fbWidth, params.layoutConfig.fbHeight, params.layoutConfig.fbTheta, params.layoutConfig.fbI2, params.layoutConfig.fbS, params.layoutConfig.fbAp);
+      newWarehouse = generateFishboneLayout(cfg.layout.fbWidth, cfg.layout.fbHeight, cfg.layout.fbTheta, cfg.layout.fbI2, cfg.layout.fbS, cfg.layout.fbAp);
       break;
     default:
-      newWarehouse = generateParallelLayout(params.layoutConfig.gridHeight, params.layoutConfig.rackCount, params.layoutConfig.aisleWidth);
+      newWarehouse = generateParallelLayout(cfg.layout.gridHeight, cfg.layout.rackCount, cfg.layout.aisleWidth);
   }
 
   // 2. Place inventory (pure domain logic)
@@ -113,10 +106,10 @@ export async function generateAndSaveWarehouse(
   // 4. Validate quantity invariant
   const quantityViolations = validateSkuQuantityInvariant(warehouseWithInventory, params.items);
 
-  // 5. Persist everything
+  // 5. Persist everything — configuration, layout, inventory, and orders
   await upsertWarehouse({
     projectId,
-    layoutConfig: params.layoutConfig as unknown as Record<string, unknown>,
+    layoutConfig: params.configuration as unknown as Record<string, unknown>,
     layoutJson: warehouseWithInventory as unknown as Record<string, unknown>,
     inventoryJson: params.items as unknown as Record<string, unknown>,
     ordersJson: orders as unknown as Record<string, unknown>,
