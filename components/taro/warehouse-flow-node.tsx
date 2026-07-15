@@ -25,6 +25,7 @@ export type WarehouseNodeData = Record<string, unknown> & {
  *   handles viewport pan/zoom; the canvas stops handling drawing.
  */
 function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
+  console.log('[WarehouseFlowNode] render', { selectedTool: data.selectedTool, isHand: data.selectedTool === 'hand' });
   const isHandTool = data.selectedTool === 'hand';
 
   return (

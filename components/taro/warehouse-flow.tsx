@@ -92,6 +92,18 @@ function WarehouseFlowInner({
   const reactFlowInstance = useReactFlow();
   const prevNodeSizeRef = useRef({ width: nodeWidth, height: nodeHeight });
 
+  // DEBUG: global click detector
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('.react-flow')) {
+        console.log('[flow:click]', { tag: target.tagName, class: target.className });
+      }
+    };
+    window.addEventListener('click', handler, { capture: true });
+    return () => window.removeEventListener('click', handler, { capture: true });
+  }, []);
+
   // Keep node data and dimensions in sync with props.
   // When warehouse dimensions change, update the node's width/height so
   // React Flow's layout matches the new canvas, then fit the viewport.
