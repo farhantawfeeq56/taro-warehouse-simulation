@@ -3,6 +3,7 @@
 import { useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   BackgroundVariant,
   useNodesState,
@@ -33,7 +34,19 @@ const nodeTypes: NodeTypes = {
 
 const defaultEdgeOptions = {};
 
-export function WarehouseFlow({
+/**
+ * Outer wrapper that provides the React Flow context.
+ * All hooks that depend on the provider are called in WarehouseFlowInner.
+ */
+export function WarehouseFlow(props: WarehouseFlowProps) {
+  return (
+    <ReactFlowProvider>
+      <WarehouseFlowInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function WarehouseFlowInner({
   warehouse,
   onWarehouseChange,
   selectedTool,
@@ -122,17 +135,6 @@ export function WarehouseFlow({
   ]);
 
   const isHandTool = selectedTool === 'hand';
-
-  // Log a warning if the React Flow styles might not be loaded
-  useEffect(() => {
-    // Check if react-flow styles are applied by looking for a known class
-    const styleCheck = document.querySelector('.react-flow');
-    if (!styleCheck) {
-      console.warn(
-        '[WarehouseFlow] React Flow container not found. The @xyflow/react styles may not be loaded.'
-      );
-    }
-  }, []);
 
   return (
     <ReactFlow
