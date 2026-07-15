@@ -267,10 +267,12 @@ export async function saveOrders(
   warehouse: Warehouse,
   orderCount: number,
   avgOrderSize: number,
+  warehouseId?: string,
 ): Promise<Order[]> {
   const orders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
   await upsertWarehouse({
     projectId,
+    warehouseId,
     ordersJson: orders as unknown as Record<string, unknown>,
   });
   return orders;
@@ -281,9 +283,11 @@ export async function saveOrders(
 export async function saveWarehouseLayout(
   projectId: string,
   warehouse: Warehouse,
+  warehouseId?: string,
 ): Promise<void> {
   await upsertWarehouse({
     projectId,
+    warehouseId,
     layoutJson: warehouse as unknown as Record<string, unknown>,
   });
 }

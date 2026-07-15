@@ -8,8 +8,10 @@ import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout'
 import { getNextSku } from '@/lib/taro/demo-generator';
 
 interface WarehouseCanvasProps {
+  /** The warehouse ID for which this canvas renders. */
+  warehouseId?: string;
   warehouse: Warehouse;
-  onWarehouseChange: (warehouse: Warehouse) => void;
+  onWarehouseChange: (warehouseId: string, warehouse: Warehouse) => void;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
   animationProgressRef: MutableRefObject<number>;
@@ -37,6 +39,7 @@ interface ShelfDetailsState {
 }
 
 export function WarehouseCanvas({
+  warehouseId,
   warehouse,
   onWarehouseChange,
   selectedTool,
@@ -145,8 +148,8 @@ export function WarehouseCanvas({
       workerStart: newWorkerStart,
     };
     newWarehouse.locations = buildCoordinateLocations(newWarehouse);
-    onWarehouseChange(newWarehouse);
-  }, [warehouse, selectedTool, onWarehouseChange]);
+    onWarehouseChange(warehouseId ?? '', newWarehouse);
+  }, [warehouse, selectedTool, warehouseId, onWarehouseChange]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (selectedTool === 'hand') return;
@@ -260,8 +263,8 @@ export function WarehouseCanvas({
     cell.locations.push(newLocation);
     nextWarehouse.locations = buildCoordinateLocations(nextWarehouse);
 
-    onWarehouseChange(nextWarehouse);
-  }, [onWarehouseChange, shelfDetails, warehouse]);
+    onWarehouseChange(warehouseId ?? '', nextWarehouse);
+  }, [onWarehouseChange, shelfDetails, warehouse, warehouseId]);
 
   const selectedShelfCell = shelfDetails
     ? warehouse.grid[shelfDetails.cellY]?.[shelfDetails.cellX]

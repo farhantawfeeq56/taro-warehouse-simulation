@@ -56,16 +56,23 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [warehouseIds, setWarehouseIds] = useState<string[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  // TEMPORARY: Using warehouses[0] (most recently updated) until proper
-  // warehouse selection (multi-warehouse UI) is implemented.
-  const warehouseId = warehouseIds[0] ?? null;
-  const warehouse = warehouses[0] ?? null;
-  const setWarehouseId = useCallback((id: string | null) => {
-    setWarehouseIds(id ? [id] : []);
-  }, []);
-  const setWarehouse = useCallback((wh: Warehouse | null) => {
-    setWarehouses(wh ? [wh] : []);
-  }, []);
+  const [activeWarehouseId, setActiveWarehouseId] = useState<string | null>(null);
+
+  // Derived: the currently selected warehouse (drives all panels).
+  const warehouse = useMemo(() => {
+    if (!activeWarehouseId) return null;
+    const idx = warehouseIds.indexOf(activeWarehouseId);
+    return idx >= 0 ? warehouses[idx] ?? null : null;
+  }, [activeWarehouseId, warehouseIds, warehouses]);
+
+  // Stable refs so callbacks don't need to depend on changing arrays.
+  const warehouseIdsRef = useRef(warehouseIds);
+  warehouseIdsRef.current = warehouseIds;
+  const activeWarehouseIdRef = useRef(activeWarehouseId);
+  activeWarehouseIdRef.current = activeWarehouseId;
+  const activeProjectIdRef = useRef(activeProjectId);
+  activeProjectIdRef.current = activeProjectId;
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -109,8 +116,22 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     }
   }, []);
 
-  const handleWarehouseChange = useCallback((newWarehouse: Warehouse) => {
-    setWarehouse(newWarehouse);
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /** Update the active warehouse in the warehouses array (no persistence). */
+  const updateActiveWarehouse = useCallback((newWh: Warehouse) => {
+    setWarehouses((prev) => {
+      const ids = warehouseIdsRef.current;
+      const activeId = activeWarehouseIdRef.current;
+      const idx = prev.findIndex((_, i) => ids[i] === activeId);
+      if (idx === -1) {
+        // No matching warehouse — append as new entry
+        return [...prev, newWh];
+      }
+      const next = [...prev];
+      next[idx] = newWh;
+      return next;
+    });
     setSimulationResults(null);
     setSimulationBlockState(null);
     setIsSimulating(false);
@@ -126,8 +147,18 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
   // Debounced persistence of canvas edits
   const saveLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleWarehouseChangePersisted = useCallback((newWarehouse: Warehouse) => {
-    setWarehouse(newWarehouse);
+  const handleWarehouseChangePersisted = useCallback((
+    whId: string,
+    newWh: Warehouse,
+  ) => {
+    setWarehouses((prev) => {
+      const ids = warehouseIdsRef.current;
+      const idx = prev.findIndex((_, i) => ids[i] === whId);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next[idx] = newWh;
+      return next;
+    });
     setSimulationResults(null);
     setSimulationBlockState(null);
     setIsSimulating(false);
@@ -140,14 +171,14 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     setImportSummary('');
     animationProgressRef.current = 0;
 
-    // Debounce DB save to 500ms after last edit
     if (saveLayoutTimerRef.current) clearTimeout(saveLayoutTimerRef.current);
     saveLayoutTimerRef.current = setTimeout(() => {
-      if (activeProjectId) {
-        saveWarehouseLayout(activeProjectId, newWarehouse).catch(console.error);
+      const pid = activeProjectIdRef.current;
+      if (pid) {
+        saveWarehouseLayout(pid, newWh, whId).catch(console.error);
       }
     }, 500);
-  }, [activeProjectId]);
+  }, []);
 
   // 1. Derived Data (all guarded by warehouse being non-null)
 
@@ -303,7 +334,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
   const handleClearWarehouse = useCallback(() => {
     if (window.confirm('Are you sure you want to clear the entire warehouse layout and all orders? This cannot be undone.')) {
-      handleWarehouseChange(createEmptyWarehouse(30, 24));
+      updateActiveWarehouse(createEmptyWarehouse(30, 24));
       setOrders([]);
       setSimulationResults(null);
       setIsSimulating(false);
@@ -317,7 +348,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       setImportSummary('');
       resetAnimationState();
     }
-  }, [handleWarehouseChange, resetAnimationState]);
+  }, [updateActiveWarehouse, resetAnimationState]);
 
   const handleSimulateClick = useCallback(() => {
     if (!warehouse) return;
@@ -373,7 +404,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     try {
       const csvText = await file.text();
       const { warehouse: importedWarehouse, summary } = parseWarehouseCsv(csvText);
-      handleWarehouseChange(importedWarehouse);
+      updateActiveWarehouse(importedWarehouse);
       setOrders([]);
       setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
       setExecutionPlanStrategy(null);
@@ -388,12 +419,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     } finally {
       event.target.value = '';
     }
-  }, [handleWarehouseChange]);
+  }, [updateActiveWarehouse]);
 
   const handleAddDemoOrders = useCallback(async () => {
     if (!warehouse || !activeProjectId) return;
     try {
-      const newOrders = await saveOrders(activeProjectId, warehouse, orderCount, avgOrderSize);
+      const newOrders = await saveOrders(activeProjectId, warehouse, orderCount, avgOrderSize, activeWarehouseId ?? undefined);
       setOrders(newOrders);
     } catch (err) {
       console.error('Failed to save orders:', err);
@@ -418,15 +449,17 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         setWarehouses(snapshot.warehouses);
         setSavedConfiguration(snapshot.configuration);
         if (snapshot.warehouses.length > 0) {
-          // NOTE: Using warehouses[0] (most recently updated warehouse).
-          // This is temporary compatibility — once multi-warehouse UI is
-          // implemented, replace with the user-selected warehouse index.
+          setActiveWarehouseId(snapshot.warehouseIds[0]);
           setOrders(snapshot.orders);
           setHasExistingWarehouse(true);
           setShowLayoutConfig(false);
         } else {
-          // No warehouse yet — show layout config
-          setWarehouse(generateSkeletonWarehouse());
+          // No warehouse yet — create a skeleton as the single entry.
+          const skeleton = generateSkeletonWarehouse();
+          const skeletonId = crypto.randomUUID();
+          setWarehouseIds([skeletonId]);
+          setWarehouses([skeleton]);
+          setActiveWarehouseId(skeletonId);
           setHasExistingWarehouse(false);
           setShowLayoutConfig(true);
         }
@@ -434,7 +467,11 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         console.error('Failed to load workspace:', err);
         if (!cancelled) {
           setLoadError('Could not connect to database. Running in offline mode.');
-          setWarehouse(generateSkeletonWarehouse());
+          const skeleton = generateSkeletonWarehouse();
+          const skeletonId = crypto.randomUUID();
+          setWarehouseIds([skeletonId]);
+          setWarehouses([skeleton]);
+          setActiveWarehouseId(skeletonId);
           setShowLayoutConfig(true);
         }
       } finally {
@@ -590,7 +627,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
           {/* Canvas — React Flow workspace */}
           <WarehouseFlow
-            warehouse={warehouse}
+            warehouses={warehouses}
+            warehouseIds={warehouseIds}
+            activeWarehouseId={activeWarehouseId}
+            onSelectWarehouse={setActiveWarehouseId}
             onWarehouseChange={handleWarehouseChangePersisted}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
@@ -712,7 +752,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
                 avgOrderSize,
               });
 
-              setWarehouse(result.warehouse);
+              updateActiveWarehouse(result.warehouse);
               setOrders(result.orders);
               setSavedConfiguration(configuration);
               setHasExistingWarehouse(true);
