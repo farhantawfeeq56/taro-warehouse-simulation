@@ -159,6 +159,7 @@ export function WarehouseFlow({
       deleteKeyCode={null}
       selectionKeyCode={null}
       multiSelectionKeyCode={null}
+      proOptions={{ hideAttribution: true }}
     >
       <Background
         variant={BackgroundVariant.Dots}
