@@ -1,7 +1,7 @@
 'use server';
 
-import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, duplicateWarehouse as repoDuplicateWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName } from '@/lib/db/repository';
-import type { Warehouse, Order, Item } from '@/lib/taro/types';
+import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, duplicateWarehouse as repoDuplicateWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName, renameWarehouse as repoRenameWarehouse, deleteWarehouse as repoDeleteWarehouse, updateWarehousePosition as repoUpdateWarehousePosition } from '@/lib/db/repository';
+import type { Warehouse, Order, Item, WorkspaceWarehouse } from '@/lib/taro/types';
 import {
   generateParallelLayout,
   generateCrossAisleLayout,
@@ -18,21 +18,10 @@ import { mergeConfiguration } from '@/lib/taro/warehouse-configuration';
 export interface WarehouseSnapshot {
   projectId: string;
   /**
-   * All warehouse IDs for this project, ordered by most recently updated.
-   *
-   * NOTE: Currently only `warehouses[0]` (the most recently updated warehouse)
-   * is displayed. This is temporary compatibility behaviour — once proper
-   * warehouse selection (multi-warehouse UI) is implemented, replace all
-   * `warehouses[0]` references with the user-chosen warehouse.
+   * All warehouses for this project as a workspace model.
+   * Each entry carries its id, name, position, and layout data.
    */
-  warehouseIds: string[];
-  /**
-   * All warehouses for this project, ordered by most recently updated.
-   *
-   * NOTE: Currently only `warehouses[0]` is used. This is a temporary
-   * compatibility shim; replace with explicit warehouse selection later.
-   */
-  warehouses: Warehouse[];
+  workspaceWarehouses: WorkspaceWarehouse[];
   orders: Order[];
   /** Normalised generation configuration (always set — merged with defaults). */
   configuration: WarehouseConfiguration;
@@ -110,6 +99,27 @@ export async function updateProjectNameAction(id: string, name: string) {
   return repoUpdateProjectName(id, name);
 }
 
+/** Build a WorkspaceWarehouse[] from DB warehouse rows. */
+function dbWarehousesToWorkspace(
+  dbWarehouses: Array<{
+    id: string;
+    name: string;
+    positionX: number | null;
+    positionY: number | null;
+    layoutJson: unknown;
+  }>,
+): WorkspaceWarehouse[] {
+  return dbWarehouses.map((w) => ({
+    id: w.id,
+    name: w.name,
+    position:
+      w.positionX !== null && w.positionY !== null
+        ? { x: w.positionX, y: w.positionY }
+        : null,
+    warehouse: (w.layoutJson as unknown as Warehouse) ?? null,
+  })).filter((w): w is WorkspaceWarehouse => w.warehouse !== null);
+}
+
 export async function loadProject(projectId: string): Promise<WarehouseSnapshot> {
   const project = await getProject(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
@@ -119,8 +129,7 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
   if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
-      warehouseIds: [],
-      warehouses: [],
+      workspaceWarehouses: [],
       orders: [],
       configuration: mergeConfiguration(null),
     };
@@ -141,8 +150,7 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
 
   return {
     projectId: project.id,
-    warehouseIds: dbWarehouses.map((w) => w.id),
-    warehouses: dbWarehouses.map((w) => (w.layoutJson as unknown as Warehouse) ?? null).filter(Boolean) as Warehouse[],
+    workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
     configuration,
   };
@@ -157,8 +165,7 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
   if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
-      warehouseIds: [],
-      warehouses: [],
+      workspaceWarehouses: [],
       orders: [],
       configuration: mergeConfiguration(null),
     };
@@ -177,8 +184,7 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
 
   return {
     projectId: project.id,
-    warehouseIds: dbWarehouses.map((w) => w.id),
-    warehouses: dbWarehouses.map((w) => (w.layoutJson as unknown as Warehouse) ?? null).filter(Boolean) as Warehouse[],
+    workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
     configuration,
   };
@@ -307,6 +313,36 @@ export async function saveOrders(
     ordersJson: orders as unknown as Record<string, unknown>,
   });
   return orders;
+}
+
+// ── Workspace: Rename ──────────────────────────────────────────────────────
+
+export async function renameWarehouseAction(
+  warehouseId: string,
+  name: string,
+  projectId: string,
+): Promise<void> {
+  await repoRenameWarehouse(warehouseId, name, projectId);
+}
+
+// ── Workspace: Delete ──────────────────────────────────────────────────────
+
+export async function deleteWarehouseAction(
+  warehouseId: string,
+  projectId: string,
+): Promise<void> {
+  await repoDeleteWarehouse(warehouseId, projectId);
+}
+
+// ── Workspace: Position ────────────────────────────────────────────────────
+
+export async function saveWarehousePositionAction(
+  warehouseId: string,
+  projectId: string,
+  x: number,
+  y: number,
+): Promise<void> {
+  await repoUpdateWarehousePosition(warehouseId, projectId, x, y);
 }
 
 // ── Save: Warehouse layout edits (canvas drawing) ──────────────────────────

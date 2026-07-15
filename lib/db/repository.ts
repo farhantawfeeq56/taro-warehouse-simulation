@@ -76,6 +76,8 @@ export async function upsertWarehouse(params: {
   /** When specified, updates this exact warehouse instead of the first match. */
   warehouseId?: string;
   name?: string;
+  positionX?: number | null;
+  positionY?: number | null;
   layoutConfig?: Record<string, unknown>;
   layoutJson?: Record<string, unknown>;
   inventoryJson?: Record<string, unknown>;
@@ -99,6 +101,8 @@ export async function upsertWarehouse(params: {
   if (existing) {
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (params.name !== undefined) updates.name = params.name;
+    if (params.positionX !== undefined) updates.positionX = params.positionX;
+    if (params.positionY !== undefined) updates.positionY = params.positionY;
     if (params.layoutConfig !== undefined) updates.layoutConfig = params.layoutConfig;
     if (params.layoutJson !== undefined) updates.layoutJson = params.layoutJson;
     if (params.inventoryJson !== undefined) updates.inventoryJson = params.inventoryJson;
@@ -192,13 +196,66 @@ export async function duplicateWarehouse(
 
 export async function updateWarehouseField(
   warehouseId: string,
-  field: 'layoutConfig' | 'layoutJson' | 'inventoryJson' | 'ordersJson' | 'name',
-  value: Record<string, unknown> | string,
+  field: 'layoutConfig' | 'layoutJson' | 'inventoryJson' | 'ordersJson' | 'name' | 'positionX' | 'positionY',
+  value: Record<string, unknown> | string | number,
 ) {
   const [updated] = await (await getDb())
     .update(warehouses)
     .set({ [field]: value, updatedAt: new Date() } as any)
     .where(eq(warehouses.id, warehouseId))
     .returning();
+  return updated;
+}
+
+// ── Rename ────────────────────────────────────────────────────────────────
+
+export async function renameWarehouse(warehouseId: string, name: string, projectId: string) {
+  const db = await getDb();
+  const [updated] = await db
+    .update(warehouses)
+    .set({ name, updatedAt: new Date() })
+    .where(eq(warehouses.id, warehouseId))
+    .returning();
+
+  await db
+    .update(projects)
+    .set({ updatedAt: new Date() })
+    .where(eq(projects.id, projectId));
+
+  return updated;
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────
+
+export async function deleteWarehouse(warehouseId: string, projectId: string) {
+  const db = await getDb();
+  await db.delete(warehouses).where(eq(warehouses.id, warehouseId));
+
+  await db
+    .update(projects)
+    .set({ updatedAt: new Date() })
+    .where(eq(projects.id, projectId));
+}
+
+// ── Position ──────────────────────────────────────────────────────────────
+
+export async function updateWarehousePosition(
+  warehouseId: string,
+  projectId: string,
+  x: number,
+  y: number,
+) {
+  const db = await getDb();
+  const [updated] = await db
+    .update(warehouses)
+    .set({ positionX: x, positionY: y, updatedAt: new Date() })
+    .where(eq(warehouses.id, warehouseId))
+    .returning();
+
+  await db
+    .update(projects)
+    .set({ updatedAt: new Date() })
+    .where(eq(projects.id, projectId));
+
   return updated;
 }

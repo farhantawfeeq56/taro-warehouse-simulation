@@ -1,18 +1,33 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useRef, useCallback } from 'react';
 import type { Node, NodeProps } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
 import type { MutableRefObject } from 'react';
 import { WarehouseCanvas } from './warehouse-canvas';
-import { Copy } from 'lucide-react';
+import { Copy, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export type WarehouseNodeData = Record<string, unknown> & {
   warehouseId: string;
+  warehouseName: string;
   warehouse: Warehouse;
   onWarehouseChange: (warehouseId: string, warehouse: Warehouse) => void;
   onSelect?: (warehouseId: string) => void;
   onDuplicate?: (warehouseId: string) => void;
+  onRename?: (warehouseId: string, name: string) => void;
+  onDelete?: (warehouseId: string) => void;
+  canDelete?: boolean;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
   animationProgressRef: MutableRefObject<number>;
@@ -30,12 +45,42 @@ export type WarehouseNodeData = Record<string, unknown> & {
  * - When the hand/pan tool is active → events bubble through so React Flow
  *   handles viewport pan/zoom; the canvas stops handling drawing.
  *
- * A title bar at the top shows the warehouse name and a visual selection
- * indicator. Clicking the title bar or the node selects the warehouse.
+ * Title bar shows the warehouse name (not a truncated UUID), supports inline
+ * rename on double-click, and provides duplicate + delete actions.
  */
 function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
   const isHandTool = data.selectedTool === 'hand';
-  const label = `Warehouse ${data.warehouseId?.slice(0, 8) ?? '–'}`;
+
+  // Inline rename state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(data.warehouseName);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const commitRename = useCallback(() => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== data.warehouseName) {
+      data.onRename?.(data.warehouseId, trimmed);
+    }
+    setIsEditing(false);
+  }, [editValue, data]);
+
+  const handleDoubleClick = useCallback(() => {
+    setEditValue(data.warehouseName);
+    setIsEditing(true);
+    // Focus input after render
+    requestAnimationFrame(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    });
+  }, [data.warehouseName]);
+
+  const handleDeleteConfirm = useCallback(() => {
+    setDeleteDialogOpen(false);
+    data.onDelete?.(data.warehouseId);
+  }, [data]);
 
   return (
     <div
@@ -65,8 +110,35 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
         `}
         style={{ cursor: 'pointer' }}
       >
-        <span className="truncate">{label}</span>
-        <div className="flex items-center gap-1 ml-auto">
+        {/* Name — inline editable on double-click */}
+        {isEditing ? (
+          <input
+            ref={renameInputRef}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename();
+              if (e.key === 'Escape') setIsEditing(false);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="nodrag flex-1 min-w-0 h-5 px-1 text-xs font-medium bg-background border border-primary/50 rounded outline-none ring-1 ring-primary/30"
+          />
+        ) : (
+          <span
+            className="truncate flex-1 min-w-0"
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              handleDoubleClick();
+            }}
+            title="Double-click to rename"
+          >
+            {data.warehouseName}
+          </span>
+        )}
+
+        <div className="flex items-center gap-1 ml-2 shrink-0">
+          {/* Duplicate button */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -78,8 +150,54 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
           >
             <Copy className="h-3.5 w-3.5" />
           </button>
+
+          {/* Delete button */}
+          {data.canDelete !== false ? (
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  title="Delete this warehouse"
+                  className="p-0.5 rounded hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  aria-label="Delete warehouse"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Warehouse</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete{' '}
+                    <span className="font-semibold">{data.warehouseName}</span>?
+                    This will permanently remove this warehouse and all its data.
+                    This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteConfirm}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <button
+              disabled
+              title="Cannot delete the last warehouse"
+              className="p-0.5 rounded text-muted-foreground/30 cursor-not-allowed"
+              aria-label="Delete disabled"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+
           {data.isActive && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-primary ml-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
               Active
             </span>
