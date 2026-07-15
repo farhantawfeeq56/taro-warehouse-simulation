@@ -39,13 +39,21 @@ import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration'
 import { validateSkuQuantityInvariant } from '@/lib/taro/inventory';
 import {
   loadWorkspace,
+  loadProject,
   generateAndSaveWarehouse,
   saveOrders,
   saveWarehouseLayout,
 } from '@/lib/db/actions';
 
-export function TaroApp() {
-  const [projectId, setProjectId] = useState<string | null>(null);
+interface TaroAppProps {
+  /** Project to load. When omitted, falls back to the most recent project. */
+  initialProjectId?: string;
+  /** Called when the user requests to go back to the project dashboard. */
+  onBackToDashboard?: () => void;
+}
+
+export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
   const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -125,11 +133,11 @@ export function TaroApp() {
     // Debounce DB save to 500ms after last edit
     if (saveLayoutTimerRef.current) clearTimeout(saveLayoutTimerRef.current);
     saveLayoutTimerRef.current = setTimeout(() => {
-      if (projectId) {
-        saveWarehouseLayout(projectId, newWarehouse).catch(console.error);
+      if (activeProjectId) {
+        saveWarehouseLayout(activeProjectId, newWarehouse).catch(console.error);
       }
     }, 500);
-  }, [projectId]);
+  }, [activeProjectId]);
 
   // 1. Derived Data (all guarded by warehouse being non-null)
 
@@ -373,9 +381,9 @@ export function TaroApp() {
   }, [handleWarehouseChange]);
 
   const handleAddDemoOrders = useCallback(async () => {
-    if (!warehouse || !projectId) return;
+    if (!warehouse || !activeProjectId) return;
     try {
-      const newOrders = await saveOrders(projectId, warehouse, orderCount, avgOrderSize);
+      const newOrders = await saveOrders(activeProjectId, warehouse, orderCount, avgOrderSize);
       setOrders(newOrders);
     } catch (err) {
       console.error('Failed to save orders:', err);
@@ -383,7 +391,7 @@ export function TaroApp() {
       const fallbackOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
       setOrders(fallbackOrders);
     }
-  }, [warehouse, projectId, orderCount, avgOrderSize]);
+  }, [warehouse, activeProjectId, orderCount, avgOrderSize]);
 
   // 4. Side Effects
   useEffect(() => {
@@ -391,9 +399,11 @@ export function TaroApp() {
     let cancelled = false;
     async function init() {
       try {
-        const snapshot = await loadWorkspace();
+        const snapshot = initialProjectId
+          ? await loadProject(initialProjectId)
+          : await loadWorkspace();
         if (cancelled) return;
-        setProjectId(snapshot.projectId);
+        setActiveProjectId(snapshot.projectId);
         setWarehouseId(snapshot.warehouseId);
         setSavedConfiguration(snapshot.configuration);
         if (snapshot.warehouse) {
@@ -419,8 +429,8 @@ export function TaroApp() {
       }
     }
     init();
-    return () => { cancelled = true; };
-  }, []);
+    return () => { cancelled = true };
+  }, [initialProjectId]);
 
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
@@ -464,12 +474,25 @@ export function TaroApp() {
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
         <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator</h1>
-            <p className="text-xs text-muted-foreground leading-tight">
-              {hasExistingWarehouse ? 'Warehouse workspace loaded.' : 'Configure your warehouse layout to get started.'}
-            </p>
-            {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
+          <div className="flex items-center gap-3">
+            {onBackToDashboard && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBackToDashboard}
+                className="h-7 text-xs text-muted-foreground hover:text-foreground -ml-1"
+              >
+                ← Dashboard
+              </Button>
+            )}
+            <div className="border-l border-border h-6" />
+            <div>
+              <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator</h1>
+              <p className="text-xs text-muted-foreground leading-tight">
+                {hasExistingWarehouse ? 'Warehouse workspace loaded.' : 'Configure your warehouse layout to get started.'}
+              </p>
+              {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
+            </div>
           </div>
         </div>
 
@@ -606,7 +629,7 @@ export function TaroApp() {
         />
       )}
 
-      {showLayoutConfig && projectId && (
+      {showLayoutConfig && activeProjectId && (
         <LayoutConfigOverlay
           onClose={() => {
             // Only allow closing if a warehouse already exists
@@ -647,7 +670,7 @@ export function TaroApp() {
                 },
               };
 
-              const result = await generateAndSaveWarehouse(projectId, {
+              const result = await generateAndSaveWarehouse(activeProjectId, {
                 configuration,
                 items: config.inventory,
                 slottingBias: config.slottingBias,

@@ -1,6 +1,6 @@
 'use server';
 
-import { getOrCreateProject, getWarehouseForProject, upsertWarehouse } from '@/lib/db/repository';
+import { getOrCreateProject, getProject, getWarehouseForProject, upsertWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName } from '@/lib/db/repository';
 import type { Warehouse, Order, Item } from '@/lib/taro/types';
 import {
   generateParallelLayout,
@@ -24,7 +24,113 @@ export interface WarehouseSnapshot {
   configuration: WarehouseConfiguration;
 }
 
-// ── Load ───────────────────────────────────────────────────────────────────
+// ── Project CRUD ────────────────────────────────────────────────────────────
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+  /** Whether a warehouse has been configured for this project. */
+  hasWarehouse: boolean;
+  /** Total number of storage locations across all shelves. */
+  itemCount: number;
+}
+
+export async function listProjects(): Promise<ProjectSummary[]> {
+  const projects = await repoListProjects();
+
+  const summaries: ProjectSummary[] = [];
+  for (const project of projects) {
+    const warehouse = await getWarehouseForProject(project.id);
+    const layout = warehouse?.layoutJson as Record<string, unknown> | null;
+
+    let itemCount = 0;
+    if (layout?.grid && Array.isArray(layout.grid)) {
+      for (const row of layout.grid as Array<Array<Record<string, unknown>>>) {
+        for (const cell of row) {
+          if (Array.isArray(cell.locations)) {
+            itemCount += cell.locations.length;
+          }
+        }
+      }
+    }
+
+    // Use the latest timestamp available — prefer warehouse.updatedAt if it's
+    // more recent than the project's own timestamp (handles pre-existing
+    // warehouses saved before we started touching the parent project row).
+    const updatedAt =
+      warehouse && warehouse.updatedAt > project.updatedAt
+        ? warehouse.updatedAt
+        : project.updatedAt;
+
+    summaries.push({
+      id: project.id,
+      name: project.name,
+      createdAt: project.createdAt,
+      updatedAt,
+      hasWarehouse: !!warehouse,
+      itemCount,
+    });
+  }
+
+  // Re-sort by the effective updatedAt so the dashboard shows the most
+  // recently worked-on project first.
+  summaries.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+  return summaries;
+}
+
+export async function createProjectAction(name?: string) {
+  return repoCreateProject(name);
+}
+
+export async function deleteProjectAction(id: string) {
+  return repoDeleteProject(id);
+}
+
+export async function updateProjectNameAction(id: string, name: string) {
+  return repoUpdateProjectName(id, name);
+}
+
+export async function loadProject(projectId: string): Promise<WarehouseSnapshot> {
+  const project = await getProject(projectId);
+  if (!project) throw new Error(`Project ${projectId} not found`);
+
+  const dbWarehouse = await getWarehouseForProject(project.id);
+
+  if (!dbWarehouse) {
+    return {
+      projectId: project.id,
+      warehouseId: null,
+      warehouse: null,
+      orders: [],
+      configuration: mergeConfiguration(null),
+    };
+  }
+
+  const configuration = mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null);
+
+  // Legacy migration: warehouses saved before the nested layoutConfig format
+  // have no `inventory` subsection, so mergeConfiguration defaults skuCount to
+  // 2500. Override it with the actual count from inventoryJson when available.
+  if (dbWarehouse.inventoryJson && Array.isArray(dbWarehouse.inventoryJson)) {
+    const actualSkuCount = dbWarehouse.inventoryJson.length;
+    if (configuration.inventory.skuCount !== actualSkuCount) {
+      configuration.inventory.skuCount = actualSkuCount;
+    }
+  }
+
+  return {
+    projectId: project.id,
+    warehouseId: dbWarehouse.id,
+    warehouse: (dbWarehouse.layoutJson as unknown as Warehouse) ?? null,
+    orders: (dbWarehouse.ordersJson as unknown as Order[]) ?? [],
+    configuration,
+  };
+}
+
+// ── Load (default — most recent project, creates one if none exist) ─────────
 
 export async function loadWorkspace(): Promise<WarehouseSnapshot> {
   const project = await getOrCreateProject();
@@ -40,12 +146,22 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
     };
   }
 
+  const configuration = mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null);
+
+  // Same legacy migration as loadProject
+  if (dbWarehouse.inventoryJson && Array.isArray(dbWarehouse.inventoryJson)) {
+    const actualSkuCount = dbWarehouse.inventoryJson.length;
+    if (configuration.inventory.skuCount !== actualSkuCount) {
+      configuration.inventory.skuCount = actualSkuCount;
+    }
+  }
+
   return {
     projectId: project.id,
     warehouseId: dbWarehouse.id,
     warehouse: (dbWarehouse.layoutJson as unknown as Warehouse) ?? null,
     orders: (dbWarehouse.ordersJson as unknown as Order[]) ?? [],
-    configuration: mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null),
+    configuration,
   };
 }
 
