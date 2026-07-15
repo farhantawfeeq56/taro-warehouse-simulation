@@ -90,6 +90,13 @@ export async function upsertWarehouse(params: {
       .set(updates)
       .where(eq(warehouses.id, existing.id))
       .returning();
+
+    // Touch the parent project so the dashboard sees the latest activity
+    await db
+      .update(projects)
+      .set({ updatedAt: new Date() })
+      .where(eq(projects.id, params.projectId));
+
     return updated;
   }
 
@@ -105,6 +112,13 @@ export async function upsertWarehouse(params: {
       ordersJson: params.ordersJson as any,
     })
     .returning();
+
+  // Also touch the parent project for new warehouse creations
+  await db
+    .update(projects)
+    .set({ updatedAt: new Date() })
+    .where(eq(projects.id, params.projectId));
+
   return created;
 }
 

@@ -56,15 +56,27 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       }
     }
 
+    // Use the latest timestamp available — prefer warehouse.updatedAt if it's
+    // more recent than the project's own timestamp (handles pre-existing
+    // warehouses saved before we started touching the parent project row).
+    const updatedAt =
+      warehouse && warehouse.updatedAt > project.updatedAt
+        ? warehouse.updatedAt
+        : project.updatedAt;
+
     summaries.push({
       id: project.id,
       name: project.name,
       createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
+      updatedAt,
       hasWarehouse: !!warehouse,
       itemCount,
     });
   }
+
+  // Re-sort by the effective updatedAt so the dashboard shows the most
+  // recently worked-on project first.
+  summaries.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
   return summaries;
 }
@@ -97,12 +109,24 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
     };
   }
 
+  const configuration = mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null);
+
+  // Legacy migration: warehouses saved before the nested layoutConfig format
+  // have no `inventory` subsection, so mergeConfiguration defaults skuCount to
+  // 2500. Override it with the actual count from inventoryJson when available.
+  if (dbWarehouse.inventoryJson && Array.isArray(dbWarehouse.inventoryJson)) {
+    const actualSkuCount = dbWarehouse.inventoryJson.length;
+    if (configuration.inventory.skuCount !== actualSkuCount) {
+      configuration.inventory.skuCount = actualSkuCount;
+    }
+  }
+
   return {
     projectId: project.id,
     warehouseId: dbWarehouse.id,
     warehouse: (dbWarehouse.layoutJson as unknown as Warehouse) ?? null,
     orders: (dbWarehouse.ordersJson as unknown as Order[]) ?? [],
-    configuration: mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null),
+    configuration,
   };
 }
 
@@ -122,12 +146,22 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
     };
   }
 
+  const configuration = mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null);
+
+  // Same legacy migration as loadProject
+  if (dbWarehouse.inventoryJson && Array.isArray(dbWarehouse.inventoryJson)) {
+    const actualSkuCount = dbWarehouse.inventoryJson.length;
+    if (configuration.inventory.skuCount !== actualSkuCount) {
+      configuration.inventory.skuCount = actualSkuCount;
+    }
+  }
+
   return {
     projectId: project.id,
     warehouseId: dbWarehouse.id,
     warehouse: (dbWarehouse.layoutJson as unknown as Warehouse) ?? null,
     orders: (dbWarehouse.ordersJson as unknown as Order[]) ?? [],
-    configuration: mergeConfiguration(dbWarehouse.layoutConfig as Record<string, unknown> | null),
+    configuration,
   };
 }
 
