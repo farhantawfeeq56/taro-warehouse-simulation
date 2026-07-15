@@ -81,6 +81,8 @@ export function WarehouseCanvas({
     const cellX = Math.floor(x / CELL_SIZE);
     const cellY = Math.floor(y / CELL_SIZE);
 
+    console.log({ rfZoom, rect, clientX: e.clientX, clientY: e.clientY, x, y, cellX, cellY });
+
     if (cellX >= 0 && cellX < warehouse.width && cellY >= 0 && cellY < warehouse.height) {
       return { x: cellX, y: cellY };
     }
@@ -88,6 +90,7 @@ export function WarehouseCanvas({
   }, [panOffset, warehouse.width, warehouse.height, reactFlowInstance]);
 
   const applyTool = useCallback((cellX: number, cellY: number) => {
+    console.log("3. applyTool", selectedTool);
     // Clone only modified rows and cells instead of deep-cloning the entire
     // grid.  This eliminates ~90 % of the per-mousemove allocation cost.
     const newGrid = [...warehouse.grid];
@@ -148,10 +151,12 @@ export function WarehouseCanvas({
       workerStart: newWorkerStart,
     };
     newWarehouse.locations = buildCoordinateLocations(newWarehouse);
+    console.log("4. onWarehouseChange");
     onWarehouseChange(newWarehouse);
   }, [warehouse, selectedTool, onWarehouseChange]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    console.log("1. handleMouseDown", selectedTool);
     if (selectedTool === 'hand') return;
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true);
@@ -162,6 +167,7 @@ export function WarehouseCanvas({
     if (e.button === 0) {
       setIsDrawing(true);
       const cell = getCellFromMouse(e);
+      console.log("2. cell", cell);
       if (cell) {
         applyTool(cell.x, cell.y);
       }
