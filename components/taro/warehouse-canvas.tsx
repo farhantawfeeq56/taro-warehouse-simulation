@@ -150,6 +150,7 @@ export function WarehouseCanvas({
   }, [warehouse, selectedTool, onWarehouseChange]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (selectedTool === 'hand') return;
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true);
       setLastPanPoint({ x: e.clientX, y: e.clientY });
