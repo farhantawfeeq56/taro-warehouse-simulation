@@ -17,14 +17,22 @@ import { mergeConfiguration } from '@/lib/taro/warehouse-configuration';
 
 export interface WarehouseSnapshot {
   projectId: string;
-  /** All warehouse IDs for this project, ordered by most recently updated. */
+  /**
+   * All warehouse IDs for this project, ordered by most recently updated.
+   *
+   * NOTE: Currently only `warehouses[0]` (the most recently updated warehouse)
+   * is displayed. This is temporary compatibility behaviour — once proper
+   * warehouse selection (multi-warehouse UI) is implemented, replace all
+   * `warehouses[0]` references with the user-chosen warehouse.
+   */
   warehouseIds: string[];
-  /** All warehouses for this project, ordered by most recently updated. */
+  /**
+   * All warehouses for this project, ordered by most recently updated.
+   *
+   * NOTE: Currently only `warehouses[0]` is used. This is a temporary
+   * compatibility shim; replace with explicit warehouse selection later.
+   */
   warehouses: Warehouse[];
-  /** Legacy convenience: the first warehouse's ID, or null if none. */
-  warehouseId: string | null;
-  /** Legacy convenience: the first warehouse, or null if none. */
-  warehouse: Warehouse | null;
   orders: Order[];
   /** Normalised generation configuration (always set — merged with defaults). */
   configuration: WarehouseConfiguration;
@@ -113,8 +121,6 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
       projectId: project.id,
       warehouseIds: [],
       warehouses: [],
-      warehouseId: null,
-      warehouse: null,
       orders: [],
       configuration: mergeConfiguration(null),
     };
@@ -137,8 +143,6 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
     projectId: project.id,
     warehouseIds: dbWarehouses.map((w) => w.id),
     warehouses: dbWarehouses.map((w) => (w.layoutJson as unknown as Warehouse) ?? null).filter(Boolean) as Warehouse[],
-    warehouseId: firstWarehouse.id,
-    warehouse: (firstWarehouse.layoutJson as unknown as Warehouse) ?? null,
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
     configuration,
   };
@@ -155,8 +159,6 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
       projectId: project.id,
       warehouseIds: [],
       warehouses: [],
-      warehouseId: null,
-      warehouse: null,
       orders: [],
       configuration: mergeConfiguration(null),
     };
@@ -177,8 +179,6 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
     projectId: project.id,
     warehouseIds: dbWarehouses.map((w) => w.id),
     warehouses: dbWarehouses.map((w) => (w.layoutJson as unknown as Warehouse) ?? null).filter(Boolean) as Warehouse[],
-    warehouseId: firstWarehouse.id,
-    warehouse: (firstWarehouse.layoutJson as unknown as Warehouse) ?? null,
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
     configuration,
   };
