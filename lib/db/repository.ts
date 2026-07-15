@@ -59,8 +59,15 @@ export async function updateProjectName(id: string, name: string) {
 // ── Warehouse ──────────────────────────────────────────────────────────────
 
 export async function getWarehouseForProject(projectId: string) {
-  return (await getDb()).query.warehouses.findFirst({
+  // Legacy compat: returns the first warehouse for a project
+  const warehouses = await getWarehousesForProject(projectId);
+  return warehouses[0] ?? null;
+}
+
+export async function getWarehousesForProject(projectId: string) {
+  return (await getDb()).query.warehouses.findMany({
     where: eq(warehouses.projectId, projectId),
+    orderBy: (warehouses, { desc }) => [desc(warehouses.updatedAt)],
   });
 }
 
@@ -73,8 +80,10 @@ export async function upsertWarehouse(params: {
   ordersJson?: Record<string, unknown>;
 }) {
   const db = await getDb();
+  // With multi-warehouse support, pick the most recently updated warehouse.
   const existing = await db.query.warehouses.findFirst({
     where: eq(warehouses.projectId, params.projectId),
+    orderBy: (warehouses, { desc }) => [desc(warehouses.updatedAt)],
   });
 
   if (existing) {

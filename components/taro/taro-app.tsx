@@ -54,8 +54,16 @@ interface TaroAppProps {
 
 export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [warehouseId, setWarehouseId] = useState<string | null>(null);
-  const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
+  const [warehouseIds, setWarehouseIds] = useState<string[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const warehouseId = warehouseIds[0] ?? null;
+  const warehouse = warehouses[0] ?? null;
+  const setWarehouseId = useCallback((id: string | null) => {
+    setWarehouseIds(id ? [id] : []);
+  }, []);
+  const setWarehouse = useCallback((wh: Warehouse | null) => {
+    setWarehouses(wh ? [wh] : []);
+  }, []);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -404,7 +412,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           : await loadWorkspace();
         if (cancelled) return;
         setActiveProjectId(snapshot.projectId);
-        setWarehouseId(snapshot.warehouseId);
+        setWarehouseIds(snapshot.warehouseIds);
+        setWarehouses(snapshot.warehouses);
         setSavedConfiguration(snapshot.configuration);
         if (snapshot.warehouse) {
           setWarehouse(snapshot.warehouse);

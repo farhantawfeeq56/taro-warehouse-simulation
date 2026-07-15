@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, jsonb, unique } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 
 export const projects = pgTable('projects', {
@@ -32,6 +32,5 @@ export const warehouses = pgTable('warehouses', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
-  // Enforce 1:1 project→warehouse for now; drop this constraint later for multi-warehouse
-  uniqueProject: unique().on(table.projectId),
+  // Multi-warehouse support: removed the 1:1 constraint to allow many warehouses per project
 }));
