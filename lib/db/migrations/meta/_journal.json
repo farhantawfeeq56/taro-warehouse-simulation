@@ -8,6 +8,13 @@
       "when": 1784018782500,
       "tag": "0000_first_turbo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784060000000,
+      "tag": "0001_multi_warehouse",
+      "breakpoints": true
     }
   ]
 }
