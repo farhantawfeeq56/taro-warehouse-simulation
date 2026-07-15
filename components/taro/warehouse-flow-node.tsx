@@ -5,12 +5,14 @@ import type { Node, NodeProps } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
 import type { MutableRefObject } from 'react';
 import { WarehouseCanvas } from './warehouse-canvas';
+import { Copy } from 'lucide-react';
 
 export type WarehouseNodeData = Record<string, unknown> & {
   warehouseId: string;
   warehouse: Warehouse;
   onWarehouseChange: (warehouseId: string, warehouse: Warehouse) => void;
   onSelect?: (warehouseId: string) => void;
+  onDuplicate?: (warehouseId: string) => void;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
   animationProgressRef: MutableRefObject<number>;
@@ -64,12 +66,25 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
         style={{ cursor: 'pointer' }}
       >
         <span className="truncate">{label}</span>
-        {data.isActive && (
-          <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-            Active
-          </span>
-        )}
+        <div className="flex items-center gap-1 ml-auto">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onDuplicate?.(data.warehouseId);
+            }}
+            title="Duplicate this warehouse"
+            className="p-0.5 rounded hover:bg-muted transition-colors"
+            aria-label="Duplicate warehouse"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+          {data.isActive && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              Active
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Canvas */}

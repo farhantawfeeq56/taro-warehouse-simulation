@@ -33,6 +33,7 @@ interface WarehouseFlowProps {
   activeWarehouseId: string | null;
   onSelectWarehouse: (warehouseId: string) => void;
   onWarehouseChange: (warehouseId: string, warehouse: Warehouse) => void;
+  onDuplicateWarehouse: (warehouseId: string) => void;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
   animationProgressRef: MutableRefObject<number>;
@@ -64,6 +65,7 @@ function WarehouseFlowInner({
   activeWarehouseId,
   onSelectWarehouse,
   onWarehouseChange,
+  onDuplicateWarehouse,
   selectedTool,
   activeRoute,
   animationProgressRef,
@@ -129,6 +131,7 @@ function WarehouseFlowInner({
         warehouse: warehouses.find((_, i) => warehouseIds[i] === layout.id)!,
         onWarehouseChange,
         onSelect: onSelectWarehouse,
+        onDuplicate: onDuplicateWarehouse,
         selectedTool,
         activeRoute,
         animationProgressRef,
@@ -163,6 +166,7 @@ function WarehouseFlowInner({
             warehouse: wh,
             onWarehouseChange,
             onSelect: onSelectWarehouse,
+            onDuplicate: onDuplicateWarehouse,
             selectedTool,
             activeRoute,
             animationProgressRef,

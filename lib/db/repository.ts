@@ -141,6 +141,55 @@ export async function upsertWarehouse(params: {
   return created;
 }
 
+// ── Duplicate ─────────────────────────────────────────────────────────────
+
+export async function duplicateWarehouse(
+  sourceWarehouseId: string,
+  targetProjectId: string,
+) {
+  const db = await getDb();
+
+  // Read the source warehouse
+  const source = await db.query.warehouses.findFirst({
+    where: eq(warehouses.id, sourceWarehouseId),
+  });
+  if (!source) throw new Error(`Source warehouse ${sourceWarehouseId} not found`);
+
+  // Generate a new id and a distinctive name
+  const newId = crypto.randomUUID();
+  const suffix = source.name.replace(/ \(copy( \d+)?\)$/, '');
+  const existingCopies = (await db.query.warehouses.findMany({
+    where: eq(warehouses.projectId, targetProjectId),
+  })).filter((w) => w.name.startsWith(suffix + ' (copy'));
+  const copyNumber = existingCopies.length + 1;
+  const newName =
+    existingCopies.length === 0
+      ? `${suffix} (copy)`
+      : `${suffix} (copy ${copyNumber})`;
+
+  // Insert a brand-new warehouse row with copied fields
+  const [inserted] = await db
+    .insert(warehouses)
+    .values({
+      id: newId,
+      projectId: targetProjectId,
+      name: newName,
+      layoutConfig: source.layoutConfig,
+      layoutJson: source.layoutJson,
+      inventoryJson: source.inventoryJson,
+      ordersJson: source.ordersJson,
+    })
+    .returning();
+
+  // Touch the parent project
+  await db
+    .update(projects)
+    .set({ updatedAt: new Date() })
+    .where(eq(projects.id, targetProjectId));
+
+  return inserted;
+}
+
 export async function updateWarehouseField(
   warehouseId: string,
   field: 'layoutConfig' | 'layoutJson' | 'inventoryJson' | 'ordersJson' | 'name',
