@@ -112,6 +112,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [showLayoutConfig, setShowLayoutConfig] = useState(false);
   const [showNewWarehouseConfig, setShowNewWarehouseConfig] = useState(false);
   const [hasExistingWarehouse, setHasExistingWarehouse] = useState(false);
+  const hasExistingWarehouseRef = useRef(hasExistingWarehouse);
+  hasExistingWarehouseRef.current = hasExistingWarehouse;
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
   const [orderCount, setOrderCount] = useState(1000);
@@ -903,21 +905,30 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
                 storageFootprint: config.storageFootprint,
                 orderCount,
                 avgOrderSize,
-                warehouseId: activeWarehouseIdRef.current ?? undefined,
+                // Only pass warehouseId when editing a persisted warehouse.
+                // For first-time setup (skeleton entry not yet in DB) let
+                // generateAndSaveWarehouse create a new record; the returned
+                // result.warehouseId replaces the temporary id below.
+                warehouseId: hasExistingWarehouse ? (activeWarehouseIdRef.current ?? undefined) : undefined,
               });
 
-              // Update the workspace entry with new warehouse data AND its own configuration
+              // Update the workspace entry with new warehouse data, its own
+              // configuration, and sync the id with the DB record.
+              // Always use result.warehouseId afterwards so subsequent saves
+              // (orders, layout, position) target the real persisted id.
               setWorkspaceWarehouses((prev) =>
                 prev.map((ww) =>
                   ww.id === activeWarehouseIdRef.current
                     ? {
                         ...ww,
+                        id: result.warehouseId, // sync with DB (no-op when editing)
                         warehouse: result.warehouse,
                         configuration: result.configuration,
                       }
                     : ww,
                 ),
               );
+              setActiveWarehouseId(result.warehouseId);
               setOrders(result.orders);
               setHasExistingWarehouse(true);
 
