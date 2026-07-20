@@ -19,12 +19,11 @@ export interface WarehouseSnapshot {
   projectId: string;
   /**
    * All warehouses for this project as a workspace model.
-   * Each entry carries its id, name, position, and layout data.
+   * Each entry carries its id, name, position, layout data, and its own
+   * generation configuration (layout + inventory gen + placement).
    */
   workspaceWarehouses: WorkspaceWarehouse[];
   orders: Order[];
-  /** Normalised generation configuration (always set — merged with defaults). */
-  configuration: WarehouseConfiguration;
 }
 
 // ── Project CRUD ────────────────────────────────────────────────────────────
@@ -107,17 +106,34 @@ function dbWarehousesToWorkspace(
     positionX: number | null;
     positionY: number | null;
     layoutJson: unknown;
+    layoutConfig: unknown;
+    inventoryJson: unknown;
   }>,
 ): WorkspaceWarehouse[] {
-  return dbWarehouses.map((w) => ({
-    id: w.id,
-    name: w.name,
-    position:
-      w.positionX !== null && w.positionY !== null
-        ? { x: w.positionX, y: w.positionY }
-        : null,
-    warehouse: (w.layoutJson as unknown as Warehouse) ?? null,
-  })).filter((w): w is WorkspaceWarehouse => w.warehouse !== null);
+  return dbWarehouses.map((w) => {
+    const configuration = mergeConfiguration(w.layoutConfig as Record<string, unknown> | null);
+
+    // Legacy migration: warehouses saved before the nested layoutConfig format
+    // have no `inventory` subsection, so mergeConfiguration defaults skuCount to
+    // 2500. Override it with the actual count from inventoryJson when available.
+    if (w.inventoryJson && Array.isArray(w.inventoryJson)) {
+      const actualSkuCount = w.inventoryJson.length;
+      if (configuration.inventory.skuCount !== actualSkuCount) {
+        configuration.inventory.skuCount = actualSkuCount;
+      }
+    }
+
+    return {
+      id: w.id,
+      name: w.name,
+      position:
+        w.positionX !== null && w.positionY !== null
+          ? { x: w.positionX, y: w.positionY }
+          : null,
+      warehouse: (w.layoutJson as unknown as Warehouse) ?? null,
+      configuration,
+    };
+  }).filter((w) => w.warehouse !== null) as WorkspaceWarehouse[];
 }
 
 export async function loadProject(projectId: string): Promise<WarehouseSnapshot> {
@@ -131,28 +147,15 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
       projectId: project.id,
       workspaceWarehouses: [],
       orders: [],
-      configuration: mergeConfiguration(null),
     };
   }
 
   const firstWarehouse = dbWarehouses[0];
-  const configuration = mergeConfiguration(firstWarehouse.layoutConfig as Record<string, unknown> | null);
-
-  // Legacy migration: warehouses saved before the nested layoutConfig format
-  // have no `inventory` subsection, so mergeConfiguration defaults skuCount to
-  // 2500. Override it with the actual count from inventoryJson when available.
-  if (firstWarehouse.inventoryJson && Array.isArray(firstWarehouse.inventoryJson)) {
-    const actualSkuCount = firstWarehouse.inventoryJson.length;
-    if (configuration.inventory.skuCount !== actualSkuCount) {
-      configuration.inventory.skuCount = actualSkuCount;
-    }
-  }
 
   return {
     projectId: project.id,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
-    configuration,
   };
 }
 
@@ -167,26 +170,15 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
       projectId: project.id,
       workspaceWarehouses: [],
       orders: [],
-      configuration: mergeConfiguration(null),
     };
   }
 
   const firstWarehouse = dbWarehouses[0];
-  const configuration = mergeConfiguration(firstWarehouse.layoutConfig as Record<string, unknown> | null);
-
-  // Same legacy migration as loadProject
-  if (firstWarehouse.inventoryJson && Array.isArray(firstWarehouse.inventoryJson)) {
-    const actualSkuCount = firstWarehouse.inventoryJson.length;
-    if (configuration.inventory.skuCount !== actualSkuCount) {
-      configuration.inventory.skuCount = actualSkuCount;
-    }
-  }
 
   return {
     projectId: project.id,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
-    configuration,
   };
 }
 
@@ -201,6 +193,11 @@ export interface GenerateAndSaveParams {
   storageFootprint: number;
   orderCount: number;
   avgOrderSize: number;
+  /**
+   * When set (edit mode), updates the existing warehouse record instead of
+   * creating a new one. Prevents DB record duplication on every edit.
+   */
+  warehouseId?: string;
 }
 
 export interface GenerateAndSaveResult {
@@ -211,6 +208,8 @@ export interface GenerateAndSaveResult {
   placedBinCount: number;
   binCount: number;
   quantityViolations: Array<{ sku: string; expected: number; actual: number }>;
+  /** The full configuration used for generation (returned so callers can store it per-warehouse). */
+  configuration: WarehouseConfiguration;
 }
 
 export async function generateAndSaveWarehouse(
@@ -249,11 +248,12 @@ export async function generateAndSaveWarehouse(
   const quantityViolations = validateSkuQuantityInvariant(warehouseWithInventory, params.items);
 
   // 5. Persist everything — configuration, layout, inventory, and orders.
-  // Always pass a fresh warehouseId to force INSERT, never update an existing row.
-  const newWarehouseId = crypto.randomUUID();
+  // When a warehouseId is provided (edit mode), update that existing record.
+  // Otherwise, generate a fresh id to create a new warehouse.
+  const warehouseId = params.warehouseId ?? crypto.randomUUID();
   const saved = await upsertWarehouse({
     projectId,
-    warehouseId: newWarehouseId,
+    warehouseId,
     layoutConfig: params.configuration as unknown as Record<string, unknown>,
     layoutJson: warehouseWithInventory as unknown as Record<string, unknown>,
     inventoryJson: params.items as unknown as Record<string, unknown>,
@@ -268,6 +268,7 @@ export async function generateAndSaveWarehouse(
     placedBinCount: placementResult.placedBinCount,
     binCount: placementResult.binCount,
     quantityViolations,
+    configuration: params.configuration,
   };
 }
 
@@ -278,6 +279,7 @@ export interface DuplicateWarehouseResult {
   warehouse: Warehouse;
   orders: Order[];
   name: string;
+  configuration: WarehouseConfiguration;
 }
 
 export async function duplicateWarehouseAction(
@@ -288,12 +290,22 @@ export async function duplicateWarehouseAction(
 
   const warehouse = (duplicated.layoutJson as unknown as Warehouse) ?? null;
   const orders = (duplicated.ordersJson as unknown as Order[]) ?? [];
+  const configuration = mergeConfiguration(duplicated.layoutConfig as Record<string, unknown> | null);
+
+  // Legacy migration: same as dbWarehousesToWorkspace
+  if (duplicated.inventoryJson && Array.isArray(duplicated.inventoryJson)) {
+    const actualSkuCount = duplicated.inventoryJson.length;
+    if (configuration.inventory.skuCount !== actualSkuCount) {
+      configuration.inventory.skuCount = actualSkuCount;
+    }
+  }
 
   return {
     warehouseId: duplicated.id,
     warehouse,
     orders,
     name: duplicated.name,
+    configuration,
   };
 }
 

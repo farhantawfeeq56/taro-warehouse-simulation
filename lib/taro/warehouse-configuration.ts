@@ -98,7 +98,17 @@ export const DEFAULT_WAREHOUSE_CONFIGURATION: WarehouseConfiguration = {
 export function mergeConfiguration(
   saved: Partial<WarehouseConfiguration> | Record<string, unknown> | null | undefined,
 ): WarehouseConfiguration {
-  if (!saved) return { ...DEFAULT_WAREHOUSE_CONFIGURATION };
+  if (!saved) {
+    // Deep clone each subsection so every call returns fully independent objects.
+    // A top-level spread ({ ...DEFAULT_WAREHOUSE_CONFIGURATION }) only shallow-
+    // copies — nested objects would share references with the defaults and with
+    // other null-config callers, causing cross-warehouse mutations.
+    return {
+      layout: { ...DEFAULT_LAYOUT_CONFIGURATION },
+      inventory: { ...DEFAULT_INVENTORY_GENERATION_CONFIGURATION },
+      placement: { ...DEFAULT_PLACEMENT_CONFIGURATION },
+    };
+  }
 
   // Detect old flat format: has `type` at top level but not `layout`
   if ('type' in saved && !('layout' in saved)) {

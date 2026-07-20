@@ -1,5 +1,7 @@
 // Core data types for Taro warehouse simulation
 
+import type { WarehouseConfiguration } from './warehouse-configuration';
+
 // Branded types for grid coordinates to prevent mixing coordinates
 export type GridX = number & { readonly __brand: 'GridX' };
 export type GridY = number & { readonly __brand: 'GridY' };
@@ -171,6 +173,13 @@ export interface WorkspaceWarehouse {
   name: string;
   position: { x: number; y: number } | null;
   warehouse: Warehouse;
+  /**
+   * The complete generation configuration (layout + inventory gen + placement)
+   * that was used to generate this warehouse. Stored per-warehouse so each
+   * warehouse independently tracks its own slider values. When absent (legacy
+   * warehouses), the Layout Config overlay falls back to defaults.
+   */
+  configuration?: WarehouseConfiguration;
 }
 
 export interface WarehouseProfile {
