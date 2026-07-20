@@ -68,6 +68,14 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     return workspaceWarehouses.find((w) => w.id === activeWarehouseId)?.warehouse ?? null;
   }, [activeWarehouseId, workspaceWarehouses]);
 
+  // Derived: the active warehouse's own generation configuration.
+  // Each warehouse stores its own configuration, so switching warehouses
+  // correctly restores each one's slider values in the edit overlay.
+  const activeWarehouseConfig = useMemo((): WarehouseConfiguration | null => {
+    if (!activeWarehouseId) return null;
+    return workspaceWarehouses.find((w) => w.id === activeWarehouseId)?.configuration ?? null;
+  }, [activeWarehouseId, workspaceWarehouses]);
+
   // Stable refs so callbacks don't need to depend on changing arrays.
   const workspaceWarehousesRef = useRef(workspaceWarehouses);
   workspaceWarehousesRef.current = workspaceWarehouses;
@@ -104,7 +112,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [showLayoutConfig, setShowLayoutConfig] = useState(false);
   const [showNewWarehouseConfig, setShowNewWarehouseConfig] = useState(false);
   const [hasExistingWarehouse, setHasExistingWarehouse] = useState(false);
-  const [savedConfiguration, setSavedConfiguration] = useState<WarehouseConfiguration | null>(null);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
   const [orderCount, setOrderCount] = useState(1000);
@@ -135,6 +142,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         name: result.name,
         position: null, // new duplicates start at auto-layout
         warehouse: result.warehouse,
+        configuration: result.configuration,
       };
       setWorkspaceWarehouses((prev) => [...prev, newEntry]);
 
@@ -144,11 +152,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       // If the source was the active warehouse, adopt the duplicate's orders
       if (sourceWarehouseId === activeWarehouseIdRef.current) {
         setOrders(result.orders);
-        setSavedConfiguration(
-          typeof result.warehouse === 'object' && result.warehouse !== null
-            ? (result.warehouse as any).configuration ?? savedConfiguration
-            : savedConfiguration,
-        );
+
       }
 
       setSimulationResults(null);
@@ -166,7 +170,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       console.error('Failed to duplicate warehouse:', err);
       alert('Failed to duplicate warehouse. Please try again.');
     }
-  }, [activeProjectId, savedConfiguration, resetAnimationState]);
+  }, [activeProjectId, resetAnimationState]);
 
   // ── Workspace: Rename ────────────────────────────────────────────────────
 
@@ -583,7 +587,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         if (cancelled) return;
         setActiveProjectId(snapshot.projectId);
         setWorkspaceWarehouses(snapshot.workspaceWarehouses);
-        setSavedConfiguration(snapshot.configuration);
         if (snapshot.workspaceWarehouses.length > 0) {
           setActiveWarehouseId(snapshot.workspaceWarehouses[0].id);
           setOrders(snapshot.orders);
@@ -860,7 +863,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             }
           }}
           canClose={hasExistingWarehouse}
-          initialConfig={hasExistingWarehouse ? savedConfiguration ?? undefined : undefined}
+          initialConfig={hasExistingWarehouse ? activeWarehouseConfig ?? undefined : undefined}
           onApply={async (config) => {
             setShowLayoutConfig(false);
 
@@ -900,11 +903,22 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
                 storageFootprint: config.storageFootprint,
                 orderCount,
                 avgOrderSize,
+                warehouseId: activeWarehouseIdRef.current ?? undefined,
               });
 
-              updateActiveWarehouse(result.warehouse);
+              // Update the workspace entry with new warehouse data AND its own configuration
+              setWorkspaceWarehouses((prev) =>
+                prev.map((ww) =>
+                  ww.id === activeWarehouseIdRef.current
+                    ? {
+                        ...ww,
+                        warehouse: result.warehouse,
+                        configuration: result.configuration,
+                      }
+                    : ww,
+                ),
+              );
               setOrders(result.orders);
-              setSavedConfiguration(configuration);
               setHasExistingWarehouse(true);
 
               if (result.quantityViolations.length > 0) {
@@ -997,13 +1011,13 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
                   name: newName,
                   position: null,
                   warehouse: result.warehouse,
+                  configuration: result.configuration,
                 },
               ]);
               setActiveWarehouseId(result.warehouseId);
 
               // Use new warehouse's orders
               setOrders(result.orders);
-              setSavedConfiguration(configuration);
               setHasExistingWarehouse(true);
 
               if (result.quantityViolations.length > 0) {
