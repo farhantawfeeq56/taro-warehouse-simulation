@@ -59,6 +59,12 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
   // Delete confirmation state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
+  // Hover affordance state — must be before isHighlighted
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Highlighted when hovered OR active — drives border ring + bolder name
+  const isHighlighted = isHovered || data.isActive;
+
   const commitRename = useCallback(() => {
     const trimmed = editValue.trim();
     if (trimmed && trimmed !== data.warehouseName) {
@@ -89,7 +95,13 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
           ? 'relative w-full h-full'
           : 'nodrag nopan relative w-full h-full'
       }
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Highlight ring overlay — layout-neutral, pointer-events-none so it doesn't block interaction */}
+      {isHighlighted && (
+        <div className="absolute inset-0 rounded-[5px] pointer-events-none ring-2 ring-primary/60 ring-inset z-10 transition-shadow duration-150" />
+      )}
       {/* Title bar — always clickable for selection */}
       <div
         role="button"
@@ -126,7 +138,7 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
           />
         ) : (
           <span
-            className="truncate flex-1 min-w-0"
+            className={`truncate flex-1 min-w-0 ${isHighlighted ? 'font-semibold' : 'font-medium'}`}
             onDoubleClick={(e) => {
               e.stopPropagation();
               handleDoubleClick();
