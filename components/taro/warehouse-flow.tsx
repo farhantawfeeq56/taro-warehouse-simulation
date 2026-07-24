@@ -27,6 +27,10 @@ const GRID_COLS = 2;
 const GRID_GAP_X = 48;
 const GRID_GAP_Y = 48;
 
+/** Height of the warehouse node title bar in pixels.
+ *  Must match the rendered height of the title bar (py-1.5 + text-xs + border-b). */
+const TITLE_BAR_HEIGHT = 32;
+
 interface WarehouseFlowProps {
   workspaceWarehouses: WorkspaceWarehouse[];
   activeWarehouseId: string | null;
@@ -93,7 +97,7 @@ function WarehouseFlowInner({
     for (const ww of workspaceWarehouses) {
       const w = ww.warehouse;
       const width = w ? w.width * CELL_SIZE : 300;
-      const height = w ? w.height * CELL_SIZE : 200;
+      const height = w ? w.height * CELL_SIZE + TITLE_BAR_HEIGHT : 200 + TITLE_BAR_HEIGHT;
 
       if (ww.position) {
         withPosition.push({ id: ww.id, width, height, position: ww.position });
