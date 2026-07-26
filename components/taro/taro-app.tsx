@@ -770,8 +770,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onClear={handleClearWarehouse}
               onOpenLayoutConfig={() => setShowLayoutConfig(true)}
               onNewWarehouse={handleNewWarehouse}
-              zVisualizationMode={zVisualizationMode}
-              onZVisualizationChange={setZVisualizationMode}
               workerCount={workerCount}
               onWorkerCountChange={setWorkerCount}
             />
