@@ -127,6 +127,11 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const [fbS, setFbS] = useState(initialConfig?.layout.fbS ?? 4);
   const [fbAp, setFbAp] = useState(initialConfig?.layout.fbAp ?? 0.8);
 
+  // A SKU identity before any enrichment is assigned. The only required
+  // field at this stage is `id`; demandScore and totalQuantity are produced
+  // together by the first enrichment step.
+  type BaseItem = Pick<Item, 'id'>;
+
   // Inventory Generation
   //
   // `generateItems` only handles SKU identity generation; demand assignment
@@ -136,22 +141,32 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   // `demandDistribution` is the Demand Distribution slider value
   // (0 = Uniform, 100 = Pareto). It controls how customer demand is spread
   // across the generated SKUs. See `lib/taro/demand.ts` for the algorithm.
-  const generateItems = useCallback((count: number): Item[] => {
+  const generateItems = useCallback((count: number): BaseItem[] => {
     return Array.from({ length: count }, (_, i) => ({
       id: `SKU_${String(i + 1).padStart(3, '0')}`,
-      totalQuantity: 50,
     }));
   }, []);
 
-  /** Enrich plain items with `demandScore` values from the demand engine. */
+  /**
+   * Enrich plain items with `demandScore` values from the demand engine and
+   * derive `totalQuantity` directly from that score. Keeping both in the same
+   * step avoids the need for a placeholder quantity on BaseItem.
+   */
   const assignDemandDistribution = useCallback(
-    (items: Item[], distribution: number): Item[] => {
-      if (items.length === 0) return items;
+    (items: BaseItem[], distribution: number): Item[] => {
+      if (items.length === 0) return [];
       const scores = generateDemandScores({
         count: items.length,
         distribution,
       });
-      return items.map((item, i) => ({ ...item, demandScore: scores[i] }));
+      const minQty = 10;
+      const maxQty = 250;
+      return items.map((item, i) => {
+        const demandScore = scores[i];
+        const totalQuantity =
+          minQty + Math.round((demandScore / 10) * (maxQty - minQty));
+        return { ...item, demandScore, totalQuantity };
+      });
     },
     []
   );
@@ -195,26 +210,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     []
   );
 
-  /**
-   * Enrich items with a meaningful `totalQuantity` derived from each SKU's
-   * demandScore. High-demand SKUs carry more stock, low-demand carry less.
-   * This makes the inventory depth believable and matches the Pareto/uniform
-   * distribution the user chose.
-   */
-  const assignTotalQuantity = useCallback(
-    (items: Item[]): Item[] => {
-      if (items.length === 0) return items;
-      const minQty = 10;
-      const maxQty = 250;
-      return items.map((item) => {
-        const score = item.demandScore ?? 0;
-        const totalQuantity =
-          minQty + Math.round((score / 10) * (maxQty - minQty));
-        return { ...item, totalQuantity };
-      });
-    },
-    []
-  );
+
 
   const [skuCount, setSkuCount] = useState(initialConfig?.inventory.skuCount ?? 2500);
   const [demandDistribution, setDemandDistribution] = useState(initialConfig?.inventory.demandDistribution ?? 0);
@@ -234,13 +230,11 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     const initPA = initialConfig?.inventory.productAffinity ?? 0;
     const initSF = initialConfig?.inventory.storageFootprint ?? 0;
     // Use the initial config values so the preview matches right away.
-    return assignTotalQuantity(
-      assignStorageFootprint(
-        assignProductCategory(
-          assignProductAffinity(assignDemandDistribution(generateItems(initCount), initDD), initPA)
-        ),
-        initSF
-      )
+    return assignStorageFootprint(
+      assignProductCategory(
+        assignProductAffinity(assignDemandDistribution(generateItems(initCount), initDD), initPA)
+      ),
+      initSF
     );
   });
 
@@ -257,16 +251,14 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     // independently of affinity. Re-run the whole pipeline whenever any slider
     // changes so the preview summary always matches the final item list.
     setInventory(
-      assignTotalQuantity(
-        assignStorageFootprint(
-          assignProductCategory(
-            assignProductAffinity(
-              assignDemandDistribution(generateItems(skuCount), demandDistribution),
-              productAffinity
-            )
-          ),
-          storageFootprint
-        )
+      assignStorageFootprint(
+        assignProductCategory(
+          assignProductAffinity(
+            assignDemandDistribution(generateItems(skuCount), demandDistribution),
+            productAffinity
+          )
+        ),
+        storageFootprint
       )
     );
   }, [skuCount, demandDistribution, productAffinity, storageFootprint, generateItems, assignDemandDistribution, assignProductAffinity, assignStorageFootprint]);
