@@ -365,8 +365,7 @@ export function WarehouseCanvas({
         // Draw shelf location markers and labels
         if (cell.type === 'shelf' && cell.locations.length > 0) {
           if (zVisualizationMode === 'all') {
-            // Show count badge and mini dots for all levels
-            const totalCount = cell.locations.length;
+            // Show mini dots for each level present — color indicates z-level
             const levelCounts = new Map<number, number>();
             cell.locations.forEach(loc => {
               levelCounts.set(loc.z, (levelCounts.get(loc.z) || 0) + 1);
@@ -386,15 +385,6 @@ export function WarehouseCanvas({
               ctx.arc(startX + index * dotSpacing, startY, dotSize, 0, Math.PI * 2);
               ctx.fill();
             });
-
-            // Draw count badge if more items
-            if (totalCount > 0) {
-              ctx.fillStyle = '#ffffff';
-              ctx.font = 'bold 8px sans-serif';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(totalCount.toString(), px + CELL_SIZE / 2, py + CELL_SIZE - 6);
-            }
           } else {
             // Specific level mode - show SKU labels
             const selectedLevel = parseInt(zVisualizationMode.replace('level', ''), 10);
