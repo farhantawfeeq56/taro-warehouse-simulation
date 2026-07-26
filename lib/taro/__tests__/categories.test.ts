@@ -65,8 +65,8 @@ describe('generateCategoryIds', () => {
 describe('assignProductCategory', () => {
   it('attaches a category to every item without touching other fields', () => {
     const items: Item[] = [
-      { id: 'SKU_001', demandScore: 3, affinityGroup: 2 },
-      { id: 'SKU_002', demandScore: 1, affinityGroup: 5 },
+      { id: 'SKU_001', demandScore: 3, affinityGroup: 2, totalQuantity: 50 },
+      { id: 'SKU_002', demandScore: 1, affinityGroup: 5, totalQuantity: 50 },
     ];
     const out = assignProductCategory(items);
     expect(out).toHaveLength(2);
@@ -80,7 +80,7 @@ describe('assignProductCategory', () => {
   });
 
   it('is independent of affinityGroup (changing affinity does not change category)', () => {
-    const base: Item[] = Array.from({ length: 30 }, (_, i) => ({ id: `SKU_${i}` }));
+    const base: Item[] = Array.from({ length: 30 }, (_, i) => ({ id: `SKU_${i}`, totalQuantity: 50 }));
     const withAffinity = base.map((it) => ({ ...it, affinityGroup: (it.id.length % 7) + 1 }));
     const noAffinity = base.map((it) => ({ ...it }));
     const a = assignProductCategory(withAffinity).map((it) => it.category);

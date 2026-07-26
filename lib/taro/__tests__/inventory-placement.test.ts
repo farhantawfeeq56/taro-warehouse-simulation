@@ -12,6 +12,7 @@ function makeItems(scores: number[]): Item[] {
   return scores.map((score, i) => ({
     id: `SKU_${String(i + 1).padStart(3, '0')}`,
     demandScore: score,
+    totalQuantity: 50,
   }));
 }
 

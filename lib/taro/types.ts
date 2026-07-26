@@ -69,9 +69,9 @@ export interface Item {
   storageFootprint?: number;
   /**
    * Total inventory quantity across all bins for this SKU.
-   * When absent, placement defaults to 50 (backward compatible).
+   * Generated alongside demandScore so stock reflects demand.
    */
-  totalQuantity?: number;
+  totalQuantity: number;
 }
 
 /**
