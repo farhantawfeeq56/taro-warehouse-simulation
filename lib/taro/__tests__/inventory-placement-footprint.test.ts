@@ -13,6 +13,7 @@ function makeItems(footprints: number[], scores?: number[]): Item[] {
     id: `SKU_${String(i + 1).padStart(3, '0')}`,
     demandScore: scores?.[i] ?? 1,
     storageFootprint: f,
+    totalQuantity: 50,
   }));
 }
 
@@ -79,8 +80,8 @@ describe('inventory-placement (storage footprint)', () => {
   it('a SKU footprint defaults to 1 when absent (legacy behaviour preserved)', () => {
     const warehouse = bigWarehouse();
     const items: Item[] = [
-      { id: 'SKU_001', demandScore: 1 },
-      { id: 'SKU_002', demandScore: 2 },
+      { id: 'SKU_001', demandScore: 1, totalQuantity: 50 },
+      { id: 'SKU_002', demandScore: 2, totalQuantity: 50 },
     ];
     const out = applyInventoryPlacement(warehouse, { items, slottingBias: 0 });
     expect(binsForSku(out, 'SKU_001')).toHaveLength(1);

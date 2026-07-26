@@ -12,6 +12,7 @@ function makeItems(spec: { demand?: number; category?: number }[]): Item[] {
     id: `SKU_${String(i + 1).padStart(3, '0')}`,
     demandScore: s.demand ?? 0,
     category: s.category,
+    totalQuantity: 50,
   }));
 }
 
@@ -207,6 +208,7 @@ describe('inventory-placement (category clustering)', () => {
     const items: Item[] = Array.from({ length: 10 }, (_, i) => ({
       id: `SKU_${String(i + 1).padStart(3, '0')}`,
       demandScore: 10 - i,
+      totalQuantity: 50,
       // category intentionally undefined
     }));
     const scattered = applyInventoryPlacement(warehouse, {

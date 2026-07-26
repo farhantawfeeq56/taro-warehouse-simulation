@@ -139,6 +139,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const generateItems = useCallback((count: number): Item[] => {
     return Array.from({ length: count }, (_, i) => ({
       id: `SKU_${String(i + 1).padStart(3, '0')}`,
+      totalQuantity: 50,
     }));
   }, []);
 
@@ -194,6 +195,27 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     []
   );
 
+  /**
+   * Enrich items with a meaningful `totalQuantity` derived from each SKU's
+   * demandScore. High-demand SKUs carry more stock, low-demand carry less.
+   * This makes the inventory depth believable and matches the Pareto/uniform
+   * distribution the user chose.
+   */
+  const assignTotalQuantity = useCallback(
+    (items: Item[]): Item[] => {
+      if (items.length === 0) return items;
+      const minQty = 10;
+      const maxQty = 250;
+      return items.map((item) => {
+        const score = item.demandScore ?? 0;
+        const totalQuantity =
+          minQty + Math.round((score / 10) * (maxQty - minQty));
+        return { ...item, totalQuantity };
+      });
+    },
+    []
+  );
+
   const [skuCount, setSkuCount] = useState(initialConfig?.inventory.skuCount ?? 2500);
   const [demandDistribution, setDemandDistribution] = useState(initialConfig?.inventory.demandDistribution ?? 0);
   const [productAffinity, setProductAffinity] = useState(initialConfig?.inventory.productAffinity ?? 0);
@@ -212,11 +234,13 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     const initPA = initialConfig?.inventory.productAffinity ?? 0;
     const initSF = initialConfig?.inventory.storageFootprint ?? 0;
     // Use the initial config values so the preview matches right away.
-    return assignStorageFootprint(
-      assignProductCategory(
-        assignProductAffinity(assignDemandDistribution(generateItems(initCount), initDD), initPA)
-      ),
-      initSF
+    return assignTotalQuantity(
+      assignStorageFootprint(
+        assignProductCategory(
+          assignProductAffinity(assignDemandDistribution(generateItems(initCount), initDD), initPA)
+        ),
+        initSF
+      )
     );
   });
 
@@ -233,14 +257,16 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     // independently of affinity. Re-run the whole pipeline whenever any slider
     // changes so the preview summary always matches the final item list.
     setInventory(
-      assignStorageFootprint(
-        assignProductCategory(
-          assignProductAffinity(
-            assignDemandDistribution(generateItems(skuCount), demandDistribution),
-            productAffinity
-          )
-        ),
-        storageFootprint
+      assignTotalQuantity(
+        assignStorageFootprint(
+          assignProductCategory(
+            assignProductAffinity(
+              assignDemandDistribution(generateItems(skuCount), demandDistribution),
+              productAffinity
+            )
+          ),
+          storageFootprint
+        )
       )
     );
   }, [skuCount, demandDistribution, productAffinity, storageFootprint, generateItems, assignDemandDistribution, assignProductAffinity, assignStorageFootprint]);
