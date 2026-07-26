@@ -1,8 +1,8 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { ToolType, ZVisualizationMode } from '@/lib/taro/types';
-import { Grid3X3, User, Eraser, Move, Layers, Trash2, Settings, Users, Plus } from 'lucide-react';
+import type { ToolType } from '@/lib/taro/types';
+import { Grid3X3, User, Eraser, Move, Trash2, Settings, Users, Plus } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
@@ -10,8 +10,6 @@ interface ToolbarProps {
   onClear: () => void;
   onOpenLayoutConfig: () => void;
   onNewWarehouse: () => void;
-  zVisualizationMode: ZVisualizationMode;
-  onZVisualizationChange: (mode: ZVisualizationMode) => void;
   workerCount: number;
   onWorkerCountChange: (count: number) => void;
 }
@@ -30,22 +28,12 @@ const toolColors: Record<ToolType, { bg: string; textClass: string }> = {
   erase: { bg: '#EEEFF2', textClass: 'text-gray-900' },
 };
 
-const zModeOptions: { value: ZVisualizationMode; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'level1', label: 'Level 1' },
-  { value: 'level2', label: 'Level 2' },
-  { value: 'level3', label: 'Level 3' },
-  { value: 'level4', label: 'Level 4' },
-];
-
 export function Toolbar({ 
   selectedTool, 
   onToolChange, 
   onClear,
   onOpenLayoutConfig,
   onNewWarehouse,
-  zVisualizationMode,
-  onZVisualizationChange,
   workerCount,
   onWorkerCountChange,
 }: ToolbarProps) {
@@ -101,25 +89,6 @@ export function Toolbar({
         <Plus className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">New Warehouse</span>
       </button>
-
-      <div className="w-px h-6 bg-border" />
-
-      <div className="flex items-center gap-1.5">
-        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground hidden sm:inline">Z-Level:</span>
-        <select
-          value={zVisualizationMode}
-          onChange={(e) => onZVisualizationChange(e.target.value as ZVisualizationMode)}
-          className="h-8 text-xs rounded border border-border bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary"
-          title="Z-Level Selector"
-        >
-          {zModeOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
 
       <div className="w-px h-6 bg-border" />
 
