@@ -18,7 +18,6 @@ import type { StrategyResult } from '@/lib/taro/types';
 import { OrdersPanel } from './orders-panel';
 import { SystemStatePanel } from './results-panel';
 import { ConfigTab } from './config-tab';
-import { Layout, ClipboardList, Activity } from 'lucide-react';
 
 interface WorkbenchPanelProps {
   // App header
@@ -64,7 +63,7 @@ export function WorkbenchPanel(props: WorkbenchPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('orders');
 
   return (
-    <div className="w-80 border-r border-border bg-background flex flex-col">
+    <div className="w-72 border-r border-border bg-background flex flex-col">
       {/* App header: Logo + Project name */}
       <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border shrink-0">
         {props.onBackToDashboard ? (
@@ -104,24 +103,30 @@ export function WorkbenchPanel(props: WorkbenchPanelProps) {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — Paper design */}
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
         className="flex flex-col flex-1 min-h-0"
       >
-        <div className="border-b border-border px-2 pt-2 shrink-0">
-          <TabsList className="grid w-full grid-cols-3 h-9">
-            <TabsTrigger value="config" className="text-xs gap-1">
-              <Layout className="h-3.5 w-3.5" />
+        <div className="pt-2 px-2 shrink-0">
+          <TabsList className="grid grid-cols-3 h-9 items-center w-full justify-center p-[3px] rounded-[10px] bg-transparent">
+            <TabsTrigger
+              value="config"
+              className="items-center h-[calc(100%-1px)] flex justify-center py-1 px-2 gap-1 rounded-lg text-[12px] leading-[133.333%] font-medium text-[#0A0A0A] data-[state=active]:bg-white data-[state=active]:border-b data-[state=active]:border-b-[#009966] data-[state=active]:rounded-none data-[state=inactive]:border data-[state=inactive]:border-transparent"
+            >
               Config
             </TabsTrigger>
-            <TabsTrigger value="orders" className="text-xs gap-1">
-              <ClipboardList className="h-3.5 w-3.5" />
+            <TabsTrigger
+              value="orders"
+              className="items-center h-[calc(100%-1px)] flex justify-center py-1 px-2 gap-1 rounded-lg text-[12px] leading-[133.333%] font-medium text-[#0A0A0A] data-[state=active]:bg-white data-[state=active]:border-b data-[state=active]:border-b-[#009966] data-[state=active]:rounded-none data-[state=inactive]:border data-[state=inactive]:border-transparent"
+            >
               Orders
             </TabsTrigger>
-            <TabsTrigger value="simulation" className="text-xs gap-1">
-              <Activity className="h-3.5 w-3.5" />
+            <TabsTrigger
+              value="simulation"
+              className="items-center h-[calc(100%-1px)] flex justify-center py-1 px-2 gap-1 rounded-lg text-[12px] leading-[133.333%] font-medium text-[#0A0A0A] data-[state=active]:bg-white data-[state=active]:border-b data-[state=active]:border-b-[#009966] data-[state=active]:rounded-none data-[state=inactive]:border data-[state=inactive]:border-transparent"
+            >
               Simulation
             </TabsTrigger>
           </TabsList>
