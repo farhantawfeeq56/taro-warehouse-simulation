@@ -185,11 +185,24 @@ export function WarehouseCanvas({
           const selectedLevel = parseInt(zVisualizationMode.replace('level', ''), 10);
           filteredLocations = cellData.locations.filter(loc => loc.z === selectedLevel);
         }
-        
+
+        // Position the tooltip relative to its container using true screen
+        // coordinates. The container lives inside ReactFlow's viewport, which
+        // applies a CSS `transform`. Per the CSS spec, any transformed ancestor
+        // re-anchors `position: fixed` to itself, so using clientX/clientY with
+        // `fixed` would place the tooltip in the wrong spot whenever the
+        // viewport is panned or zoomed. Computing the offset from the
+        // container's getBoundingClientRect() (also in true screen coords)
+        // keeps the tooltip glued to the cursor regardless of pan/zoom.
+        const container = containerRef.current;
+        const cRect = container?.getBoundingClientRect();
+        const tipX = cRect ? e.clientX - cRect.left : e.clientX;
+        const tipY = cRect ? e.clientY - cRect.top - 10 : e.clientY - 10;
+
         setTooltip({
           visible: true,
-          x: e.clientX,
-          y: e.clientY - 10,
+          x: tipX,
+          y: tipY,
           cellX: cell.x,
           cellY: cell.y,
           locations: filteredLocations,
@@ -600,7 +613,7 @@ export function WarehouseCanvas({
       {/* Hover Tooltip */}
       {tooltip.visible && (
         <div
-          className="fixed z-50 pointer-events-none bg-foreground text-background rounded-md px-3 py-2 text-xs shadow-lg"
+          className="absolute z-50 pointer-events-none bg-foreground text-background rounded-md px-3 py-2 text-xs shadow-lg"
           style={{
             left: tooltip.x,
             top: tooltip.y,
