@@ -26,7 +26,7 @@ import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseFlow } from './warehouse-flow';
 import { WorkbenchPanel } from './workbench-panel';
-import { WarehouseMetadataPanel } from './warehouse-metadata-panel';
+import { WorkspacePanel, type Comparison } from './workspace-panel';
 import { Toolbar } from './toolbar';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
@@ -59,6 +59,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [workspaceWarehouses, setWorkspaceWarehouses] = useState<WorkspaceWarehouse[]>([]);
   const [activeWarehouseId, setActiveWarehouseId] = useState<string | null>(null);
+  // Multi-select set for shift-click operations on canvas and workspace list.
+  const [selectedWarehouseIds, setSelectedWarehouseIds] = useState<Set<string>>(new Set());
+  // Placeholder list of comparisons; the comparison UI is not built yet.
+  const [comparisons, setComparisons] = useState<Comparison[]>([]);
 
   // Derived: the currently selected warehouse (drives all panels).
   const warehouse = useMemo(() => {
@@ -72,12 +76,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const activeWarehouseConfig = useMemo((): WarehouseConfiguration | null => {
     if (!activeWarehouseId) return null;
     return workspaceWarehouses.find((w) => w.id === activeWarehouseId)?.configuration ?? null;
-  }, [activeWarehouseId, workspaceWarehouses]);
-
-  // Derived: the active workspace warehouse entry (provides name + position + config).
-  const activeWorkspaceWarehouse = useMemo((): WorkspaceWarehouse | null => {
-    if (!activeWarehouseId) return null;
-    return workspaceWarehouses.find((w) => w.id === activeWarehouseId) ?? null;
   }, [activeWarehouseId, workspaceWarehouses]);
 
   // Stable refs so callbacks don't need to depend on changing arrays.
@@ -127,6 +125,39 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const handleNewWarehouse = useCallback(() => {
     setShowNewWarehouseConfig(true);
   }, []);
+
+  const handleNewComparison = useCallback(() => {
+    setComparisons((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), name: `Comparison ${prev.length + 1}` },
+    ]);
+  }, []);
+
+  /**
+   * Unified warehouse selection handler used by both the canvas and the
+   * workspace list. Without modifiers, replaces the selection and sets the
+   * warehouse as active. With shift, toggles the warehouse in the multi-select
+   * set and also sets it as active so the right-hand panel follows.
+   */
+  const handleSelectWarehouse = useCallback(
+    (warehouseId: string, opts?: { additive?: boolean }) => {
+      if (opts?.additive) {
+        setSelectedWarehouseIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(warehouseId)) {
+            next.delete(warehouseId);
+          } else {
+            next.add(warehouseId);
+          }
+          return next;
+        });
+      } else {
+        setSelectedWarehouseIds(new Set([warehouseId]));
+      }
+      setActiveWarehouseId(warehouseId);
+    },
+    []
+  );
 
   const handleOpenLayoutConfig = useCallback((warehouseId: string) => {
     // First select the warehouse, then open the layout config
@@ -706,11 +737,67 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Workbench (Config | Orders | Simulation tabs) */}
-        <WorkbenchPanel
+        {/* Left Panel - Workspace (warehouses + comparisons) */}
+        <WorkspacePanel
           onBackToDashboard={onBackToDashboard ?? undefined}
           projectName={projectName}
           importSummary={importSummary}
+          warehouses={workspaceWarehouses}
+          activeWarehouseId={activeWarehouseId}
+          selectedWarehouseIds={selectedWarehouseIds}
+          onSelectWarehouse={handleSelectWarehouse}
+          comparisons={comparisons}
+          onAddWarehouse={handleNewWarehouse}
+          onNewComparison={handleNewComparison}
+        />
+
+        {/* Center - Canvas (only when warehouse is loaded) */}
+        {!warehouse ? (
+          <div className="flex-1 flex items-center justify-center bg-muted/20">
+            <div className="text-center space-y-4">
+              <p className="text-muted-foreground">{isLoading ? 'Loading...' : 'No warehouse configured.'}</p>
+              {!isLoading && (
+                <Button onClick={() => setShowLayoutConfig(true)}>
+                  Configure Warehouse
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+        <div className="flex-1 flex flex-col overflow-hidden gap-0 relative">
+          {/* Canvas — React Flow workspace */}
+          <WarehouseFlow
+            workspaceWarehouses={workspaceWarehouses}
+            activeWarehouseId={activeWarehouseId}
+            onSelectWarehouse={handleSelectWarehouse}
+            onWarehouseChange={handleWarehouseChangePersisted}
+            onDuplicateWarehouse={handleDuplicateWarehouse}
+            onRenameWarehouse={handleRenameWarehouse}
+            onDeleteWarehouse={handleDeleteWarehouse}
+            onOpenLayoutConfig={handleOpenLayoutConfig}
+            onNewWarehouse={handleNewWarehouse}
+            workerCount={workerCount}
+            onWorkerCountChange={setWorkerCount}
+            onPersistPosition={handlePersistPosition}
+            selectedTool={selectedTool}
+            activeRoute={activeRoute}
+            animationProgressRef={animationProgressRef}
+            zVisualizationMode={zVisualizationMode}
+            animationReplayId={animationReplayId}
+          />
+
+          {/* Floating Toolbar — bottom centre */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
+            <Toolbar
+              selectedTool={selectedTool}
+              onToolChange={setSelectedTool}
+            />
+          </div>
+        </div>
+        )}
+
+        {/* Right Panel - Workbench (Config | Orders | Simulation tabs) */}
+        <WorkbenchPanel
           configuration={activeWarehouseConfig}
           onEditConfig={() => setShowLayoutConfig(true)}
           orders={orders}
@@ -738,64 +825,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           onAddShelves={() => setSelectedTool('shelf')}
           onSetWorkerStart={() => setSelectedTool('worker')}
           onZVisualizationChange={setZVisualizationMode}
-        />
-
-        {/* Center - Canvas (only when warehouse is loaded) */}
-        {!warehouse ? (
-          <div className="flex-1 flex items-center justify-center bg-muted/20">
-            <div className="text-center space-y-4">
-              <p className="text-muted-foreground">{isLoading ? 'Loading...' : 'No warehouse configured.'}</p>
-              {!isLoading && (
-                <Button onClick={() => setShowLayoutConfig(true)}>
-                  Configure Warehouse
-                </Button>
-              )}
-            </div>
-          </div>
-        ) : (
-        <div className="flex-1 flex flex-col overflow-hidden gap-0 relative">
-          {/* Canvas — React Flow workspace */}
-          <WarehouseFlow
-            workspaceWarehouses={workspaceWarehouses}
-            activeWarehouseId={activeWarehouseId}
-            onSelectWarehouse={setActiveWarehouseId}
-            onWarehouseChange={handleWarehouseChangePersisted}
-            onDuplicateWarehouse={handleDuplicateWarehouse}
-            onRenameWarehouse={handleRenameWarehouse}
-            onDeleteWarehouse={handleDeleteWarehouse}
-            onOpenLayoutConfig={handleOpenLayoutConfig}
-            onNewWarehouse={handleNewWarehouse}
-            workerCount={workerCount}
-            onWorkerCountChange={setWorkerCount}
-            onPersistPosition={handlePersistPosition}
-            selectedTool={selectedTool}
-            activeRoute={activeRoute}
-            animationProgressRef={animationProgressRef}
-            zVisualizationMode={zVisualizationMode}
-            animationReplayId={animationReplayId}
-          />
-
-          {/* Floating Toolbar — bottom centre */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
-            <Toolbar
-              selectedTool={selectedTool}
-              onToolChange={setSelectedTool}
-            />
-          </div>
-        </div>
-        )}
-
-        {/* Right Panel - Warehouse Metadata */}
-        <WarehouseMetadataPanel
-          activeWorkspaceWarehouse={activeWorkspaceWarehouse}
-          warehouse={warehouse}
-          orders={orders}
-          configuration={activeWarehouseConfig}
-          readiness={readiness}
-          simulationResults={simulationResults}
-          activeStrategy={activeStrategy}
-          workerCount={workerCount}
-          isSimulating={isSimulating}
         />
       </div>
 

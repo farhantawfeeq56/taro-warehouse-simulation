@@ -20,11 +20,6 @@ import { SystemStatePanel } from './results-panel';
 import { ConfigTab } from './config-tab';
 
 interface WorkbenchPanelProps {
-  // App header
-  onBackToDashboard?: () => void;
-  projectName: string;
-  importSummary: string;
-
   // Config tab
   configuration: WarehouseConfiguration | null;
   onEditConfig: () => void;
@@ -63,46 +58,7 @@ export function WorkbenchPanel(props: WorkbenchPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('orders');
 
   return (
-    <div className="w-72 border-r border-border bg-background flex flex-col">
-      {/* App header: Logo + Project name */}
-      <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border shrink-0">
-        {props.onBackToDashboard ? (
-          <button
-            onClick={props.onBackToDashboard}
-            title="Back to dashboard"
-            className="shrink-0 hover:opacity-80 transition-opacity"
-          >
-            <img
-              src="/taro%20transpara%20svg.svg"
-              alt="Taro logo"
-              width={28}
-              height={28}
-              className="rounded"
-            />
-          </button>
-        ) : (
-          <div className="shrink-0 opacity-70">
-            <img
-              src="/taro%20transpara%20svg.svg"
-              alt="Taro logo"
-              width={28}
-              height={28}
-              className="rounded"
-            />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold text-foreground truncate">
-            {props.projectName}
-          </div>
-          {props.importSummary && (
-            <div className="text-[10px] text-emerald-600 truncate leading-tight">
-              {props.importSummary}
-            </div>
-          )}
-        </div>
-      </div>
-
+    <div className="w-72 border-l border-border bg-background flex flex-col">
       {/* Tabs — Paper design */}
       <Tabs
         value={activeTab}

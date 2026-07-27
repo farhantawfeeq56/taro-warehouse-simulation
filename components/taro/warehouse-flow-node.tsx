@@ -23,7 +23,7 @@ export type WarehouseNodeData = Record<string, unknown> & {
   warehouseName: string;
   warehouse: Warehouse;
   onWarehouseChange: (warehouseId: string, warehouse: Warehouse) => void;
-  onSelect?: (warehouseId: string) => void;
+  onSelect?: (warehouseId: string, opts?: { additive?: boolean }) => void;
   onDuplicate?: (warehouseId: string) => void;
   onRename?: (warehouseId: string, name: string) => void;
   onDelete?: (warehouseId: string) => void;
@@ -124,11 +124,11 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
       <div
         role="button"
         tabIndex={0}
-        onClick={() => data.onSelect?.(data.warehouseId)}
+        onClick={(e) => data.onSelect?.(data.warehouseId, { additive: e.shiftKey })}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            data.onSelect?.(data.warehouseId);
+            data.onSelect?.(data.warehouseId, { additive: e.shiftKey });
           }
         }}
         className={`

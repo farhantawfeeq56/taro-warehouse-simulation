@@ -35,7 +35,7 @@ const TITLE_BAR_HEIGHT = 32;
 interface WarehouseFlowProps {
   workspaceWarehouses: WorkspaceWarehouse[];
   activeWarehouseId: string | null;
-  onSelectWarehouse: (warehouseId: string) => void;
+  onSelectWarehouse: (warehouseId: string, opts?: { additive?: boolean }) => void;
   onWarehouseChange: (warehouseId: string, warehouse: Warehouse) => void;
   onDuplicateWarehouse: (warehouseId: string) => void;
   onRenameWarehouse: (warehouseId: string, name: string) => void;
@@ -256,8 +256,8 @@ function WarehouseFlowInner({
   ]);
 
   const handleNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      onSelectWarehouse(node.id);
+    (event: React.MouseEvent, node: Node) => {
+      onSelectWarehouse(node.id, { additive: event.shiftKey });
     },
     [onSelectWarehouse]
   );
