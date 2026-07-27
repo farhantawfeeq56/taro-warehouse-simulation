@@ -294,7 +294,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const handleRunComparison = useCallback(
     (comparisonId: string) => {
       const comp = comparisons.find((c) => c.id === comparisonId);
-      if (!comp || comp.warehouseIds.length === 0 || !warehouse || orders.length === 0) return;
+      // Guard: we need a valid comparison with at least one member and orders.
+      // NOTE: `warehouse` (the singularity active warehouse) is intentionally
+      // NOT checked because Run targets the *comparison* — each member
+      // warehouse's layout is read from workspaceWarehousesRef.current in the
+      // loop below.
+      if (!comp || comp.warehouseIds.length === 0 || orders.length === 0) return;
 
       setIsComparing(true);
       requestAnimationFrame(() => {
@@ -369,7 +374,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         }
       });
     },
-    [comparisons, warehouse, orders, workerCount, warehouseProfile, laborProfile],
+    [comparisons, orders, workerCount, warehouseProfile, laborProfile],
   );
 
   // ── Link-mode helpers ────────────────────────────────────────────────
