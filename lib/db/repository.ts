@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from './index';
-import { projects, warehouses } from './schema';
+import { projects, warehouses, comparisons } from './schema';
 
 // ── Project ────────────────────────────────────────────────────────────────
 
@@ -143,6 +143,86 @@ export async function upsertWarehouse(params: {
     .where(eq(projects.id, params.projectId));
 
   return created;
+}
+
+// ── Comparison ─────────────────────────────────────────────────────────────
+
+export async function getComparisonsForProject(projectId: string) {
+  return (await getDb()).query.comparisons.findMany({
+    where: eq(comparisons.projectId, projectId),
+    orderBy: (comparisons, { desc }) => [desc(comparisons.updatedAt)],
+  });
+}
+
+export async function getComparison(comparisonId: string) {
+  return (await getDb()).query.comparisons.findFirst({
+    where: eq(comparisons.id, comparisonId),
+  });
+}
+
+export async function createComparison(projectId: string, name?: string) {
+  const db = await getDb();
+  const [comparison] = await db
+    .insert(comparisons)
+    .values({
+      id: crypto.randomUUID(),
+      projectId,
+      name: name ?? 'Untitled Comparison',
+    })
+    .returning();
+
+  await db
+    .update(projects)
+    .set({ updatedAt: new Date() })
+    .where(eq(projects.id, projectId));
+
+  return comparison;
+}
+
+export async function updateComparison(
+  comparisonId: string,
+  updates: {
+    name?: string;
+    positionX?: number | null;
+    positionY?: number | null;
+    warehouseIds?: string[];
+  },
+) {
+  const db = await getDb();
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (updates.name !== undefined) set.name = updates.name;
+  if (updates.positionX !== undefined) set.positionX = updates.positionX;
+  if (updates.positionY !== undefined) set.positionY = updates.positionY;
+  if (updates.warehouseIds !== undefined) set.warehouseIds = updates.warehouseIds as any;
+
+  const [updated] = await db
+    .update(comparisons)
+    .set(set)
+    .where(eq(comparisons.id, comparisonId))
+    .returning();
+
+  // Touch the parent project
+  const comparison_ = await db.query.comparisons.findFirst({
+    where: eq(comparisons.id, comparisonId),
+  });
+  if (comparison_?.projectId) {
+    await db
+      .update(projects)
+      .set({ updatedAt: new Date() })
+      .where(eq(projects.id, comparison_.projectId));
+  }
+
+  return updated;
+}
+
+export async function deleteComparison(comparisonId: string, projectId: string) {
+  const db = await getDb();
+  await db.delete(comparisons).where(eq(comparisons.id, comparisonId));
+
+  await db
+    .update(projects)
+    .set({ updatedAt: new Date() })
+    .where(eq(projects.id, projectId));
 }
 
 // ── Duplicate ─────────────────────────────────────────────────────────────

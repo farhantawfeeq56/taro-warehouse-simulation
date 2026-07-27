@@ -1,7 +1,7 @@
 'use server';
 
-import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, duplicateWarehouse as repoDuplicateWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName, renameWarehouse as repoRenameWarehouse, deleteWarehouse as repoDeleteWarehouse, updateWarehousePosition as repoUpdateWarehousePosition } from '@/lib/db/repository';
-import type { Warehouse, Order, Item, WorkspaceWarehouse } from '@/lib/taro/types';
+import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, duplicateWarehouse as repoDuplicateWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName, renameWarehouse as repoRenameWarehouse, deleteWarehouse as repoDeleteWarehouse, updateWarehousePosition as repoUpdateWarehousePosition, getComparisonsForProject, createComparison, updateComparison, deleteComparison } from '@/lib/db/repository';
+import type { Warehouse, Order, Item, WorkspaceWarehouse, Comparison } from '@/lib/taro/types';
 import {
   generateParallelLayout,
   generateCrossAisleLayout,
@@ -24,6 +24,8 @@ export interface WarehouseSnapshot {
    * generation configuration (layout + inventory gen + placement).
    */
   workspaceWarehouses: WorkspaceWarehouse[];
+  /** All comparisons for this project. */
+  comparisons: Comparison[];
   orders: Order[];
 }
 
@@ -142,12 +144,14 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
   if (!project) throw new Error(`Project ${projectId} not found`);
 
   const dbWarehouses = await getWarehousesForProject(project.id);
+  const dbComparisons = await getComparisonsForProject(project.id);
 
   if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
       projectName: project.name,
       workspaceWarehouses: [],
+      comparisons: dbComparisons as unknown as Comparison[],
       orders: [],
     };
   }
@@ -158,6 +162,7 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
     projectId: project.id,
     projectName: project.name,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
+    comparisons: dbComparisons as unknown as Comparison[],
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
   };
 }
@@ -167,12 +172,14 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
 export async function loadWorkspace(): Promise<WarehouseSnapshot> {
   const project = await getOrCreateProject();
   const dbWarehouses = await getWarehousesForProject(project.id);
+  const dbComparisons = await getComparisonsForProject(project.id);
 
   if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
       projectName: project.name,
       workspaceWarehouses: [],
+      comparisons: dbComparisons as unknown as Comparison[],
       orders: [],
     };
   }
@@ -183,6 +190,7 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
     projectId: project.id,
     projectName: project.name,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
+    comparisons: dbComparisons as unknown as Comparison[],
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
   };
 }
@@ -374,4 +382,42 @@ export async function saveWarehouseLayout(
     warehouseId,
     layoutJson: warehouse as unknown as Record<string, unknown>,
   });
+}
+
+// ── Comparison CRUD ────────────────────────────────────────────────────────
+
+export async function createComparisonAction(
+  projectId: string,
+  name?: string,
+): Promise<Comparison> {
+  const created = await createComparison(projectId, name);
+  return {
+    id: created.id,
+    name: created.name,
+    projectId: created.projectId,
+    warehouseIds: (created.warehouseIds as unknown as string[]) ?? [],
+    positionX: created.positionX,
+    positionY: created.positionY,
+    createdAt: created.createdAt,
+    updatedAt: created.updatedAt,
+  };
+}
+
+export async function updateComparisonAction(
+  comparisonId: string,
+  updates: {
+    name?: string;
+    positionX?: number | null;
+    positionY?: number | null;
+    warehouseIds?: string[];
+  },
+): Promise<void> {
+  await updateComparison(comparisonId, updates);
+}
+
+export async function deleteComparisonAction(
+  comparisonId: string,
+  projectId: string,
+): Promise<void> {
+  await deleteComparison(comparisonId, projectId);
 }

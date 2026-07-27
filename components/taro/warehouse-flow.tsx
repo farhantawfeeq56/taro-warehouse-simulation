@@ -10,27 +10,39 @@ import {
   useReactFlow,
   type Node,
   type NodeTypes,
+  type Edge,
   type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, WorkspaceWarehouse } from '@/lib/taro/types';
+import type {
+  Warehouse,
+  ToolType,
+  StrategyResult,
+  ZVisualizationMode,
+  WorkspaceWarehouse,
+  Comparison,
+} from '@/lib/taro/types';
 import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import WarehouseFlowNode from './warehouse-flow-node';
 import type { WarehouseNodeData } from './warehouse-flow-node';
+import ComparisonFlowNode from './comparison-flow-node';
+import type { ComparisonNodeData } from './comparison-flow-node';
 import { Plus } from 'lucide-react';
 
 /**
- * Auto-layout fallback: simple 2-column grid that avoids overlap.
- * Used only for warehouses that have no saved position (first-time display).
+ * Auto-layout: simple 2-column grid that avoids overlap.
+ * Used only for nodes that have no saved position.
  */
 const GRID_COLS = 2;
 const GRID_GAP_X = 48;
 const GRID_GAP_Y = 48;
 
-/** Height of the warehouse node title bar in pixels.
- *  Must match the rendered height of the title bar (py-1.5 + text-xs + border-b). */
+/** Title bar height for warehouse nodes. */
 const TITLE_BAR_HEIGHT = 32;
+/** Fixed dimensions for comparison nodes (no inner grid). */
+const COMPARISON_WIDTH = 260;
+const COMPARISON_HEIGHT = 100 + TITLE_BAR_HEIGHT;
 
 interface WarehouseFlowProps {
   workspaceWarehouses: WorkspaceWarehouse[];
@@ -45,6 +57,17 @@ interface WarehouseFlowProps {
   workerCount: number;
   onWorkerCountChange: (count: number) => void;
   onPersistPosition: (warehouseId: string, x: number, y: number) => void;
+
+  // Comparison support
+  comparisons: Comparison[];
+  activeComparisonId: string | null;
+  warehouseNames: Record<string, string>; // warehouseId → name
+  comparisonScores: Record<string, { winnerId: string | null; winnerName: string; winnerEfficiency: number } | null>;
+  onSelectComparison: (comparisonId: string, opts?: { additive?: boolean }) => void;
+  onRenameComparison: (comparisonId: string, name: string) => void;
+  onDeleteComparison: (comparisonId: string) => void;
+  onPersistComparisonPosition: (comparisonId: string, x: number, y: number) => void;
+
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
   animationProgressRef: MutableRefObject<number>;
@@ -54,14 +77,13 @@ interface WarehouseFlowProps {
 
 const nodeTypes: NodeTypes = {
   warehouse: WarehouseFlowNode,
+  comparison: ComparisonFlowNode,
 };
 
 const defaultEdgeOptions = {};
 
-/**
- * Outer wrapper that provides the React Flow context.
- * All hooks that depend on the provider are called in WarehouseFlowInner.
- */
+type FlowNode = Node<WarehouseNodeData | ComparisonNodeData>;
+
 export function WarehouseFlow(props: WarehouseFlowProps) {
   return (
     <ReactFlowProvider>
@@ -83,31 +105,43 @@ function WarehouseFlowInner({
   workerCount,
   onWorkerCountChange,
   onPersistPosition,
+  comparisons,
+  activeComparisonId,
+  warehouseNames,
+  comparisonScores,
+  onSelectComparison,
+  onRenameComparison,
+  onDeleteComparison,
+  onPersistComparisonPosition,
   selectedTool,
   activeRoute,
   animationProgressRef,
   zVisualizationMode,
   animationReplayId,
 }: WarehouseFlowProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<WarehouseNodeData>>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const reactFlowInstance = useReactFlow();
-  const prevCountRef = useRef(workspaceWarehouses.length);
-  const positionTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const prevCountRef = useRef(
+    workspaceWarehouses.length + comparisons.length,
+  );
+  const positionTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
 
-  /**
-   * Compute auto-layout for warehouses that don't have a saved position.
-   * For warehouses with saved positions, use the saved position directly.
-   */
+  type LayoutCell = { id: string; width: number; height: number };
+  type LayoutCellWithPos = LayoutCell & {
+    position: { x: number; y: number };
+  };
+
+  /** Compute positions for both warehouse nodes and comparison nodes together. */
   const nodeLayout = useMemo(() => {
-    // Separate warehouses into saved-position and unsaved
-    const withPosition: Array<{ id: string; width: number; height: number; position: { x: number; y: number } }> = [];
-    const withoutPosition: Array<{ id: string; width: number; height: number }> = [];
+    const withPosition: LayoutCellWithPos[] = [];
+    const withoutPosition: LayoutCell[] = [];
 
     for (const ww of workspaceWarehouses) {
       const w = ww.warehouse;
       const width = w ? w.width * CELL_SIZE : 300;
       const height = w ? w.height * CELL_SIZE + TITLE_BAR_HEIGHT : 200 + TITLE_BAR_HEIGHT;
-
       if (ww.position) {
         withPosition.push({ id: ww.id, width, height, position: ww.position });
       } else {
@@ -115,104 +149,130 @@ function WarehouseFlowInner({
       }
     }
 
-    // Auto-layout for unsaved: 2-column grid
-    const rows: Array<Array<{ id: string; width: number; height: number }>> = [];
+    for (const c of comparisons) {
+      if (c.positionX != null && c.positionY != null) {
+        withPosition.push({
+          id: c.id,
+          width: COMPARISON_WIDTH,
+          height: COMPARISON_HEIGHT,
+          position: { x: c.positionX, y: c.positionY },
+        });
+      } else {
+        withoutPosition.push({
+          id: c.id,
+          width: COMPARISON_WIDTH,
+          height: COMPARISON_HEIGHT,
+        });
+      }
+    }
+
+    // Auto-layout for unsaved cells
+    const rows: LayoutCell[][] = [];
     for (const cell of withoutPosition) {
-      if (rows.length === 0 || rows[rows.length - 1].length >= GRID_COLS) {
+      if (
+        rows.length === 0 ||
+        rows[rows.length - 1].length >= GRID_COLS
+      ) {
         rows.push([cell]);
       } else {
         rows[rows.length - 1].push(cell);
       }
     }
 
-    const autoPositions: Array<{ id: string; position: { x: number; y: number }; width: number; height: number }> = [];
-    const autoYStart = withPosition.length > 0
-      ? Math.max(...withPosition.map((p) => p.position.y + p.height)) + GRID_GAP_Y
-      : 0;
+    const autoYStart =
+      withPosition.length > 0
+        ? Math.max(...withPosition.map((p) => p.position.y + p.height)) +
+          GRID_GAP_Y
+        : 0;
     let y = autoYStart;
+    const autoPositions: LayoutCellWithPos[] = [];
     for (const row of rows) {
       const maxHeight = Math.max(...row.map((c) => c.height));
       let x = 0;
       for (const cell of row) {
-        const colX = x;
-        const colY = y;
-        let adjustedY = colY;
+        let adjustedY = y;
         for (const pNode of withPosition) {
-          const overlapX = colX < pNode.position.x + pNode.width && colX + cell.width > pNode.position.x;
-          const overlapY = adjustedY < pNode.position.y + pNode.height && adjustedY + maxHeight > pNode.position.y;
+          const overlapX =
+            x < pNode.position.x + pNode.width &&
+            x + cell.width > pNode.position.x;
+          const overlapY =
+            adjustedY < pNode.position.y + pNode.height &&
+            adjustedY + maxHeight > pNode.position.y;
           if (overlapX && overlapY) {
             adjustedY = pNode.position.y + pNode.height + GRID_GAP_Y;
           }
         }
-        autoPositions.push({ id: cell.id, position: { x: colX, y: adjustedY }, width: cell.width, height: cell.height });
+        autoPositions.push({
+          ...cell,
+          position: { x, y: adjustedY },
+        });
         x += cell.width + GRID_GAP_X;
       }
-      y = Math.max(y + maxHeight + GRID_GAP_Y, ...autoPositions.filter(p => p.id === row[row.length - 1]?.id).map(p => p.position.y + p.height + GRID_GAP_Y));
+      y =
+        Math.max(
+          y + maxHeight + GRID_GAP_Y,
+          ...autoPositions
+            .filter((p) => p.id === row[row.length - 1]?.id)
+            .map((p) => p.position.y + p.height + GRID_GAP_Y),
+        );
     }
 
-    const result: Array<{ id: string; position: { x: number; y: number }; width: number; height: number }> = [
-      ...withPosition.map((p) => ({ id: p.id, position: p.position, width: p.width, height: p.height })),
-      ...autoPositions,
-    ];
+    return [...withPosition, ...autoPositions] as LayoutCellWithPos[];
+  }, [workspaceWarehouses, comparisons]);
 
-    return result;
-  }, [workspaceWarehouses]);
-
-  // Re-initialise nodes when the workspaceWarehouses change structurally (add/remove).
-  const workspaceKey = useMemo(() => workspaceWarehouses.map((w) => w.id).join(','), [workspaceWarehouses]);
-  useEffect(() => {
-    const newNodes: Node<WarehouseNodeData>[] = nodeLayout.map((layout) => {
-      const ww = workspaceWarehouses.find((w) => w.id === layout.id)!;
-      return {
-        id: layout.id,
-        type: 'warehouse',
-        position: layout.position,
-        width: layout.width,
-        height: layout.height,
-        draggable: true,
-        selectable: false,
-        focusable: false,
-        data: {
-          warehouseId: layout.id,
-          warehouseName: ww.name,
-          warehouse: ww.warehouse,
-          onWarehouseChange,
-          onSelect: onSelectWarehouse,
-          onDuplicate: onDuplicateWarehouse,
-          onRename: onRenameWarehouse,
-          onDelete: onDeleteWarehouse,
-          onOpenLayoutConfig,
-          workerCount,
-          onWorkerCountChange,
-          canDelete: workspaceWarehouses.length > 1,
-          selectedTool,
-          activeRoute,
-          animationProgressRef,
-          zVisualizationMode,
-          animationReplayId,
-          isActive: layout.id === activeWarehouseId,
-        },
-      };
-    });
-
-    setNodes(newNodes);
-
-    if (prevCountRef.current !== workspaceWarehouses.length) {
-      prevCountRef.current = workspaceWarehouses.length;
-      requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.2 }));
+  // Derived edges: one edge from each member warehouse to its comparison.
+  const edges = useMemo((): Edge[] => {
+    const es: Edge[] = [];
+    for (const c of comparisons) {
+      for (const wid of c.warehouseIds) {
+        es.push({
+          id: `${wid}→${c.id}`,
+          source: wid,
+          target: c.id,
+          sourceHandle: null,
+          targetHandle: null,
+          type: 'smoothstep',
+          animated: false,
+          style: {
+            stroke: '#94a3b8',
+            strokeWidth: 1.5,
+            strokeDasharray: '5 3',
+            opacity: 0.6,
+          },
+        });
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceKey]);
+    return es;
+  }, [comparisons]);
 
-  // Sync node data (warehouse content, active state, rendering props) without
-  // recreating the node instances — this preserves React Flow's internal state.
+  // Re-create nodes when workspace warehouses or comparisons change structurally.
+  const workspaceKey = useMemo(
+    () =>
+      [
+        workspaceWarehouses.map((w) => w.id).join(','),
+        comparisons.map((c) => c.id).join(','),
+      ].join('|'),
+    [workspaceWarehouses, comparisons],
+  );
+
   useEffect(() => {
-    setNodes((nds) =>
-      nds.map((n) => {
-        const ww = workspaceWarehouses.find((w) => w.id === n.id);
-        if (!ww) return n;
-        return {
-          ...n,
+    const newNodes: FlowNode[] = [];
+
+    // Warehouse nodes
+    for (const layout of nodeLayout) {
+      const ww = workspaceWarehouses.find((w) => w.id === layout.id);
+      if (ww) {
+        // Scoreboard data derive from comparisonResultsById — but we don't have it here.
+        // Scoreboard is handled at the comparison node level later.
+        newNodes.push({
+          id: layout.id,
+          type: 'warehouse',
+          position: layout.position,
+          width: layout.width,
+          height: layout.height,
+          draggable: true,
+          selectable: false,
+          focusable: false,
           data: {
             warehouseId: ww.id,
             warehouseName: ww.name,
@@ -231,14 +291,109 @@ function WarehouseFlowInner({
             animationProgressRef,
             zVisualizationMode,
             animationReplayId,
-            isActive: n.id === activeWarehouseId,
+            isActive: layout.id === activeWarehouseId,
           },
-        };
-      })
+        });
+      } else {
+        const comp = comparisons.find((c) => c.id === layout.id);
+        if (comp) {
+          newNodes.push({
+            id: layout.id,
+            type: 'comparison',
+            position: layout.position,
+            width: layout.width,
+            height: layout.height,
+            draggable: true,
+            selectable: false,
+            focusable: false,
+            data: {
+              comparisonId: comp.id,
+              comparisonName: comp.name,
+              warehouseIds: comp.warehouseIds,
+              warehouseNames,
+              score: comparisonScores[comp.id] ?? null, // Scoreboard is populated after a run — v2 enhancement
+              onSelect: onSelectComparison,
+              onRename: onRenameComparison,
+              onDelete: onDeleteComparison,
+              memberCount: comp.warehouseIds.length,
+              isActive: comp.id === activeComparisonId,
+            },
+          });
+        }
+      }
+    }
+
+    setNodes(newNodes);
+
+    if (
+      prevCountRef.current !==
+      workspaceWarehouses.length + comparisons.length
+    ) {
+      prevCountRef.current =
+        workspaceWarehouses.length + comparisons.length;
+      requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.2 }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceKey]);
+
+  // Sync node data without recreation.
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((n) => {
+        const ww = workspaceWarehouses.find((w) => w.id === n.id);
+        if (ww) {
+          return {
+            ...n,
+            data: {
+              warehouseId: ww.id,
+              warehouseName: ww.name,
+              warehouse: ww.warehouse,
+              onWarehouseChange,
+              onSelect: onSelectWarehouse,
+              onDuplicate: onDuplicateWarehouse,
+              onRename: onRenameWarehouse,
+              onDelete: onDeleteWarehouse,
+              onOpenLayoutConfig,
+              workerCount,
+              onWorkerCountChange,
+              canDelete: workspaceWarehouses.length > 1,
+              selectedTool,
+              activeRoute,
+              animationProgressRef,
+              zVisualizationMode,
+              animationReplayId,
+              isActive: n.id === activeWarehouseId,
+            },
+          };
+        }
+
+        const comp = comparisons.find((c) => c.id === n.id);
+        if (comp) {
+          return {
+            ...n,
+            data: {
+              comparisonId: comp.id,
+              comparisonName: comp.name,
+              warehouseIds: comp.warehouseIds,
+              warehouseNames,
+              score: comparisonScores[comp.id] ?? null,
+              onSelect: onSelectComparison,
+              onRename: onRenameComparison,
+              onDelete: onDeleteComparison,
+              memberCount: comp.warehouseIds.length,
+              isActive: comp.id === activeComparisonId,
+            },
+          };
+        }
+
+        return n;
+      }),
     );
   }, [
     workspaceWarehouses,
     activeWarehouseId,
+    comparisons,
+    activeComparisonId,
     onWarehouseChange,
     onSelectWarehouse,
     onRenameWarehouse,
@@ -247,37 +402,55 @@ function WarehouseFlowInner({
     onOpenLayoutConfig,
     workerCount,
     onWorkerCountChange,
+    onSelectComparison,
+    onRenameComparison,
+    onDeleteComparison,
     selectedTool,
     activeRoute,
     animationProgressRef,
     zVisualizationMode,
     animationReplayId,
+    warehouseNames,
     setNodes,
   ]);
 
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
-      onSelectWarehouse(node.id, { additive: event.shiftKey });
+      if (node.type === 'warehouse') {
+        onSelectWarehouse(node.id, { additive: event.shiftKey });
+      } else {
+        onSelectComparison(node.id, { additive: event.shiftKey });
+      }
     },
-    [onSelectWarehouse]
+    [onSelectWarehouse, onSelectComparison],
   );
 
   const handleNodeDragStop: OnNodeDrag = useCallback(
     (_event, node) => {
-      const { id, position } = node as Node<WarehouseNodeData>;
+      const id = node.id;
+      const pos = node.position;
+
       const timers = positionTimersRef.current;
-      if (timers.has(id)) {
-        clearTimeout(timers.get(id)!);
-      }
+      if (timers.has(id)) clearTimeout(timers.get(id)!);
+
       timers.set(
         id,
         setTimeout(() => {
-          onPersistPosition(id, position.x, position.y);
+          if (workspaceWarehouses.find((w) => w.id === id)) {
+            onPersistPosition(id, pos.x, pos.y);
+          } else if (comparisons.find((c) => c.id === id)) {
+            onPersistComparisonPosition(id, pos.x, pos.y);
+          }
           timers.delete(id);
         }, 500),
       );
     },
-    [onPersistPosition]
+    [
+      workspaceWarehouses,
+      comparisons,
+      onPersistPosition,
+      onPersistComparisonPosition,
+    ],
   );
 
   const isHandTool = selectedTool === 'hand';
@@ -286,7 +459,7 @@ function WarehouseFlowInner({
     <div className="relative flex-1 w-full h-full">
       <ReactFlow
         nodes={nodes}
-        edges={[]}
+        edges={edges}
         onNodesChange={onNodesChange}
         onNodeClick={handleNodeClick}
         onNodeDragStop={handleNodeDragStop}
