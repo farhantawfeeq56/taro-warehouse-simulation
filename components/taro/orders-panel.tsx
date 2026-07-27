@@ -19,6 +19,8 @@ interface OrdersPanelProps {
   avgOrderSize: number;
   onOrderCountChange: (value: number) => void;
   onAvgOrderSizeChange: (value: number) => void;
+  /** When true, renders without the outer width/border wrapper so it can be embedded in a tab. */
+  embedded?: boolean;
 }
 
 export function OrdersPanel({
@@ -31,6 +33,7 @@ export function OrdersPanel({
   avgOrderSize,
   onOrderCountChange,
   onAvgOrderSizeChange,
+  embedded = false,
 }: OrdersPanelProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [draftOrderCount, setDraftOrderCount] = useState(500);
@@ -90,8 +93,12 @@ export function OrdersPanel({
     });
   }, [orders, highlightedMissingSkuIds]);
 
+  const wrapperClass = embedded
+    ? 'flex flex-col h-full'
+    : 'w-72 border-r border-border bg-background flex flex-col';
+
   return (
-    <div className="w-72 border-r border-border bg-background flex flex-col">
+    <div className={wrapperClass}>
       <div className="p-3 border-b border-border">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-foreground">Orders</h2>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useRef, useCallback, type RefObject } from 'react';
+import { useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -18,6 +18,7 @@ import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import WarehouseFlowNode from './warehouse-flow-node';
 import type { WarehouseNodeData } from './warehouse-flow-node';
+import { Plus } from 'lucide-react';
 
 /**
  * Auto-layout fallback: simple 2-column grid that avoids overlap.
@@ -34,11 +35,15 @@ const TITLE_BAR_HEIGHT = 32;
 interface WarehouseFlowProps {
   workspaceWarehouses: WorkspaceWarehouse[];
   activeWarehouseId: string | null;
-  onSelectWarehouse: (warehouseId: string) => void;
+  onSelectWarehouse: (warehouseId: string, opts?: { additive?: boolean }) => void;
   onWarehouseChange: (warehouseId: string, warehouse: Warehouse) => void;
   onDuplicateWarehouse: (warehouseId: string) => void;
   onRenameWarehouse: (warehouseId: string, name: string) => void;
   onDeleteWarehouse: (warehouseId: string) => void;
+  onOpenLayoutConfig: (warehouseId: string) => void;
+  onNewWarehouse: () => void;
+  workerCount: number;
+  onWorkerCountChange: (count: number) => void;
   onPersistPosition: (warehouseId: string, x: number, y: number) => void;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
@@ -73,6 +78,10 @@ function WarehouseFlowInner({
   onDuplicateWarehouse,
   onRenameWarehouse,
   onDeleteWarehouse,
+  onOpenLayoutConfig,
+  onNewWarehouse,
+  workerCount,
+  onWorkerCountChange,
   onPersistPosition,
   selectedTool,
   activeRoute,
@@ -125,11 +134,8 @@ function WarehouseFlowInner({
       const maxHeight = Math.max(...row.map((c) => c.height));
       let x = 0;
       for (const cell of row) {
-        // If there are positioned nodes above, offset Y to avoid overlap
-        // Find if any positioned node overlaps this column
         const colX = x;
         const colY = y;
-        // Check overlap with positioned nodes
         let adjustedY = colY;
         for (const pNode of withPosition) {
           const overlapX = colX < pNode.position.x + pNode.width && colX + cell.width > pNode.position.x;
@@ -141,11 +147,9 @@ function WarehouseFlowInner({
         autoPositions.push({ id: cell.id, position: { x: colX, y: adjustedY }, width: cell.width, height: cell.height });
         x += cell.width + GRID_GAP_X;
       }
-      // Update y for next row based on actual max height used
       y = Math.max(y + maxHeight + GRID_GAP_Y, ...autoPositions.filter(p => p.id === row[row.length - 1]?.id).map(p => p.position.y + p.height + GRID_GAP_Y));
     }
 
-    // Merge saved positions and auto positions
     const result: Array<{ id: string; position: { x: number; y: number }; width: number; height: number }> = [
       ...withPosition.map((p) => ({ id: p.id, position: p.position, width: p.width, height: p.height })),
       ...autoPositions,
@@ -177,6 +181,9 @@ function WarehouseFlowInner({
           onDuplicate: onDuplicateWarehouse,
           onRename: onRenameWarehouse,
           onDelete: onDeleteWarehouse,
+          onOpenLayoutConfig,
+          workerCount,
+          onWorkerCountChange,
           canDelete: workspaceWarehouses.length > 1,
           selectedTool,
           activeRoute,
@@ -190,13 +197,10 @@ function WarehouseFlowInner({
 
     setNodes(newNodes);
 
-    // Fit viewport when the number of nodes changes
     if (prevCountRef.current !== workspaceWarehouses.length) {
       prevCountRef.current = workspaceWarehouses.length;
       requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.2 }));
     }
-    // Only recreate nodes on structural changes (IDs added/removed).
-    // Data-only changes are synced by the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceKey]);
 
@@ -218,6 +222,9 @@ function WarehouseFlowInner({
             onDuplicate: onDuplicateWarehouse,
             onRename: onRenameWarehouse,
             onDelete: onDeleteWarehouse,
+            onOpenLayoutConfig,
+            workerCount,
+            onWorkerCountChange,
             canDelete: workspaceWarehouses.length > 1,
             selectedTool,
             activeRoute,
@@ -237,6 +244,9 @@ function WarehouseFlowInner({
     onRenameWarehouse,
     onDeleteWarehouse,
     onDuplicateWarehouse,
+    onOpenLayoutConfig,
+    workerCount,
+    onWorkerCountChange,
     selectedTool,
     activeRoute,
     animationProgressRef,
@@ -246,8 +256,8 @@ function WarehouseFlowInner({
   ]);
 
   const handleNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      onSelectWarehouse(node.id);
+    (event: React.MouseEvent, node: Node) => {
+      onSelectWarehouse(node.id, { additive: event.shiftKey });
     },
     [onSelectWarehouse]
   );
@@ -255,7 +265,6 @@ function WarehouseFlowInner({
   const handleNodeDragStop: OnNodeDrag = useCallback(
     (_event, node) => {
       const { id, position } = node as Node<WarehouseNodeData>;
-      // Debounce position persistence per node
       const timers = positionTimersRef.current;
       if (timers.has(id)) {
         clearTimeout(timers.get(id)!);
@@ -274,40 +283,60 @@ function WarehouseFlowInner({
   const isHandTool = selectedTool === 'hand';
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={[]}
-      onNodesChange={onNodesChange}
-      onNodeClick={handleNodeClick}
-      onNodeDragStop={handleNodeDragStop}
-      nodeTypes={nodeTypes}
-      defaultEdgeOptions={defaultEdgeOptions}
-      panOnDrag={isHandTool}
-      panOnScroll={true}
-      zoomOnScroll={false}
-      zoomActivationKeyCode="Control"
-      zoomOnPinch={true}
-      zoomOnDoubleClick={false}
-      nodesDraggable={true}
-      nodesConnectable={false}
-      elementsSelectable={false}
-      preventScrolling={true}
-      minZoom={0.1}
-      maxZoom={4}
-      fitView={false}
-      colorMode="light"
-      className="bg-muted/30"
-      deleteKeyCode={null}
-      selectionKeyCode={null}
-      multiSelectionKeyCode={null}
-      proOptions={{ hideAttribution: true }}
-    >
-      <Background
-        variant={BackgroundVariant.Dots}
-        gap={20}
-        size={1}
-        color="#d1d5db"
-      />
-    </ReactFlow>
+    <div className="relative flex-1 w-full h-full">
+      <ReactFlow
+        nodes={nodes}
+        edges={[]}
+        onNodesChange={onNodesChange}
+        onNodeClick={handleNodeClick}
+        onNodeDragStop={handleNodeDragStop}
+        nodeTypes={nodeTypes}
+        defaultEdgeOptions={defaultEdgeOptions}
+        panOnDrag={isHandTool}
+        panOnScroll={true}
+        zoomOnScroll={false}
+        zoomActivationKeyCode="Control"
+        zoomOnPinch={true}
+        zoomOnDoubleClick={false}
+        nodesDraggable={true}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        preventScrolling={true}
+        minZoom={0.1}
+        maxZoom={4}
+        fitView={false}
+        colorMode="light"
+        className="bg-muted/30"
+        deleteKeyCode={null}
+        selectionKeyCode={null}
+        multiSelectionKeyCode={null}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1}
+          color="#d1d5db"
+        />
+      </ReactFlow>
+
+      {/* Floating Add Warehouse button — subtle top left */}
+      <button
+        onClick={onNewWarehouse}
+        title="Add a new warehouse"
+        className="
+          nodrag absolute top-3 left-3 z-50
+          flex items-center gap-1 px-2 py-1.5
+          bg-white/60 backdrop-blur-sm text-muted-foreground
+          border border-border rounded-lg
+          hover:bg-white hover:text-foreground hover:border-muted-foreground/30
+          active:bg-muted
+          transition-colors text-[11px] font-medium shadow-sm
+        "
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Add
+      </button>
+    </div>
   );
 }

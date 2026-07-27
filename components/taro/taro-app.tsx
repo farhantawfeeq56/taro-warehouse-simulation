@@ -25,14 +25,12 @@ import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseFlow } from './warehouse-flow';
-import { OrdersPanel } from './orders-panel';
-import { SystemStatePanel } from './results-panel';
+import { WorkbenchPanel } from './workbench-panel';
+import { WorkspacePanel, type Comparison } from './workspace-panel';
 import { Toolbar } from './toolbar';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
-import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
-import { RotateCcw } from 'lucide-react';
 import { getMissingSkuIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
@@ -61,6 +59,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [workspaceWarehouses, setWorkspaceWarehouses] = useState<WorkspaceWarehouse[]>([]);
   const [activeWarehouseId, setActiveWarehouseId] = useState<string | null>(null);
+  // Multi-select set for shift-click operations on canvas and workspace list.
+  const [selectedWarehouseIds, setSelectedWarehouseIds] = useState<Set<string>>(new Set());
+  // Placeholder list of comparisons; the comparison UI is not built yet.
+  const [comparisons, setComparisons] = useState<Comparison[]>([]);
 
   // Derived: the currently selected warehouse (drives all panels).
   const warehouse = useMemo(() => {
@@ -104,6 +106,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const animationRef = useRef<number | null>(null);
   const replaySpeedRef = useRef(replaySpeed);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [projectName, setProjectName] = useState<string>('Untitled');
   const [importSummary, setImportSummary] = useState<string>('');
   const [executionPlanStrategy, setExecutionPlanStrategy] = useState<StrategyType | null>(null);
   const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
@@ -121,6 +124,45 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
   const handleNewWarehouse = useCallback(() => {
     setShowNewWarehouseConfig(true);
+  }, []);
+
+  const handleNewComparison = useCallback(() => {
+    setComparisons((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), name: `Comparison ${prev.length + 1}` },
+    ]);
+  }, []);
+
+  /**
+   * Unified warehouse selection handler used by both the canvas and the
+   * workspace list. Without modifiers, replaces the selection and sets the
+   * warehouse as active. With shift, toggles the warehouse in the multi-select
+   * set and also sets it as active so the right-hand panel follows.
+   */
+  const handleSelectWarehouse = useCallback(
+    (warehouseId: string, opts?: { additive?: boolean }) => {
+      if (opts?.additive) {
+        setSelectedWarehouseIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(warehouseId)) {
+            next.delete(warehouseId);
+          } else {
+            next.add(warehouseId);
+          }
+          return next;
+        });
+      } else {
+        setSelectedWarehouseIds(new Set([warehouseId]));
+      }
+      setActiveWarehouseId(warehouseId);
+    },
+    []
+  );
+
+  const handleOpenLayoutConfig = useCallback((warehouseId: string) => {
+    // First select the warehouse, then open the layout config
+    setActiveWarehouseId(warehouseId);
+    setShowLayoutConfig(true);
   }, []);
 
   const resetAnimationState = useCallback(() => {
@@ -193,6 +235,16 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       const snapshot = await loadProject(projectId);
       setWorkspaceWarehouses(snapshot.workspaceWarehouses);
     }
+  }, []);
+
+  /**
+   * Rename a comparison placeholder. Comparisons are local-only for now
+   * (no DB persistence); the comparison screen isn't built yet.
+   */
+  const handleRenameComparison = useCallback((comparisonId: string, name: string) => {
+    setComparisons((prev) =>
+      prev.map((c) => (c.id === comparisonId ? { ...c, name } : c)),
+    );
   }, []);
 
   // ── Workspace: Delete ────────────────────────────────────────────────────
@@ -588,6 +640,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           : await loadWorkspace();
         if (cancelled) return;
         setActiveProjectId(snapshot.projectId);
+        setProjectName(snapshot.projectName);
         setWorkspaceWarehouses(snapshot.workspaceWarehouses);
         if (snapshot.workspaceWarehouses.length > 0) {
           setActiveWarehouseId(snapshot.workspaceWarehouses[0].id);
@@ -613,6 +666,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         console.error('Failed to load workspace:', err);
         if (!cancelled) {
           setLoadError('Could not connect to database. Running in offline mode.');
+          setProjectName('Offline Project');
           const skeleton = generateSkeletonWarehouse();
           const skeletonId = crypto.randomUUID();
           const skeletonEntry: WorkspaceWarehouse = {
@@ -691,61 +745,22 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         </div>
       )}
 
-      {/* Header */}
-      <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            {onBackToDashboard && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBackToDashboard}
-                className="h-7 text-xs text-muted-foreground hover:text-foreground -ml-1"
-              >
-                ← Dashboard
-              </Button>
-            )}
-            <div className="border-l border-border h-6" />
-            <div>
-              <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator</h1>
-              <p className="text-xs text-muted-foreground leading-tight">
-                {hasExistingWarehouse ? 'Warehouse workspace loaded.' : 'Configure your warehouse layout to get started.'}
-              </p>
-              {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <ReadinessIndicator readiness={readiness} />
-
-          {simulationResults && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleSimulateClick}
-              className="h-8 text-xs"
-            >
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Simulate again
-            </Button>
-          )}
-        </div>
-      </header>
-
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Orders */}
-        <OrdersPanel
-          orders={orders}
-          onOrdersChange={setOrders}
-          warehouse={warehouse ?? undefined}
-          highlightedMissingSkuIds={highlightedMissingSkuIds}
-          onClearHighlights={() => setHighlightedMissingSkuIds(null)}
-          orderCount={orderCount}
-          avgOrderSize={avgOrderSize}
-          onOrderCountChange={setOrderCount}
-          onAvgOrderSizeChange={setAvgOrderSize}
+        {/* Left Panel - Workspace (warehouses + comparisons) */}
+        <WorkspacePanel
+          onBackToDashboard={onBackToDashboard ?? undefined}
+          projectName={projectName}
+          importSummary={importSummary}
+          warehouses={workspaceWarehouses}
+          activeWarehouseId={activeWarehouseId}
+          selectedWarehouseIds={selectedWarehouseIds}
+          onSelectWarehouse={handleSelectWarehouse}
+          onRenameWarehouse={handleRenameWarehouse}
+          comparisons={comparisons}
+          onRenameComparison={handleRenameComparison}
+          onAddWarehouse={handleNewWarehouse}
+          onNewComparison={handleNewComparison}
         />
 
         {/* Center - Canvas (only when warehouse is loaded) */}
@@ -761,29 +776,20 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             </div>
           </div>
         ) : (
-        <div className="flex-1 flex flex-col overflow-hidden gap-0">
-          {/* Toolbar */}
-          <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
-            <Toolbar
-              selectedTool={selectedTool}
-              onToolChange={setSelectedTool}
-              onClear={handleClearWarehouse}
-              onOpenLayoutConfig={() => setShowLayoutConfig(true)}
-              onNewWarehouse={handleNewWarehouse}
-              workerCount={workerCount}
-              onWorkerCountChange={setWorkerCount}
-            />
-          </div>
-
+        <div className="flex-1 flex flex-col overflow-hidden gap-0 relative">
           {/* Canvas — React Flow workspace */}
           <WarehouseFlow
             workspaceWarehouses={workspaceWarehouses}
             activeWarehouseId={activeWarehouseId}
-            onSelectWarehouse={setActiveWarehouseId}
+            onSelectWarehouse={handleSelectWarehouse}
             onWarehouseChange={handleWarehouseChangePersisted}
             onDuplicateWarehouse={handleDuplicateWarehouse}
             onRenameWarehouse={handleRenameWarehouse}
             onDeleteWarehouse={handleDeleteWarehouse}
+            onOpenLayoutConfig={handleOpenLayoutConfig}
+            onNewWarehouse={handleNewWarehouse}
+            workerCount={workerCount}
+            onWorkerCountChange={setWorkerCount}
             onPersistPosition={handlePersistPosition}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
@@ -792,40 +798,31 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             animationReplayId={animationReplayId}
           />
 
-          {/* Status Bar */}
-          <div className="h-8 border-t border-border flex items-center px-4 text-xs text-muted-foreground bg-muted/20 shrink-0">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Grid:</span>
-                <span className="font-mono">{warehouse.width} × {warehouse.height}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Locations:</span>
-                <span className="font-mono">
-                  {warehouse.grid.flat().filter(cell => cell.type === 'shelf').reduce((sum, cell) => sum + cell.locations.length, 0)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Worker:</span>
-                <span className="font-mono">{warehouse.workerStart ? `(${warehouse.workerStart.x}, ${warehouse.workerStart.y})` : '–'}</span>
-              </div>
-              {activeStrategy && (
-                <>
-                  <div className="border-l border-border ml-2 pl-6" />
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Route:</span>
-                    <span className="font-mono capitalize">{activeStrategy}</span>
-                  </div>
-                </>
-              )}
-            </div>
+          {/* Floating Toolbar — bottom centre */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
+            <Toolbar
+              selectedTool={selectedTool}
+              onToolChange={setSelectedTool}
+            />
           </div>
         </div>
         )}
 
-        {/* Right Panel - System State */}
-        <SystemStatePanel
-          results={simulationResults}
+        {/* Right Panel - Workbench (Config | Orders | Simulation tabs) */}
+        <WorkbenchPanel
+          configuration={activeWarehouseConfig}
+          onEditConfig={() => setShowLayoutConfig(true)}
+          orders={orders}
+          onOrdersChange={setOrders}
+          warehouse={warehouse ?? undefined}
+          highlightedMissingSkuIds={highlightedMissingSkuIds}
+          onClearHighlights={() => setHighlightedMissingSkuIds(null)}
+          orderCount={orderCount}
+          avgOrderSize={avgOrderSize}
+          onOrderCountChange={setOrderCount}
+          onAvgOrderSizeChange={setAvgOrderSize}
+          onAddDemoOrders={handleAddDemoOrders}
+          simulationResults={simulationResults}
           readiness={readiness}
           isSimulating={isSimulating}
           activeStrategy={activeStrategy}
@@ -838,7 +835,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
           onSimulate={handleSimulateClick}
           onAddShelves={() => setSelectedTool('shelf')}
-          onAddDemoOrders={handleAddDemoOrders}
           onSetWorkerStart={() => setSelectedTool('worker')}
           onZVisualizationChange={setZVisualizationMode}
         />

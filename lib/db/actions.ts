@@ -17,6 +17,7 @@ import { mergeConfiguration } from '@/lib/taro/warehouse-configuration';
 
 export interface WarehouseSnapshot {
   projectId: string;
+  projectName: string;
   /**
    * All warehouses for this project as a workspace model.
    * Each entry carries its id, name, position, layout data, and its own
@@ -145,6 +146,7 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
   if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
+      projectName: project.name,
       workspaceWarehouses: [],
       orders: [],
     };
@@ -154,6 +156,7 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
 
   return {
     projectId: project.id,
+    projectName: project.name,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
   };
@@ -168,6 +171,7 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
   if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
+      projectName: project.name,
       workspaceWarehouses: [],
       orders: [],
     };
@@ -177,6 +181,7 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
 
   return {
     projectId: project.id,
+    projectName: project.name,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
   };

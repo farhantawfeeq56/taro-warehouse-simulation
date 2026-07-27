@@ -23,7 +23,8 @@ import {
   UserPlus, 
   PlayCircle, 
   BarChart3, 
-  Loader2 
+  Loader2,
+  RotateCcw, 
 } from 'lucide-react';
 import {
   Empty,
@@ -51,6 +52,8 @@ interface SystemStatePanelProps {
   onAddDemoOrders?: () => void;
   onSetWorkerStart?: () => void;
   onZVisualizationChange?: (mode: ZVisualizationMode) => void;
+  /** When true, renders without the outer width/border wrapper so it can be embedded in a tab. */
+  embedded?: boolean;
 }
 
 export function SystemStatePanel({
@@ -70,8 +73,12 @@ export function SystemStatePanel({
   onAddDemoOrders,
   onSetWorkerStart,
   onZVisualizationChange,
+  embedded = false,
 }: SystemStatePanelProps) {
   const strategies = results?.strategies ?? [];
+  const wrapperClass = embedded
+    ? 'flex flex-col h-full'
+    : 'w-80 border-l border-border bg-background flex flex-col';
   const simulatedItemCount = validationContext
     ? validationContext.totalItems - validationContext.missingItems
     : null;
@@ -88,7 +95,7 @@ export function SystemStatePanel({
   // 1. Loading State
   if (isSimulating) {
     return (
-      <div className="w-80 border-l border-border bg-background flex flex-col">
+      <div className={wrapperClass}>
         <div className="p-3 border-b border-border">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-primary animate-pulse" />
@@ -115,7 +122,7 @@ export function SystemStatePanel({
   // 2. BLOCKED State (e.g. Unreachable locations)
   if (blockState) {
     return (
-      <div className="w-80 border-l border-border bg-background flex flex-col">
+      <div className={wrapperClass}>
         <div className="p-3 border-b border-border">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-destructive" />
@@ -153,7 +160,7 @@ export function SystemStatePanel({
     const progress = readiness ? (readiness.completedSteps / readiness.totalSteps) * 100 : 0;
 
     return (
-      <div className="w-80 border-l border-border bg-background flex flex-col">
+      <div className={wrapperClass}>
         <div className="p-3 border-b border-border">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-muted-foreground" />
@@ -241,7 +248,7 @@ export function SystemStatePanel({
   // 3. READY State (Ready but no results)
   if (readiness?.isReady && !results) {
     return (
-      <div className="w-80 border-l border-border bg-background flex flex-col">
+      <div className={wrapperClass}>
         <div className="p-3 border-b border-border">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-primary" />
@@ -282,7 +289,7 @@ export function SystemStatePanel({
   const baseline = results.strategies.find((strategy) => strategy.strategy === 'single') ?? null;
 
   return (
-    <div className="w-80 border-l border-border bg-background flex flex-col">
+    <div className={wrapperClass}>
       <div className="p-3 border-b border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -455,6 +462,15 @@ export function SystemStatePanel({
             </div>
           </div>
         )}
+
+        <Button
+          onClick={onSimulate}
+          className="w-full h-8 text-xs"
+          variant="outline"
+        >
+          <RotateCcw className="h-3 w-3 mr-1.5" />
+          Simulate Again
+        </Button>
       </div>
 
       <div className="p-3 border-t border-border text-xs text-muted-foreground">
