@@ -237,6 +237,16 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     }
   }, []);
 
+  /**
+   * Rename a comparison placeholder. Comparisons are local-only for now
+   * (no DB persistence); the comparison screen isn't built yet.
+   */
+  const handleRenameComparison = useCallback((comparisonId: string, name: string) => {
+    setComparisons((prev) =>
+      prev.map((c) => (c.id === comparisonId ? { ...c, name } : c)),
+    );
+  }, []);
+
   // ── Workspace: Delete ────────────────────────────────────────────────────
 
   const handleDeleteWarehouse = useCallback(async (warehouseId: string) => {
@@ -746,7 +756,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           activeWarehouseId={activeWarehouseId}
           selectedWarehouseIds={selectedWarehouseIds}
           onSelectWarehouse={handleSelectWarehouse}
+          onRenameWarehouse={handleRenameWarehouse}
           comparisons={comparisons}
+          onRenameComparison={handleRenameComparison}
           onAddWarehouse={handleNewWarehouse}
           onNewComparison={handleNewComparison}
         />
