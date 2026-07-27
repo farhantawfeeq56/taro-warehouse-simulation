@@ -123,6 +123,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     setShowNewWarehouseConfig(true);
   }, []);
 
+  const handleOpenLayoutConfig = useCallback((warehouseId: string) => {
+    // First select the warehouse, then open the layout config
+    setActiveWarehouseId(warehouseId);
+    setShowLayoutConfig(true);
+  }, []);
+
   const resetAnimationState = useCallback(() => {
     setAnimationProgress(0);
     animationProgressRef.current = 0;
@@ -761,20 +767,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             </div>
           </div>
         ) : (
-        <div className="flex-1 flex flex-col overflow-hidden gap-0">
-          {/* Toolbar */}
-          <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
-            <Toolbar
-              selectedTool={selectedTool}
-              onToolChange={setSelectedTool}
-              onClear={handleClearWarehouse}
-              onOpenLayoutConfig={() => setShowLayoutConfig(true)}
-              onNewWarehouse={handleNewWarehouse}
-              workerCount={workerCount}
-              onWorkerCountChange={setWorkerCount}
-            />
-          </div>
-
+        <div className="flex-1 flex flex-col overflow-hidden gap-0 relative">
           {/* Canvas — React Flow workspace */}
           <WarehouseFlow
             workspaceWarehouses={workspaceWarehouses}
@@ -784,6 +777,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             onDuplicateWarehouse={handleDuplicateWarehouse}
             onRenameWarehouse={handleRenameWarehouse}
             onDeleteWarehouse={handleDeleteWarehouse}
+            onOpenLayoutConfig={handleOpenLayoutConfig}
+            onNewWarehouse={handleNewWarehouse}
+            workerCount={workerCount}
+            onWorkerCountChange={setWorkerCount}
             onPersistPosition={handlePersistPosition}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
@@ -791,6 +788,15 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             zVisualizationMode={zVisualizationMode}
             animationReplayId={animationReplayId}
           />
+
+          {/* Floating Toolbar — bottom centre */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
+            <Toolbar
+              selectedTool={selectedTool}
+              onToolChange={setSelectedTool}
+              onClear={handleClearWarehouse}
+            />
+          </div>
 
           {/* Status Bar */}
           <div className="h-8 border-t border-border flex items-center px-4 text-xs text-muted-foreground bg-muted/20 shrink-0">
