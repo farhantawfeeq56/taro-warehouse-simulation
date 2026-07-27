@@ -305,6 +305,15 @@ export interface ComparisonRunResult {
   error: string | null;
 }
 
+/** A run record cached on the client after a comparison is executed. */
+export interface ComparisonRunRecord {
+  results: ComparisonRunResult[];
+  ranAt: number;
+  /** Content signatures captured at run time — used to detect staleness. */
+  warehouseSignatures: Record<string, string>;
+  ordersSignature: string;
+}
+
 export interface PickTask {
   workerId: number;
   step: number;

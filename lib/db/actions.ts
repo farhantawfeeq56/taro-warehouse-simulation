@@ -426,15 +426,22 @@ export async function saveWarehouseLayout(
 export async function createComparisonAction(
   projectId: string,
   name?: string,
+  warehouseIds?: string[],
 ): Promise<Comparison> {
   const created = await createComparison(projectId, name);
+
+  // If warehouseIds were provided, populate them now.
+  if (warehouseIds && warehouseIds.length > 0) {
+    await updateComparison(created.id, { warehouseIds });
+  }
+
   return {
     id: created.id,
     name: created.name,
     projectId: created.projectId,
-    warehouseIds: Array.isArray(created.warehouseIds)
+    warehouseIds: warehouseIds ?? (Array.isArray(created.warehouseIds)
       ? (created.warehouseIds as string[])
-      : [],
+      : []),
     positionX: created.positionX,
     positionY: created.positionY,
     createdAt: created.createdAt,

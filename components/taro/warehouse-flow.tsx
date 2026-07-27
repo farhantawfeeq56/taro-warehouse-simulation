@@ -73,6 +73,13 @@ interface WarehouseFlowProps {
   animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
   animationReplayId: number;
+
+  // Link mode
+  linkModeComparisonId: string | null;
+  comparisonStaleness: Record<string, boolean>;
+  onToggleMember: (comparisonId: string, warehouseId: string) => void;
+  onStartLink: (comparisonId: string) => void;
+  onExitLink: () => void;
 }
 
 const nodeTypes: NodeTypes = {
@@ -118,6 +125,12 @@ function WarehouseFlowInner({
   animationProgressRef,
   zVisualizationMode,
   animationReplayId,
+  // Link mode
+  linkModeComparisonId,
+  comparisonStaleness,
+  onToggleMember,
+  onStartLink,
+  onExitLink,
 }: WarehouseFlowProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const reactFlowInstance = useReactFlow();
@@ -264,13 +277,20 @@ function WarehouseFlowInner({
       if (ww) {
         // Scoreboard data derive from comparisonResultsById — but we don't have it here.
         // Scoreboard is handled at the comparison node level later.
+        const isLinkMode = linkModeComparisonId != null;
+        const linkComp =
+          linkModeComparisonId
+            ? comparisons.find((c) => c.id === linkModeComparisonId)
+            : null;
+        const isWarehouseMember =
+          linkComp != null && linkComp.warehouseIds.includes(ww.id);
         newNodes.push({
           id: layout.id,
           type: 'warehouse',
           position: layout.position,
           width: layout.width,
           height: layout.height,
-          draggable: true,
+          draggable: !isLinkMode,
           selectable: false,
           focusable: false,
           data: {
@@ -292,6 +312,11 @@ function WarehouseFlowInner({
             zVisualizationMode,
             animationReplayId,
             isActive: layout.id === activeWarehouseId,
+            // Link-mode fields
+            isLinkMode,
+            isMember: isWarehouseMember,
+            linkModeComparisonId,
+            onToggleMember,
           },
         });
       } else {
@@ -303,7 +328,7 @@ function WarehouseFlowInner({
             position: layout.position,
             width: layout.width,
             height: layout.height,
-            draggable: true,
+            draggable: !(linkModeComparisonId === comp.id),
             selectable: false,
             focusable: false,
             data: {
@@ -311,12 +336,17 @@ function WarehouseFlowInner({
               comparisonName: comp.name,
               warehouseIds: comp.warehouseIds,
               warehouseNames,
-              score: comparisonScores[comp.id] ?? null, // Scoreboard is populated after a run — v2 enhancement
+              score: comparisonScores[comp.id] ?? null,
+              stale: comparisonStaleness[comp.id] ?? false,
               onSelect: onSelectComparison,
               onRename: onRenameComparison,
               onDelete: onDeleteComparison,
               memberCount: comp.warehouseIds.length,
               isActive: comp.id === activeComparisonId,
+              // Link-mode fields
+              isLinkModeTarget: linkModeComparisonId === comp.id,
+              onStartLink,
+              onExitLink,
             },
           });
         }
@@ -338,12 +368,20 @@ function WarehouseFlowInner({
 
   // Sync node data without recreation.
   useEffect(() => {
+    const isLinkMode = linkModeComparisonId != null;
     setNodes((nds) =>
       nds.map((n) => {
         const ww = workspaceWarehouses.find((w) => w.id === n.id);
         if (ww) {
+          const linkComp =
+            linkModeComparisonId
+              ? comparisons.find((c) => c.id === linkModeComparisonId)
+              : null;
+          const isWarehouseMember =
+            linkComp != null && linkComp.warehouseIds.includes(ww.id);
           return {
             ...n,
+            draggable: !isLinkMode,
             data: {
               warehouseId: ww.id,
               warehouseName: ww.name,
@@ -363,6 +401,11 @@ function WarehouseFlowInner({
               zVisualizationMode,
               animationReplayId,
               isActive: n.id === activeWarehouseId,
+              // Link-mode fields
+              isLinkMode,
+              isMember: isWarehouseMember,
+              linkModeComparisonId,
+              onToggleMember,
             },
           };
         }
@@ -371,17 +414,23 @@ function WarehouseFlowInner({
         if (comp) {
           return {
             ...n,
+            draggable: !(linkModeComparisonId === comp.id),
             data: {
               comparisonId: comp.id,
               comparisonName: comp.name,
               warehouseIds: comp.warehouseIds,
               warehouseNames,
               score: comparisonScores[comp.id] ?? null,
+              stale: comparisonStaleness[comp.id] ?? false,
               onSelect: onSelectComparison,
               onRename: onRenameComparison,
               onDelete: onDeleteComparison,
               memberCount: comp.warehouseIds.length,
               isActive: comp.id === activeComparisonId,
+              // Link-mode fields
+              isLinkModeTarget: linkModeComparisonId === comp.id,
+              onStartLink,
+              onExitLink,
             },
           };
         }
@@ -411,18 +460,34 @@ function WarehouseFlowInner({
     zVisualizationMode,
     animationReplayId,
     warehouseNames,
+    linkModeComparisonId,
+    comparisonStaleness,
+    onToggleMember,
+    onStartLink,
+    onExitLink,
     setNodes,
   ]);
 
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
+      // In link mode: clicking a warehouse toggles membership for the active
+      // link-target comparison.
+      if (linkModeComparisonId) {
+        if (node.type === 'warehouse') {
+          event.stopPropagation();
+          onToggleMember(linkModeComparisonId, node.id);
+        }
+        // Clicking anything else (comparison / canvas) stays in link mode.
+        return;
+      }
+
       if (node.type === 'warehouse') {
         onSelectWarehouse(node.id, { additive: event.shiftKey });
       } else {
         onSelectComparison(node.id, { additive: event.shiftKey });
       }
     },
-    [onSelectWarehouse, onSelectComparison],
+    [linkModeComparisonId, onToggleMember, onSelectWarehouse, onSelectComparison],
   );
 
   const handleNodeDragStop: OnNodeDrag = useCallback(
@@ -453,6 +518,24 @@ function WarehouseFlowInner({
     ],
   );
 
+  // Escape key exits link mode
+  useEffect(() => {
+    if (!linkModeComparisonId) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onExitLink();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [linkModeComparisonId, onExitLink]);
+
+  // Clicking empty canvas exits link mode
+  const handlePaneClick = useCallback(() => {
+    if (linkModeComparisonId) onExitLink();
+  }, [linkModeComparisonId, onExitLink]);
+
   const isHandTool = selectedTool === 'hand';
 
   return (
@@ -463,6 +546,7 @@ function WarehouseFlowInner({
         onNodesChange={onNodesChange}
         onNodeClick={handleNodeClick}
         onNodeDragStop={handleNodeDragStop}
+        onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         panOnDrag={isHandTool}

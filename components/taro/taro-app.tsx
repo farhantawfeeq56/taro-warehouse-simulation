@@ -17,7 +17,9 @@ import type {
   WorkspaceWarehouse,
   Comparison,
   ComparisonRunResult,
+  ComparisonRunRecord,
 } from '@/lib/taro/types';
+import { warehouseSignature, ordersSignature } from '@/lib/taro/signatures';
 import {
   generateRandomOrders,
   createEmptyWarehouse,
@@ -31,6 +33,7 @@ import { WorkbenchPanel } from './workbench-panel';
 import { ComparisonPanel } from './comparison-panel';
 import { WorkspacePanel } from './workspace-panel';
 import { Toolbar } from './toolbar';
+import { GitCompareArrows } from 'lucide-react';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
@@ -71,11 +74,16 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   // Which comparison is currently selected / being viewed (drives right panel).
   const [activeComparisonId, setActiveComparisonId] = useState<string | null>(null);
-  // Cached simulation results per comparison.
+  // Cached simulation results per comparison (wrapped in a record with run-time
+  // signatures so we can detect staleness).
   const [comparisonResultsById, setComparisonResultsById] = useState<
-    Record<string, ComparisonRunResult[]>
+    Record<string, ComparisonRunRecord>
   >({});
   const [isComparing, setIsComparing] = useState(false);
+
+  // Link mode — when non-null, the canvas is in "link warehouses to this
+  // comparison" mode (see plan-comparison-canvas-association.md).
+  const [linkModeComparisonId, setLinkModeComparisonId] = useState<string | null>(null);
 
   // Derived: the currently selected warehouse (drives all panels).
   const warehouse = useMemo(() => {
@@ -83,13 +91,14 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     return workspaceWarehouses.find((w) => w.id === activeWarehouseId)?.warehouse ?? null;
   }, [activeWarehouseId, workspaceWarehouses]);
 
-  // Derived: scoreboard data for each comparison node (derived from cached results).
+  // Derived: scoreboard data for each comparison node (derived from cached runs).
   const comparisonScores = useMemo(() => {
     const scores: Record<
       string,
       { winnerId: string | null; winnerName: string; winnerEfficiency: number } | null
     > = {};
-    for (const [compId, results] of Object.entries(comparisonResultsById)) {
+    for (const [compId, record] of Object.entries(comparisonResultsById)) {
+      const results = record.results;
       const valid = results.filter((r) => r.bestResult && !r.error);
       if (valid.length === 0) {
         scores[compId] = null;
@@ -109,6 +118,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     return scores;
   }, [comparisonResultsById]);
 
+  // Derived: lookup maps for staleness (avoid recomputing signatures in the memo)
+  const wwWarehouseMap = useMemo(
+    () => Object.fromEntries(workspaceWarehouses.map((w) => [w.id, w.warehouse])),
+    [workspaceWarehouses],
+  );
+
   // Derived: the active warehouse's own generation configuration.
   // Each warehouse stores its own configuration, so switching warehouses
   // correctly restores each one's slider values in the edit overlay.
@@ -126,6 +141,32 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   activeProjectIdRef.current = activeProjectId;
 
   const [orders, setOrders] = useState<Order[]>([]);
+
+  // Derived: per-comparison staleness — true when a member warehouse or orders
+  // changed since the last run.  Declared here (after `orders`) because the
+  // memo reads `orders` directly.
+  const comparisonStaleness = useMemo(() => {
+    const stale: Record<string, boolean> = {};
+    const currentOrdersSig = ordersSignature(orders);
+    for (const [compId, record] of Object.entries(comparisonResultsById)) {
+      const comp = comparisons.find((c) => c.id === compId);
+      if (!comp) continue;
+      const memLengthChanged =
+        comp.warehouseIds.length !== Object.keys(record.warehouseSignatures).length;
+      const memberChanged =
+        memLengthChanged ||
+        comp.warehouseIds.some((wid) => {
+          const wh = wwWarehouseMap[wid];
+          return wh
+            ? warehouseSignature(wh) !== record.warehouseSignatures[wid]
+            : true;
+        });
+      const ordersChanged = currentOrdersSig !== record.ordersSignature;
+      stale[compId] = memberChanged || ordersChanged;
+    }
+    return stale;
+  }, [comparisonResultsById, comparisons, wwWarehouseMap, orders]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
@@ -179,6 +220,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
   const handleSelectComparison = useCallback(
     (comparisonId: string, opts?: { additive?: boolean }) => {
+      // Selecting a different comparison exits link mode.
+      setLinkModeComparisonId((prev) =>
+        prev === comparisonId ? prev : null,
+      );
       setActiveComparisonId(comparisonId);
       setActiveWarehouseId(null);
     },
@@ -301,9 +346,22 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               });
             }
           }
+          // Capture signatures for staleness detection
+          const warehouseSignatures: Record<string, string> = {};
+          for (const wid of comp.warehouseIds) {
+            const ww = workspaceWarehousesRef.current.find((w) => w.id === wid);
+            if (ww) {
+              warehouseSignatures[wid] = warehouseSignature(ww.warehouse);
+            }
+          }
           setComparisonResultsById((prev) => ({
             ...prev,
-            [comparisonId]: results,
+            [comparisonId]: {
+              results,
+              ranAt: Date.now(),
+              warehouseSignatures,
+              ordersSignature: ordersSignature(orders),
+            },
           }));
           setActiveComparisonId(comparisonId);
         } finally {
@@ -314,6 +372,68 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     [comparisons, warehouse, orders, workerCount, warehouseProfile, laborProfile],
   );
 
+  // ── Link-mode helpers ────────────────────────────────────────────────
+
+  const handleToggleComparisonMembership = useCallback(
+    (comparisonId: string, warehouseId: string) => {
+      setComparisons((prev) => {
+        const comp = prev.find((c) => c.id === comparisonId);
+        if (!comp) return prev;
+        const isMember = comp.warehouseIds.includes(warehouseId);
+        const nextWarehouseIds = isMember
+          ? comp.warehouseIds.filter((id) => id !== warehouseId)
+          : [...comp.warehouseIds, warehouseId];
+        // Persist optimistically
+        updateComparisonAction(comparisonId, {
+          warehouseIds: nextWarehouseIds,
+        }).catch(console.error);
+        return prev.map((c) =>
+          c.id === comparisonId ? { ...c, warehouseIds: nextWarehouseIds } : c,
+        );
+      });
+    },
+    [],
+  );
+
+  const handleStartLink = useCallback((comparisonId: string) => {
+    setActiveComparisonId(comparisonId);
+    setActiveWarehouseId(null);
+    setLinkModeComparisonId(comparisonId);
+  }, []);
+
+  const handleExitLink = useCallback(() => {
+    setLinkModeComparisonId(null);
+  }, []);
+
+  // Auto-exit link mode when the target comparison is no longer available.
+  useEffect(() => {
+    if (
+      linkModeComparisonId &&
+      !comparisons.find((c) => c.id === linkModeComparisonId)
+    ) {
+      setLinkModeComparisonId(null);
+    }
+  }, [linkModeComparisonId, comparisons]);
+
+  // ── "Compare Selected" handler ───────────────────────────────────────
+
+  const handleCompareSelected = useCallback(async () => {
+    const projectId = activeProjectIdRef.current;
+    if (!projectId || selectedWarehouseIds.size < 2) return;
+
+    const warehouseIds = [...selectedWarehouseIds];
+    try {
+      const comp = await createComparisonAction(projectId, undefined, warehouseIds);
+      setComparisons((prev) => [...prev, comp]);
+      setActiveComparisonId(comp.id);
+      setActiveWarehouseId(null);
+      setSelectedWarehouseIds(new Set());
+      setLinkModeComparisonId(null);
+    } catch (err) {
+      console.error('Failed to create comparison from selection:', err);
+    }
+  }, [selectedWarehouseIds]);
+
   /**
    * Unified warehouse selection handler used by both the canvas and the
    * workspace list. Without modifiers, replaces the selection and sets the
@@ -322,6 +442,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
    */
   const handleSelectWarehouse = useCallback(
     (warehouseId: string, opts?: { additive?: boolean }) => {
+      setLinkModeComparisonId(null); // exit link mode on warehouse select
       setActiveComparisonId(null);
       if (opts?.additive) {
         setSelectedWarehouseIds((prev) => {
@@ -439,6 +560,14 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       const isActive = activeWarehouseIdRef.current === warehouseId;
 
       setWorkspaceWarehouses((prev) => prev.filter((w) => w.id !== warehouseId));
+
+      // Remove deleted warehouse from multi-select set
+      setSelectedWarehouseIds((prev) => {
+        if (!prev.has(warehouseId)) return prev;
+        const next = new Set(prev);
+        next.delete(warehouseId);
+        return next;
+      });
 
       // Remove the deleted warehouse from all comparisons that reference it.
       setComparisons((prev) =>
@@ -1011,15 +1140,37 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             onDeleteComparison={handleDeleteComparison}
             onPersistComparisonPosition={handlePersistComparisonPosition}
             comparisonScores={comparisonScores}
+            comparisonStaleness={comparisonStaleness}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
             animationProgressRef={animationProgressRef}
             zVisualizationMode={zVisualizationMode}
             animationReplayId={animationReplayId}
+            // Link mode
+            linkModeComparisonId={linkModeComparisonId}
+            onToggleMember={handleToggleComparisonMembership}
+            onStartLink={handleStartLink}
+            onExitLink={handleExitLink}
           />
 
-          {/* Floating Toolbar — bottom centre */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
+          {/* Floating controls row — bottom centre */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
+            {/* Compare Selected — only when 2+ selected and not in link mode */}
+            {!linkModeComparisonId && selectedWarehouseIds.size >= 2 && (
+              <button
+                onClick={handleCompareSelected}
+                className="
+                  flex items-center gap-1.5 px-3 py-1.5
+                  bg-white/90 backdrop-blur-sm text-xs font-medium
+                  border border-emerald-300/70 rounded-lg shadow-md
+                  text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400
+                  active:bg-emerald-100 transition-colors
+                "
+              >
+                <GitCompareArrows className="h-3.5 w-3.5" />
+                Compare {selectedWarehouseIds.size} selected
+              </button>
+            )}
             <Toolbar
               selectedTool={selectedTool}
               onToolChange={setSelectedTool}
@@ -1033,8 +1184,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           <ComparisonPanel
             comparison={comparisons.find((c) => c.id === activeComparisonId)!}
             warehouses={workspaceWarehouses}
-            results={comparisonResultsById[activeComparisonId] ?? null}
+            results={comparisonResultsById[activeComparisonId]?.results ?? null}
             isRunning={isComparing}
+            isStale={comparisonStaleness[activeComparisonId] ?? false}
             allWarehouseNames={
               Object.fromEntries(workspaceWarehouses.map((w) => [w.id, w.name]))
             }

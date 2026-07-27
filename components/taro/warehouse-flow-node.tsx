@@ -5,7 +5,7 @@ import type { Node, NodeProps } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
 import type { MutableRefObject } from 'react';
 import { WarehouseCanvas } from './warehouse-canvas';
-import { Copy, Trash2, Settings, Users } from 'lucide-react';
+import { Copy, Trash2, Settings, Users, Check, Plus } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +38,14 @@ export type WarehouseNodeData = Record<string, unknown> & {
   animationReplayId: number;
   /** Whether this node is the currently active/selected warehouse. */
   isActive: boolean;
+  /** Link mode: canvas is in "link warehouses to a comparison" mode. */
+  isLinkMode?: boolean;
+  /** Link mode: this warehouse is already a member of the target comparison. */
+  isMember?: boolean;
+  /** Link mode: the comparison being linked to. */
+  linkModeComparisonId?: string | null;
+  /** Link mode: toggles membership when the user clicks the node badge. */
+  onToggleMember?: (comparisonId: string, warehouseId: string) => void;
 };
 
 /**
@@ -168,6 +176,31 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
         )}
 
         <div className="flex items-center gap-0.5 shrink-0">
+          {/* Link-mode toggle badge — only visible during link mode */}
+          {data.isLinkMode && data.linkModeComparisonId && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onToggleMember?.(data.linkModeComparisonId!, data.warehouseId);
+              }}
+              title={data.isMember ? 'Remove from comparison' : 'Add to comparison'}
+              className={`
+                flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold
+                transition-colors
+                ${data.isMember
+                  ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                  : 'bg-muted/60 text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600'
+                }
+              `}
+              aria-label={data.isMember ? 'Member (click to remove)' : 'Not a member (click to add)'}
+            >
+              {data.isMember ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <Plus className="h-3 w-3" />
+              )}
+            </button>
+          )}
           {/* Layout Config button */}
           <button
             onClick={(e) => {

@@ -15,6 +15,7 @@ import {
   MapPin,
   Clock,
   DollarSign,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ComparisonPanelProps {
@@ -22,6 +23,8 @@ interface ComparisonPanelProps {
   warehouses: WorkspaceWarehouse[];
   results: ComparisonRunResult[] | null;
   isRunning: boolean;
+  /** When true, the comparison's current results are outdated. */
+  isStale?: boolean;
   allWarehouseNames: Record<string, string>; // warehouseId → name
   onRun: (comparisonId: string) => void;
   onAddWarehouse: (comparisonId: string, warehouseId: string) => void;
@@ -95,6 +98,7 @@ export function ComparisonPanel({
   warehouses,
   results,
   isRunning,
+  isStale,
   allWarehouseNames,
   onRun,
   onAddWarehouse,
@@ -125,6 +129,14 @@ export function ComparisonPanel({
           <h2 className="text-sm font-semibold text-foreground truncate">
             {comparison.name}
           </h2>
+          {isStale && results && (
+            <span
+              className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0"
+              title="Results are stale — a member warehouse or orders changed since the last run"
+            >
+              Stale
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -135,12 +147,21 @@ export function ComparisonPanel({
               isRunning ||
               comparison.warehouseIds.length === 0
             }
-            className="h-7 text-xs flex-1"
+            className={`h-7 text-xs flex-1 ${
+              isStale && results
+                ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                : ''
+            }`}
           >
             {isRunning ? (
               <>
                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 Running…
+              </>
+            ) : isStale && results ? (
+              <>
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Re-run
               </>
             ) : (
               <>

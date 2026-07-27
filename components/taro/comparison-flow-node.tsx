@@ -2,7 +2,7 @@
 
 import { memo, useState, useRef, useCallback } from 'react';
 import type { Node, NodeProps } from '@xyflow/react';
-import { GitCompareArrows, Trash2, Trophy } from 'lucide-react';
+import { GitCompareArrows, Trash2, Trophy, Link, RefreshCw, Check } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,12 +21,20 @@ export type ComparisonNodeData = Record<string, unknown> & {
   warehouseIds: string[];
   warehouseNames: Record<string, string>; // warehouseId → name for display
   score: { winnerId: string | null; winnerName: string; winnerEfficiency: number } | null;
+  /** True when a member warehouse or orders changed since last run. */
+  stale?: boolean;
   onSelect?: (comparisonId: string, opts?: { additive?: boolean }) => void;
   onRename?: (comparisonId: string, name: string) => void;
   onDelete?: (comparisonId: string) => void;
   /** Number of member warehouses */
   memberCount: number;
   isActive: boolean;
+  /** Link mode: this comparison node is the active link target. */
+  isLinkModeTarget?: boolean;
+  /** Link mode: enter link mode for this comparison. */
+  onStartLink?: (comparisonId: string) => void;
+  /** Link mode: exit link mode. */
+  onExitLink?: () => void;
 };
 
 function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
@@ -120,6 +128,44 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
         </div>
 
         <div className="flex items-center gap-0.5 shrink-0">
+          {/* Link-mode: this comparison is the target → "Done" pill */}
+          {data.isLinkModeTarget && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onExitLink?.();
+              }}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+              title="Exit link mode"
+            >
+              <Check className="h-3 w-3" />
+              Done
+            </button>
+          )}
+          {/* Active comparison (not in link mode) → "Link" button */}
+          {data.isActive && !data.isLinkModeTarget && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onStartLink?.(data.comparisonId);
+              }}
+              title="Link warehouses to this comparison"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+              aria-label="Link warehouses"
+            >
+              <Link className="h-3 w-3" />
+              Link
+            </button>
+          )}
+          {/* Stale indicator */}
+          {data.stale && data.score && (
+            <span
+              className="flex items-center gap-0.5 text-[10px] text-amber-600 font-medium"
+              title="Results are stale — a warehouse or orders changed since the last run"
+            >
+              <RefreshCw className="h-3 w-3" />
+            </span>
+          )}
           {data.isActive && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 mr-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -149,6 +195,21 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
           <p className="text-[11px] text-muted-foreground italic">
             No warehouses connected
           </p>
+        ) : data.stale && data.score ? (
+          <div className="flex items-center gap-2">
+            <div>
+              <Trophy className="h-4 w-4 text-amber-400/80 shrink-0" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-foreground truncate">
+                {data.score.winnerName}
+              </div>
+              <div className="flex items-center gap-1 text-[10px] text-amber-600 font-medium">
+                <RefreshCw className="h-2.5 w-2.5" />
+                Re-run needed
+              </div>
+            </div>
+          </div>
         ) : data.score ? (
           <div className="flex items-center gap-2">
             <Trophy className="h-4 w-4 text-amber-500 shrink-0" />
