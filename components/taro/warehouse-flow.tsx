@@ -320,20 +320,22 @@ function WarehouseFlowInner({
         />
       </ReactFlow>
 
-      {/* Floating Add Warehouse button — top left */}
+      {/* Floating Add Warehouse button — subtle top left */}
       <button
         onClick={onNewWarehouse}
         title="Add a new warehouse"
         className="
           nodrag absolute top-3 left-3 z-50
-          flex items-center gap-1.5 px-3 py-2
-          bg-emerald-500 text-white rounded-lg shadow-md
-          hover:bg-emerald-600 active:bg-emerald-700
-          transition-colors text-xs font-medium
+          flex items-center gap-1 px-2 py-1.5
+          bg-white/60 backdrop-blur-sm text-muted-foreground
+          border border-border rounded-lg
+          hover:bg-white hover:text-foreground hover:border-muted-foreground/30
+          active:bg-muted
+          transition-colors text-[11px] font-medium shadow-sm
         "
       >
-        <Plus className="h-4 w-4" />
-        <span>Add Warehouse</span>
+        <Plus className="h-3.5 w-3.5" />
+        Add
       </button>
     </div>
   );
