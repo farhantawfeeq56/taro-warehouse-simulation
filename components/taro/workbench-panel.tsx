@@ -21,6 +21,11 @@ import { ConfigTab } from './config-tab';
 import { Layout, ClipboardList, Activity } from 'lucide-react';
 
 interface WorkbenchPanelProps {
+  // App header
+  onBackToDashboard?: () => void;
+  projectName: string;
+  importSummary: string;
+
   // Config tab
   configuration: WarehouseConfiguration | null;
   onEditConfig: () => void;
@@ -60,10 +65,50 @@ export function WorkbenchPanel(props: WorkbenchPanelProps) {
 
   return (
     <div className="w-80 border-r border-border bg-background flex flex-col">
+      {/* App header: Logo + Project name */}
+      <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border shrink-0">
+        {props.onBackToDashboard ? (
+          <button
+            onClick={props.onBackToDashboard}
+            title="Back to dashboard"
+            className="shrink-0 hover:opacity-80 transition-opacity"
+          >
+            <img
+              src="/taro%20transpara%20svg.svg"
+              alt="Taro logo"
+              width={28}
+              height={28}
+              className="rounded"
+            />
+          </button>
+        ) : (
+          <div className="shrink-0 opacity-70">
+            <img
+              src="/taro%20transpara%20svg.svg"
+              alt="Taro logo"
+              width={28}
+              height={28}
+              className="rounded"
+            />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold text-foreground truncate">
+            {props.projectName}
+          </div>
+          {props.importSummary && (
+            <div className="text-[10px] text-emerald-600 truncate leading-tight">
+              {props.importSummary}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs */}
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
-        className="flex flex-col h-full min-h-0"
+        className="flex flex-col flex-1 min-h-0"
       >
         <div className="border-b border-border px-2 pt-2 shrink-0">
           <TabsList className="grid w-full grid-cols-3 h-9">

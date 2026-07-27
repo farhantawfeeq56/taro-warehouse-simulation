@@ -30,9 +30,7 @@ import { WarehouseMetadataPanel } from './warehouse-metadata-panel';
 import { Toolbar } from './toolbar';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
-import { ReadinessIndicator } from './readiness-indicator';
 import { Button } from '@/components/ui/button';
-import { RotateCcw } from 'lucide-react';
 import { getMissingSkuIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
@@ -110,6 +108,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const animationRef = useRef<number | null>(null);
   const replaySpeedRef = useRef(replaySpeed);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [projectName, setProjectName] = useState<string>('Untitled');
   const [importSummary, setImportSummary] = useState<string>('');
   const [executionPlanStrategy, setExecutionPlanStrategy] = useState<StrategyType | null>(null);
   const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
@@ -600,6 +599,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           : await loadWorkspace();
         if (cancelled) return;
         setActiveProjectId(snapshot.projectId);
+        setProjectName(snapshot.projectName);
         setWorkspaceWarehouses(snapshot.workspaceWarehouses);
         if (snapshot.workspaceWarehouses.length > 0) {
           setActiveWarehouseId(snapshot.workspaceWarehouses[0].id);
@@ -625,6 +625,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         console.error('Failed to load workspace:', err);
         if (!cancelled) {
           setLoadError('Could not connect to database. Running in offline mode.');
+          setProjectName('Offline Project');
           const skeleton = generateSkeletonWarehouse();
           const skeletonId = crypto.randomUUID();
           const skeletonEntry: WorkspaceWarehouse = {
@@ -703,52 +704,13 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         </div>
       )}
 
-      {/* Header */}
-      <header className="h-14 border-b border-border flex items-center justify-between px-5 bg-background shrink-0 gap-8">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            {onBackToDashboard && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBackToDashboard}
-                className="h-7 text-xs text-muted-foreground hover:text-foreground -ml-1"
-              >
-                ← Dashboard
-              </Button>
-            )}
-            <div className="border-l border-border h-6" />
-            <div>
-              <h1 className="text-base font-bold tracking-tight">Taro - Warehouse Picking Simulator</h1>
-              <p className="text-xs text-muted-foreground leading-tight">
-                {hasExistingWarehouse ? 'Warehouse workspace loaded.' : 'Configure your warehouse layout to get started.'}
-              </p>
-              {importSummary && <p className="text-xs text-emerald-600 mt-1">{importSummary}</p>}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <ReadinessIndicator readiness={readiness} />
-
-          {simulationResults && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleSimulateClick}
-              className="h-8 text-xs"
-            >
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Simulate again
-            </Button>
-          )}
-        </div>
-      </header>
-
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - Workbench (Config | Orders | Simulation tabs) */}
         <WorkbenchPanel
+          onBackToDashboard={onBackToDashboard ?? undefined}
+          projectName={projectName}
+          importSummary={importSummary}
           configuration={activeWarehouseConfig}
           onEditConfig={() => setShowLayoutConfig(true)}
           orders={orders}
