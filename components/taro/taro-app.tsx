@@ -1102,8 +1102,20 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           onNewComparison={handleNewComparison}
         />
 
-        {/* Center - Canvas (only when warehouse is loaded) */}
-        {!warehouse ? (
+        {/*
+         * Center — Canvas.
+         *
+         * The React Flow workspace (warehouse nodes + comparison nodes +
+         * derived edges) is shown whenever the workspace has at least one node,
+         * regardless of whether a warehouse or a comparison is currently active.
+         * We deliberately do NOT gate on the singular `warehouse` (derived from
+         * activeWarehouseId) — selecting a comparison intentionally nulls the
+         * active warehouse, but the canvas (with its comparison nodes) must
+         * stay visible so the user can operate on the comparison (e.g. Link
+         * Mode). The empty-state editor only appears when there are truly no
+         * warehouses at all (initial setup / loading fallback).
+         */}
+        {workspaceWarehouses.length === 0 ? (
           <div className="flex-1 flex items-center justify-center bg-muted/20">
             <div className="text-center space-y-4">
               <p className="text-muted-foreground">{isLoading ? 'Loading...' : 'No warehouse configured.'}</p>
