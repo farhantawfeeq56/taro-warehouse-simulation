@@ -25,8 +25,8 @@ import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseFlow } from './warehouse-flow';
-import { OrdersPanel } from './orders-panel';
-import { SystemStatePanel } from './results-panel';
+import { WorkbenchPanel } from './workbench-panel';
+import { WarehouseMetadataPanel } from './warehouse-metadata-panel';
 import { Toolbar } from './toolbar';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
@@ -74,6 +74,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const activeWarehouseConfig = useMemo((): WarehouseConfiguration | null => {
     if (!activeWarehouseId) return null;
     return workspaceWarehouses.find((w) => w.id === activeWarehouseId)?.configuration ?? null;
+  }, [activeWarehouseId, workspaceWarehouses]);
+
+  // Derived: the active workspace warehouse entry (provides name + position + config).
+  const activeWorkspaceWarehouse = useMemo((): WorkspaceWarehouse | null => {
+    if (!activeWarehouseId) return null;
+    return workspaceWarehouses.find((w) => w.id === activeWarehouseId) ?? null;
   }, [activeWarehouseId, workspaceWarehouses]);
 
   // Stable refs so callbacks don't need to depend on changing arrays.
@@ -741,8 +747,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Orders */}
-        <OrdersPanel
+        {/* Left Panel - Workbench (Config | Orders | Simulation tabs) */}
+        <WorkbenchPanel
+          configuration={activeWarehouseConfig}
+          onEditConfig={() => setShowLayoutConfig(true)}
           orders={orders}
           onOrdersChange={setOrders}
           warehouse={warehouse ?? undefined}
@@ -752,6 +760,22 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           avgOrderSize={avgOrderSize}
           onOrderCountChange={setOrderCount}
           onAvgOrderSizeChange={setAvgOrderSize}
+          onAddDemoOrders={handleAddDemoOrders}
+          simulationResults={simulationResults}
+          readiness={readiness}
+          isSimulating={isSimulating}
+          activeStrategy={activeStrategy}
+          onStrategySelect={handleStrategySelect}
+          animationProgress={animationProgress}
+          workerCount={workerCount}
+          executionPlan={executionPlan}
+          validationContext={validationContext}
+          blockState={simulationBlockState}
+          onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
+          onSimulate={handleSimulateClick}
+          onAddShelves={() => setSelectedTool('shelf')}
+          onSetWorkerStart={() => setSelectedTool('worker')}
+          onZVisualizationChange={setZVisualizationMode}
         />
 
         {/* Center - Canvas (only when warehouse is loaded) */}
@@ -829,24 +853,17 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         </div>
         )}
 
-        {/* Right Panel - System State */}
-        <SystemStatePanel
-          results={simulationResults}
+        {/* Right Panel - Warehouse Metadata */}
+        <WarehouseMetadataPanel
+          activeWorkspaceWarehouse={activeWorkspaceWarehouse}
+          warehouse={warehouse}
+          orders={orders}
+          configuration={activeWarehouseConfig}
           readiness={readiness}
-          isSimulating={isSimulating}
+          simulationResults={simulationResults}
           activeStrategy={activeStrategy}
-          onStrategySelect={handleStrategySelect}
-          animationProgress={animationProgress}
           workerCount={workerCount}
-          executionPlan={executionPlan}
-          validationContext={validationContext}
-          blockState={simulationBlockState}
-          onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
-          onSimulate={handleSimulateClick}
-          onAddShelves={() => setSelectedTool('shelf')}
-          onAddDemoOrders={handleAddDemoOrders}
-          onSetWorkerStart={() => setSelectedTool('worker')}
-          onZVisualizationChange={setZVisualizationMode}
+          isSimulating={isSimulating}
         />
       </div>
 
