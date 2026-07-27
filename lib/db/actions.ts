@@ -139,6 +139,43 @@ function dbWarehousesToWorkspace(
   }).filter((w) => w.warehouse !== null) as WorkspaceWarehouse[];
 }
 
+/**
+ * Build a Comparison[] from raw DB rows.
+ *
+ * The `warehouse_ids` jsonb column is nullable (see schema.ts) and
+ * `createComparison` does not initialize it, so freshly-created
+ * comparisons come back with `warehouseIds === null`. The `Comparison` TS
+ * type declares `warehouseIds: string[]` (non-nullable), so we normalize
+ * null → [] here — otherwise any UI that does `c.warehouseIds.length` or
+ * `c.warehouseIds.map(...)` crashes ("Cannot read properties of null
+ * (reading 'length')").
+ */
+function dbComparisonsToComparisons(
+  dbComparisons: Array<{
+    id: string;
+    projectId: string;
+    name: string;
+    positionX: number | null;
+    positionY: number | null;
+    warehouseIds: unknown;
+    createdAt: Date;
+    updatedAt: Date;
+  }>,
+): Comparison[] {
+  return dbComparisons.map((c) => ({
+    id: c.id,
+    projectId: c.projectId,
+    name: c.name,
+    positionX: c.positionX,
+    positionY: c.positionY,
+    warehouseIds: Array.isArray(c.warehouseIds)
+      ? (c.warehouseIds as string[])
+      : [],
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+  }));
+}
+
 export async function loadProject(projectId: string): Promise<WarehouseSnapshot> {
   const project = await getProject(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
@@ -151,7 +188,7 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
       projectId: project.id,
       projectName: project.name,
       workspaceWarehouses: [],
-      comparisons: dbComparisons as unknown as Comparison[],
+      comparisons: dbComparisonsToComparisons(dbComparisons),
       orders: [],
     };
   }
@@ -162,7 +199,7 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
     projectId: project.id,
     projectName: project.name,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
-    comparisons: dbComparisons as unknown as Comparison[],
+    comparisons: dbComparisonsToComparisons(dbComparisons),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
   };
 }
@@ -179,7 +216,7 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
       projectId: project.id,
       projectName: project.name,
       workspaceWarehouses: [],
-      comparisons: dbComparisons as unknown as Comparison[],
+      comparisons: dbComparisonsToComparisons(dbComparisons),
       orders: [],
     };
   }
@@ -190,7 +227,7 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
     projectId: project.id,
     projectName: project.name,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
-    comparisons: dbComparisons as unknown as Comparison[],
+    comparisons: dbComparisonsToComparisons(dbComparisons),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
   };
 }
@@ -395,7 +432,9 @@ export async function createComparisonAction(
     id: created.id,
     name: created.name,
     projectId: created.projectId,
-    warehouseIds: (created.warehouseIds as unknown as string[]) ?? [],
+    warehouseIds: Array.isArray(created.warehouseIds)
+      ? (created.warehouseIds as string[])
+      : [],
     positionX: created.positionX,
     positionY: created.positionY,
     createdAt: created.createdAt,
