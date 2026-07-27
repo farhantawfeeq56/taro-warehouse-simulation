@@ -783,35 +783,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onClear={handleClearWarehouse}
             />
           </div>
-
-          {/* Status Bar */}
-          <div className="h-8 border-t border-border flex items-center px-4 text-xs text-muted-foreground bg-muted/20 shrink-0">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Grid:</span>
-                <span className="font-mono">{warehouse.width} × {warehouse.height}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Locations:</span>
-                <span className="font-mono">
-                  {warehouse.grid.flat().filter(cell => cell.type === 'shelf').reduce((sum, cell) => sum + cell.locations.length, 0)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Worker:</span>
-                <span className="font-mono">{warehouse.workerStart ? `(${warehouse.workerStart.x}, ${warehouse.workerStart.y})` : '–'}</span>
-              </div>
-              {activeStrategy && (
-                <>
-                  <div className="border-l border-border ml-2 pl-6" />
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Route:</span>
-                    <span className="font-mono capitalize">{activeStrategy}</span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
         </div>
         )}
 
