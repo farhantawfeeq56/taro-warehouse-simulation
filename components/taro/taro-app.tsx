@@ -704,45 +704,11 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Workbench (Config | Orders | Simulation tabs) */}
-        <WorkbenchPanel
-          onBackToDashboard={onBackToDashboard ?? undefined}
-          projectName={projectName}
-          importSummary={importSummary}
-          configuration={activeWarehouseConfig}
-          onEditConfig={() => setShowLayoutConfig(true)}
-          orders={orders}
-          onOrdersChange={setOrders}
-          warehouse={warehouse ?? undefined}
-          highlightedMissingSkuIds={highlightedMissingSkuIds}
-          onClearHighlights={() => setHighlightedMissingSkuIds(null)}
-          orderCount={orderCount}
-          avgOrderSize={avgOrderSize}
-          onOrderCountChange={setOrderCount}
-          onAvgOrderSizeChange={setAvgOrderSize}
-          onAddDemoOrders={handleAddDemoOrders}
-          simulationResults={simulationResults}
-          readiness={readiness}
-          isSimulating={isSimulating}
-          activeStrategy={activeStrategy}
-          onStrategySelect={handleStrategySelect}
-          animationProgress={animationProgress}
-          workerCount={workerCount}
-          executionPlan={executionPlan}
-          validationContext={validationContext}
-          blockState={simulationBlockState}
-          onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
-          onSimulate={handleSimulateClick}
-          onAddShelves={() => setSelectedTool('shelf')}
-          onSetWorkerStart={() => setSelectedTool('worker')}
-          onZVisualizationChange={setZVisualizationMode}
-        />
-
-        {/* Center - Canvas (only when warehouse is loaded) */}
+      {/* Main Content — canvas fills full space, panels float over it */}
+      <div className="flex-1 relative overflow-hidden">
+        {/* Canvas area (fills everything) */}
         {!warehouse ? (
-          <div className="flex-1 flex items-center justify-center bg-muted/20">
+          <div className="absolute inset-0 flex items-center justify-center bg-muted/20">
             <div className="text-center space-y-4">
               <p className="text-muted-foreground">{isLoading ? 'Loading...' : 'No warehouse configured.'}</p>
               {!isLoading && (
@@ -753,80 +719,119 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             </div>
           </div>
         ) : (
-        <div className="flex-1 flex flex-col overflow-hidden gap-0 relative">
-          {/* Canvas — React Flow workspace */}
-          <WarehouseFlow
-            workspaceWarehouses={workspaceWarehouses}
-            activeWarehouseId={activeWarehouseId}
-            onSelectWarehouse={setActiveWarehouseId}
-            onWarehouseChange={handleWarehouseChangePersisted}
-            onDuplicateWarehouse={handleDuplicateWarehouse}
-            onRenameWarehouse={handleRenameWarehouse}
-            onDeleteWarehouse={handleDeleteWarehouse}
-            onOpenLayoutConfig={handleOpenLayoutConfig}
-            onNewWarehouse={handleNewWarehouse}
-            workerCount={workerCount}
-            onWorkerCountChange={setWorkerCount}
-            onPersistPosition={handlePersistPosition}
-            selectedTool={selectedTool}
-            activeRoute={activeRoute}
-            animationProgressRef={animationProgressRef}
-            zVisualizationMode={zVisualizationMode}
-            animationReplayId={animationReplayId}
-          />
+          <div className="absolute inset-0 flex flex-col">
+            <div className="flex-1 relative">
+              <WarehouseFlow
+                workspaceWarehouses={workspaceWarehouses}
+                activeWarehouseId={activeWarehouseId}
+                onSelectWarehouse={setActiveWarehouseId}
+                onWarehouseChange={handleWarehouseChangePersisted}
+                onDuplicateWarehouse={handleDuplicateWarehouse}
+                onRenameWarehouse={handleRenameWarehouse}
+                onDeleteWarehouse={handleDeleteWarehouse}
+                onOpenLayoutConfig={handleOpenLayoutConfig}
+                onNewWarehouse={handleNewWarehouse}
+                workerCount={workerCount}
+                onWorkerCountChange={setWorkerCount}
+                onPersistPosition={handlePersistPosition}
+                selectedTool={selectedTool}
+                activeRoute={activeRoute}
+                animationProgressRef={animationProgressRef}
+                zVisualizationMode={zVisualizationMode}
+                animationReplayId={animationReplayId}
+              />
 
-          {/* Floating Toolbar — bottom centre */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
-            <Toolbar
-              selectedTool={selectedTool}
-              onToolChange={setSelectedTool}
-              onClear={handleClearWarehouse}
-            />
-          </div>
+              {/* Floating Toolbar — bottom centre */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
+                <Toolbar
+                  selectedTool={selectedTool}
+                  onToolChange={setSelectedTool}
+                  onClear={handleClearWarehouse}
+                />
+              </div>
+            </div>
 
-          {/* Status Bar */}
-          <div className="h-8 border-t border-border flex items-center px-4 text-xs text-muted-foreground bg-muted/20 shrink-0">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Grid:</span>
-                <span className="font-mono">{warehouse.width} × {warehouse.height}</span>
+            {/* Status Bar */}
+            <div className="h-8 border-t border-border flex items-center px-4 text-xs text-muted-foreground bg-muted/20 shrink-0">
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Grid:</span>
+                  <span className="font-mono">{warehouse.width} × {warehouse.height}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Locations:</span>
+                  <span className="font-mono">
+                    {warehouse.grid.flat().filter(cell => cell.type === 'shelf').reduce((sum, cell) => sum + cell.locations.length, 0)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Worker:</span>
+                  <span className="font-mono">{warehouse.workerStart ? `(${warehouse.workerStart.x}, ${warehouse.workerStart.y})` : '–'}</span>
+                </div>
+                {activeStrategy && (
+                  <>
+                    <div className="border-l border-border ml-2 pl-6" />
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Route:</span>
+                      <span className="font-mono capitalize">{activeStrategy}</span>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Locations:</span>
-                <span className="font-mono">
-                  {warehouse.grid.flat().filter(cell => cell.type === 'shelf').reduce((sum, cell) => sum + cell.locations.length, 0)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Worker:</span>
-                <span className="font-mono">{warehouse.workerStart ? `(${warehouse.workerStart.x}, ${warehouse.workerStart.y})` : '–'}</span>
-              </div>
-              {activeStrategy && (
-                <>
-                  <div className="border-l border-border ml-2 pl-6" />
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Route:</span>
-                    <span className="font-mono capitalize">{activeStrategy}</span>
-                  </div>
-                </>
-              )}
             </div>
           </div>
-        </div>
         )}
 
-        {/* Right Panel - Warehouse Metadata */}
-        <WarehouseMetadataPanel
-          activeWorkspaceWarehouse={activeWorkspaceWarehouse}
-          warehouse={warehouse}
-          orders={orders}
-          configuration={activeWarehouseConfig}
-          readiness={readiness}
-          simulationResults={simulationResults}
-          activeStrategy={activeStrategy}
-          workerCount={workerCount}
-          isSimulating={isSimulating}
-        />
+        {/* Floating Left Panel */}
+        <div className="absolute left-0 top-0 bottom-0 z-30 shadow-2xl">
+          <WorkbenchPanel
+            onBackToDashboard={onBackToDashboard ?? undefined}
+            projectName={projectName}
+            importSummary={importSummary}
+            configuration={activeWarehouseConfig}
+            onEditConfig={() => setShowLayoutConfig(true)}
+            orders={orders}
+            onOrdersChange={setOrders}
+            warehouse={warehouse ?? undefined}
+            highlightedMissingSkuIds={highlightedMissingSkuIds}
+            onClearHighlights={() => setHighlightedMissingSkuIds(null)}
+            orderCount={orderCount}
+            avgOrderSize={avgOrderSize}
+            onOrderCountChange={setOrderCount}
+            onAvgOrderSizeChange={setAvgOrderSize}
+            onAddDemoOrders={handleAddDemoOrders}
+            simulationResults={simulationResults}
+            readiness={readiness}
+            isSimulating={isSimulating}
+            activeStrategy={activeStrategy}
+            onStrategySelect={handleStrategySelect}
+            animationProgress={animationProgress}
+            workerCount={workerCount}
+            executionPlan={executionPlan}
+            validationContext={validationContext}
+            blockState={simulationBlockState}
+            onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
+            onSimulate={handleSimulateClick}
+            onAddShelves={() => setSelectedTool('shelf')}
+            onSetWorkerStart={() => setSelectedTool('worker')}
+            onZVisualizationChange={setZVisualizationMode}
+          />
+        </div>
+
+        {/* Floating Right Panel */}
+        <div className="absolute right-0 top-0 bottom-0 z-30 shadow-2xl">
+          <WarehouseMetadataPanel
+            activeWorkspaceWarehouse={activeWorkspaceWarehouse}
+            warehouse={warehouse}
+            orders={orders}
+            configuration={activeWarehouseConfig}
+            readiness={readiness}
+            simulationResults={simulationResults}
+            activeStrategy={activeStrategy}
+            workerCount={workerCount}
+            isSimulating={isSimulating}
+          />
+        </div>
       </div>
 
       {/* Validation Modal */}
