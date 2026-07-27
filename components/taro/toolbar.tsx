@@ -2,12 +2,11 @@
 
 import { cn } from '@/lib/utils';
 import type { ToolType } from '@/lib/taro/types';
-import { Grid3X3, User, Eraser, Move, Trash2 } from 'lucide-react';
+import { Grid3X3, User, Eraser, Move } from 'lucide-react';
 
 interface ToolbarProps {
   selectedTool: ToolType;
   onToolChange: (tool: ToolType) => void;
-  onClear: () => void;
 }
 
 const tools: { type: ToolType; label: string; icon: typeof Grid3X3 }[] = [
@@ -24,7 +23,7 @@ const toolColors: Record<ToolType, { bg: string; textClass: string }> = {
   erase: { bg: '#EEEFF2', textClass: 'text-gray-900' },
 };
 
-export function Toolbar({ selectedTool, onToolChange, onClear }: ToolbarProps) {
+export function Toolbar({ selectedTool, onToolChange }: ToolbarProps) {
   return (
     <div className="flex items-center gap-1 px-1.5 py-1.5 bg-background/95 backdrop-blur-sm border border-border rounded-xl shadow-lg">
       <div className="flex items-center gap-0.5">
@@ -45,16 +44,6 @@ export function Toolbar({ selectedTool, onToolChange, onClear }: ToolbarProps) {
           </button>
         ))}
       </div>
-
-      <div className="w-px h-5 bg-border mx-0.5" />
-
-      <button
-        onClick={onClear}
-        className="h-8 w-8 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center justify-center"
-        title="Clear all warehouse data and orders"
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
     </div>
   );
 }

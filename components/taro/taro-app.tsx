@@ -780,7 +780,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             <Toolbar
               selectedTool={selectedTool}
               onToolChange={setSelectedTool}
-              onClear={handleClearWarehouse}
             />
           </div>
         </div>
