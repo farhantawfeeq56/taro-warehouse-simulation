@@ -23,7 +23,8 @@ import {
   UserPlus, 
   PlayCircle, 
   BarChart3, 
-  Loader2 
+  Loader2,
+  RotateCcw, 
 } from 'lucide-react';
 import {
   Empty,
@@ -461,6 +462,15 @@ export function SystemStatePanel({
             </div>
           </div>
         )}
+
+        <Button
+          onClick={onSimulate}
+          className="w-full h-8 text-xs"
+          variant="outline"
+        >
+          <RotateCcw className="h-3 w-3 mr-1.5" />
+          Simulate Again
+        </Button>
       </div>
 
       <div className="p-3 border-t border-border text-xs text-muted-foreground">
