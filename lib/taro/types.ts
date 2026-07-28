@@ -270,6 +270,50 @@ export type ToolType = 'hand' | 'shelf' | 'worker' | 'erase';
 
 export type ZVisualizationMode = 'all' | 'level1' | 'level2' | 'level3' | 'level4';
 
+// ── Comparison ─────────────────────────────────────────────────────────────
+
+/**
+ * A comparison is a first-class node on the React Flow canvas that references
+ * one or more warehouses. Edges from those warehouses to the comparison are
+ * derived from `warehouseIds` — the user never manages edges directly.
+ *
+ * The simulation runs all three strategies (single / batch / zone) against
+ * each member warehouse using the active warehouse's orders. The best result
+ * per warehouse is what the UI surfaces. Per-warehouse orders and per-entry
+ * strategies are deferred to a future version.
+ */
+export interface Comparison {
+  id: string;
+  name: string;
+  projectId: string;
+  /** Ordered list of warehouse IDs that are members of this comparison. */
+  warehouseIds: string[];
+  /** Canvas node position (null = use auto-layout until first drag). */
+  positionX: number | null;
+  positionY: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** One warehouse's run inside a comparison. */
+export interface ComparisonRunResult {
+  comparisonId: string;
+  warehouseId: string;
+  warehouseName: string;
+  bestResult: StrategyResult | null;
+  allResults: StrategyResult[];
+  error: string | null;
+}
+
+/** A run record cached on the client after a comparison is executed. */
+export interface ComparisonRunRecord {
+  results: ComparisonRunResult[];
+  ranAt: number;
+  /** Content signatures captured at run time — used to detect staleness. */
+  warehouseSignatures: Record<string, string>;
+  ordersSignature: string;
+}
+
 export interface PickTask {
   workerId: number;
   step: number;

@@ -1,7 +1,7 @@
 'use server';
 
-import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, duplicateWarehouse as repoDuplicateWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName, renameWarehouse as repoRenameWarehouse, deleteWarehouse as repoDeleteWarehouse, updateWarehousePosition as repoUpdateWarehousePosition } from '@/lib/db/repository';
-import type { Warehouse, Order, Item, WorkspaceWarehouse } from '@/lib/taro/types';
+import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, duplicateWarehouse as repoDuplicateWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName, renameWarehouse as repoRenameWarehouse, deleteWarehouse as repoDeleteWarehouse, updateWarehousePosition as repoUpdateWarehousePosition, getComparisonsForProject, createComparison, updateComparison, deleteComparison } from '@/lib/db/repository';
+import type { Warehouse, Order, Item, WorkspaceWarehouse, Comparison } from '@/lib/taro/types';
 import {
   generateParallelLayout,
   generateCrossAisleLayout,
@@ -24,6 +24,8 @@ export interface WarehouseSnapshot {
    * generation configuration (layout + inventory gen + placement).
    */
   workspaceWarehouses: WorkspaceWarehouse[];
+  /** All comparisons for this project. */
+  comparisons: Comparison[];
   orders: Order[];
 }
 
@@ -137,17 +139,56 @@ function dbWarehousesToWorkspace(
   }).filter((w) => w.warehouse !== null) as WorkspaceWarehouse[];
 }
 
+/**
+ * Build a Comparison[] from raw DB rows.
+ *
+ * The `warehouse_ids` jsonb column is nullable (see schema.ts) and
+ * `createComparison` does not initialize it, so freshly-created
+ * comparisons come back with `warehouseIds === null`. The `Comparison` TS
+ * type declares `warehouseIds: string[]` (non-nullable), so we normalize
+ * null → [] here — otherwise any UI that does `c.warehouseIds.length` or
+ * `c.warehouseIds.map(...)` crashes ("Cannot read properties of null
+ * (reading 'length')").
+ */
+function dbComparisonsToComparisons(
+  dbComparisons: Array<{
+    id: string;
+    projectId: string;
+    name: string;
+    positionX: number | null;
+    positionY: number | null;
+    warehouseIds: unknown;
+    createdAt: Date;
+    updatedAt: Date;
+  }>,
+): Comparison[] {
+  return dbComparisons.map((c) => ({
+    id: c.id,
+    projectId: c.projectId,
+    name: c.name,
+    positionX: c.positionX,
+    positionY: c.positionY,
+    warehouseIds: Array.isArray(c.warehouseIds)
+      ? (c.warehouseIds as string[])
+      : [],
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+  }));
+}
+
 export async function loadProject(projectId: string): Promise<WarehouseSnapshot> {
   const project = await getProject(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
 
   const dbWarehouses = await getWarehousesForProject(project.id);
+  const dbComparisons = await getComparisonsForProject(project.id);
 
   if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
       projectName: project.name,
       workspaceWarehouses: [],
+      comparisons: dbComparisonsToComparisons(dbComparisons),
       orders: [],
     };
   }
@@ -158,6 +199,7 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
     projectId: project.id,
     projectName: project.name,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
+    comparisons: dbComparisonsToComparisons(dbComparisons),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
   };
 }
@@ -167,12 +209,14 @@ export async function loadProject(projectId: string): Promise<WarehouseSnapshot>
 export async function loadWorkspace(): Promise<WarehouseSnapshot> {
   const project = await getOrCreateProject();
   const dbWarehouses = await getWarehousesForProject(project.id);
+  const dbComparisons = await getComparisonsForProject(project.id);
 
   if (dbWarehouses.length === 0) {
     return {
       projectId: project.id,
       projectName: project.name,
       workspaceWarehouses: [],
+      comparisons: dbComparisonsToComparisons(dbComparisons),
       orders: [],
     };
   }
@@ -183,6 +227,7 @@ export async function loadWorkspace(): Promise<WarehouseSnapshot> {
     projectId: project.id,
     projectName: project.name,
     workspaceWarehouses: dbWarehousesToWorkspace(dbWarehouses),
+    comparisons: dbComparisonsToComparisons(dbComparisons),
     orders: (firstWarehouse.ordersJson as unknown as Order[]) ?? [],
   };
 }
@@ -374,4 +419,51 @@ export async function saveWarehouseLayout(
     warehouseId,
     layoutJson: warehouse as unknown as Record<string, unknown>,
   });
+}
+
+// ── Comparison CRUD ────────────────────────────────────────────────────────
+
+export async function createComparisonAction(
+  projectId: string,
+  name?: string,
+  warehouseIds?: string[],
+): Promise<Comparison> {
+  const created = await createComparison(projectId, name);
+
+  // If warehouseIds were provided, populate them now.
+  if (warehouseIds && warehouseIds.length > 0) {
+    await updateComparison(created.id, { warehouseIds });
+  }
+
+  return {
+    id: created.id,
+    name: created.name,
+    projectId: created.projectId,
+    warehouseIds: warehouseIds ?? (Array.isArray(created.warehouseIds)
+      ? (created.warehouseIds as string[])
+      : []),
+    positionX: created.positionX,
+    positionY: created.positionY,
+    createdAt: created.createdAt,
+    updatedAt: created.updatedAt,
+  };
+}
+
+export async function updateComparisonAction(
+  comparisonId: string,
+  updates: {
+    name?: string;
+    positionX?: number | null;
+    positionY?: number | null;
+    warehouseIds?: string[];
+  },
+): Promise<void> {
+  await updateComparison(comparisonId, updates);
+}
+
+export async function deleteComparisonAction(
+  comparisonId: string,
+  projectId: string,
+): Promise<void> {
+  await deleteComparison(comparisonId, projectId);
 }

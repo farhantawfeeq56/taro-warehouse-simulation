@@ -38,3 +38,21 @@ export const warehouses = pgTable('warehouses', {
 }, (table) => ({
   // Multi-warehouse support: removed the 1:1 constraint to allow many warehouses per project
 }));
+
+export const comparisons = pgTable('comparisons', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  name: text('name').notNull().default('Untitled Comparison'),
+
+  // Canvas node position (null = use auto-layout until first drag)
+  positionX: integer('position_x'),
+  positionY: integer('position_y'),
+
+  // Ordered list of member warehouse IDs
+  warehouseIds: jsonb('warehouse_ids').$type<string[]>(),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

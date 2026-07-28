@@ -1,13 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { WorkspaceWarehouse } from '@/lib/taro/types';
-import { Layers, Plus, GitCompareArrows, Warehouse as WarehouseIcon } from 'lucide-react';
-
-export interface Comparison {
-  id: string;
-  name: string;
-}
+import type { WorkspaceWarehouse, Comparison } from '@/lib/taro/types';
+import { Plus, GitCompareArrows, Warehouse as WarehouseIcon, Trash2 } from 'lucide-react';
 
 interface WorkspacePanelProps {
   // App header
@@ -22,9 +17,12 @@ interface WorkspacePanelProps {
   onSelectWarehouse: (id: string, opts?: { additive?: boolean }) => void;
   onRenameWarehouse: (id: string, name: string) => void;
 
-  // Comparisons (placeholder)
+  // Comparisons
   comparisons: Comparison[];
+  activeComparisonId: string | null;
+  onSelectComparison: (id: string) => void;
   onRenameComparison: (id: string, name: string) => void;
+  onDeleteComparison: (id: string) => void;
 
   // Actions
   onAddWarehouse: () => void;
@@ -225,14 +223,15 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
             <ul className="space-y-0.5">
               {props.comparisons.map((c) => {
                 const editing = isEditing(c.id, 'comparison');
+                const isActive = c.id === props.activeComparisonId;
                 return (
                   <li key={c.id}>
                     {editing ? (
                       <div
                         className="w-full px-2 py-1.5 rounded-md text-xs
-                          flex items-center gap-2 ring-1 ring-primary/30"
+                          flex items-center gap-2 ring-1 ring-emerald-500/30"
                       >
-                        <Layers className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                        <GitCompareArrows className="h-3 w-3 text-muted-foreground/60 shrink-0" />
                         <input
                           ref={editing ? inputRef : undefined}
                           value={draftName}
@@ -243,19 +242,45 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                             if (e.key === 'Escape') cancelEdit();
                           }}
                           onClick={(e) => e.stopPropagation()}
-                          className="nodrag flex-1 min-w-0 h-5 px-1 text-xs font-medium bg-background border border-primary/50 rounded outline-none ring-1 ring-primary/30"
+                          className="nodrag flex-1 min-w-0 h-5 px-1 text-xs font-medium bg-background border border-emerald-500/50 rounded outline-none ring-1 ring-emerald-500/30"
                         />
                       </div>
                     ) : (
-                      <div
+                      <button
+                        onClick={() => props.onSelectComparison(c.id)}
                         onDoubleClick={() => beginEdit({ id: c.id, type: 'comparison' }, c.name)}
-                        className="w-full text-left px-2 py-1.5 rounded-md text-xs truncate
-                          flex items-center gap-2 text-foreground hover:bg-muted transition-colors cursor-default"
+                        className={`
+                          w-full text-left px-2 py-1.5 rounded-md text-xs truncate
+                          flex items-center gap-2 transition-colors group
+                          ${isActive
+                            ? 'bg-emerald-500/10 text-emerald-700 font-semibold'
+                            : 'text-foreground hover:bg-muted'
+                          }
+                        `}
                         title={`${c.name} (double-click to rename)`}
                       >
-                        <Layers className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-                        <span className="truncate">{c.name}</span>
-                      </div>
+                        <span
+                          className={`
+                            inline-block w-1.5 h-1.5 rounded-full shrink-0
+                            ${isActive ? 'bg-emerald-500' : 'bg-muted-foreground/30'}
+                          `}
+                        />
+                        <GitCompareArrows className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                        <span className="truncate flex-1">{c.name}</span>
+                        <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
+                          {c.warehouseIds.length}w
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            props.onDeleteComparison(c.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/10 hover:text-destructive transition-all shrink-0"
+                          title="Delete comparison"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </button>
                     )}
                   </li>
                 );
