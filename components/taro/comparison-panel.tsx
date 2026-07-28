@@ -106,16 +106,18 @@ export function ComparisonPanel({
 }: ComparisonPanelProps) {
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // Determine the winner
+  // Determine the winner. Guard against all-failure runs where results is
+  // non-empty but the filtered valid list is empty — reduce() on an empty
+  // array throws.
+  const validResults = results?.filter((r) => r.bestResult && !r.error) ?? [];
   const winnerId =
-    results && results.length > 0
-      ? results
-          .filter((r) => r.bestResult && !r.error)
-          .reduce((best, current) =>
-            (current.bestResult?.efficiency ?? 0) > (best.bestResult?.efficiency ?? 0)
-              ? current
-              : best,
-          ).warehouseId
+    validResults.length > 0
+      ? validResults.reduce((best, current) =>
+          (current.bestResult?.efficiency ?? 0) >
+          (best.bestResult?.efficiency ?? 0)
+            ? current
+            : best,
+        ).warehouseId
       : null;
 
   const canAdd = comparison.warehouseIds.length < warehouses.length;

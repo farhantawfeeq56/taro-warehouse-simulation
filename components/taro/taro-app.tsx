@@ -139,6 +139,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   activeWarehouseIdRef.current = activeWarehouseId;
   const activeProjectIdRef = useRef(activeProjectId);
   activeProjectIdRef.current = activeProjectId;
+  const comparisonsRef = useRef(comparisons);
+  comparisonsRef.current = comparisons;
 
   const [orders, setOrders] = useState<Order[]>([]);
 
@@ -582,8 +584,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             : c,
         ),
       );
-      // Persist each affected comparison.
-      for (const c of comparisons) {
+      // Persist each affected comparison using the current ref value (the
+      // callback is memoized without `comparisons` in its deps, so the closure
+      // `comparisons` would be stale from the initial render).
+      for (const c of comparisonsRef.current) {
         if (c.warehouseIds.includes(warehouseId)) {
           const updated = c.warehouseIds.filter((id) => id !== warehouseId);
           updateComparisonAction(c.id, { warehouseIds: updated }).catch(
