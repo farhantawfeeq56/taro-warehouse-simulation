@@ -266,7 +266,7 @@ export interface SimulationValidationContext {
   missingItemsByOrder: OrderValidationResult[];
 }
 
-export type ToolType = 'hand' | 'shelf' | 'worker' | 'erase';
+export type ToolType = 'hand' | 'select' | 'shelf' | 'worker' | 'erase';
 
 export type ZVisualizationMode = 'all' | 'level1' | 'level2' | 'level3' | 'level4';
 

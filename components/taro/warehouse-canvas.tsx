@@ -152,7 +152,7 @@ export function WarehouseCanvas({
   }, [warehouse, selectedTool, warehouseId, onWarehouseChange]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (selectedTool === 'hand') return;
+    if (selectedTool === 'hand' || selectedTool === 'select') return;
     if (e.button === 0) {
       setIsDrawing(true);
       const cell = getCellFromMouse(e);
@@ -163,7 +163,7 @@ export function WarehouseCanvas({
   }, [selectedTool, getCellFromMouse, applyTool]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (selectedTool === 'hand') return;
+    if (selectedTool === 'hand' || selectedTool === 'select') return;
     if (isDrawing) {
       const cell = getCellFromMouse(e);
       if (cell) {
@@ -232,6 +232,17 @@ export function WarehouseCanvas({
     const cell = warehouse.grid[cellPosition.y][cellPosition.x];
     if (cell.type !== 'shelf') {
       setShelfDetails(null);
+      return;
+    }
+
+    // In drawing tools (shelf/worker/erase), modify the grid; in select mode, just view details
+    if (selectedTool === 'select') {
+      setShelfDetails({
+        visible: true,
+        cellX: cellPosition.x,
+        cellY: cellPosition.y,
+        locations: cell.locations,
+      });
       return;
     }
 
@@ -606,7 +617,7 @@ export function WarehouseCanvas({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className={selectedTool === 'hand' ? 'cursor-grab' : isHoveringShelf ? 'cursor-pointer' : 'cursor-crosshair'}
+        className={selectedTool === 'hand' ? 'cursor-grab' : selectedTool === 'select' ? 'cursor-default' : isHoveringShelf ? 'cursor-pointer' : 'cursor-crosshair'}
         style={{ touchAction: 'none' }}
       />
       
