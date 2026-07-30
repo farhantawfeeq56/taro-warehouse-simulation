@@ -52,6 +52,8 @@ interface SystemStatePanelProps {
   onAddDemoOrders?: () => void;
   onSetWorkerStart?: () => void;
   onZVisualizationChange?: (mode: ZVisualizationMode) => void;
+  /** Whether demo orders are being generated — shows spinner on the fix button. */
+  isGeneratingOrders?: boolean;
   /** When true, renders without the outer width/border wrapper so it can be embedded in a tab. */
   embedded?: boolean;
 }
@@ -73,6 +75,7 @@ export function SystemStatePanel({
   onAddDemoOrders,
   onSetWorkerStart,
   onZVisualizationChange,
+  isGeneratingOrders = false,
   embedded = false,
 }: SystemStatePanelProps) {
   const strategies = results?.strategies ?? [];
@@ -210,9 +213,17 @@ export function SystemStatePanel({
                   }
                   if (nextFix.id === 'set-worker-start') onSetWorkerStart?.();
                 }}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-none shadow-sm h-9 text-xs font-semibold"
+                disabled={nextFix.id === 'add-orders' && isGeneratingOrders}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-none shadow-sm h-9 text-xs font-semibold disabled:opacity-70"
               >
-                {nextFix.actionLabel}
+                {nextFix.id === 'add-orders' && isGeneratingOrders ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    Generating Orders…
+                  </>
+                ) : (
+                  nextFix.actionLabel
+                )}
               </Button>
             </div>
           )}

@@ -52,6 +52,8 @@ interface WorkbenchPanelProps {
   onAddShelves?: () => void;
   onSetWorkerStart?: () => void;
   onZVisualizationChange?: (mode: ZVisualizationMode) => void;
+  /** Whether demo orders are being generated — shows spinner on the fix button. */
+  isGeneratingOrders?: boolean;
 }
 
 export function WorkbenchPanel(props: WorkbenchPanelProps) {
@@ -126,6 +128,7 @@ export function WorkbenchPanel(props: WorkbenchPanelProps) {
             onAddDemoOrders={props.onAddDemoOrders}
             onSetWorkerStart={props.onSetWorkerStart}
             onZVisualizationChange={props.onZVisualizationChange}
+            isGeneratingOrders={props.isGeneratingOrders}
           />
         </TabsContent>
       </Tabs>
