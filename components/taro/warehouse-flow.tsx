@@ -57,6 +57,10 @@ interface WarehouseFlowProps {
   duplicatingWarehouseId: string | null;
   /** Warehouse id currently being deleted — shows spinner on the node's delete button. */
   deletingWarehouseId: string | null;
+  /** Warehouse id currently being renamed — shows a brief spinner on the node name. */
+  renamingWarehouseId: string | null;
+  /** Warehouse id currently toggled in link mode — shows spinner on the badge. */
+  togglingMembershipWarehouseId: string | null;
   onNewWarehouse: () => void;
   workerCount: number;
   onWorkerCountChange: (count: number) => void;
@@ -138,6 +142,8 @@ function WarehouseFlowInner({
   // Loading states
   duplicatingWarehouseId,
   deletingWarehouseId,
+  renamingWarehouseId,
+  togglingMembershipWarehouseId,
 }: WarehouseFlowProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const reactFlowInstance = useReactFlow();
@@ -321,11 +327,13 @@ function WarehouseFlowInner({
             isActive: layout.id === activeWarehouseId,
             isDuplicating: layout.id === duplicatingWarehouseId,
             isDeleting: layout.id === deletingWarehouseId,
+            isRenaming: layout.id === renamingWarehouseId,
             // Link-mode fields
             isLinkMode,
             isMember: isWarehouseMember,
             linkModeComparisonId,
             onToggleMember,
+            isTogglingMembership: layout.id === togglingMembershipWarehouseId,
           },
         });
       } else {
@@ -412,11 +420,13 @@ function WarehouseFlowInner({
               isActive: n.id === activeWarehouseId,
               isDuplicating: n.id === duplicatingWarehouseId,
               isDeleting: n.id === deletingWarehouseId,
+              isRenaming: n.id === renamingWarehouseId,
               // Link-mode fields
               isLinkMode,
               isMember: isWarehouseMember,
               linkModeComparisonId,
               onToggleMember,
+              isTogglingMembership: n.id === togglingMembershipWarehouseId,
             },
           };
         }
@@ -478,6 +488,8 @@ function WarehouseFlowInner({
     onExitLink,
     duplicatingWarehouseId,
     deletingWarehouseId,
+    renamingWarehouseId,
+    togglingMembershipWarehouseId,
     setNodes,
   ]);
 
