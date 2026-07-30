@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Order, Warehouse } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
-import { Shuffle, SlidersHorizontal } from 'lucide-react';
+import { Shuffle, SlidersHorizontal, Loader2 } from 'lucide-react';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 import { collectSkuIds, getBinForSku, buildSkuToBinIndex } from '@/lib/taro/inventory';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -38,6 +38,7 @@ export function OrdersPanel({
   const [showSettings, setShowSettings] = useState(false);
   const [draftOrderCount, setDraftOrderCount] = useState(500);
   const [draftAvgOrderSize, setDraftAvgOrderSize] = useState(5);
+  const [isGenerating, setIsGenerating] = useState(false);
   const orderRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Build the SKU → bin index once per warehouse change so every
@@ -71,8 +72,12 @@ export function OrdersPanel({
 
   const generateRandom = () => {
     if (!warehouse || availableSkus.length === 0) return;
-    const randomOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
-    onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
+    setIsGenerating(true);
+    requestAnimationFrame(() => {
+      const randomOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
+      onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
+      setIsGenerating(false);
+    });
   };
 
   useEffect(() => {
@@ -126,12 +131,16 @@ export function OrdersPanel({
             variant="outline"
             size="sm"
             onClick={generateRandom}
-            disabled={availableSkus.length === 0}
+            disabled={availableSkus.length === 0 || isGenerating}
             className="flex-1 h-7 text-xs"
             title="Generate random orders"
           >
-            <Shuffle className="h-3 w-3 mr-1" />
-            Generate Random Orders
+            {isGenerating ? (
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <Shuffle className="h-3 w-3 mr-1" />
+            )}
+            {isGenerating ? 'Generating…' : 'Generate Random Orders'}
           </Button>
           <Popover
             open={showSettings}

@@ -186,6 +186,11 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [isGeneratingOrders, setIsGeneratingOrders] = useState(false);
   // Save indicator ('idle' | 'saving' | 'saved')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  // In-flight rename tracking
+  const [renamingWarehouseId, setRenamingWarehouseId] = useState<string | null>(null);
+  const [renamingComparisonId, setRenamingComparisonId] = useState<string | null>(null);
+  // Link-mode toggle membership — shows spinner on the badge
+  const [togglingMembershipWarehouseId, setTogglingMembershipWarehouseId] = useState<string | null>(null);
   // CSV import
   const [isImporting, setIsImporting] = useState(false);
   // Save-status reset timer — clears 'saved' back to 'idle' after 2s
@@ -258,10 +263,13 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     setComparisons((prev) =>
       prev.map((c) => (c.id === comparisonId ? { ...c, name } : c)),
     );
+    setRenamingComparisonId(comparisonId);
     try {
       await updateComparisonAction(comparisonId, { name });
     } catch (err) {
       console.error('Failed to rename comparison:', err);
+    } finally {
+      setRenamingComparisonId(null);
     }
   }, []);
 
@@ -416,9 +424,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           ? comp.warehouseIds.filter((id) => id !== warehouseId)
           : [...comp.warehouseIds, warehouseId];
         // Persist optimistically
+        setTogglingMembershipWarehouseId(warehouseId);
         updateComparisonAction(comparisonId, {
           warehouseIds: nextWarehouseIds,
-        }).catch(console.error);
+        })
+          .catch(console.error)
+          .finally(() => setTogglingMembershipWarehouseId(null));
         return prev.map((c) =>
           c.id === comparisonId ? { ...c, warehouseIds: nextWarehouseIds } : c,
         );
@@ -568,6 +579,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       prev.map((ww) => (ww.id === warehouseId ? { ...ww, name } : ww)),
     );
 
+    setRenamingWarehouseId(warehouseId);
     try {
       await renameWarehouseAction(warehouseId, name, projectId);
     } catch (err) {
@@ -575,6 +587,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       // Revert by reloading on error — simplest rollback
       const snapshot = await loadProject(projectId);
       setWorkspaceWarehouses(snapshot.workspaceWarehouses);
+    } finally {
+      setRenamingWarehouseId(null);
     }
   }, []);
 
@@ -1170,6 +1184,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           onNewComparison={handleNewComparison}
           isCreatingComparison={isCreatingComparison}
           deletingComparisonId={deletingComparisonId}
+          renamingComparisonId={renamingComparisonId}
           saveStatus={saveStatus}
         />
 
@@ -1211,6 +1226,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             onOpenLayoutConfig={handleOpenLayoutConfig}
             duplicatingWarehouseId={duplicatingWarehouseId}
             deletingWarehouseId={deletingWarehouseId}
+            renamingWarehouseId={renamingWarehouseId}
+            togglingMembershipWarehouseId={togglingMembershipWarehouseId}
             onNewWarehouse={handleNewWarehouse}
             workerCount={workerCount}
             onWorkerCountChange={setWorkerCount}

@@ -42,6 +42,8 @@ export type WarehouseNodeData = Record<string, unknown> & {
   isDuplicating?: boolean;
   /** Whether this warehouse is currently being deleted — shows spinner on the delete button. */
   isDeleting?: boolean;
+  /** Whether this warehouse is currently being renamed — shows a brief spinner next to the name. */
+  isRenaming?: boolean;
   /** Link mode: canvas is in "link warehouses to a comparison" mode. */
   isLinkMode?: boolean;
   /** Link mode: this warehouse is already a member of the target comparison. */
@@ -50,6 +52,8 @@ export type WarehouseNodeData = Record<string, unknown> & {
   linkModeComparisonId?: string | null;
   /** Link mode: toggles membership when the user clicks the node badge. */
   onToggleMember?: (comparisonId: string, warehouseId: string) => void;
+  /** Whether membership is currently being toggled for this warehouse — shows spinner on the badge. */
+  isTogglingMembership?: boolean;
 };
 
 /**
@@ -167,6 +171,7 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
             className="nodrag flex-1 min-w-0 h-5 px-1 text-xs font-medium bg-background border border-primary/50 rounded outline-none ring-1 ring-primary/30"
           />
         ) : (
+          <>
           <span
             className={`truncate min-w-0 ${isHighlighted ? 'font-semibold' : 'font-medium'}`}
             onDoubleClick={(e) => {
@@ -177,6 +182,10 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
           >
             {data.warehouseName}
           </span>
+          {data.isRenaming && (
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
+          )}
+          </>
         )}
 
         <div className="flex items-center gap-0.5 shrink-0">
@@ -187,6 +196,7 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
                 e.stopPropagation();
                 data.onToggleMember?.(data.linkModeComparisonId!, data.warehouseId);
               }}
+              disabled={data.isTogglingMembership}
               title={data.isMember ? 'Remove from comparison' : 'Add to comparison'}
               className={`
                 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold
@@ -195,10 +205,13 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
                   ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                   : 'bg-muted/60 text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600'
                 }
+                disabled:opacity-70
               `}
               aria-label={data.isMember ? 'Member (click to remove)' : 'Not a member (click to add)'}
             >
-              {data.isMember ? (
+              {data.isTogglingMembership ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : data.isMember ? (
                 <Check className="h-3 w-3" />
               ) : (
                 <Plus className="h-3 w-3" />

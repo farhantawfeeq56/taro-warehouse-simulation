@@ -32,6 +32,8 @@ interface WorkspacePanelProps {
   deletingComparisonId?: string | null;
   /** Save indicator status for layout/position persistence. */
   saveStatus?: 'idle' | 'saving' | 'saved';
+  /** Comparison id currently being renamed — shows a brief spinner. */
+  renamingComparisonId?: string | null;
 }
 
 type EditingTarget =
@@ -272,6 +274,9 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                         />
                         <GitCompareArrows className="h-3 w-3 text-muted-foreground/60 shrink-0" />
                         <span className="truncate flex-1">{c.name}</span>
+                        {props.renamingComparisonId === c.id && (
+                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
+                        )}
                         <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
                           {c.warehouseIds.length}w
                         </span>
