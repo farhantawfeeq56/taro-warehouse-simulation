@@ -91,6 +91,10 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
   const [newProjectName, setNewProjectName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
+  // In-progress rename / duplicate tracking
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
+  const [duplicatingProjectId, setDuplicatingProjectId] = useState<string | null>(null);
+
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   // ── Fetch projects ──────────────────────────────────────────────────────
@@ -128,6 +132,7 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
       setRenamingId(null);
       return;
     }
+    setRenamingProjectId(renamingId);
     try {
       await updateProjectNameAction(renamingId, trimmed);
       setProjects((prev) =>
@@ -135,7 +140,9 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
       );
     } catch (err) {
       console.error('Failed to rename project:', err);
+      // Revert optimistically — no-op since we haven't updated state yet, but keep the old name visible
     }
+    setRenamingProjectId(null);
     setRenamingId(null);
   }, [renamingId, renameValue]);
 
@@ -179,12 +186,14 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
   // Full warehouse-duplication logic can be added later.
   const handleDuplicate = useCallback(
     async (project: ProjectSummary) => {
+      setDuplicatingProjectId(project.id);
       try {
         const copy = await createProjectAction(`${project.name} (Copy)`);
         // Navigate to the empty copy; user can re-configure from scratch
         onOpenProject(copy.id);
       } catch (err) {
         console.error('Failed to duplicate project:', err);
+        setDuplicatingProjectId(null);
       }
     },
     [onOpenProject],
@@ -324,17 +333,23 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
                     <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
                       <div className="space-y-1 flex-1 min-w-0">
                         {isRenaming ? (
-                          <Input
-                            ref={renameInputRef}
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onBlur={commitRename}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') commitRename();
-                              if (e.key === 'Escape') setRenamingId(null);
-                            }}
-                            className="h-7 text-base font-semibold px-1"
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              ref={renameInputRef}
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onBlur={commitRename}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') commitRename();
+                                if (e.key === 'Escape') setRenamingId(null);
+                              }}
+                              className="h-7 text-base font-semibold px-1 flex-1"
+                              disabled={renamingProjectId === project.id}
+                            />
+                            {renamingProjectId === project.id && (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />
+                            )}
+                          </div>
                         ) : (
                           <CardTitle
                             className="text-base group-hover:text-primary transition-colors cursor-pointer truncate"
@@ -362,8 +377,17 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
                           <DropdownMenuItem className="gap-2" onClick={() => startRename(project)}>
                             <Edit2 className="h-4 w-4" /> Rename
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2" onClick={() => handleDuplicate(project)}>
-                            <Copy className="h-4 w-4" /> Duplicate
+                          <DropdownMenuItem
+                            className="gap-2"
+                            onClick={() => handleDuplicate(project)}
+                            disabled={duplicatingProjectId === project.id}
+                          >
+                            {duplicatingProjectId === project.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                            {duplicatingProjectId === project.id ? 'Duplicating…' : 'Duplicate'}
                           </DropdownMenuItem>
                           <Separator className="my-1" />
                           <DropdownMenuItem

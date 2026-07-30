@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { WorkspaceWarehouse, Comparison } from '@/lib/taro/types';
-import { Plus, GitCompareArrows, Warehouse as WarehouseIcon, Trash2, Loader2 } from 'lucide-react';
+import { Plus, GitCompareArrows, Warehouse as WarehouseIcon, Trash2, Loader2, Check, AlertCircle } from 'lucide-react';
 
 interface WorkspacePanelProps {
   // App header
@@ -28,6 +28,10 @@ interface WorkspacePanelProps {
   onAddWarehouse: () => void;
   onNewComparison: () => void;
   isCreatingComparison?: boolean;
+  /** Comparison id currently being deleted — shows spinner on its trash button. */
+  deletingComparisonId?: string | null;
+  /** Save indicator status for layout/position persistence. */
+  saveStatus?: 'idle' | 'saving' | 'saved';
 }
 
 type EditingTarget =
@@ -276,10 +280,15 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                             e.stopPropagation();
                             props.onDeleteComparison(c.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/10 hover:text-destructive transition-all shrink-0"
+                          disabled={props.deletingComparisonId === c.id}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/10 hover:text-destructive transition-all shrink-0 disabled:opacity-100"
                           title="Delete comparison"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          {props.deletingComparisonId === c.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin text-destructive" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
                         </button>
                       </button>
                     )}
@@ -293,6 +302,23 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
 
       {/* Footer: action buttons */}
       <div className="p-3 border-t border-border shrink-0 space-y-1.5">
+        {/* Save-status indicator */}
+        {props.saveStatus && props.saveStatus !== 'idle' && (
+          <div
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+              props.saveStatus === 'saving'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+            }`}
+          >
+            {props.saveStatus === 'saving' ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Check className="h-3 w-3" />
+            )}
+            {props.saveStatus === 'saving' ? 'Saving…' : 'Saved'}
+          </div>
+        )}
         <button
           onClick={props.onAddWarehouse}
           className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium

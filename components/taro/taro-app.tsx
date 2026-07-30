@@ -33,7 +33,7 @@ import { WorkbenchPanel } from './workbench-panel';
 import { ComparisonPanel } from './comparison-panel';
 import { WorkspacePanel } from './workspace-panel';
 import { Toolbar } from './toolbar';
-import { GitCompareArrows } from 'lucide-react';
+import { GitCompareArrows, Loader2 } from 'lucide-react';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
@@ -178,8 +178,18 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [deletingWarehouseId, setDeletingWarehouseId] = useState<string | null>(null);
   // Comparison creation — drives spinner on New Comparison button
   const [isCreatingComparison, setIsCreatingComparison] = useState(false);
+  // Comparison deletion — drives spinner on WorkspacePanel delete button
+  const [deletingComparisonId, setDeletingComparisonId] = useState<string | null>(null);
+  // "Compare Selected" floating button
+  const [isCreatingFromSelection, setIsCreatingFromSelection] = useState(false);
+  // Demo orders generation
+  const [isGeneratingOrders, setIsGeneratingOrders] = useState(false);
+  // Save indicator ('idle' | 'saving' | 'saved')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   // CSV import
   const [isImporting, setIsImporting] = useState(false);
+  // Save-status reset timer — clears 'saved' back to 'idle' after 2s
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
@@ -262,10 +272,13 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     if (activeComparisonId === comparisonId) {
       setActiveComparisonId(null);
     }
+    setDeletingComparisonId(comparisonId);
     try {
       await deleteComparisonAction(comparisonId, projectId);
     } catch (err) {
       console.error('Failed to delete comparison:', err);
+    } finally {
+      setDeletingComparisonId(null);
     }
   }, []);
 
@@ -441,6 +454,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     if (!projectId || selectedWarehouseIds.size < 2) return;
 
     const warehouseIds = [...selectedWarehouseIds];
+    setIsCreatingFromSelection(true);
     try {
       const comp = await createComparisonAction(projectId, undefined, warehouseIds);
       setComparisons((prev) => [...prev, comp]);
@@ -450,6 +464,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       setLinkModeComparisonId(null);
     } catch (err) {
       console.error('Failed to create comparison from selection:', err);
+    } finally {
+      setIsCreatingFromSelection(false);
     }
   }, [selectedWarehouseIds]);
 
@@ -659,9 +675,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
     // Debounced persistence (handled in WarehouseFlow with setTimeout, but persist here too)
     try {
+      setSaveStatus('saving');
       await saveWarehousePositionAction(warehouseId, projectId, x, y);
+      setSaveStatus('saved');
     } catch (err) {
       console.error('Failed to save warehouse position:', err);
+      setSaveStatus('idle');
     }
   }, []);
 
@@ -732,7 +751,13 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     saveLayoutTimerRef.current = setTimeout(() => {
       const pid = activeProjectIdRef.current;
       if (pid) {
-        saveWarehouseLayout(pid, newWh, whId).catch(console.error);
+        setSaveStatus('saving');
+        saveWarehouseLayout(pid, newWh, whId)
+          .then(() => setSaveStatus('saved'))
+          .catch((err) => {
+            console.error(err);
+            setSaveStatus('idle');
+          });
       }
     }, 500);
   }, []);
@@ -982,6 +1007,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
   const handleAddDemoOrders = useCallback(async () => {
     if (!warehouse || !activeProjectId) return;
+    setIsGeneratingOrders(true);
     try {
       const newOrders = await saveOrders(activeProjectId, warehouse, orderCount, avgOrderSize, activeWarehouseId ?? undefined);
       setOrders(newOrders);
@@ -990,6 +1016,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       // Fallback: generate client-side
       const fallbackOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
       setOrders(fallbackOrders);
+    } finally {
+      setIsGeneratingOrders(false);
     }
   }, [warehouse, activeProjectId, orderCount, avgOrderSize]);
 
@@ -1055,6 +1083,17 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
   }, [replaySpeed]);
+
+  // Auto-reset saveStatus 'saved' → 'idle' after 2s
+  useEffect(() => {
+    if (saveStatus !== 'saved') return;
+    // clear any pending timer
+    if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+    return () => {
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+    };
+  }, [saveStatus]);
 
   // Keyboard shortcut: 'h' toggles hand/pan tool
   useEffect(() => {
@@ -1130,6 +1169,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           onAddWarehouse={handleNewWarehouse}
           onNewComparison={handleNewComparison}
           isCreatingComparison={isCreatingComparison}
+          deletingComparisonId={deletingComparisonId}
+          saveStatus={saveStatus}
         />
 
         {/*
@@ -1203,15 +1244,21 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             {!linkModeComparisonId && selectedWarehouseIds.size >= 2 && (
               <button
                 onClick={handleCompareSelected}
+                disabled={isCreatingFromSelection}
                 className="
                   flex items-center gap-1.5 px-3 py-1.5
                   bg-white/90 backdrop-blur-sm text-xs font-medium
                   border border-emerald-300/70 rounded-lg shadow-md
                   text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400
                   active:bg-emerald-100 transition-colors
+                  disabled:opacity-70 disabled:cursor-not-allowed
                 "
               >
-                <GitCompareArrows className="h-3.5 w-3.5" />
+                {isCreatingFromSelection ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <GitCompareArrows className="h-3.5 w-3.5" />
+                )}
                 Compare {selectedWarehouseIds.size} selected
               </button>
             )}
@@ -1267,6 +1314,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           onAddShelves={() => setSelectedTool('shelf')}
           onSetWorkerStart={() => setSelectedTool('worker')}
           onZVisualizationChange={setZVisualizationMode}
+          isGeneratingOrders={isGeneratingOrders}
           />
         )}
       </div>
