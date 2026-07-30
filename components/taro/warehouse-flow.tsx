@@ -410,6 +410,8 @@ function WarehouseFlowInner({
               zVisualizationMode,
               animationReplayId,
               isActive: n.id === activeWarehouseId,
+              isDuplicating: n.id === duplicatingWarehouseId,
+              isDeleting: n.id === deletingWarehouseId,
               // Link-mode fields
               isLinkMode,
               isMember: isWarehouseMember,
@@ -474,6 +476,8 @@ function WarehouseFlowInner({
     onToggleMember,
     onStartLink,
     onExitLink,
+    duplicatingWarehouseId,
+    deletingWarehouseId,
     setNodes,
   ]);
 
