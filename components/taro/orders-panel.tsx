@@ -73,11 +73,14 @@ export function OrdersPanel({
   const generateRandom = () => {
     if (!warehouse || availableSkus.length === 0) return;
     setIsGenerating(true);
-    requestAnimationFrame(() => {
+    // setTimeout(0) defers the CPU-heavy work to a macrotask so React can
+    // commit and paint the loading spinner before generateRandomOrders
+    // blocks the main thread.
+    setTimeout(() => {
       const randomOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
       onOrdersChange(randomOrders.map(o => ({ ...o, assignedWorkerId: null })));
       setIsGenerating(false);
-    });
+    }, 0);
   };
 
   useEffect(() => {
