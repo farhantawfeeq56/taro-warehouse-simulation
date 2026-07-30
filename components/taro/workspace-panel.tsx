@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { WorkspaceWarehouse, Comparison } from '@/lib/taro/types';
-import { Plus, GitCompareArrows, Warehouse as WarehouseIcon, Trash2 } from 'lucide-react';
+import { Plus, GitCompareArrows, Warehouse as WarehouseIcon, Trash2, Loader2 } from 'lucide-react';
 
 interface WorkspacePanelProps {
   // App header
@@ -27,6 +27,7 @@ interface WorkspacePanelProps {
   // Actions
   onAddWarehouse: () => void;
   onNewComparison: () => void;
+  isCreatingComparison?: boolean;
 }
 
 type EditingTarget =
@@ -303,12 +304,18 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
         </button>
         <button
           onClick={props.onNewComparison}
+          disabled={props.isCreatingComparison}
           className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium
             text-foreground hover:bg-muted active:bg-muted/80 transition-colors
-            border border-dashed border-muted-foreground/30 hover:border-muted-foreground/50"
+            border border-dashed border-muted-foreground/30 hover:border-muted-foreground/50
+            disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <Plus className="h-3.5 w-3.5" />
-          New Comparison
+          {props.isCreatingComparison ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
+          {props.isCreatingComparison ? 'Creating…' : 'New Comparison'}
         </button>
       </div>
     </div>

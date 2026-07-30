@@ -53,6 +53,10 @@ interface WarehouseFlowProps {
   onRenameWarehouse: (warehouseId: string, name: string) => void;
   onDeleteWarehouse: (warehouseId: string) => void;
   onOpenLayoutConfig: (warehouseId: string) => void;
+  /** Warehouse id currently being duplicated — shows spinner on the node's duplicate button. */
+  duplicatingWarehouseId: string | null;
+  /** Warehouse id currently being deleted — shows spinner on the node's delete button. */
+  deletingWarehouseId: string | null;
   onNewWarehouse: () => void;
   workerCount: number;
   onWorkerCountChange: (count: number) => void;
@@ -131,6 +135,9 @@ function WarehouseFlowInner({
   onToggleMember,
   onStartLink,
   onExitLink,
+  // Loading states
+  duplicatingWarehouseId,
+  deletingWarehouseId,
 }: WarehouseFlowProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const reactFlowInstance = useReactFlow();
@@ -312,6 +319,8 @@ function WarehouseFlowInner({
             zVisualizationMode,
             animationReplayId,
             isActive: layout.id === activeWarehouseId,
+            isDuplicating: layout.id === duplicatingWarehouseId,
+            isDeleting: layout.id === deletingWarehouseId,
             // Link-mode fields
             isLinkMode,
             isMember: isWarehouseMember,

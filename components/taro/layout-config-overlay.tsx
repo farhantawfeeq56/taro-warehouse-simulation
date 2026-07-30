@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { X, Layout, AlertTriangle, Grid3X3, Thermometer, Tag } from 'lucide-react';
+import { X, Layout, AlertTriangle, Grid3X3, Thermometer, Tag, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -72,6 +72,11 @@ interface LayoutConfigOverlayProps {
    * configuration and behaves as an editor (edit header & update button).
    */
   initialConfig?: WarehouseConfiguration;
+  /**
+   * When true, the Apply button is disabled and shows a spinner —
+   * indicates a warehouse generation is in-flight.
+   */
+  isGenerating?: boolean;
 }
 
 /** Piecewise‑adaptive step for Grid Height (4–60):
@@ -90,7 +95,7 @@ function getRackStep(v: number): number {
   return 5;
 }
 
-export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initialConfig }: LayoutConfigOverlayProps) {
+export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initialConfig, isGenerating = false }: LayoutConfigOverlayProps) {
   const isEditing = initialConfig != null;
 
   const [layoutType, setLayoutType] = useState<LayoutType>(
@@ -451,8 +456,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     return cells;
   };
 
-  const handleApply = () => {
-    onApply?.({
+  const handleApply = async () => {
+    const config: LayoutConfig = {
       type: layoutType,
       gridHeight: debouncedGridHeight,
       rackCount: debouncedRackCount,
@@ -470,7 +475,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
       storageFootprint,
       demandDistribution,
       productAffinity,
-    });
+    };
+    await onApply?.(config);
     onClose();
   };
 
@@ -803,8 +809,21 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
           </Tabs>
 
           <div className="p-6 border-t bg-card/50">
-            <Button className="w-full" onClick={handleApply}>
-              {isEditing ? 'Update Warehouse' : 'Generate Warehouse'}
+            <Button
+              className="w-full"
+              onClick={handleApply}
+              disabled={isGenerating}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {isEditing ? 'Updating…' : 'Generating…'}
+                </>
+              ) : isEditing ? (
+                'Update Warehouse'
+              ) : (
+                'Generate Warehouse'
+              )}
             </Button>
           </div>
         </aside>

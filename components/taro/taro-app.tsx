@@ -171,6 +171,15 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Warehouse generation — shown in LayoutConfigOverlay Apply button
+  const [isGenerating, setIsGenerating] = useState(false);
+  // Warehouse duplicate/delete — drives spinner on canvas node buttons
+  const [duplicatingWarehouseId, setDuplicatingWarehouseId] = useState<string | null>(null);
+  const [deletingWarehouseId, setDeletingWarehouseId] = useState<string | null>(null);
+  // Comparison creation — drives spinner on New Comparison button
+  const [isCreatingComparison, setIsCreatingComparison] = useState(false);
+  // CSV import
+  const [isImporting, setIsImporting] = useState(false);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
@@ -211,12 +220,15 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const handleNewComparison = useCallback(async () => {
     const projectId = activeProjectIdRef.current;
     if (!projectId) return;
+    setIsCreatingComparison(true);
     try {
       const comp = await createComparisonAction(projectId);
       setComparisons((prev) => [...prev, comp]);
       setActiveComparisonId(comp.id);
     } catch (err) {
       console.error('Failed to create comparison:', err);
+    } finally {
+      setIsCreatingComparison(false);
     }
   }, []);
 
@@ -487,6 +499,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
   const handleDuplicateWarehouse = useCallback(async (sourceWarehouseId: string) => {
     if (!activeProjectId) return;
+    setDuplicatingWarehouseId(sourceWarehouseId);
     try {
       const result = await duplicateWarehouseAction(activeProjectId, sourceWarehouseId);
 
@@ -523,6 +536,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     } catch (err) {
       console.error('Failed to duplicate warehouse:', err);
       alert('Failed to duplicate warehouse. Please try again.');
+    } finally {
+      setDuplicatingWarehouseId(null);
     }
   }, [activeProjectId, resetAnimationState]);
 
@@ -559,6 +574,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       return;
     }
 
+    setDeletingWarehouseId(warehouseId);
     try {
       await deleteWarehouseAction(warehouseId, projectId);
 
@@ -622,6 +638,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     } catch (err) {
       console.error('Failed to delete warehouse:', err);
       alert('Failed to delete warehouse. Please try again.');
+    } finally {
+      setDeletingWarehouseId(null);
     }
   }, [resetAnimationState]);
 
@@ -940,6 +958,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsImporting(true);
     try {
       const csvText = await file.text();
       const { warehouse: importedWarehouse, summary } = parseWarehouseCsv(csvText);
@@ -956,6 +975,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
       alert(`CSV import failed: ${message}`);
     } finally {
+      setIsImporting(false);
       event.target.value = '';
     }
   }, [updateActiveWarehouse]);
@@ -1109,6 +1129,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           onDeleteComparison={handleDeleteComparison}
           onAddWarehouse={handleNewWarehouse}
           onNewComparison={handleNewComparison}
+          isCreatingComparison={isCreatingComparison}
         />
 
         {/*
@@ -1147,6 +1168,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             onRenameWarehouse={handleRenameWarehouse}
             onDeleteWarehouse={handleDeleteWarehouse}
             onOpenLayoutConfig={handleOpenLayoutConfig}
+            duplicatingWarehouseId={duplicatingWarehouseId}
+            deletingWarehouseId={deletingWarehouseId}
             onNewWarehouse={handleNewWarehouse}
             workerCount={workerCount}
             onWorkerCountChange={setWorkerCount}
@@ -1268,9 +1291,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           }}
           canClose={hasExistingWarehouse}
           initialConfig={hasExistingWarehouse ? activeWarehouseConfig ?? undefined : undefined}
+          isGenerating={isGenerating}
           onApply={async (config) => {
-            setShowLayoutConfig(false);
-
+            setIsGenerating(true);
             try {
               // Build the full WarehouseConfiguration from the overlay output
               const configuration: WarehouseConfiguration = {
@@ -1363,6 +1386,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             } catch (err) {
               console.error('Failed to generate and save warehouse:', err);
               alert('Failed to save warehouse. Please try again.');
+            } finally {
+              setIsGenerating(false);
+              setShowLayoutConfig(false);
             }
           }}
         />
@@ -1374,9 +1400,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             setShowNewWarehouseConfig(false);
           }}
           canClose={true}
+          isGenerating={isGenerating}
           onApply={async (config) => {
-            setShowNewWarehouseConfig(false);
-
+            setIsGenerating(true);
             try {
               // Build the full WarehouseConfiguration from the overlay output
               const configuration: WarehouseConfiguration = {
@@ -1462,6 +1488,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             } catch (err) {
               console.error('Failed to generate and save warehouse:', err);
               alert('Failed to save warehouse. Please try again.');
+            } finally {
+              setIsGenerating(false);
+              setShowNewWarehouseConfig(false);
             }
           }}
         />
