@@ -314,7 +314,9 @@ function WarehouseFlowInner({
             onWorkerCountChange,
             canDelete: workspaceWarehouses.length > 1,
             selectedTool,
-            activeRoute,
+            // Only the active warehouse animates its route — passing the route to
+            // every node made each canvas run its own rAF redraw loop.
+            activeRoute: layout.id === activeWarehouseId ? activeRoute : null,
             animationProgressRef,
             zVisualizationMode,
             animationReplayId,
@@ -405,7 +407,8 @@ function WarehouseFlowInner({
               onWorkerCountChange,
               canDelete: workspaceWarehouses.length > 1,
               selectedTool,
-              activeRoute,
+              // Only the active warehouse animates its route — see above.
+              activeRoute: n.id === activeWarehouseId ? activeRoute : null,
               animationProgressRef,
               zVisualizationMode,
               animationReplayId,
@@ -575,6 +578,7 @@ function WarehouseFlowInner({
         minZoom={0.1}
         maxZoom={4}
         fitView={false}
+        onlyRenderVisibleElements={true}
         colorMode="light"
         className="bg-muted/30"
         deleteKeyCode={null}
