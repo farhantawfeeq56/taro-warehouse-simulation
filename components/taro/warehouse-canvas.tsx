@@ -1,11 +1,22 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback, useMemo, type MutableRefObject } from 'react';
-import { useReactFlow } from '@xyflow/react';
+import { useRef, useEffect, useState, useCallback, useMemo, memo, type MutableRefObject } from 'react';
+import { useReactFlow, useStoreApi } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 import { getNextSku } from '@/lib/taro/demo-generator';
+
+/**
+ * Render-resolution budget for a single warehouse canvas (pixels per side).
+ *
+ * The canvas is drawn in "logical" coordinates (grid cells × CELL_SIZE) but its
+ * backing store is supersampled by the current zoom × devicePixelRatio, capped
+ * at this many pixels per side. This keeps text/labels crisp at high zoom
+ * (Figma-style re-rasterization) without letting a single canvas exceed GPU
+ * texture limits or forcing a reallocation on every zoom tick.
+ */
+const MAX_CANVAS_DIMENSION = 2048;
 
 interface WarehouseCanvasProps {
   /** The warehouse ID for which this canvas renders. */
@@ -38,7 +49,7 @@ interface ShelfDetailsState {
   locations: StorageLocation[];
 }
 
-export function WarehouseCanvas({
+function WarehouseCanvasInner({
   warehouseId,
   warehouse,
   onWarehouseChange,
@@ -52,8 +63,17 @@ export function WarehouseCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
 
+  // Cached layout rect — getBoundingClientRect() forces a synchronous layout
+  // pass, so reading it on every mousemove caused layout thrash while zooming.
+  const rectRef = useRef<DOMRect | null>(null);
+  // Zoom at which the canvas backing store was last rasterized.
+  const lastRasterizedZoomRef = useRef<number | null>(null);
+  // Debounce timer for re-rasterizing after a zoom gesture settles.
+  const rasterizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [isDrawing, setIsDrawing] = useState(false);
   const reactFlowInstance = useReactFlow();
+  const storeApi = useStoreApi();
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
   
   // Tooltip state for hover
@@ -69,12 +89,32 @@ export function WarehouseCanvas({
   // Shelf details panel state for click
   const [shelfDetails, setShelfDetails] = useState<ShelfDetailsState | null>(null);
 
+  // Logical (CSS) size of the canvas — independent of zoom. React Flow's
+  // viewport transform is what scales it visually; the backing store below is
+  // what changes with zoom so content re-rasterizes crisply.
+  const logicalW = useMemo(() => warehouse.width * CELL_SIZE, [warehouse.width]);
+  const logicalH = useMemo(() => warehouse.height * CELL_SIZE, [warehouse.height]);
+
+  // Cache the canvas rect instead of calling getBoundingClientRect() per move.
+  // React Flow's transform does not affect layout, so the rect only changes on
+  // window resize (or layout changes, which we re-rasterize anyway).
+  useEffect(() => {
+    const updateRect = () => {
+      const canvas = canvasRef.current;
+      if (canvas) rectRef.current = canvas.getBoundingClientRect();
+    };
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    return () => window.removeEventListener('resize', updateRect);
+  }, []);
+
   const getCellFromMouse = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
 
     const rfZoom = reactFlowInstance.getZoom();
-    const rect = canvas.getBoundingClientRect();
+    const rect = rectRef.current;
+    if (!rect) return null;
     const x = (e.clientX - rect.left) / rfZoom;
     const y = (e.clientY - rect.top) / rfZoom;
 
@@ -351,6 +391,11 @@ export function WarehouseCanvas({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
 
+    // Draw in logical coordinates; scale by the backing-store/zoom ratio so the
+    // bitmap is rasterized at the current zoom × devicePixelRatio resolution.
+    const scale = canvas.width / logicalW;
+    ctx.scale(scale, scale);
+
     // Draw cells
     for (let y = 0; y < warehouse.grid.length; y++) {
       for (let x = 0; x < warehouse.grid[0].length; x++) {
@@ -578,11 +623,57 @@ export function WarehouseCanvas({
     }
 
     ctx.restore();
-  }, [warehouse, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell]);
+  }, [warehouse, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell, logicalW]);
+
+  // Re-rasterize the canvas backing store at the current zoom × devicePixelRatio.
+  // Resizing the backing store reallocates the GPU texture, so it must NOT happen
+  // on every frame of a zoom gesture — the browser's CSS transform already gives
+  // smooth motion. We debounce and only re-rasterize once zoom settles, matching
+  // how Figma renders crisp content at the end of a zoom.
+  const rerasterize = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const zoom = reactFlowInstance.getZoom();
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+
+    let targetW = Math.max(1, Math.round(logicalW * zoom * dpr));
+    let targetH = Math.max(1, Math.round(logicalH * zoom * dpr));
+    const cap = Math.min(1, MAX_CANVAS_DIMENSION / Math.max(targetW, targetH));
+    targetW = Math.max(1, Math.round(targetW * cap));
+    targetH = Math.max(1, Math.round(targetH * cap));
+
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      // Resizing clears the bitmap — redraw below after the resize.
+      canvas.width = targetW;
+      canvas.height = targetH;
+      canvas.style.width = `${logicalW}px`;
+      canvas.style.height = `${logicalH}px`;
+    }
+    lastRasterizedZoomRef.current = zoom;
+    drawCanvas();
+  }, [logicalW, logicalH, reactFlowInstance, drawCanvas]);
+
+  // Keep the raster resolution in sync with zoom (debounced; see rerasterize).
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = storeApi.subscribe(() => {
+      const zoom = storeApi.getState().transform[2];
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const last = lastRasterizedZoomRef.current;
+        if (last === null || Math.abs(zoom - last) > 0.001) rerasterize();
+      }, 120);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [storeApi, rerasterize]);
 
   // Use RAF for smooth animation, avoid 60fps React re-renders
   useEffect(() => {
-    drawCanvas();
+    rerasterize();
 
     if (activeRoute && animationProgressRef.current < 1) {
       const animate = () => {
@@ -599,7 +690,7 @@ export function WarehouseCanvas({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [drawCanvas, activeRoute, animationReplayId]);
+  }, [rerasterize, drawCanvas, activeRoute, animationReplayId]);
 
   const isHoveringShelf = hoveredCell && warehouse.grid[hoveredCell.y][hoveredCell.x].type === 'shelf';
 
@@ -610,15 +701,21 @@ export function WarehouseCanvas({
     >
       <canvas
         ref={canvasRef}
-        width={warehouse.width * CELL_SIZE}
-        height={warehouse.height * CELL_SIZE}
+        width={logicalW}
+        height={logicalH}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
         className={selectedTool === 'hand' ? 'cursor-grab' : selectedTool === 'select' ? 'cursor-default' : isHoveringShelf ? 'cursor-pointer' : 'cursor-crosshair'}
-        style={{ touchAction: 'none' }}
+        style={{
+          // Keep the CSS box at the logical size; the backing store is
+          // re-rasterized separately to match zoom (see rerasterize).
+          width: logicalW,
+          height: logicalH,
+          touchAction: 'none',
+        }}
       />
       
       {/* Hover Tooltip */}
@@ -712,3 +809,11 @@ export function WarehouseCanvas({
     </div>
   );
 }
+
+/**
+ * Memoized so that the node data-sync effect in WarehouseFlow (which rebuilds a
+ * new `data` object for every node on any change) does not force every canvas
+ * to re-render. All props are stable refs/values that only change when the
+ * warehouse actually changes.
+ */
+export const WarehouseCanvas = memo(WarehouseCanvasInner);
