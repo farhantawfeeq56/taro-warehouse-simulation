@@ -33,6 +33,7 @@ import { WorkbenchPanel } from './workbench-panel';
 import { ComparisonPanel } from './comparison-panel';
 import { WorkspacePanel } from './workspace-panel';
 import { Toolbar } from './toolbar';
+import { ShelfVariantToolbar, type ShelfVariant } from './shelf-variant-toolbar';
 import { GitCompareArrows, Loader2 } from 'lucide-react';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
@@ -192,6 +193,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
+  const [shelfVariant, setShelfVariant] = useState<ShelfVariant>('current');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
@@ -1236,11 +1238,14 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             onToggleMember={handleToggleComparisonMembership}
             onStartLink={handleStartLink}
             onExitLink={handleExitLink}
+            shelfVariant={shelfVariant}
           />
+
+          {/* Floating shelf-variant control — bottom left */}
+          <ShelfVariantToolbar value={shelfVariant} onChange={setShelfVariant} />
 
           {/* Floating controls row — bottom centre */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
-            {/* Compare Selected — only when 2+ selected and not in link mode */}
             {!linkModeComparisonId && selectedWarehouseIds.size >= 2 && (
               <button
                 onClick={handleCompareSelected}

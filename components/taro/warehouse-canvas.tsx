@@ -6,6 +6,7 @@ import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLo
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 import { getNextSku } from '@/lib/taro/demo-generator';
+import type { ShelfVariant } from './shelf-variant-toolbar';
 
 interface WarehouseCanvasProps {
   /** The warehouse ID for which this canvas renders. */
@@ -20,6 +21,8 @@ interface WarehouseCanvasProps {
    *  Forces the canvas animation effect to re-run even when the
    *  same strategy is re-selected after the route completed. */
   animationReplayId: number;
+  /** Shelf render variant (see `ShelfVariantToolbar`). Defaults to 'current'. */
+  shelfVariant?: ShelfVariant;
 }
 
 interface TooltipState {
@@ -47,6 +50,7 @@ export function WarehouseCanvas({
   animationProgressRef,
   zVisualizationMode,
   animationReplayId,
+  shelfVariant = 'current',
 }: WarehouseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -340,6 +344,123 @@ export function WarehouseCanvas({
     }
   }, [warehouse, shelfDetails?.cellX, shelfDetails?.cellY, shelfDetails?.locations, shelfDetails]);
 
+  /**
+   * Draw a single shelf cell in the chosen visual variant.
+   *
+   * Variants: 'current' (flat dark bay), 'filled' (stock fills bottom-up),
+   * 'stacked' (per-SKU columns read like a pick-face), 'isometric'
+   * (pseudo-3D levels with a depth side), 'topdown' (bay as 2×2 totes).
+   *
+   * `slots` are the up-to-4 bay slots of this shelf, in reading order
+   * (top-left, top-right, bottom-left, bottom-right). Each slot carries its
+   * z-level color (or null when empty) so the variants can agree on the
+   * same bay layout without knowing SKU codes.
+   */
+  const drawShelf = useCallback(
+    (ctx: CanvasRenderingContext2D, px: number, py: number, slots: (string | null)[]) => {
+      const S = CELL_SIZE;
+      // Inset so the shelf sits inside its cell like a physical rack.
+      const pad = 1;
+      const x = px + pad;
+      const y = py + pad;
+      const w = S - pad * 2;
+      const h = S - pad * 2;
+      const [tl, tr, bl, br] = slots;
+
+      const fill = (color: string | null | undefined, ox: number, oy: number, ow: number, oh: number) => {
+        ctx.fillStyle = color ?? SHELF_COLOR;
+        ctx.fillRect(x + ox, y + oy, ow, oh);
+      };
+      const half = w / 2;
+      const qh = h / 2;
+      const inset = 1;
+
+      switch (shelfVariant) {
+        case 'filled': {
+          // Stock sits at the BOTTOM of the shelf — like a real rack, the
+          // heavy/full bays read from the floor up.
+          const sw = w - inset * 2;
+          const sh = qh - inset;
+          // Bottom row
+          if (bl) fill(bl, inset, h - sh - inset, sw, sh);
+          if (br) fill(br, inset + half, h - sh - inset, sw, sh);
+          // Top row (rests on the bottom row)
+          if (tl) fill(tl, inset, qh - sh - inset, sw, sh);
+          if (tr) fill(tr, inset + half, qh - sh - inset, sw, sh);
+          break;
+        }
+        case 'stacked': {
+          // One column per slot, levels stacked from the bottom — reads like
+          // a pick-face where taller = more stock.
+          const colW = (w - inset * 3) / 2;
+          const colH = h - inset * 2;
+          const levelH = colH / 2;
+          const cols = [tl, tr, bl, br];
+          for (let c = 0; c < 4; c++) {
+            const cx = c % 2;
+            const cy = Math.floor(c / 2);
+            const ox = inset + cx * (colW + inset);
+            const oy = inset + cy * (colH + inset);
+            // Two levels per column: bottom level first, then top.
+            if (cols[c]) fill(cols[c], ox, oy + levelH, colW, levelH);
+            if (cols[c]) fill(cols[c], ox, oy, colW, levelH);
+          }
+          break;
+        }
+        case 'isometric': {
+          // Pseudo-3D: each level is a flat face with a thin depth side on
+          // the right, giving the bay an extruded rack look.
+          const faceW = w - 3;
+          const faceH = qh;
+          const depth = 3;
+          const levels = [tl, tr, bl, br];
+          levels.forEach((color, i) => {
+            const row = Math.floor(i / 2);
+            const col = i % 2;
+            const fx = x + col * half;
+            const fy = y + row * qh;
+            // Depth side (darker) — draws as a right edge.
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(fx + faceW - depth, fy, depth, faceH);
+            // Face
+            if (color) fill(color, col * half, row * qh, faceW, faceH);
+            else fill(SHELF_COLOR, col * half, row * qh, faceW, faceH);
+          });
+          break;
+        }
+        case 'topdown': {
+          // Bay as 2×2 totes seen from above, with a subtle inner shadow.
+          const sw = w - inset * 3;
+          const sh = h - inset * 3;
+          const totes = [tl, tr, bl, br];
+          totes.forEach((color, i) => {
+            const cx = i % 2;
+            const cy = Math.floor(i / 2);
+            const ox = inset + cx * (sw + inset);
+            const oy = inset + cy * (sh + inset);
+            fill(color ?? SHELF_COLOR, ox, oy, sw, sh);
+            // Inner shadow on the top-left edge
+            ctx.fillStyle = 'rgba(0,0,0,0.25)';
+            ctx.fillRect(x + ox, y + oy, sw, 1.5);
+            ctx.fillRect(x + ox, y + oy, 1.5, sh);
+          });
+          break;
+        }
+        case 'current':
+        default: {
+          // Current render: flat dark bay, colored tiles for each slot.
+          fill(SHELF_COLOR, 0, 0, w, h);
+          fill(tl ?? SHELF_COLOR, inset, inset, half - inset, qh - inset);
+          fill(tr ?? SHELF_COLOR, half, inset, half - inset, qh - inset);
+          fill(bl ?? SHELF_COLOR, inset, qh, half - inset, qh - inset);
+          fill(br ?? SHELF_COLOR, half, qh, half - inset, qh - inset);
+          break;
+        }
+      }
+    },
+    [shelfVariant],
+  );
+
   // Draw the canvas - memoized draw function to avoid recreation
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -372,11 +493,23 @@ export function WarehouseCanvas({
         ctx.fillStyle = fillColor;
         ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
 
-        // Draw shelf with visual dominance - darker border
+        // Draw shelf — variant-aware (see drawShelf above)
         if (cell.type === 'shelf') {
           ctx.strokeStyle = '#E7E8EC'; // Darker gray border
           ctx.lineWidth = 2;
           ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
+
+          // Collapse the shelf's bins into up-to-4 bay slots.
+          // Slot order: top-left, top-right, bottom-left, bottom-right.
+          // Each slot shows its bin's z-level color (or null when empty).
+          const slotSlots: (string | null)[] = [null, null, null, null];
+          cell.locations.forEach((loc, i) => {
+            const slotIndex = i % 4;
+            if (slotIndex < 4) {
+              slotSlots[slotIndex] = Z_LEVEL_COLORS[loc.z] ?? '#3b82f6';
+            }
+          });
+          drawShelf(ctx, px, py, slotSlots);
         }
 
         // Draw grid lines (lighter for shelves to not compete)
@@ -578,7 +711,7 @@ export function WarehouseCanvas({
     }
 
     ctx.restore();
-  }, [warehouse, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell]);
+  }, [warehouse, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell, drawShelf]);
 
   // Use RAF for smooth animation, avoid 60fps React re-renders
   useEffect(() => {

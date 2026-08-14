@@ -29,6 +29,7 @@ import type { WarehouseNodeData } from './warehouse-flow-node';
 import ComparisonFlowNode from './comparison-flow-node';
 import type { ComparisonNodeData } from './comparison-flow-node';
 import { Plus } from 'lucide-react';
+import type { ShelfVariant } from './shelf-variant-toolbar';
 
 /**
  * Auto-layout: simple 2-column grid that avoids overlap.
@@ -84,6 +85,9 @@ interface WarehouseFlowProps {
   onToggleMember: (comparisonId: string, warehouseId: string) => void;
   onStartLink: (comparisonId: string) => void;
   onExitLink: () => void;
+
+  /** Shelf render variant applied to every warehouse canvas (see `ShelfVariantToolbar`). */
+  shelfVariant?: ShelfVariant;
 }
 
 const nodeTypes: NodeTypes = {
@@ -138,6 +142,7 @@ function WarehouseFlowInner({
   // Loading states
   duplicatingWarehouseId,
   deletingWarehouseId,
+  shelfVariant = 'current',
 }: WarehouseFlowProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const reactFlowInstance = useReactFlow();
@@ -321,6 +326,7 @@ function WarehouseFlowInner({
             isActive: layout.id === activeWarehouseId,
             isDuplicating: layout.id === duplicatingWarehouseId,
             isDeleting: layout.id === deletingWarehouseId,
+            shelfVariant,
             // Link-mode fields
             isLinkMode,
             isMember: isWarehouseMember,
@@ -412,6 +418,7 @@ function WarehouseFlowInner({
               isActive: n.id === activeWarehouseId,
               isDuplicating: n.id === duplicatingWarehouseId,
               isDeleting: n.id === deletingWarehouseId,
+              shelfVariant,
               // Link-mode fields
               isLinkMode,
               isMember: isWarehouseMember,
@@ -478,6 +485,7 @@ function WarehouseFlowInner({
     onExitLink,
     duplicatingWarehouseId,
     deletingWarehouseId,
+    shelfVariant,
     setNodes,
   ]);
 

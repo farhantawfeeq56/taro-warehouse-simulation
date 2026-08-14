@@ -5,6 +5,7 @@ import type { Node, NodeProps } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
 import type { MutableRefObject } from 'react';
 import { WarehouseCanvas } from './warehouse-canvas';
+import type { ShelfVariant } from './shelf-variant-toolbar';
 import { Copy, Trash2, Settings, Users, Check, Plus, Loader2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -50,6 +51,8 @@ export type WarehouseNodeData = Record<string, unknown> & {
   linkModeComparisonId?: string | null;
   /** Link mode: toggles membership when the user clicks the node badge. */
   onToggleMember?: (comparisonId: string, warehouseId: string) => void;
+  /** Shelf render variant (see `ShelfVariantToolbar`). Defaults to 'current'. */
+  shelfVariant?: ShelfVariant;
 };
 
 /**
@@ -356,6 +359,7 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
         animationProgressRef={data.animationProgressRef}
         zVisualizationMode={data.zVisualizationMode}
         animationReplayId={data.animationReplayId}
+        shelfVariant={data.shelfVariant}
       />
     </div>
   );
