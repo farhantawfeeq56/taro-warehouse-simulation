@@ -40,3 +40,6 @@ nul
 *.jpg
 output.png
 diff.txt
+
+# Local vendored tarballs
+vendor/
