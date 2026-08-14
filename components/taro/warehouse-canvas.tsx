@@ -8,6 +8,21 @@ import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout'
 import { getNextSku } from '@/lib/taro/demo-generator';
 import type { ShelfVariant } from './shelf-variant-toolbar';
 
+// ── Paper shelf palette ─────────────────────────────────────────────────
+// Faithful to the Paper reference render: a dark bay (#1C2118) holding
+// 2×2 rounded tiles in 4 SKU colors. Tile colors are picked from this
+// palette by z-level (z1..z4) so every variant shares the same look.
+const PAPER = {
+  dark: '#1C2118',
+  gold: '#D6A83D',
+  purple: '#8A70A8',
+  blue: '#5B8DB8',
+  orange: '#C87555',
+} as const;
+
+/** Tile color per z-level, in Paper's palette order. */
+const PAPER_TILES = [PAPER.gold, PAPER.purple, PAPER.blue, PAPER.orange];
+
 interface WarehouseCanvasProps {
   /** The warehouse ID for which this canvas renders. */
   warehouseId?: string;
@@ -347,19 +362,22 @@ export function WarehouseCanvas({
   /**
    * Draw a single shelf cell in the chosen visual variant.
    *
-   * Variants: 'current' (flat dark bay), 'filled' (stock fills bottom-up),
-   * 'stacked' (per-SKU columns read like a pick-face), 'isometric'
-   * (pseudo-3D levels with a depth side), 'topdown' (bay as 2×2 totes).
+   * All variants share the Paper bay language: a dark #1C2118 bay with
+   * 2×2 rounded tiles, Paper padding + gap, and the Paper SKU palette
+   * (gold / purple / blue / orange by z-level). Empty slots stay bay-dark.
    *
-   * `slots` are the up-to-4 bay slots of this shelf, in reading order
-   * (top-left, top-right, bottom-left, bottom-right). Each slot carries its
-   * z-level color (or null when empty) so the variants can agree on the
-   * same bay layout without knowing SKU codes.
+   * 'current'  — faithful to the Paper reference (2×2 grid, reading order)
+   * 'filled'   — stock rises from the floor: bottom row fills first
+   * 'stacked'  — per-column stacks, reads like a pick-face
+   * 'isometric'— pseudo-3D faces with a depth side
+   * 'topdown'  — bay as 2×2 totes seen from above
+   *
+   * `slots` are the up-to-4 bay slots (top-left, top-right, bottom-left,
+   * bottom-right) carrying their z-level color, or null when empty.
    */
   const drawShelf = useCallback(
     (ctx: CanvasRenderingContext2D, px: number, py: number, slots: (string | null)[]) => {
       const S = CELL_SIZE;
-      // Inset so the shelf sits inside its cell like a physical rack.
       const pad = 1;
       const x = px + pad;
       const y = py + pad;
@@ -367,93 +385,112 @@ export function WarehouseCanvas({
       const h = S - pad * 2;
       const [tl, tr, bl, br] = slots;
 
-      const fill = (color: string | null | undefined, ox: number, oy: number, ow: number, oh: number) => {
-        ctx.fillStyle = color ?? SHELF_COLOR;
-        ctx.fillRect(x + ox, y + oy, ow, oh);
+      // Paper bay background — dark with a slight rounding.
+      const drawBay = () => {
+        ctx.fillStyle = PAPER.dark;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, 2);
+        ctx.fill();
       };
-      const half = w / 2;
-      const qh = h / 2;
-      const inset = 1;
+
+      // A single rounded Paper tile. Empty slots render as bay-dark.
+      const drawTile = (
+        color: string | null | undefined,
+        tx: number,
+        ty: number,
+        tw: number,
+        th: number,
+        radius = 2,
+      ) => {
+        ctx.fillStyle = color ?? PAPER.dark;
+        ctx.beginPath();
+        ctx.roundRect(x + tx, y + ty, tw, th, radius);
+        ctx.fill();
+      };
+
+      // Paper bay padding / gap, scaled to the 18×18 cell.
+      const padX = w * 0.08;
+      const padY = h * 0.1;
+      const gap = w * 0.06;
+      const tw = (w - padX * 2 - gap) / 2;
+      const th = (h - padY * 2 - gap) / 2;
+      const ox = x + padX;
+      const oy = y + padY;
 
       switch (shelfVariant) {
         case 'filled': {
-          // Stock sits at the BOTTOM of the shelf — like a real rack, the
-          // heavy/full bays read from the floor up.
-          const sw = w - inset * 2;
-          const sh = qh - inset;
-          // Bottom row
-          if (bl) fill(bl, inset, h - sh - inset, sw, sh);
-          if (br) fill(br, inset + half, h - sh - inset, sw, sh);
-          // Top row (rests on the bottom row)
-          if (tl) fill(tl, inset, qh - sh - inset, sw, sh);
-          if (tr) fill(tr, inset + half, qh - sh - inset, sw, sh);
+          // Stock sits at the BOTTOM like a real rack: bottom row fills
+          // first, top row rests on it.
+          drawBay();
+          drawTile(bl, ox, oy + th + gap, tw, th);
+          drawTile(br, ox + tw + gap, oy + th + gap, tw, th);
+          drawTile(tl, ox, oy, tw, th);
+          drawTile(tr, ox + tw + gap, oy, tw, th);
           break;
         }
         case 'stacked': {
-          // One column per slot, levels stacked from the bottom — reads like
-          // a pick-face where taller = more stock.
-          const colW = (w - inset * 3) / 2;
-          const colH = h - inset * 2;
-          const levelH = colH / 2;
-          const cols = [tl, tr, bl, br];
-          for (let c = 0; c < 4; c++) {
-            const cx = c % 2;
-            const cy = Math.floor(c / 2);
-            const ox = inset + cx * (colW + inset);
-            const oy = inset + cy * (colH + inset);
-            // Two levels per column: bottom level first, then top.
-            if (cols[c]) fill(cols[c], ox, oy + levelH, colW, levelH);
-            if (cols[c]) fill(cols[c], ox, oy, colW, levelH);
-          }
+          // One column per SKU, stacked 2 levels — reads like a pick-face
+          // where tall columns hold more stock.
+          drawBay();
+          const colW = (w - padX * 2 - gap) / 2;
+          const lv = (h - padY * 2 - gap) / 2;
+          // Left column: bottom then top
+          drawTile(bl, ox, oy + lv + gap, colW, lv);
+          drawTile(tl, ox, oy, colW, lv);
+          // Right column: bottom then top
+          drawTile(br, ox + colW + gap, oy + lv + gap, colW, lv);
+          drawTile(tr, ox + colW + gap, oy, colW, lv);
           break;
         }
         case 'isometric': {
-          // Pseudo-3D: each level is a flat face with a thin depth side on
-          // the right, giving the bay an extruded rack look.
-          const faceW = w - 3;
-          const faceH = qh;
-          const depth = 3;
+          // Pseudo-3D: each 2×2 slot is a flat face with a thin depth side
+          // on the right, giving the bay an extruded rack look.
+          drawBay();
+          const faceW = tw;
+          const faceH = th;
+          const depth = 2;
           const levels = [tl, tr, bl, br];
           levels.forEach((color, i) => {
-            const row = Math.floor(i / 2);
             const col = i % 2;
-            const fx = x + col * half;
-            const fy = y + row * qh;
-            // Depth side (darker) — draws as a right edge.
+            const row = Math.floor(i / 2);
+            const fx = ox + col * (faceW + gap);
+            const fy = oy + row * (faceH + gap);
+            // Depth side
             ctx.fillStyle = 'rgba(0,0,0,0.35)';
             ctx.fillRect(fx + faceW - depth, fy, depth, faceH);
             // Face
-            if (color) fill(color, col * half, row * qh, faceW, faceH);
-            else fill(SHELF_COLOR, col * half, row * qh, faceW, faceH);
+            drawTile(color, fx, fy, faceW - depth, faceH, 1);
           });
           break;
         }
         case 'topdown': {
           // Bay as 2×2 totes seen from above, with a subtle inner shadow.
-          const sw = w - inset * 3;
-          const sh = h - inset * 3;
+          drawBay();
+          const tw2 = (w - padX * 2 - gap) / 2;
+          const th2 = (h - padY * 2 - gap) / 2;
           const totes = [tl, tr, bl, br];
           totes.forEach((color, i) => {
-            const cx = i % 2;
-            const cy = Math.floor(i / 2);
-            const ox = inset + cx * (sw + inset);
-            const oy = inset + cy * (sh + inset);
-            fill(color ?? SHELF_COLOR, ox, oy, sw, sh);
+            const col = i % 2;
+            const row = Math.floor(i / 2);
+            const tx = ox + col * (tw2 + gap);
+            const ty = oy + row * (th2 + gap);
+            drawTile(color, tx, ty, tw2, th2);
             // Inner shadow on the top-left edge
             ctx.fillStyle = 'rgba(0,0,0,0.25)';
-            ctx.fillRect(x + ox, y + oy, sw, 1.5);
-            ctx.fillRect(x + ox, y + oy, 1.5, sh);
+            ctx.fillRect(x + tx, y + ty, tw2, 1);
+            ctx.fillRect(x + tx, y + ty, 1, th2);
           });
           break;
         }
         case 'current':
         default: {
-          // Current render: flat dark bay, colored tiles for each slot.
-          fill(SHELF_COLOR, 0, 0, w, h);
-          fill(tl ?? SHELF_COLOR, inset, inset, half - inset, qh - inset);
-          fill(tr ?? SHELF_COLOR, half, inset, half - inset, qh - inset);
-          fill(bl ?? SHELF_COLOR, inset, qh, half - inset, qh - inset);
-          fill(br ?? SHELF_COLOR, half, qh, half - inset, qh - inset);
+          // Faithful to the Paper reference: dark bay, 2×2 rounded tiles
+          // in reading order; empty slots stay bay-dark.
+          drawBay();
+          drawTile(tl, ox, oy, tw, th);
+          drawTile(tr, ox + tw + gap, oy, tw, th);
+          drawTile(bl, ox, oy + th + gap, tw, th);
+          drawTile(br, ox + tw + gap, oy + th + gap, tw, th);
           break;
         }
       }
@@ -501,12 +538,13 @@ export function WarehouseCanvas({
 
           // Collapse the shelf's bins into up-to-4 bay slots.
           // Slot order: top-left, top-right, bottom-left, bottom-right.
-          // Each slot shows its bin's z-level color (or null when empty).
+          // Each slot shows its bin's Paper tile color (or null when empty).
           const slotSlots: (string | null)[] = [null, null, null, null];
           cell.locations.forEach((loc, i) => {
             const slotIndex = i % 4;
             if (slotIndex < 4) {
-              slotSlots[slotIndex] = Z_LEVEL_COLORS[loc.z] ?? '#3b82f6';
+              const zIdx = loc.z - 1;
+              slotSlots[slotIndex] = PAPER_TILES[zIdx] ?? '#3b82f6';
             }
           });
           drawShelf(ctx, px, py, slotSlots);
