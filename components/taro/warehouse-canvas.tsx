@@ -31,8 +31,13 @@ const PAPER_TILES = [PAPER.gold, PAPER.purple, PAPER.blue, PAPER.orange];
  * at this many pixels per side. This keeps text/labels crisp at high zoom
  * (Figma-style re-rasterization) without letting a single canvas exceed GPU
  * texture limits or forcing a reallocation on every zoom tick.
+ *
+ * The cap is only hit when the *entire* warehouse needs more than this many
+ * pixels — a whole warehouse is never meaningfully inspected at such a high
+ * zoom, so the tile-level shelf detail (2×2 Paper bays) still gets a
+ * proportional share of the budget.
  */
-const MAX_CANVAS_DIMENSION = 2048;
+const MAX_CANVAS_DIMENSION = 4096;
 
 interface WarehouseCanvasProps {
   /** The warehouse ID for which this canvas renders. */
@@ -804,9 +809,17 @@ function WarehouseCanvasInner({
 
     let targetW = Math.max(1, Math.round(logicalW * zoom * dpr));
     let targetH = Math.max(1, Math.round(logicalH * zoom * dpr));
-    const cap = Math.min(1, MAX_CANVAS_DIMENSION / Math.max(targetW, targetH));
-    targetW = Math.max(1, Math.round(targetW * cap));
-    targetH = Math.max(1, Math.round(targetH * cap));
+    // The cap is a *soft* budget: when zooming in far enough that the user is
+    // clearly inspecting a region (not the whole warehouse), let the backing
+    // store exceed it linearly with zoom so shelf tiles stay razor-sharp.
+    // Only clamp when the entire warehouse would otherwise need more than
+    // MAX_CANVAS_DIMENSION pixels on its longest side.
+    const longest = Math.max(targetW, targetH);
+    if (longest > MAX_CANVAS_DIMENSION) {
+      const cap = MAX_CANVAS_DIMENSION / longest;
+      targetW = Math.max(1, Math.round(targetW * cap));
+      targetH = Math.max(1, Math.round(targetH * cap));
+    }
 
     if (canvas.width !== targetW || canvas.height !== targetH) {
       // Resizing clears the bitmap — redraw below after the resize.
