@@ -194,273 +194,293 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="[font-synthesis:none] overflow-clip relative bg-[#FBF6F6] antialiased w-full h-full">
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex top-18.75 items-start gap-[170.5px] left-17 absolute">
-        <div className="flex flex-col items-start">
-          <div className="w-fit font-['Instrument_Sans',system-ui,sans-serif] font-bold text-[#1C2118] text-[28px]/8.5">
-            Projects
-          </div>
-          <div className="w-fit font-['Instrument_Sans',system-ui,sans-serif] font-medium text-black text-base/5">
-            Manage warehouse layouts and simulations
-          </div>
-        </div>
-        <div
-          className="flex flex-col items-center rounded-lg justify-center py-2 px-4 bg-[#4C5C2D] cursor-pointer hover:bg-[#3f4d25] transition-colors"
-          onClick={() => setShowNewDialog(true)}
-          role="button"
-        >
-          <div className="w-fit whitespace-pre font-['Instrument_Sans',system-ui,sans-serif] font-semibold text-[#F5F5F5] text-base/5">
-            +{'  '}New Project
-          </div>
-        </div>
-      </div>
-
-      {/* ── Loading ────────────────────────────────────────────────────── */}
-      {isLoading && (
-        <div className="flex items-center justify-center top-66 left-17 absolute w-287.75">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-[#1C2118]/50" />
-            <p className="text-sm text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif]">
-              Loading projects...
+    <div className="[font-synthesis:none] relative bg-[#FBF6F6] antialiased w-full min-h-full overflow-y-auto">
+      <div className="mx-auto max-w-[1100px] px-6 py-10 sm:px-10 md:px-14">
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4 mb-12">
+          <div className="flex flex-col items-start gap-1">
+            <h1 className="font-['Instrument_Sans',system-ui,sans-serif] font-bold text-[#1C2118] text-2xl sm:text-[26px] leading-tight">
+              Projects
+            </h1>
+            <p className="font-['Instrument_Sans',system-ui,sans-serif] font-medium text-black/70 text-sm sm:text-base">
+              Manage warehouse layouts and simulations
             </p>
           </div>
-        </div>
-      )}
-
-      {/* ── Error ──────────────────────────────────────────────────────── */}
-      {!isLoading && error && (
-        <div className="flex items-center justify-center top-66 left-17 absolute w-287.75">
-          <div className="flex flex-col items-center gap-3 text-center max-w-md">
-            <AlertCircle className="h-10 w-10 text-[#D96868]" />
-            <p className="text-sm text-[#D96868] font-medium font-['Instrument_Sans',system-ui,sans-serif]">
-              {error}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchProjects}
-              className="font-['Instrument_Sans',system-ui,sans-serif]"
-            >
-              Retry
-            </Button>
+          <div
+            className="flex items-center rounded-lg justify-center py-2 px-5 bg-[#4C5C2D] cursor-pointer select-none hover:bg-[#3f4d25] transition-colors"
+            onClick={() => setShowNewDialog(true)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowNewDialog(true);
+              }
+            }}
+          >
+            <span className="whitespace-pre font-['Instrument_Sans',system-ui,sans-serif] font-semibold text-[#F5F5F5] text-sm sm:text-base">
+              +{'  '}New Project
+            </span>
           </div>
         </div>
-      )}
 
-      {/* ── Empty state ────────────────────────────────────────────────── */}
-      {!isLoading && !error && projects.length === 0 && (
-        <div className="flex items-center justify-center top-66 left-17 absolute w-287.75">
-          <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-            <h2 className="text-xl font-semibold font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118]">
-              No projects yet
-            </h2>
-            <p className="text-sm text-[#1C2118]/60 font-['Instrument_Sans',system-ui,sans-serif]">
-              Create your first warehouse simulation project to get started with layout design, inventory
-              placement, and picking strategy analysis.
-            </p>
-            <div
-              className="flex flex-col items-center rounded-lg justify-center py-2 px-4 bg-[#4C5C2D] cursor-pointer hover:bg-[#3f4d25] transition-colors mt-2"
-              onClick={() => setShowNewDialog(true)}
-              role="button"
-            >
-              <div className="w-fit whitespace-pre font-['Instrument_Sans',system-ui,sans-serif] font-semibold text-[#F5F5F5] text-base/5">
-                +{'  '}Create Project
+        {/* ── Loading ────────────────────────────────────────────────────── */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-24">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-[#1C2118]/50" />
+              <p className="text-sm text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif]">
+                Loading projects...
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Error ──────────────────────────────────────────────────────── */}
+        {!isLoading && error && (
+          <div className="flex items-center justify-center py-24">
+            <div className="flex flex-col items-center gap-3 text-center max-w-md">
+              <AlertCircle className="h-10 w-10 text-[#D96868]" />
+              <p className="text-sm text-[#D96868] font-medium font-['Instrument_Sans',system-ui,sans-serif]">
+                {error}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchProjects}
+                className="font-['Instrument_Sans',system-ui,sans-serif]"
+              >
+                Retry
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Empty state ────────────────────────────────────────────────── */}
+        {!isLoading && !error && projects.length === 0 && (
+          <div className="flex items-center justify-center py-24">
+            <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+              <h2 className="text-lg font-semibold font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118]">
+                No projects yet
+              </h2>
+              <p className="text-sm text-[#1C2118]/60 font-['Instrument_Sans',system-ui,sans-serif]">
+                Create your first warehouse simulation project to get started with layout design, inventory
+                placement, and picking strategy analysis.
+              </p>
+              <div
+                className="flex items-center rounded-lg justify-center py-2 px-5 bg-[#4C5C2D] cursor-pointer select-none hover:bg-[#3f4d25] transition-colors mt-2"
+                onClick={() => setShowNewDialog(true)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShowNewDialog(true);
+                  }
+                }}
+              >
+                <span className="whitespace-pre font-['Instrument_Sans',system-ui,sans-serif] font-semibold text-[#F5F5F5] text-sm sm:text-base">
+                  +{'  '}Create Project
+                </span>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ── All Projects List ──────────────────────────────────────────── */}
-      {!isLoading && !error && projects.length > 0 && (
-        <div className="flex top-66 left-17 flex-col items-start rounded-xs w-287.75 absolute">
-          {projects.map((project) => {
-            const isRenaming = renamingId === project.id;
+        {/* ── All Projects List ──────────────────────────────────────────── */}
+        {!isLoading && !error && projects.length > 0 && (
+          <div className="flex flex-col items-stretch">
+            {projects.map((project) => {
+              const isRenaming = renamingId === project.id;
 
-            return (
-              <div
-                key={project.id}
-                className="group flex w-full items-center justify-between rounded-xs py-3 px-2 transition-colors duration-150 hover:bg-[#F4F4F3]"
-              >
-                {/* Name / rename input */}
-                <div className="min-w-0 flex-1">
-                  {isRenaming ? (
-                    <div className="flex items-center gap-1.5">
-                      <Input
-                        ref={renameInputRef}
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onBlur={commitRename}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') commitRename();
-                          if (e.key === 'Escape') setRenamingId(null);
-                        }}
-                        className="h-7 text-lg font-['Instrument_Sans',system-ui,sans-serif] px-1 flex-1 bg-transparent border-[#1C2118]/20"
-                        disabled={renamingProjectId === project.id}
-                      />
-                      {renamingProjectId === project.id && (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[#1C2118]/50 shrink-0" />
-                      )}
-                    </div>
-                  ) : (
+              return (
+                <div
+                  key={project.id}
+                  className="group flex w-full items-center justify-between gap-4 rounded-md py-3 px-3 transition-colors duration-150 hover:bg-[#F4F4F3]"
+                >
+                  {/* Name / rename input */}
+                  <div className="min-w-0 flex-1">
+                    {isRenaming ? (
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          ref={renameInputRef}
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onBlur={commitRename}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitRename();
+                            if (e.key === 'Escape') setRenamingId(null);
+                          }}
+                          className="h-8 text-base font-['Instrument_Sans',system-ui,sans-serif] px-2 flex-1 bg-transparent border-[#1C2118]/20"
+                          disabled={renamingProjectId === project.id}
+                        />
+                        {renamingProjectId === project.id && (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-[#1C2118]/50 shrink-0" />
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onOpenProject(project.id)}
+                        className="w-fit shrink-0 font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118] text-base sm:text-[17px] leading-snug hover:underline text-left"
+                      >
+                        {project.name}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Row action controls — visible only on hover */}
+                  <div className="flex items-center gap-1.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                     <button
                       type="button"
-                      onClick={() => onOpenProject(project.id)}
-                      className="w-fit shrink-0 font-['Instrument_Sans',system-ui,sans-serif] text-black text-lg/5.5 hover:underline"
+                      title="Rename"
+                      aria-label={`Rename ${project.name}`}
+                      className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
+                      onClick={() => startRename(project)}
                     >
-                      {project.name}
+                      {RENAME_ICON}
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      title="Duplicate"
+                      aria-label={`Duplicate ${project.name}`}
+                      className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
+                      onClick={() => handleDuplicate(project)}
+                      disabled={duplicatingProjectId === project.id}
+                    >
+                      {duplicatingProjectId === project.id ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
+                      ) : (
+                        DUPLICATE_ICON
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      title="Open"
+                      aria-label={`Open ${project.name}`}
+                      className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
+                      onClick={() => onOpenProject(project.id)}
+                    >
+                      {OPEN_ICON}
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete"
+                      aria-label={`Delete ${project.name}`}
+                      className="p-1.5 rounded-md text-[#D96868]/60 hover:text-[#D96868] hover:bg-[#D96868]/10 transition-colors"
+                      onClick={() => setDeleteTarget(project)}
+                    >
+                      {DELETE_ICON}
+                    </button>
+                  </div>
                 </div>
-
-                {/* Row action controls — visible only on hover */}
-                <div className="flex items-start gap-3 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                  <button
-                    type="button"
-                    title="Rename"
-                    className="opacity-60 hover:opacity-100 transition-opacity"
-                    onClick={() => startRename(project)}
-                  >
-                    {RENAME_ICON}
-                  </button>
-                  <button
-                    type="button"
-                    title="Duplicate"
-                    className="opacity-60 hover:opacity-100 transition-opacity"
-                    onClick={() => handleDuplicate(project)}
-                    disabled={duplicatingProjectId === project.id}
-                  >
-                    {duplicatingProjectId === project.id ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
-                    ) : (
-                      DUPLICATE_ICON
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    title="Open"
-                    className="opacity-60 hover:opacity-100 transition-opacity"
-                    onClick={() => onOpenProject(project.id)}
-                  >
-                    {OPEN_ICON}
-                  </button>
-                  <button
-                    type="button"
-                    title="Delete"
-                    className="opacity-60 hover:opacity-100 transition-opacity"
-                    onClick={() => setDeleteTarget(project)}
-                  >
-                    {DELETE_ICON}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Delete Confirmation Dialog ──────────────────────────────── */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-['Instrument_Sans',system-ui,sans-serif]">
-              Delete Project
-            </DialogTitle>
-            <DialogDescription className="font-['Instrument_Sans',system-ui,sans-serif]">
-              Are you sure you want to delete{' '}
-              <span className="font-semibold">{deleteTarget?.name}</span>? This will permanently remove the
-              project and all its warehouse data. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteTarget(null)}
-              disabled={isDeleting}
-              className="font-['Instrument_Sans',system-ui,sans-serif]"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={isDeleting}
-              className="font-['Instrument_Sans',system-ui,sans-serif]"
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── New Project Dialog ──────────────────────────────────────── */}
-      <Dialog
-        open={showNewDialog}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShowNewDialog(false);
-            setNewProjectName('');
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-['Instrument_Sans',system-ui,sans-serif]">
-              Create Project
-            </DialogTitle>
-            <DialogDescription className="font-['Instrument_Sans',system-ui,sans-serif]">
-              Give your new warehouse simulation a name. You will configure the layout and inventory next.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              placeholder="Project name"
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreate();
-              }}
-              autoFocus
-              className="font-['Instrument_Sans',system-ui,sans-serif]"
-            />
+              );
+            })}
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowNewDialog(false);
-                setNewProjectName('');
-              }}
-              disabled={isCreating}
-              className="font-['Instrument_Sans',system-ui,sans-serif]"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={isCreating || !newProjectName.trim()}
-              className="font-['Instrument_Sans',system-ui,sans-serif]"
-            >
-              {isCreating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                  Creating...
-                </>
-              ) : (
-                'Create & Open'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+
+        {/* ── Delete Confirmation Dialog ──────────────────────────────── */}
+        <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-['Instrument_Sans',system-ui,sans-serif]">
+                Delete Project
+              </DialogTitle>
+              <DialogDescription className="font-['Instrument_Sans',system-ui,sans-serif]">
+                Are you sure you want to delete{' '}
+                <span className="font-semibold">{deleteTarget?.name}</span>? This will permanently remove the
+                project and all its warehouse data. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteTarget(null)}
+                disabled={isDeleting}
+                className="font-['Instrument_Sans',system-ui,sans-serif]"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="font-['Instrument_Sans',system-ui,sans-serif]"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── New Project Dialog ──────────────────────────────────────── */}
+        <Dialog
+          open={showNewDialog}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowNewDialog(false);
+              setNewProjectName('');
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-['Instrument_Sans',system-ui,sans-serif]">
+                Create Project
+              </DialogTitle>
+              <DialogDescription className="font-['Instrument_Sans',system-ui,sans-serif]">
+                Give your new warehouse simulation a name. You will configure the layout and inventory next.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                placeholder="Project name"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreate();
+                }}
+                autoFocus
+                className="font-['Instrument_Sans',system-ui,sans-serif]"
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowNewDialog(false);
+                  setNewProjectName('');
+                }}
+                disabled={isCreating}
+                className="font-['Instrument_Sans',system-ui,sans-serif]"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreate}
+                disabled={isCreating || !newProjectName.trim()}
+                className="font-['Instrument_Sans',system-ui,sans-serif]"
+              >
+                {isCreating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create & Open'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
