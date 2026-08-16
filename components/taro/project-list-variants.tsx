@@ -162,23 +162,23 @@ function VariantCleanList(props: ProjectViewProps) {
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-        <IconButton title="Edit" label={`Edit ${project.name}`} onClick={() => onOpenProject(project.id)}>
-          {EDIT_ICON}
-        </IconButton>
-        <IconButton title="Rename" label={`Rename ${project.name}`} onClick={() => onStartRename(project)}>
-          {RENAME_ICON}
-        </IconButton>
         <IconButton
-          title="Copy"
-          label={`Copy ${project.name}`}
+          title="Duplicate"
+          label={`Duplicate ${project.name}`}
           onClick={() => onCopy(project)}
           disabled={copyingProjectId === project.id}
         >
           {copyingProjectId === project.id ? (
             <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
           ) : (
-            COPY_ICON
+            EDIT_ICON
           )}
+        </IconButton>
+        <IconButton title="Edit" label={`Edit ${project.name}`} onClick={() => onOpenProject(project.id)}>
+          {RENAME_ICON}
+        </IconButton>
+        <IconButton title="Rename" label={`Rename ${project.name}`} onClick={() => onStartRename(project)}>
+          {COPY_ICON}
         </IconButton>
         <IconButton title="Delete" label={`Delete ${project.name}`} onClick={() => onDelete(project)} danger>
           {DELETE_ICON}
@@ -238,23 +238,23 @@ function VariantTable(props: ProjectViewProps) {
         {project.itemCount}
       </span>
       <div className="flex items-center gap-0.5 shrink-0">
-        <IconButton title="Edit" label={`Edit ${project.name}`} onClick={() => onOpenProject(project.id)}>
-          {EDIT_ICON}
-        </IconButton>
-        <IconButton title="Rename" label={`Rename ${project.name}`} onClick={() => onStartRename(project)}>
-          {RENAME_ICON}
-        </IconButton>
         <IconButton
-          title="Copy"
-          label={`Copy ${project.name}`}
+          title="Duplicate"
+          label={`Duplicate ${project.name}`}
           onClick={() => onCopy(project)}
           disabled={copyingProjectId === project.id}
         >
           {copyingProjectId === project.id ? (
             <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
           ) : (
-            COPY_ICON
+            EDIT_ICON
           )}
+        </IconButton>
+        <IconButton title="Edit" label={`Edit ${project.name}`} onClick={() => onOpenProject(project.id)}>
+          {RENAME_ICON}
+        </IconButton>
+        <IconButton title="Rename" label={`Rename ${project.name}`} onClick={() => onStartRename(project)}>
+          {COPY_ICON}
         </IconButton>
         <IconButton title="Delete" label={`Delete ${project.name}`} onClick={() => onDelete(project)} danger>
           {DELETE_ICON}
@@ -310,23 +310,23 @@ function VariantCards(props: ProjectViewProps) {
         </div>
         {/* Actions always visible in cards */}
         <div className="flex items-center gap-0.5 shrink-0">
-          <IconButton title="Edit" label={`Edit ${project.name}`} onClick={() => onOpenProject(project.id)}>
-            {EDIT_ICON}
-          </IconButton>
-          <IconButton title="Rename" label={`Rename ${project.name}`} onClick={() => onStartRename(project)}>
-            {RENAME_ICON}
-          </IconButton>
           <IconButton
-            title="Copy"
-            label={`Copy ${project.name}`}
+            title="Duplicate"
+            label={`Duplicate ${project.name}`}
             onClick={() => onCopy(project)}
             disabled={copyingProjectId === project.id}
           >
             {copyingProjectId === project.id ? (
               <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
             ) : (
-              COPY_ICON
+              EDIT_ICON
             )}
+          </IconButton>
+          <IconButton title="Edit" label={`Edit ${project.name}`} onClick={() => onOpenProject(project.id)}>
+            {RENAME_ICON}
+          </IconButton>
+          <IconButton title="Rename" label={`Rename ${project.name}`} onClick={() => onStartRename(project)}>
+            {COPY_ICON}
           </IconButton>
           <IconButton title="Delete" label={`Delete ${project.name}`} onClick={() => onDelete(project)} danger>
             {DELETE_ICON}
@@ -413,7 +413,7 @@ function VariantAccordion(props: ProjectViewProps) {
             {copyingProjectId === project.id ? (
               <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
             ) : (
-              COPY_ICON
+              EDIT_ICON
             )}
           </IconButton>
           <IconButton
@@ -424,7 +424,7 @@ function VariantAccordion(props: ProjectViewProps) {
               onOpenProject(project.id);
             }}
           >
-            {EDIT_ICON}
+            {RENAME_ICON}
           </IconButton>
           <IconButton
             title="Rename"
@@ -434,7 +434,7 @@ function VariantAccordion(props: ProjectViewProps) {
               onStartRename(project);
             }}
           >
-            {RENAME_ICON}
+            {COPY_ICON}
           </IconButton>
           <IconButton
             title="Delete"
@@ -511,23 +511,23 @@ function VariantSidebarList(props: ProjectViewProps) {
         )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-        <IconButton title="Edit" label={`Edit ${project.name}`} onClick={() => onOpenProject(project.id)}>
-          {EDIT_ICON}
-        </IconButton>
-        <IconButton title="Rename" label={`Rename ${project.name}`} onClick={() => onStartRename(project)}>
-          {RENAME_ICON}
-        </IconButton>
         <IconButton
-          title="Copy"
-          label={`Copy ${project.name}`}
+          title="Duplicate"
+          label={`Duplicate ${project.name}`}
           onClick={() => onCopy(project)}
           disabled={copyingProjectId === project.id}
         >
           {copyingProjectId === project.id ? (
             <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
           ) : (
-            COPY_ICON
+            EDIT_ICON
           )}
+        </IconButton>
+        <IconButton title="Edit" label={`Edit ${project.name}`} onClick={() => onOpenProject(project.id)}>
+          {RENAME_ICON}
+        </IconButton>
+        <IconButton title="Rename" label={`Rename ${project.name}`} onClick={() => onStartRename(project)}>
+          {COPY_ICON}
         </IconButton>
         <IconButton title="Delete" label={`Delete ${project.name}`} onClick={() => onDelete(project)} danger>
           {DELETE_ICON}
