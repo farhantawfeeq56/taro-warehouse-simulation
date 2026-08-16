@@ -605,31 +605,37 @@ export function ProjectListView({
 
   return (
     <div>
-      {/* ── Segmented control ─────────────────────────────────────────── */}
-      <div className="mb-6 inline-flex items-center rounded-lg bg-[#1C2118]/5 p-1 gap-1" role="tablist" aria-label="View variants">
-        {VARIANTS.map((v) => (
-          <button
-            key={v.id}
-            type="button"
-            role="tab"
-            aria-selected={activeVariant === v.id}
-            onClick={() => setActiveVariant(v.id)}
-            className={`px-3 py-1.5 rounded-md text-sm font-['Instrument_Sans',system-ui,sans-serif] font-medium transition-colors ${
-              activeVariant === v.id
-                ? 'bg-white text-[#1C2118] shadow-sm'
-                : 'text-[#1C2118]/60 hover:text-[#1C2118]'
-            }`}
-          >
-            <span className="mr-1 text-[#1C2118]/40">{v.id}</span>
-            {v.name}
-          </button>
-        ))}
-      </div>
-
       {/* ── Variant content ───────────────────────────────────────────── */}
       {projects.map((project) => (
         <div key={project.id}>{renderVariant(project)}</div>
       ))}
+
+      {/* ── Floating variant toolbar (bottom-right) ──────────────────── */}
+      <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-[#1C2118] px-3 py-2 shadow-lg">
+        <span className="hidden sm:block text-xs font-medium text-white/70 font-['Instrument_Sans',system-ui,sans-serif] mr-1">
+          View
+        </span>
+        {VARIANTS.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            title={`${v.name} (${v.id})`}
+            aria-label={`${v.name} (press ${v.id})`}
+            aria-pressed={activeVariant === v.id}
+            onClick={() => setActiveVariant(v.id)}
+            className={`h-7 w-7 rounded-full text-xs font-semibold font-['Instrument_Sans',system-ui,sans-serif] transition-colors flex items-center justify-center ${
+              activeVariant === v.id
+                ? 'bg-[#4C5C2D] text-white'
+                : 'text-white/60 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {v.id}
+          </button>
+        ))}
+        <span className="hidden md:block text-xs font-['Instrument_Sans',system-ui,sans-serif] text-white/60 border-l border-white/15 pl-2 ml-1">
+          {VARIANTS[activeVariant - 1].name}
+        </span>
+      </div>
     </div>
   );
 }
