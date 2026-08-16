@@ -184,8 +184,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [isCreatingFromSelection, setIsCreatingFromSelection] = useState(false);
   // Demo orders generation
   const [isGeneratingOrders, setIsGeneratingOrders] = useState(false);
-  // Save indicator ('idle' | 'saving' | 'saved')
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   // In-flight rename tracking
   const [renamingWarehouseId, setRenamingWarehouseId] = useState<string | null>(null);
   const [renamingComparisonId, setRenamingComparisonId] = useState<string | null>(null);
@@ -193,8 +191,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [togglingMembershipWarehouseId, setTogglingMembershipWarehouseId] = useState<string | null>(null);
   // CSV import
   const [isImporting, setIsImporting] = useState(false);
-  // Save-status reset timer — clears 'saved' back to 'idle' after 2s
-  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
@@ -689,12 +685,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
     // Debounced persistence (handled in WarehouseFlow with setTimeout, but persist here too)
     try {
-      setSaveStatus('saving');
       await saveWarehousePositionAction(warehouseId, projectId, x, y);
-      setSaveStatus('saved');
     } catch (err) {
       console.error('Failed to save warehouse position:', err);
-      setSaveStatus('idle');
     }
   }, []);
 
@@ -765,13 +758,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     saveLayoutTimerRef.current = setTimeout(() => {
       const pid = activeProjectIdRef.current;
       if (pid) {
-        setSaveStatus('saving');
-        saveWarehouseLayout(pid, newWh, whId)
-          .then(() => setSaveStatus('saved'))
-          .catch((err) => {
-            console.error(err);
-            setSaveStatus('idle');
-          });
+        saveWarehouseLayout(pid, newWh, whId).catch((err) => {
+          console.error(err);
+        });
       }
     }, 500);
   }, []);
@@ -1098,17 +1087,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     replaySpeedRef.current = replaySpeed;
   }, [replaySpeed]);
 
-  // Auto-reset saveStatus 'saved' → 'idle' after 2s
-  useEffect(() => {
-    if (saveStatus !== 'saved') return;
-    // clear any pending timer
-    if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
-    return () => {
-      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-    };
-  }, [saveStatus]);
-
   // Keyboard shortcut: 'h' toggles hand/pan tool
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1184,8 +1162,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           onNewComparison={handleNewComparison}
           isCreatingComparison={isCreatingComparison}
           deletingComparisonId={deletingComparisonId}
-          renamingComparisonId={renamingComparisonId}
-          saveStatus={saveStatus}
         />
 
         {/*
