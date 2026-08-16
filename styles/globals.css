@@ -127,14 +127,17 @@
 /*
  * Zoom smoothness (Figma-grade pan/zoom):
  * React Flow applies `transform: translate() scale()` to `.react-flow__viewport`
- * on every pan/zoom tick. Without a compositor-layer hint the browser repaints
- * the whole viewport subtree (every warehouse <canvas>) on each tick instead of
- * just moving a cached layer, which stutters on integrated GPUs. Promoting the
- * viewport + nodes to their own layers lets the compositor handle the motion.
+ * on every pan/zoom tick.
+ *
+ * We deliberately do NOT promote the viewport/nodes with `will-change:
+ * transform`: doing so caches the subtree (including every warehouse <canvas>)
+ * as a static GPU texture. When zoom changes, the compositor then SCALES that
+ * cached texture — so even though the canvas re-rasterizes its backing store at
+ * the new resolution, the stale upscaled texture is what the user sees → blur.
+ *
+ * Instead we let the canvas live at its natural layer: each zoom re-rasterizes
+ * the backing store (see rerasterize in warehouse-canvas), and the browser
+ * composites the freshly-drawn bitmap at 1:1 device pixels. Smoothness comes
+ * from the canvas re-rasterizing on zoom settle (debounced), not from a cached
+ * compositor layer.
  */
-.react-flow__viewport {
-  will-change: transform;
-}
-.react-flow__node {
-  will-change: transform;
-}

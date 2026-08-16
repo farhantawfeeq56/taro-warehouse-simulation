@@ -29,7 +29,6 @@ import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseFlow } from './warehouse-flow';
-import { ShelfVariantToolbar, SHELF_VARIANTS, type ShelfVariant } from './shelf-variant-toolbar';
 import { WorkbenchPanel } from './workbench-panel';
 import { ComparisonPanel } from './comparison-panel';
 import { WorkspacePanel } from './workspace-panel';
@@ -198,7 +197,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
-  const [shelfVariant, setShelfVariant] = useState<ShelfVariant>('paper');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
@@ -1130,30 +1128,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Keyboard shortcut: 1-5 switches the shelf visual variant
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.metaKey ||
-        e.ctrlKey ||
-        e.altKey ||
-        (e.target instanceof HTMLInputElement) ||
-        (e.target instanceof HTMLTextAreaElement) ||
-        (e.target instanceof HTMLSelectElement)
-      ) {
-        return;
-      }
-      const index = ['p', 'a', 'b', 'd'].indexOf(e.key.toLowerCase());
-      if (index !== -1) {
-        e.preventDefault();
-        const variant = SHELF_VARIANTS[index];
-        if (variant) setShelfVariant(variant.id);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   useEffect(() => {
     return () => {
       if (animationRef.current) {
@@ -1274,16 +1248,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             animationProgressRef={animationProgressRef}
             zVisualizationMode={zVisualizationMode}
             animationReplayId={animationReplayId}
-            shelfVariant={shelfVariant}
             // Link mode
             linkModeComparisonId={linkModeComparisonId}
             onToggleMember={handleToggleComparisonMembership}
             onStartLink={handleStartLink}
             onExitLink={handleExitLink}
           />
-
-          {/* Floating shelf-variant control — bottom left */}
-          <ShelfVariantToolbar value={shelfVariant} onChange={setShelfVariant} />
 
           {/* Floating controls row — bottom centre */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">

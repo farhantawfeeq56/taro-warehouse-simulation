@@ -6,8 +6,6 @@ import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLo
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 import { getNextSku } from '@/lib/taro/demo-generator';
-import type { ShelfVariant } from './shelf-variant-toolbar';
-import { BIG_CELL_SIZE } from './shelf-variant-toolbar';
 
 // ── Paper shelf palette ─────────────────────────────────────────────────
 // Faithful to the Paper reference render: a dark bay (#1C2118) holding
@@ -27,7 +25,7 @@ const PAPER_TILES = [PAPER.gold, PAPER.purple, PAPER.blue, PAPER.orange];
 /**
  * Render-resolution budget for a single warehouse canvas (pixels per side).
  *
- * The canvas is drawn in "logical" coordinates (grid cells × cellSize) but its
+ * The canvas is drawn in "logical" coordinates (grid cells × CELL_SIZE) but its
  * backing store is supersampled by the current zoom × devicePixelRatio, capped
  * at this many pixels per side. This keeps text/labels crisp at high zoom
  * (Figma-style re-rasterization) without letting a single canvas exceed GPU
@@ -39,15 +37,6 @@ const PAPER_TILES = [PAPER.gold, PAPER.purple, PAPER.blue, PAPER.orange];
  * proportional share of the budget.
  */
 const MAX_CANVAS_DIMENSION = 4096;
-
-/**
- * Backing-store supersample factor. The canvas bitmap is always rasterized at
- * at least this many device pixels per CSS pixel of the displayed canvas, so
- * even at fitView zoom (where React Flow's CSS transform downscales the node
- * to ~0.7) the tiny shelf tiles keep real pixel resolution instead of being
- * anti-aliased into mush. Raised further by zoom×dpr once zoom exceeds it.
- */
-const MIN_DEVICE_PIXEL_RATIO = 3;
 
 interface WarehouseCanvasProps {
   /** The warehouse ID for which this canvas renders. */
@@ -62,8 +51,6 @@ interface WarehouseCanvasProps {
    *  Forces the canvas animation effect to re-run even when the
    *  same strategy is re-selected after the route completed. */
   animationReplayId: number;
-  /** Shelf render variant (see `ShelfVariantToolbar`). Defaults to 'current'. */
-  shelfVariant?: ShelfVariant;
 }
 
 interface TooltipState {
@@ -91,7 +78,6 @@ function WarehouseCanvasInner({
   animationProgressRef,
   zVisualizationMode,
   animationReplayId,
-  shelfVariant = 'paper',
 }: WarehouseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -110,11 +96,6 @@ function WarehouseCanvasInner({
   const storeApi = useStoreApi();
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
   
-  // Variant-aware cell size. The 'big' (A) variant draws with larger cells
-  // (32px) so each Paper tile gets real pixel resolution; all other variants
-  // keep the base 20px. The canvas CSS box + backing store both scale with
-  // this, and the flow node width/height must match (see warehouse-flow).
-  const cellSize = shelfVariant === 'big' ? BIG_CELL_SIZE : CELL_SIZE;
   // Tooltip state for hover
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
@@ -128,11 +109,11 @@ function WarehouseCanvasInner({
   // Shelf details panel state for click
   const [shelfDetails, setShelfDetails] = useState<ShelfDetailsState | null>(null);
 
-  // Logical (CSS) size of the canvas — depends on the variant's cell size.
-  // React Flow's viewport transform is what scales it visually; the backing
-  // store below is what changes with zoom so content re-rasterizes crisply.
-  const logicalW = useMemo(() => warehouse.width * cellSize, [warehouse.width, cellSize]);
-  const logicalH = useMemo(() => warehouse.height * cellSize, [warehouse.height, cellSize]);
+  // Logical (CSS) size of the canvas — independent of zoom. React Flow's
+  // viewport transform is what scales it visually; the backing store below is
+  // what changes with zoom so content re-rasterizes crisply.
+  const logicalW = useMemo(() => warehouse.width * CELL_SIZE, [warehouse.width]);
+  const logicalH = useMemo(() => warehouse.height * CELL_SIZE, [warehouse.height]);
 
   // Cache the canvas rect instead of calling getBoundingClientRect() per move.
   // React Flow's transform does not affect layout, so the rect only changes on
@@ -157,8 +138,8 @@ function WarehouseCanvasInner({
     const x = (e.clientX - rect.left) / rfZoom;
     const y = (e.clientY - rect.top) / rfZoom;
 
-    const cellX = Math.floor(x / cellSize);
-    const cellY = Math.floor(y / cellSize);
+    const cellX = Math.floor(x / CELL_SIZE);
+    const cellY = Math.floor(y / CELL_SIZE);
 
     if (cellX >= 0 && cellX < warehouse.width && cellY >= 0 && cellY < warehouse.height) {
       return { x: cellX, y: cellY };
@@ -420,37 +401,27 @@ function WarehouseCanvasInner({
   }, [warehouse, shelfDetails?.cellX, shelfDetails?.cellY, shelfDetails?.locations, shelfDetails]);
 
   /**
-   * Draw a single shelf cell in the chosen visual variant.
+   * Draw a single shelf cell as a Paper bay.
    *
-   * 'current'  — the existing rendering: dark cell + border; stock is
-   *              shown as colored z-level dots (or labels in level mode).
-   *              Drawn by the caller below, this branch is a no-op.
-   *
-   * All Paper-derived variants share the bay language: a dark #1C2118 bay
-   * with a 2×2 tile grid, Paper padding + gap, and the Paper SKU palette.
-   * Stocked slots render as full colored circles (crisp at tiny sizes);
-   * empty slots stay bay-dark. Slots are filled by the cell's bin order
-   * (first bin → top-left, second → top-right, third → bottom-left,
-   * fourth → bottom-right) — NOT by z-level, since shelf capacity is
-   * only 1..3 and a single cell can hold several bins.
-   *
-   * 'paper'     — faithful to the Paper reference (2×2 grid, reading order)
-   * 'filled'    — stock rises from the floor: bottom row fills first
-   * 'stacked'   — per-column stacks, reads like a pick-face
-   * 'isometric' — pseudo-3D faces with a depth side
+   * Each shelf cell is a dark #1C2118 bay (Paper padding + gap) holding up to
+   * four slots. Stocked slots render as crisp filled circles with a thin
+   * white ring (vector-style — the ring keeps the edge sharp even when the
+   * browser downscales); empty slots stay bay-dark. Slots are filled by the
+   * cell's bin order (first bin → top-left, second → top-right, third →
+   * bottom-left, fourth → bottom-right) — NOT by z-level, since shelf
+   * capacity is only 1..3 and a single cell can hold several bins.
    *
    * `slots` are the up-to-4 bay slots (top-left, top-right, bottom-left,
    * bottom-right) carrying their Paper color, or null when empty.
    */
   const drawShelf = useCallback(
     (ctx: CanvasRenderingContext2D, px: number, py: number, slots: (string | null)[]) => {
-      const S = cellSize;
+      const S = CELL_SIZE;
       const pad = 1;
       const x = px + pad;
       const y = py + pad;
       const w = S - pad * 2;
       const h = S - pad * 2;
-      const [tl, tr, bl, br] = slots;
 
       // Paper bay background — dark with a slight rounding.
       const drawBay = () => {
@@ -458,33 +429,6 @@ function WarehouseCanvasInner({
         ctx.beginPath();
         ctx.roundRect(x, y, w, h, 2);
         ctx.fill();
-      };
-
-      // A single Paper tile. Stocked slots render as a full circle (crisp at
-      // any size, no tiny-radius mush); empty slots stay bay-dark.
-      const drawTile = (
-        color: string | null | undefined,
-        tx: number,
-        ty: number,
-        tw: number,
-        th: number,
-        radius = 2,
-      ) => {
-        const cx = x + tx + tw / 2;
-        const cy = y + ty + th / 2;
-        if (color) {
-          // Stocked slot — full circle, fills the tile area.
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.arc(cx, cy, Math.min(tw, th) / 2, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          // Empty slot — subtle rounded inset so the bay reads as a grid.
-          ctx.fillStyle = PAPER.dark;
-          ctx.beginPath();
-          ctx.roundRect(x + tx, y + ty, tw, th, radius);
-          ctx.fill();
-        }
       };
 
       // Paper bay padding / gap, scaled to the cell.
@@ -496,77 +440,32 @@ function WarehouseCanvasInner({
       const ox = x + padX;
       const oy = y + padY;
 
-      switch (shelfVariant) {
-        case 'big':
-        case 'paper': {
-          // Paper reference as-is: dark bay, 2×2 tile grid in reading order;
-          // empty slots stay bay-dark. 'big' just has larger cells (bigger
-          // backing store) so the tiles render with more pixel resolution.
-          drawBay();
-          drawTile(tl, ox, oy, tw, th);
-          drawTile(tr, ox + tw + gap, oy, tw, th);
-          drawTile(bl, ox, oy + th + gap, tw, th);
-          drawTile(br, ox + tw + gap, oy + th + gap, tw, th);
-          break;
-        }
-        case 'multicell': {
-          // Multi-cell bay: the 2×2 tiles are drawn 2× TALLER so a bay
-          // occupies the shelf cell + the cell directly below it (the Paper
-          // mock's bay is a 3:4 portrait — w-3 h-4). Drawn only when the
-          // cell below is ALSO a shelf, so the bottom shelf row of each band
-          // doesn't double-draw its own bay on top.
-          const m = 2; // vertical scale — bay spans 1×2 cells
-          const bth = h * m;
-          const btw = w;
-          // Tall bay background.
-          ctx.fillStyle = PAPER.dark;
+      // Vector render: dark bay + one crisp filled circle per stocked bin,
+      // each with a thin white ring so the edge reads sharply at any zoom
+      // (the ring survives downsampling far better than a full-bleed tile).
+      drawBay();
+      const r = Math.min(tw, th) / 2;
+      const positions = [
+        [ox + tw / 2, oy + th / 2],
+        [ox + tw + gap + tw / 2, oy + th / 2],
+        [ox + tw / 2, oy + th + gap + th / 2],
+        [ox + tw + gap + tw / 2, oy + th + gap + th / 2],
+      ] as const;
+      positions.forEach(([cxp, cyp], i) => {
+        const color = slots[i];
+        if (color) {
+          ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.roundRect(x, y, btw, bth, 2);
+          ctx.arc(cxp, cyp, r, 0, Math.PI * 2);
           ctx.fill();
-          const bPadX = btw * 0.08;
-          const bPadY = bth * 0.1;
-          const bGap = btw * 0.06;
-          const tW = (btw - bPadX * 2 - bGap) / 2;
-          const tH = (bth - bPadY * 2 - bGap) / 2;
-          const bOx = x + bPadX;
-          const bOy = y + bPadY;
-          drawTile(tl, bOx, bOy, tW, tH);
-          drawTile(tr, bOx + tW + bGap, bOy, tW, tH);
-          drawTile(bl, bOx, bOy + tH + bGap, tW, tH);
-          drawTile(br, bOx + tW + bGap, bOy + tH + bGap, tW, tH);
-          break;
+          // Thin white ring — reads like an SVG stroke, crisp edge.
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
         }
-        case 'vector': {
-          // Vector/DOM-style: draw each stocked slot as a crisp filled circle
-          // with a subtle ring, like an SVG render. (The actual SVG overlay is
-          // handled by the caller for this variant; here we keep the bay + a
-          // clean circle per stocked bin at full resolution.)
-          drawBay();
-          const r = Math.min(tw, th) / 2;
-          const positions = [
-            [ox + tw / 2, oy + th / 2],
-            [ox + tw + gap + tw / 2, oy + th / 2],
-            [ox + tw / 2, oy + th + gap + th / 2],
-            [ox + tw + gap + tw / 2, oy + th + gap + th / 2],
-          ] as const;
-          positions.forEach(([cxp, cyp], i) => {
-            const color = slots[i];
-            if (color) {
-              ctx.fillStyle = color;
-              ctx.beginPath();
-              ctx.arc(cxp, cyp, r, 0, Math.PI * 2);
-              ctx.fill();
-              // Thin white ring — reads like an SVG stroke, crisp edge.
-              ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-              ctx.lineWidth = 1;
-              ctx.stroke();
-            }
-          });
-          break;
-        }
-      }
+      });
     },
-    [shelfVariant, cellSize],
+    [],
   );
 
   // Draw the canvas - memoized draw function to avoid recreation
@@ -589,8 +488,8 @@ function WarehouseCanvasInner({
     for (let y = 0; y < warehouse.grid.length; y++) {
       for (let x = 0; x < warehouse.grid[0].length; x++) {
         const cell = warehouse.grid[y][x];
-        const px = x * cellSize;
-        const py = y * cellSize;
+        const px = x * CELL_SIZE;
+        const py = y * CELL_SIZE;
 
         // Base color
         let fillColor = EMPTY_COLOR;
@@ -604,14 +503,14 @@ function WarehouseCanvasInner({
         }
 
         ctx.fillStyle = fillColor;
-        ctx.fillRect(px, py, cellSize, cellSize);
+        ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
 
         // Draw shelf — Paper variants draw the dark bay with the 2×2 tile
         // grid (see drawShelf). Every shelf renders the Paper language.
         if (cell.type === 'shelf') {
           ctx.strokeStyle = '#E7E8EC'; // Darker gray border
           ctx.lineWidth = 2;
-          ctx.strokeRect(px + 0.5, py + 0.5, cellSize - 1, cellSize - 1);
+          ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
 
           // Map this cell's ACTUAL locations to the up-to-4 bay slots by
           // index (not by z-level — capacity is only 1..3, so z-levels can
@@ -623,26 +522,14 @@ function WarehouseCanvasInner({
             // Paper palette per bin index — gold, purple, blue, orange.
             slotSlots[i] = PAPER_TILES[i % PAPER_TILES.length] ?? '#3b82f6';
           });
-
-          // 'multicell' (B): the bay spans the shelf cell + the cell below.
-          // Only draw it on the TOP cell of a 2-row shelf band (i.e. when the
-          // cell directly below is also a shelf) so the bottom row doesn't
-          // double-draw its own bay.
-          if (shelfVariant === 'multicell') {
-            const below = warehouse.grid[y + 1]?.[x];
-            if (below?.type === 'shelf') {
-              drawShelf(ctx, px, py, slotSlots);
-            }
-          } else {
-            drawShelf(ctx, px, py, slotSlots);
-          }
+          drawShelf(ctx, px, py, slotSlots);
         }
 
         // Draw grid lines (lighter for shelves to not compete)
         if (cell.type !== 'shelf') {
           ctx.strokeStyle = GRID_COLOR;
           ctx.lineWidth = 0.5;
-          ctx.strokeRect(px, py, cellSize, cellSize);
+          ctx.strokeRect(px, py, CELL_SIZE, CELL_SIZE);
         }
 
         // Draw worker icon
@@ -651,7 +538,7 @@ function WarehouseCanvasInner({
           ctx.font = '12px sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('S', px + cellSize / 2, py + cellSize / 2);
+          ctx.fillText('S', px + CELL_SIZE / 2, py + CELL_SIZE / 2);
         }
       }
     }
@@ -665,12 +552,12 @@ function WarehouseCanvasInner({
           for (let x = 0; x < warehouse.width; x++) {
             const heat = heatmap[y][x];
             if (heat <= 0) continue;
-            const px = x * cellSize;
-            const py = y * cellSize;
+            const px = x * CELL_SIZE;
+            const py = y * CELL_SIZE;
             const intensity = heat / maxHeat;
             const alpha = 0.12 + intensity * 0.43;
             ctx.fillStyle = `rgba(239, 68, 68, ${alpha.toFixed(3)})`;
-            ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+            ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
           }
         }
       }
@@ -694,10 +581,10 @@ function WarehouseCanvasInner({
           ctx.globalAlpha = 0.8;
 
           const firstPoint = workerRoute.route[0];
-          ctx.moveTo(firstPoint.x * cellSize + cellSize / 2, firstPoint.y * cellSize + cellSize / 2);
+          ctx.moveTo(firstPoint.x * CELL_SIZE + CELL_SIZE / 2, firstPoint.y * CELL_SIZE + CELL_SIZE / 2);
           for (let i = 1; i < visiblePoints; i++) {
             const point = workerRoute.route[i];
-            ctx.lineTo(point.x * cellSize + cellSize / 2, point.y * cellSize + cellSize / 2);
+            ctx.lineTo(point.x * CELL_SIZE + CELL_SIZE / 2, point.y * CELL_SIZE + CELL_SIZE / 2);
           }
           ctx.stroke();
           ctx.globalAlpha = 1;
@@ -707,12 +594,12 @@ function WarehouseCanvasInner({
           ctx.beginPath();
           ctx.fillStyle = workerRoute.color;
           ctx.globalAlpha = 0.25;
-          ctx.arc(workerPos.x * cellSize + cellSize / 2, workerPos.y * cellSize + cellSize / 2, 8, 0, Math.PI * 2);
+          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
           ctx.fill();
           ctx.globalAlpha = 1;
           ctx.beginPath();
           ctx.fillStyle = workerRoute.color;
-          ctx.arc(workerPos.x * cellSize + cellSize / 2, workerPos.y * cellSize + cellSize / 2, 5, 0, Math.PI * 2);
+          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
           ctx.fill();
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;
@@ -730,14 +617,14 @@ function WarehouseCanvasInner({
           ctx.globalAlpha = 0.8;
           const firstPoint = activeRoute.route[0];
           ctx.moveTo(
-            firstPoint.x * cellSize + cellSize / 2,
-            firstPoint.y * cellSize + cellSize / 2
+            firstPoint.x * CELL_SIZE + CELL_SIZE / 2,
+            firstPoint.y * CELL_SIZE + CELL_SIZE / 2
           );
           for (let i = 1; i < visiblePoints; i++) {
             const point = activeRoute.route[i];
             ctx.lineTo(
-              point.x * cellSize + cellSize / 2,
-              point.y * cellSize + cellSize / 2
+              point.x * CELL_SIZE + CELL_SIZE / 2,
+              point.y * CELL_SIZE + CELL_SIZE / 2
             );
           }
           ctx.stroke();
@@ -747,12 +634,12 @@ function WarehouseCanvasInner({
           ctx.beginPath();
           ctx.fillStyle = activeRoute.color;
           ctx.globalAlpha = 0.3;
-          ctx.arc(workerPos.x * cellSize + cellSize / 2, workerPos.y * cellSize + cellSize / 2, 8, 0, Math.PI * 2);
+          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 8, 0, Math.PI * 2);
           ctx.fill();
           ctx.globalAlpha = 1;
           ctx.beginPath();
           ctx.fillStyle = activeRoute.color;
-          ctx.arc(workerPos.x * cellSize + cellSize / 2, workerPos.y * cellSize + cellSize / 2, 5, 0, Math.PI * 2);
+          ctx.arc(workerPos.x * CELL_SIZE + CELL_SIZE / 2, workerPos.y * CELL_SIZE + CELL_SIZE / 2, 5, 0, Math.PI * 2);
           ctx.fill();
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;
@@ -764,19 +651,19 @@ function WarehouseCanvasInner({
     // Draw border
     ctx.strokeStyle = '#d1d5db';
     ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, warehouse.width * cellSize, warehouse.height * cellSize);
+    ctx.strokeRect(0, 0, warehouse.width * CELL_SIZE, warehouse.height * CELL_SIZE);
 
     // Draw hover highlight
     if (hoveredCell) {
       const cell = warehouse.grid[hoveredCell.y][hoveredCell.x];
       if (cell.type === 'shelf') {
-        const px = hoveredCell.x * cellSize;
-        const py = hoveredCell.y * cellSize;
+        const px = hoveredCell.x * CELL_SIZE;
+        const py = hoveredCell.y * CELL_SIZE;
         ctx.fillStyle = 'rgba(59, 130, 246, 0.2)'; // Blue tint
-        ctx.fillRect(px, py, cellSize, cellSize);
+        ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
         ctx.strokeStyle = '#3b82f6'; // Bright blue border
         ctx.lineWidth = 2;
-        ctx.strokeRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+        ctx.strokeRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
       }
     }
 
@@ -795,14 +682,16 @@ function WarehouseCanvasInner({
     const zoom = reactFlowInstance.getZoom();
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
 
-    // Backing store = CSS pixel size × supersample. The CSS box is the logical
-    // size (grid cells × cellSize); React Flow's transform scales it visually.
-    // The supersample factor is at least MIN_DEVICE_PIXEL_RATIO and grows with
-    // zoom × dpr beyond that — so at rest the bitmap is 3 device px per CSS px,
-    // and zooming in only ever increases it (up to the soft cap). This keeps
-    // the 2×2 tile circles crisp at ANY zoom, including fitView.
-    let targetW = Math.max(1, Math.round(logicalW * Math.max(MIN_DEVICE_PIXEL_RATIO, zoom * dpr)));
-    let targetH = Math.max(1, Math.round(logicalH * Math.max(MIN_DEVICE_PIXEL_RATIO, zoom * dpr)));
+    // Backing store = CSS pixel size × zoom × devicePixelRatio, EXACTLY 1:1
+    // with the displayed device pixels. The CSS box is the logical size
+    // (grid cells × CELL_SIZE); React Flow's transform scales it visually by
+    // `zoom`, so `logicalW × zoom × dpr` is exactly how many device pixels
+    // the canvas occupies on screen. At 1:1 the browser composites the bitmap
+    // pixel-for-pixel (no resampling) — the ONLY way to get truly crisp
+    // circles. Any oversample (e.g. fixed 3×) forces a non-integer downscale
+    // and softens every edge.
+    let targetW = Math.max(1, Math.round(logicalW * zoom * dpr));
+    let targetH = Math.max(1, Math.round(logicalH * zoom * dpr));
     // The cap is a *soft* budget: when zooming in far enough that the user is
     // clearly inspecting a region (not the whole warehouse), let the backing
     // store exceed it linearly with zoom so shelf tiles stay razor-sharp.
