@@ -404,12 +404,12 @@ function WarehouseCanvasInner({
    * Draw a single shelf cell as a Paper bay.
    *
    * Each shelf cell is a dark #1C2118 bay (Paper padding + gap) holding up to
-   * four slots. Stocked slots render as crisp filled circles with a thin
-   * white ring (vector-style — the ring keeps the edge sharp even when the
-   * browser downscales); empty slots stay bay-dark. Slots are filled by the
-   * cell's bin order (first bin → top-left, second → top-right, third →
-   * bottom-left, fourth → bottom-right) — NOT by z-level, since shelf
-   * capacity is only 1..3 and a single cell can hold several bins.
+   * four slots. Stocked slots render as crisp filled circles (no ring); empty
+   * slots stay bay-dark. Slots are filled by the cell's bin order (first bin
+   * → top-left, second → top-right, third → bottom-left, fourth →
+   * bottom-right) — NOT by z-level, since shelf capacity is only 1..3 and a
+   * single cell can hold several bins. Bays are inset 2px from the cell edge
+   * so adjacent shelves sit 4px apart.
    *
    * `slots` are the up-to-4 bay slots (top-left, top-right, bottom-left,
    * bottom-right) carrying their Paper color, or null when empty.
@@ -417,7 +417,7 @@ function WarehouseCanvasInner({
   const drawShelf = useCallback(
     (ctx: CanvasRenderingContext2D, px: number, py: number, slots: (string | null)[]) => {
       const S = CELL_SIZE;
-      const pad = 1;
+      const pad = 2; // 2px inset each side → 4px gap between adjacent shelves.
       const x = px + pad;
       const y = py + pad;
       const w = S - pad * 2;
@@ -440,9 +440,7 @@ function WarehouseCanvasInner({
       const ox = x + padX;
       const oy = y + padY;
 
-      // Vector render: dark bay + one crisp filled circle per stocked bin,
-      // each with a thin white ring so the edge reads sharply at any zoom
-      // (the ring survives downsampling far better than a full-bleed tile).
+      // Vector render: dark bay + one crisp filled circle per stocked bin.
       drawBay();
       const r = Math.min(tw, th) / 2;
       const positions = [
@@ -458,10 +456,6 @@ function WarehouseCanvasInner({
           ctx.beginPath();
           ctx.arc(cxp, cyp, r, 0, Math.PI * 2);
           ctx.fill();
-          // Thin white ring — reads like an SVG stroke, crisp edge.
-          ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-          ctx.lineWidth = 1;
-          ctx.stroke();
         }
       });
     },
