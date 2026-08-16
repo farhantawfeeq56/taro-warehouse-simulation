@@ -412,8 +412,12 @@ function WarehouseCanvasInner({
    *              Drawn by the caller below, this branch is a no-op.
    *
    * All Paper-derived variants share the bay language: a dark #1C2118 bay
-   * with 2×2 rounded tiles, Paper padding + gap, and the Paper SKU palette
-   * (gold / purple / blue / orange by z-level). Empty slots stay bay-dark.
+   * with a 2×2 tile grid, Paper padding + gap, and the Paper SKU palette.
+   * Stocked slots render as full colored circles (crisp at tiny sizes);
+   * empty slots stay bay-dark. Slots are filled by the cell's bin order
+   * (first bin → top-left, second → top-right, third → bottom-left,
+   * fourth → bottom-right) — NOT by z-level, since shelf capacity is
+   * only 1..3 and a single cell can hold several bins.
    *
    * 'paper'     — faithful to the Paper reference (2×2 grid, reading order)
    * 'filled'    — stock rises from the floor: bottom row fills first
@@ -421,7 +425,7 @@ function WarehouseCanvasInner({
    * 'isometric' — pseudo-3D faces with a depth side
    *
    * `slots` are the up-to-4 bay slots (top-left, top-right, bottom-left,
-   * bottom-right) carrying their z-level color, or null when empty.
+   * bottom-right) carrying their Paper color, or null when empty.
    */
   const drawShelf = useCallback(
     (ctx: CanvasRenderingContext2D, px: number, py: number, slots: (string | null)[]) => {
@@ -441,7 +445,8 @@ function WarehouseCanvasInner({
         ctx.fill();
       };
 
-      // A single rounded Paper tile. Empty slots render as bay-dark.
+      // A single Paper tile. Stocked slots render as a full circle (crisp at
+      // any size, no tiny-radius mush); empty slots stay bay-dark.
       const drawTile = (
         color: string | null | undefined,
         tx: number,
@@ -450,10 +455,21 @@ function WarehouseCanvasInner({
         th: number,
         radius = 2,
       ) => {
-        ctx.fillStyle = color ?? PAPER.dark;
-        ctx.beginPath();
-        ctx.roundRect(x + tx, y + ty, tw, th, radius);
-        ctx.fill();
+        const cx = x + tx + tw / 2;
+        const cy = y + ty + th / 2;
+        if (color) {
+          // Stocked slot — full circle, fills the tile area.
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(cx, cy, Math.min(tw, th) / 2, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // Empty slot — subtle rounded inset so the bay reads as a grid.
+          ctx.fillStyle = PAPER.dark;
+          ctx.beginPath();
+          ctx.roundRect(x + tx, y + ty, tw, th, radius);
+          ctx.fill();
+        }
       };
 
       // Paper bay padding / gap, scaled to the 20×20 cell.
@@ -577,16 +593,15 @@ function WarehouseCanvasInner({
           ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
 
           if (shelfVariant !== 'current') {
-            // Collapse the shelf's bins into up-to-4 bay slots.
-            // Slot order: top-left, top-right, bottom-left, bottom-right.
-            // Each slot shows its bin's Paper tile color (or null when empty).
+            // Map this cell's ACTUAL locations to the up-to-4 bay slots by
+            // index (not by z-level — capacity is only 1..3, so z-levels can
+            // never fill 4 tiles, and a shelf can hold multiple bins at the
+            // same level). First location → top-left, second → top-right,
+            // third → bottom-left, fourth → bottom-right.
             const slotSlots: (string | null)[] = [null, null, null, null];
-            cell.locations.forEach((loc, i) => {
-              const slotIndex = i % 4;
-              if (slotIndex < 4) {
-                const zIdx = loc.z - 1;
-                slotSlots[slotIndex] = PAPER_TILES[zIdx] ?? '#3b82f6';
-              }
+            cell.locations.slice(0, 4).forEach((loc, i) => {
+              // Paper palette per bin index — gold, purple, blue, orange.
+              slotSlots[i] = PAPER_TILES[i % PAPER_TILES.length] ?? '#3b82f6';
             });
             drawShelf(ctx, px, py, slotSlots);
           }
