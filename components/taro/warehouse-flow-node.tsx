@@ -4,10 +4,7 @@ import { memo, useState, useRef, useCallback, useEffect } from 'react';
 import type { Node, NodeProps } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
 import type { MutableRefObject } from 'react';
-import { WarehouseCanvas } from './warehouse-canvas';
-import { WarehouseCanvasExperiment } from './warehouse-canvas-experiment';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
-import type { RendererMode } from '@/lib/taro/renderer-mode';
 import { Copy, Trash2, Settings, Users, Check, Plus, Loader2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -39,8 +36,6 @@ export type WarehouseNodeData = Record<string, unknown> & {
   animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
   animationReplayId: number;
-  /** Temporary A/B/C renderer experiment mode. */
-  rendererMode?: RendererMode;
   /** Whether this node is the currently active/selected warehouse. */
   isActive: boolean;
   /** Whether this warehouse is currently being duplicated — shows spinner on the duplicate button. */
@@ -62,12 +57,12 @@ export type WarehouseNodeData = Record<string, unknown> & {
 };
 
 /**
- * Custom React Flow node that renders the existing WarehouseCanvas inside.
+ * Custom React Flow node that renders the SVG warehouse renderer inside.
  * Interaction classes (`nodrag`, `nopan`, `nowheel`) are conditionally applied:
  * - When a drawing tool is active → React Flow ignores events on the canvas,
- *   allowing the canvas to handle drawing, internal pan, and hover.
+ *   allowing the SVG renderer to handle drawing, internal pan, and hover.
  * - When the hand/pan tool is active → events bubble through so React Flow
- *   handles viewport pan/zoom; the canvas stops handling drawing.
+ *   handles viewport pan/zoom; the renderer stops handling drawing.
  *
  * Title bar shows the warehouse name (not a truncated UUID), supports inline
  * rename on double-click, and provides layout config, workers, duplicate + delete actions.
@@ -364,43 +359,17 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
         </div>
       </div>
 
-      {/* Temporary A/B/C renderer experiment — the mode is threaded from
-          TaroApp via WarehouseFlow. A = baseline canvas (untouched),
-          B = canvas experiment, C = SVG experiment. */}
-      {data.rendererMode === 'C' ? (
-        <WarehouseSvgRenderer
-          warehouseId={data.warehouseId}
-          warehouse={data.warehouse}
-          onWarehouseChange={data.onWarehouseChange}
-          selectedTool={data.selectedTool}
-          activeRoute={data.activeRoute}
-          animationProgressRef={data.animationProgressRef}
-          zVisualizationMode={data.zVisualizationMode}
-          animationReplayId={data.animationReplayId}
-        />
-      ) : data.rendererMode === 'B' ? (
-        <WarehouseCanvasExperiment
-          warehouseId={data.warehouseId}
-          warehouse={data.warehouse}
-          onWarehouseChange={data.onWarehouseChange}
-          selectedTool={data.selectedTool}
-          activeRoute={data.activeRoute}
-          animationProgressRef={data.animationProgressRef}
-          zVisualizationMode={data.zVisualizationMode}
-          animationReplayId={data.animationReplayId}
-        />
-      ) : (
-        <WarehouseCanvas
-          warehouseId={data.warehouseId}
-          warehouse={data.warehouse}
-          onWarehouseChange={data.onWarehouseChange}
-          selectedTool={data.selectedTool}
-          activeRoute={data.activeRoute}
-          animationProgressRef={data.animationProgressRef}
-          zVisualizationMode={data.zVisualizationMode}
-          animationReplayId={data.animationReplayId}
-        />
-      )}
+      {/* Warehouse renderer — SVG (vector-crisp at every zoom). */}
+      <WarehouseSvgRenderer
+        warehouseId={data.warehouseId}
+        warehouse={data.warehouse}
+        onWarehouseChange={data.onWarehouseChange}
+        selectedTool={data.selectedTool}
+        activeRoute={data.activeRoute}
+        animationProgressRef={data.animationProgressRef}
+        zVisualizationMode={data.zVisualizationMode}
+        animationReplayId={data.animationReplayId}
+      />
     </div>
   );
 }
