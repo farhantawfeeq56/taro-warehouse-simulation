@@ -37,7 +37,7 @@ export type WarehouseNodeData = Record<string, unknown> & {
   animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
   animationReplayId: number;
-  /** Shelf render variant (see `ShelfVariantToolbar`). Defaults to 'current'. */
+  /** Shelf render variant (see `ShelfVariantToolbar`). Defaults to 'paper'. */
   shelfVariant?: ShelfVariant;
   /** Whether this node is the currently active/selected warehouse. */
   isActive: boolean;

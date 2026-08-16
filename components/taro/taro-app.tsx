@@ -198,7 +198,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
-  const [shelfVariant, setShelfVariant] = useState<ShelfVariant>('current');
+  const [shelfVariant, setShelfVariant] = useState<ShelfVariant>('paper');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
@@ -1143,7 +1143,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       ) {
         return;
       }
-      const index = ['1', '2', '3', '4', '5'].indexOf(e.key);
+      const index = ['p', 'a', 'b', 'd'].indexOf(e.key.toLowerCase());
       if (index !== -1) {
         e.preventDefault();
         const variant = SHELF_VARIANTS[index];

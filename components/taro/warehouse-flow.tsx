@@ -24,6 +24,7 @@ import type {
 } from '@/lib/taro/types';
 import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
+import { BIG_CELL_SIZE } from './shelf-variant-toolbar';
 import WarehouseFlowNode from './warehouse-flow-node';
 import type { WarehouseNodeData } from './warehouse-flow-node';
 import type { ShelfVariant } from './shelf-variant-toolbar';
@@ -170,8 +171,11 @@ function WarehouseFlowInner({
 
     for (const ww of workspaceWarehouses) {
       const w = ww.warehouse;
-      const width = w ? w.width * CELL_SIZE : 300;
-      const height = w ? w.height * CELL_SIZE + TITLE_BAR_HEIGHT : 200 + TITLE_BAR_HEIGHT;
+      // Match the canvas's variant-aware cell size so the node box equals the
+      // canvas CSS box ('big' uses BIG_CELL_SIZE, others the base CELL_SIZE).
+      const cs = shelfVariant === 'big' ? BIG_CELL_SIZE : CELL_SIZE;
+      const width = w ? w.width * cs : 300;
+      const height = w ? w.height * cs + TITLE_BAR_HEIGHT : 200 + TITLE_BAR_HEIGHT;
       if (ww.position) {
         withPosition.push({ id: ww.id, width, height, position: ww.position });
       } else {
@@ -248,7 +252,7 @@ function WarehouseFlowInner({
     }
 
     return [...withPosition, ...autoPositions] as LayoutCellWithPos[];
-  }, [workspaceWarehouses, comparisons]);
+  }, [workspaceWarehouses, comparisons, shelfVariant]);
 
   // Derived edges: one edge from each member warehouse to its comparison.
   const edges = useMemo((): Edge[] => {

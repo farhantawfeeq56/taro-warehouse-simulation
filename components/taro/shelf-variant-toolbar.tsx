@@ -5,24 +5,31 @@
  * warehouse canvas. The segmented control below lets the user flip between
  * render proposals right from the main warehouse screen.
  *
- * - 'current'  — the existing shelf rendering (dark cell + colored z-level
- *                dots / level-mode labels)
- * - 'paper'    — the new Paper mock: a dark #1C2118 bay holding 2×2 rounded
- *                tiles in 4 SKU colors (gold / purple / blue / orange)
- * - 'filled'   — Paper bay, stock rises from the floor (bottom row fills first)
- * - 'stacked'  — Paper bay, one column per SKU (pick-face stacks)
- * - 'isometric'— Paper bay, pseudo-3D extruded faces
+ * The Paper 2×2 tile bay (dark #1C2118, gold/purple/blue/orange circles)
+ * is the base language. The variants are the four render strategies:
  *
- * Keyboard shortcuts 1-5 switch between them (handled in TaroApp).
+ * - 'paper'    — the Paper reference as-is: a dark #1C2118 bay holding a
+ *                2×2 grid of colored tiles, one tile per stocked bin.
+ * - 'big'      — (A) bigger cells: CELL_SIZE is raised so each tile gets
+ *                real pixel resolution instead of mush.
+ * - 'multicell'— (B) multi-cell bays: each bay spans several cells so it
+ *                reads like the Paper mock's tall 4-level column.
+ * - 'vector'   — (D) vector/DOM rendering: tiles are drawn as SVG circles
+ *                at display resolution instead of a downsampled canvas.
+ *
+ * Keyboard shortcuts P/A/B/D switch between them (handled in TaroApp).
+ * C (the richer-stock idea) is intentionally not included.
  */
-export type ShelfVariant = 'current' | 'paper' | 'filled' | 'stacked' | 'isometric';
+export type ShelfVariant = 'paper' | 'big' | 'multicell' | 'vector';
+
+/** Cell size used by the 'big' (A) variant — 32px vs the base 20px. */
+export const BIG_CELL_SIZE = 32;
 
 export const SHELF_VARIANTS: { id: ShelfVariant; label: string; shortcut: string }[] = [
-  { id: 'current', label: 'Current', shortcut: '1' },
-  { id: 'paper', label: 'Paper', shortcut: '2' },
-  { id: 'filled', label: 'Filled', shortcut: '3' },
-  { id: 'stacked', label: 'Stacked', shortcut: '4' },
-  { id: 'isometric', label: 'Isometric', shortcut: '5' },
+  { id: 'paper', label: 'Paper', shortcut: 'P' },
+  { id: 'big', label: 'Big Cells', shortcut: 'A' },
+  { id: 'multicell', label: 'Multi-Cell', shortcut: 'B' },
+  { id: 'vector', label: 'Vector', shortcut: 'D' },
 ];
 
 interface ShelfVariantToolbarProps {
