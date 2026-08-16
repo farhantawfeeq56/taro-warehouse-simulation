@@ -39,6 +39,15 @@ const PAPER_TILES = [PAPER.gold, PAPER.purple, PAPER.blue, PAPER.orange];
  */
 const MAX_CANVAS_DIMENSION = 4096;
 
+/**
+ * Backing-store supersample factor. The canvas bitmap is always rasterized at
+ * at least this many device pixels per CSS pixel of the displayed canvas, so
+ * even at fitView zoom (where React Flow's CSS transform downscales the node
+ * to ~0.7) the tiny shelf tiles keep real pixel resolution instead of being
+ * anti-aliased into mush. Raised further by zoom×dpr once zoom exceeds it.
+ */
+const MIN_DEVICE_PIXEL_RATIO = 3;
+
 interface WarehouseCanvasProps {
   /** The warehouse ID for which this canvas renders. */
   warehouseId?: string;
@@ -810,7 +819,7 @@ function WarehouseCanvasInner({
     ctx.restore();
   }, [warehouse, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell, logicalW, drawShelf]);
 
-  // Re-rasterize the canvas backing store at the current zoom × devicePixelRatio.
+  // Re-rasterize the canvas backing store at a fixed supersample factor.
   // Resizing the backing store reallocates the GPU texture, so it must NOT happen
   // on every frame of a zoom gesture — the browser's CSS transform already gives
   // smooth motion. We debounce and only re-rasterize once zoom settles, matching
@@ -822,8 +831,14 @@ function WarehouseCanvasInner({
     const zoom = reactFlowInstance.getZoom();
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
 
-    let targetW = Math.max(1, Math.round(logicalW * zoom * dpr));
-    let targetH = Math.max(1, Math.round(logicalH * zoom * dpr));
+    // Backing store = CSS pixel size × supersample. The CSS box is the logical
+    // size (grid cells × CELL_SIZE); React Flow's transform scales it visually.
+    // The supersample factor is at least MIN_DEVICE_PIXEL_RATIO and grows with
+    // zoom × dpr beyond that — so at rest the bitmap is 3 device px per CSS px,
+    // and zooming in only ever increases it (up to the soft cap). This keeps
+    // the 2×2 tile circles crisp at ANY zoom, including fitView.
+    let targetW = Math.max(1, Math.round(logicalW * Math.max(MIN_DEVICE_PIXEL_RATIO, zoom * dpr)));
+    let targetH = Math.max(1, Math.round(logicalH * Math.max(MIN_DEVICE_PIXEL_RATIO, zoom * dpr)));
     // The cap is a *soft* budget: when zooming in far enough that the user is
     // clearly inspecting a region (not the whole warehouse), let the backing
     // store exceed it linearly with zoom so shelf tiles stay razor-sharp.
