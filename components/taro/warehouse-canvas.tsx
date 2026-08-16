@@ -38,6 +38,23 @@ const PAPER_TILES = [PAPER.gold, PAPER.purple, PAPER.blue, PAPER.orange];
  */
 const MAX_CANVAS_DIMENSION = 4096;
 
+/**
+ * Supersample factor for the canvas backing store.
+ *
+ * The backing store is rasterized at `logical × zoom × dpr × SUPERSAMPLE`
+ * device pixels, then the browser downscales it onto the CSS box.
+ *
+ * Why supersample? The CSS box is the logical size, but React Flow's CSS
+ * `transform: scale(zoom)` positions the canvas on potentially fractional
+ * device pixels. A 1:1 backing store (the old design) then gets sub-pixel
+ * misaligned and the browser bilinearly filters it → soft edges even after
+ * re-rasterize settles. Rasterizing slightly larger and letting the browser
+ * downscale gives it extra samples to resolve edges — the content reads as
+ * sharp at every zoom. 2× is the sweet spot: it guarantees integer-scaled
+ * placement at zoom=0.5/1/2 (common values) and costs only a bit of memory.
+ */
+const SUPERSAMPLE = 2;
+
 interface WarehouseCanvasProps {
   /** The warehouse ID for which this canvas renders. */
   warehouseId?: string;
@@ -664,11 +681,11 @@ function WarehouseCanvasInner({
     ctx.restore();
   }, [warehouse, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell, logicalW, drawShelf]);
 
-  // Re-rasterize the canvas backing store at a fixed supersample factor.
-  // Resizing the backing store reallocates the GPU texture, so it must NOT happen
-  // on every frame of a zoom gesture — the browser's CSS transform already gives
-  // smooth motion. We debounce and only re-rasterize once zoom settles, matching
-  // how Figma renders crisp content at the end of a zoom.
+  // Re-rasterize the canvas backing store at a supersampled resolution.
+  // Resizing the backing store reallocates the GPU texture, so it must NOT
+  // happen on every frame of a zoom gesture — the browser's CSS transform
+  // already gives smooth motion. We re-rasterize immediately when a zoom
+  // gesture starts (see the zoom-gesture effect) and again once it settles.
   const rerasterize = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -676,16 +693,11 @@ function WarehouseCanvasInner({
     const zoom = reactFlowInstance.getZoom();
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
 
-    // Backing store = CSS pixel size × zoom × devicePixelRatio, EXACTLY 1:1
-    // with the displayed device pixels. The CSS box is the logical size
-    // (grid cells × CELL_SIZE); React Flow's transform scales it visually by
-    // `zoom`, so `logicalW × zoom × dpr` is exactly how many device pixels
-    // the canvas occupies on screen. At 1:1 the browser composites the bitmap
-    // pixel-for-pixel (no resampling) — the ONLY way to get truly crisp
-    // circles. Any oversample (e.g. fixed 3×) forces a non-integer downscale
-    // and softens every edge.
-    let targetW = Math.max(1, Math.round(logicalW * zoom * dpr));
-    let targetH = Math.max(1, Math.round(logicalH * zoom * dpr));
+    // Backing store = logical size × zoom × devicePixelRatio × SUPERSAMPLE.
+    // The CSS box stays at the logical size; the browser downscales this
+    // supersampled bitmap onto it (see SUPERSAMPLE for why).
+    let targetW = Math.max(1, Math.round(logicalW * zoom * dpr * SUPERSAMPLE));
+    let targetH = Math.max(1, Math.round(logicalH * zoom * dpr * SUPERSAMPLE));
     // The cap is a *soft* budget: when zooming in far enough that the user is
     // clearly inspecting a region (not the whole warehouse), let the backing
     // store exceed it linearly with zoom so shelf tiles stay razor-sharp.
@@ -709,7 +721,39 @@ function WarehouseCanvasInner({
     drawCanvas();
   }, [logicalW, logicalH, reactFlowInstance, drawCanvas]);
 
+  // Re-rasterize immediately when a zoom gesture *starts*, so the canvas is
+  // crisp during the zoom rather than staying blurry for the whole gesture +
+  // debounce. Combined with the debounced effect below, every settle point is
+  // also re-rasterized. This covers both the mid-gesture and post-gesture cases.
+  useEffect(() => {
+    const store = storeApi.getState();
+    let prevZoom = store.transform[2];
+    let zoomGestureActive = false;
+
+    const unsubscribe = storeApi.subscribe((state) => {
+      const zoom = state.transform[2];
+      if (Math.abs(zoom - prevZoom) > 0.0001) {
+        if (!zoomGestureActive) {
+          // First frame of a zoom gesture — re-rasterize at the new zoom
+          // immediately (cheap: one resize + redraw) so we don't sit on the
+          // stale, blurry bitmap while the gesture runs.
+          zoomGestureActive = true;
+          rerasterize();
+        }
+      } else {
+        // Zoom unchanged → gesture settled (or a pan). Re-arm the detector
+        // for the next gesture.
+        zoomGestureActive = false;
+      }
+      prevZoom = zoom;
+    });
+
+    return () => unsubscribe();
+  }, [storeApi, rerasterize]);
+
   // Keep the raster resolution in sync with zoom (debounced; see rerasterize).
+  // This catches the final settle point and also recovers from any gesture
+  // where the immediate effect above missed a frame.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const unsubscribe = storeApi.subscribe(() => {
