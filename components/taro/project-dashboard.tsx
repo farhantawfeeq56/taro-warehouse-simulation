@@ -19,7 +19,7 @@ import {
   updateProjectNameAction,
 } from '@/lib/db/actions';
 import type { ProjectSummary } from '@/lib/db/actions';
-import { ProjectListView } from '@/components/taro/project-list-variants';
+import { ProjectListView } from '@/components/taro/project-list';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
