@@ -78,6 +78,9 @@ function WarehouseSvgRendererInner({
   const reactFlowInstance = useReactFlow();
 
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
+  // True while the user holds the left button down with a drawing tool
+  // selected — lets shelf/worker/erase paint across cells on drag.
+  const [isDrawing, setIsDrawing] = useState(false);
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
     x: 0,
@@ -168,6 +171,7 @@ function WarehouseSvgRendererInner({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (selectedTool === 'hand' || selectedTool === 'select') return;
     if (e.button === 0) {
+      setIsDrawing(true);
       const cell = getCellFromMouse(e);
       if (cell) applyTool(cell.x, cell.y);
     }
@@ -175,6 +179,17 @@ function WarehouseSvgRendererInner({
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (selectedTool === 'hand' || selectedTool === 'select') return;
+
+    // While dragging with a drawing tool, apply the tool to every cell the
+    // cursor passes over (laying out / erasing a run of shelves), matching
+    // the original canvas behavior.
+    if (isDrawing) {
+      const cell = getCellFromMouse(e);
+      if (cell) applyTool(cell.x, cell.y);
+      setTooltip(prev => ({ ...prev, visible: false }));
+      return;
+    }
+
     const cell = getCellFromMouse(e);
     setHoveredCell(cell);
     if (cell) {
@@ -196,11 +211,16 @@ function WarehouseSvgRendererInner({
     } else {
       setTooltip(prev => ({ ...prev, visible: false }));
     }
-  }, [selectedTool, getCellFromMouse, warehouse.grid, zVisualizationMode]);
+  }, [selectedTool, isDrawing, getCellFromMouse, applyTool, warehouse.grid, zVisualizationMode]);
 
   const handleMouseLeave = useCallback(() => {
+    setIsDrawing(false);
     setHoveredCell(null);
     setTooltip(prev => ({ ...prev, visible: false }));
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDrawing(false);
   }, []);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -376,8 +396,14 @@ function WarehouseSvgRendererInner({
     return rects;
   }, [activeRoute, warehouse]);
 
-  // Worker route polylines + animated dots
-  const routePaths = useMemo(() => {
+  // Worker route polylines + animated dots.
+  // NOTE: deliberately NOT memoized on [activeRoute, animationProgressRef] —
+  // animationProgressRef is a stable ref object and its .current is read here,
+  // so a memo would freeze the path at the initial progress (the RAF tick
+  // re-renders the component but the memo never recomputes). Reading it on
+  // every render keeps the SVG path/dots in sync with the live progress, and
+  // this is cheap for the small number of route points.
+  const routePaths = (() => {
     if (!activeRoute) return null;
     const groups = activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0
       ? activeRoute.workerRoutes.map(wr => ({ color: wr.color, route: wr.route }))
@@ -409,7 +435,7 @@ function WarehouseSvgRendererInner({
       );
     }
     return paths;
-  }, [activeRoute, animationProgressRef]);
+  })();
 
   // Worker start label
   const workerStart = warehouse.workerStart;
@@ -424,6 +450,7 @@ function WarehouseSvgRendererInner({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onMouseUp={handleMouseUp}
       onClick={handleClick}
       style={{ cursor: selectedTool === 'hand' ? 'grab' : selectedTool === 'select' ? 'default' : isHoveringShelf ? 'pointer' : 'crosshair', touchAction: 'none' }}
     >
