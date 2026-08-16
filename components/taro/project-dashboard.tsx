@@ -34,7 +34,13 @@ function timeAgo(date: Date): string {
   return date.toLocaleDateString();
 }
 
-// ── Row action icons (rename / duplicate / open / delete) ─────────────────
+// ── Row action icons (edit / rename / copy / delete) ─────────────────────
+
+const EDIT_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
+    <path d="M135 20H55a5 5 0 0 0-5 5V50H25a5 5 0 0 0-5 5V135a5 5 0 0 0 5 5H105a5 5 0 0 0 5-5V110h25a5 5 0 0 0 5-5V25A5 5 0 0 0 135 20ZM100 130H30V60H100Zm30-30H110V55a5 5 0 0 0-5-5H60V30H130Z" fill="#000000" />
+  </svg>
+);
 
 const RENAME_ICON = (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
@@ -42,15 +48,9 @@ const RENAME_ICON = (
   </svg>
 );
 
-const DUPLICATE_ICON = (
+const COPY_ICON = (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
     <path d="M115.001 130a5 5 0 0 1-5 5H100.001a25 25 0 0 1-20-10 25 25 0 0 1-20 10H50.001a5 5 0 0 1 0-10H60.001a15 15 0 0 0 15-15V85H65.001a5 5 0 0 1 0-10h10V50A15 15 0 0 0 60.001 35H50.001a5 5 0 0 1 0-10H60.001a25 25 0 0 1 20 10 25 25 0 0 1 20-10h10a5 5 0 0 1 0 10H100.001a15 15 0 0 0-15 15v25h10a5 5 0 0 1 0 10H85.001v25a15 15 0 0 0 15 15h10A5 5 0 0 1 115.001 130Z" fill="#000000" />
-  </svg>
-);
-
-const OPEN_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
-    <path d="M135 20H55a5 5 0 0 0-5 5V50H25a5 5 0 0 0-5 5V135a5 5 0 0 0 5 5H105a5 5 0 0 0 5-5V110h25a5 5 0 0 0 5-5V25A5 5 0 0 0 135 20ZM100 130H30V60H100Zm30-30H110V55a5 5 0 0 0-5-5H60V30H130Z" fill="#000000" />
   </svg>
 );
 
@@ -86,9 +86,9 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
   const [newProjectName, setNewProjectName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  // In-progress rename / duplicate tracking
+  // In-progress rename / copy tracking
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
-  const [duplicatingProjectId, setDuplicatingProjectId] = useState<string | null>(null);
+  const [copyingProjectId, setCopyingProjectId] = useState<string | null>(null);
 
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -174,18 +174,18 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
     }
   }, [newProjectName, onOpenProject]);
 
-  // ── Duplicate ───────────────────────────────────────────────────────────
+  // ── Copy ────────────────────────────────────────────────────────────────
 
-  const handleDuplicate = useCallback(
+  const handleCopy = useCallback(
     async (project: ProjectSummary) => {
-      setDuplicatingProjectId(project.id);
+      setCopyingProjectId(project.id);
       try {
         const copy = await createProjectAction(`${project.name} (Copy)`);
         // Navigate to the empty copy; user can re-configure from scratch
         onOpenProject(copy.id);
       } catch (err) {
-        console.error('Failed to duplicate project:', err);
-        setDuplicatingProjectId(null);
+        console.error('Failed to copy project:', err);
+        setCopyingProjectId(null);
       }
     },
     [onOpenProject],
@@ -195,9 +195,9 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
 
   return (
     <div className="[font-synthesis:none] relative bg-[#FBF6F6] antialiased w-full min-h-full overflow-y-auto">
-      <div className="mx-auto max-w-[1100px] px-6 py-10 sm:px-10 md:px-14">
+      <div className="mx-auto max-w-[1100px] px-5 py-8">
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4 mb-12">
+        <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4 mb-8">
           <div className="flex flex-col items-start gap-1">
             <h1 className="font-['Instrument_Sans',system-ui,sans-serif] font-bold text-[#1C2118] text-2xl sm:text-[26px] leading-tight">
               Projects
@@ -333,6 +333,15 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
                   <div className="flex items-center gap-1.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                     <button
                       type="button"
+                      title="Edit"
+                      aria-label={`Edit ${project.name}`}
+                      className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
+                      onClick={() => onOpenProject(project.id)}
+                    >
+                      {EDIT_ICON}
+                    </button>
+                    <button
+                      type="button"
                       title="Rename"
                       aria-label={`Rename ${project.name}`}
                       className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
@@ -342,26 +351,17 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
                     </button>
                     <button
                       type="button"
-                      title="Duplicate"
-                      aria-label={`Duplicate ${project.name}`}
+                      title="Copy"
+                      aria-label={`Copy ${project.name}`}
                       className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
-                      onClick={() => handleDuplicate(project)}
-                      disabled={duplicatingProjectId === project.id}
+                      onClick={() => handleCopy(project)}
+                      disabled={copyingProjectId === project.id}
                     >
-                      {duplicatingProjectId === project.id ? (
+                      {copyingProjectId === project.id ? (
                         <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
                       ) : (
-                        DUPLICATE_ICON
+                        COPY_ICON
                       )}
-                    </button>
-                    <button
-                      type="button"
-                      title="Open"
-                      aria-label={`Open ${project.name}`}
-                      className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
-                      onClick={() => onOpenProject(project.id)}
-                    >
-                      {OPEN_ICON}
                     </button>
                     <button
                       type="button"
