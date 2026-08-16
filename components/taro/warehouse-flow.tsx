@@ -26,6 +26,7 @@ import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import WarehouseFlowNode from './warehouse-flow-node';
 import type { WarehouseNodeData } from './warehouse-flow-node';
+import type { RendererMode } from '@/lib/taro/renderer-mode';
 import ComparisonFlowNode from './comparison-flow-node';
 import type { ComparisonNodeData } from './comparison-flow-node';
 import { Plus } from 'lucide-react';
@@ -81,6 +82,8 @@ interface WarehouseFlowProps {
   animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
   animationReplayId: number;
+  /** Temporary A/B/C renderer experiment mode. */
+  rendererMode: RendererMode;
 
   // Link mode
   linkModeComparisonId: string | null;
@@ -133,6 +136,7 @@ function WarehouseFlowInner({
   animationProgressRef,
   zVisualizationMode,
   animationReplayId,
+  rendererMode,
   // Link mode
   linkModeComparisonId,
   comparisonStaleness,
@@ -326,6 +330,7 @@ function WarehouseFlowInner({
             animationProgressRef,
             zVisualizationMode,
             animationReplayId,
+            rendererMode,
             isActive: layout.id === activeWarehouseId,
             isDuplicating: layout.id === duplicatingWarehouseId,
             isDeleting: layout.id === deletingWarehouseId,
@@ -420,6 +425,7 @@ function WarehouseFlowInner({
               animationProgressRef,
               zVisualizationMode,
               animationReplayId,
+              rendererMode,
               isActive: n.id === activeWarehouseId,
               isDuplicating: n.id === duplicatingWarehouseId,
               isDeleting: n.id === deletingWarehouseId,
@@ -483,6 +489,7 @@ function WarehouseFlowInner({
     animationProgressRef,
     zVisualizationMode,
     animationReplayId,
+    rendererMode,
     warehouseNames,
     linkModeComparisonId,
     comparisonStaleness,

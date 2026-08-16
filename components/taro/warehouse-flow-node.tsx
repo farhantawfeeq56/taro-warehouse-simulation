@@ -5,6 +5,9 @@ import type { Node, NodeProps } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
 import type { MutableRefObject } from 'react';
 import { WarehouseCanvas } from './warehouse-canvas';
+import { WarehouseCanvasExperiment } from './warehouse-canvas-experiment';
+import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
+import type { RendererMode } from '@/lib/taro/renderer-mode';
 import { Copy, Trash2, Settings, Users, Check, Plus, Loader2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -36,6 +39,8 @@ export type WarehouseNodeData = Record<string, unknown> & {
   animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
   animationReplayId: number;
+  /** Temporary A/B/C renderer experiment mode. */
+  rendererMode?: RendererMode;
   /** Whether this node is the currently active/selected warehouse. */
   isActive: boolean;
   /** Whether this warehouse is currently being duplicated — shows spinner on the duplicate button. */
@@ -359,17 +364,43 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
         </div>
       </div>
 
-      {/* Canvas */}
-      <WarehouseCanvas
-        warehouseId={data.warehouseId}
-        warehouse={data.warehouse}
-        onWarehouseChange={data.onWarehouseChange}
-        selectedTool={data.selectedTool}
-        activeRoute={data.activeRoute}
-        animationProgressRef={data.animationProgressRef}
-        zVisualizationMode={data.zVisualizationMode}
-        animationReplayId={data.animationReplayId}
-      />
+      {/* Temporary A/B/C renderer experiment — the mode is threaded from
+          TaroApp via WarehouseFlow. A = baseline canvas (untouched),
+          B = canvas experiment, C = SVG experiment. */}
+      {data.rendererMode === 'C' ? (
+        <WarehouseSvgRenderer
+          warehouseId={data.warehouseId}
+          warehouse={data.warehouse}
+          onWarehouseChange={data.onWarehouseChange}
+          selectedTool={data.selectedTool}
+          activeRoute={data.activeRoute}
+          animationProgressRef={data.animationProgressRef}
+          zVisualizationMode={data.zVisualizationMode}
+          animationReplayId={data.animationReplayId}
+        />
+      ) : data.rendererMode === 'B' ? (
+        <WarehouseCanvasExperiment
+          warehouseId={data.warehouseId}
+          warehouse={data.warehouse}
+          onWarehouseChange={data.onWarehouseChange}
+          selectedTool={data.selectedTool}
+          activeRoute={data.activeRoute}
+          animationProgressRef={data.animationProgressRef}
+          zVisualizationMode={data.zVisualizationMode}
+          animationReplayId={data.animationReplayId}
+        />
+      ) : (
+        <WarehouseCanvas
+          warehouseId={data.warehouseId}
+          warehouse={data.warehouse}
+          onWarehouseChange={data.onWarehouseChange}
+          selectedTool={data.selectedTool}
+          activeRoute={data.activeRoute}
+          animationProgressRef={data.animationProgressRef}
+          zVisualizationMode={data.zVisualizationMode}
+          animationReplayId={data.animationReplayId}
+        />
+      )}
     </div>
   );
 }

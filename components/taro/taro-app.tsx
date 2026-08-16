@@ -33,6 +33,8 @@ import { WorkbenchPanel } from './workbench-panel';
 import { ComparisonPanel } from './comparison-panel';
 import { WorkspacePanel } from './workspace-panel';
 import { Toolbar } from './toolbar';
+import { RendererBadge } from './renderer-badge';
+import { subscribeRendererKeys, type RendererMode } from '@/lib/taro/renderer-mode';
 import { GitCompareArrows, Loader2 } from 'lucide-react';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
@@ -84,6 +86,14 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   // Link mode — when non-null, the canvas is in "link warehouses to this
   // comparison" mode (see plan-comparison-canvas-association.md).
   const [linkModeComparisonId, setLinkModeComparisonId] = useState<string | null>(null);
+
+  // Temporary A/B/C renderer experiment — keyboard shortcut state.
+  const [rendererMode, setRendererMode] = useState<RendererMode>('A');
+
+  // Subscribe to A/B/C keys (safe: ignores input/textarea/contenteditable).
+  useEffect(() => {
+    return subscribeRendererKeys(setRendererMode);
+  }, []);
 
   // Derived: the currently selected warehouse (drives all panels).
   const warehouse = useMemo(() => {
@@ -1248,12 +1258,17 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             animationProgressRef={animationProgressRef}
             zVisualizationMode={zVisualizationMode}
             animationReplayId={animationReplayId}
+            // Temporary A/B/C renderer experiment
+            rendererMode={rendererMode}
             // Link mode
             linkModeComparisonId={linkModeComparisonId}
             onToggleMember={handleToggleComparisonMembership}
             onStartLink={handleStartLink}
             onExitLink={handleExitLink}
           />
+
+          {/* Temporary A/B/C renderer indicator — always visible over the workspace */}
+          <RendererBadge mode={rendererMode} />
 
           {/* Floating controls row — bottom centre */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
