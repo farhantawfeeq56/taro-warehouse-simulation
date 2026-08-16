@@ -6,6 +6,22 @@ import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLo
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
 import { getNextSku } from '@/lib/taro/demo-generator';
+import type { ShelfVariant } from './shelf-variant-toolbar';
+
+// ── Paper shelf palette ─────────────────────────────────────────────────
+// Faithful to the Paper reference render: a dark bay (#1C2118) holding
+// 2×2 rounded tiles in 4 SKU colors. Tile colors are picked from this
+// palette by z-level (z1..z4) so every variant shares the same look.
+const PAPER = {
+  dark: '#1C2118',
+  gold: '#D6A83D',
+  purple: '#8A70A8',
+  blue: '#5B8DB8',
+  orange: '#C87555',
+} as const;
+
+/** Tile color per z-level, in Paper's palette order. */
+const PAPER_TILES = [PAPER.gold, PAPER.purple, PAPER.blue, PAPER.orange];
 
 /**
  * Render-resolution budget for a single warehouse canvas (pixels per side).
@@ -31,6 +47,8 @@ interface WarehouseCanvasProps {
    *  Forces the canvas animation effect to re-run even when the
    *  same strategy is re-selected after the route completed. */
   animationReplayId: number;
+  /** Shelf render variant (see `ShelfVariantToolbar`). Defaults to 'current'. */
+  shelfVariant?: ShelfVariant;
 }
 
 interface TooltipState {
@@ -58,6 +76,7 @@ function WarehouseCanvasInner({
   animationProgressRef,
   zVisualizationMode,
   animationReplayId,
+  shelfVariant = 'current',
 }: WarehouseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -380,6 +399,133 @@ function WarehouseCanvasInner({
     }
   }, [warehouse, shelfDetails?.cellX, shelfDetails?.cellY, shelfDetails?.locations, shelfDetails]);
 
+  /**
+   * Draw a single shelf cell in the chosen visual variant.
+   *
+   * 'current'  — the existing rendering: dark cell + border; stock is
+   *              shown as colored z-level dots (or labels in level mode).
+   *              Drawn by the caller below, this branch is a no-op.
+   *
+   * All Paper-derived variants share the bay language: a dark #1C2118 bay
+   * with 2×2 rounded tiles, Paper padding + gap, and the Paper SKU palette
+   * (gold / purple / blue / orange by z-level). Empty slots stay bay-dark.
+   *
+   * 'paper'     — faithful to the Paper reference (2×2 grid, reading order)
+   * 'filled'    — stock rises from the floor: bottom row fills first
+   * 'stacked'   — per-column stacks, reads like a pick-face
+   * 'isometric' — pseudo-3D faces with a depth side
+   *
+   * `slots` are the up-to-4 bay slots (top-left, top-right, bottom-left,
+   * bottom-right) carrying their z-level color, or null when empty.
+   */
+  const drawShelf = useCallback(
+    (ctx: CanvasRenderingContext2D, px: number, py: number, slots: (string | null)[]) => {
+      const S = CELL_SIZE;
+      const pad = 1;
+      const x = px + pad;
+      const y = py + pad;
+      const w = S - pad * 2;
+      const h = S - pad * 2;
+      const [tl, tr, bl, br] = slots;
+
+      // Paper bay background — dark with a slight rounding.
+      const drawBay = () => {
+        ctx.fillStyle = PAPER.dark;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, 2);
+        ctx.fill();
+      };
+
+      // A single rounded Paper tile. Empty slots render as bay-dark.
+      const drawTile = (
+        color: string | null | undefined,
+        tx: number,
+        ty: number,
+        tw: number,
+        th: number,
+        radius = 2,
+      ) => {
+        ctx.fillStyle = color ?? PAPER.dark;
+        ctx.beginPath();
+        ctx.roundRect(x + tx, y + ty, tw, th, radius);
+        ctx.fill();
+      };
+
+      // Paper bay padding / gap, scaled to the 20×20 cell.
+      const padX = w * 0.08;
+      const padY = h * 0.1;
+      const gap = w * 0.06;
+      const tw = (w - padX * 2 - gap) / 2;
+      const th = (h - padY * 2 - gap) / 2;
+      const ox = x + padX;
+      const oy = y + padY;
+
+      switch (shelfVariant) {
+        case 'paper': {
+          // Faithful to the Paper reference: dark bay, 2×2 rounded tiles
+          // in reading order; empty slots stay bay-dark.
+          drawBay();
+          drawTile(tl, ox, oy, tw, th);
+          drawTile(tr, ox + tw + gap, oy, tw, th);
+          drawTile(bl, ox, oy + th + gap, tw, th);
+          drawTile(br, ox + tw + gap, oy + th + gap, tw, th);
+          break;
+        }
+        case 'filled': {
+          // Stock sits at the BOTTOM like a real rack: bottom row fills
+          // first, top row rests on it.
+          drawBay();
+          drawTile(bl, ox, oy + th + gap, tw, th);
+          drawTile(br, ox + tw + gap, oy + th + gap, tw, th);
+          drawTile(tl, ox, oy, tw, th);
+          drawTile(tr, ox + tw + gap, oy, tw, th);
+          break;
+        }
+        case 'stacked': {
+          // One column per SKU, stacked 2 levels — reads like a pick-face
+          // where tall columns hold more stock.
+          drawBay();
+          const colW = (w - padX * 2 - gap) / 2;
+          const lv = (h - padY * 2 - gap) / 2;
+          // Left column: bottom then top
+          drawTile(bl, ox, oy + lv + gap, colW, lv);
+          drawTile(tl, ox, oy, colW, lv);
+          // Right column: bottom then top
+          drawTile(br, ox + colW + gap, oy + lv + gap, colW, lv);
+          drawTile(tr, ox + colW + gap, oy, colW, lv);
+          break;
+        }
+        case 'isometric': {
+          // Pseudo-3D: each 2×2 slot is a flat face with a thin depth side
+          // on the right, giving the bay an extruded rack look.
+          drawBay();
+          const faceW = tw;
+          const faceH = th;
+          const depth = 2;
+          const levels = [tl, tr, bl, br];
+          levels.forEach((color, i) => {
+            const col = i % 2;
+            const row = Math.floor(i / 2);
+            const fx = ox + col * (faceW + gap);
+            const fy = oy + row * (faceH + gap);
+            // Depth side
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(fx + faceW - depth, fy, depth, faceH);
+            // Face
+            drawTile(color, fx, fy, faceW - depth, faceH, 1);
+          });
+          break;
+        }
+        case 'current':
+        default:
+          // Existing rendering — handled by the caller (dark cell + border,
+          // colored z-level dots / level-mode labels).
+          break;
+      }
+    },
+    [shelfVariant],
+  );
+
   // Draw the canvas - memoized draw function to avoid recreation
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -417,11 +563,28 @@ function WarehouseCanvasInner({
         ctx.fillStyle = fillColor;
         ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
 
-        // Draw shelf with visual dominance - darker border
+        // Draw shelf — variant-aware (see drawShelf above). 'current' keeps
+        // the existing dark cell + border + z-level dots/labels; the Paper
+        // variants draw the dark bay with rounded tiles instead.
         if (cell.type === 'shelf') {
           ctx.strokeStyle = '#E7E8EC'; // Darker gray border
           ctx.lineWidth = 2;
           ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
+
+          if (shelfVariant !== 'current') {
+            // Collapse the shelf's bins into up-to-4 bay slots.
+            // Slot order: top-left, top-right, bottom-left, bottom-right.
+            // Each slot shows its bin's Paper tile color (or null when empty).
+            const slotSlots: (string | null)[] = [null, null, null, null];
+            cell.locations.forEach((loc, i) => {
+              const slotIndex = i % 4;
+              if (slotIndex < 4) {
+                const zIdx = loc.z - 1;
+                slotSlots[slotIndex] = PAPER_TILES[zIdx] ?? '#3b82f6';
+              }
+            });
+            drawShelf(ctx, px, py, slotSlots);
+          }
         }
 
         // Draw grid lines (lighter for shelves to not compete)
@@ -431,8 +594,10 @@ function WarehouseCanvasInner({
           ctx.strokeRect(px, py, CELL_SIZE, CELL_SIZE);
         }
 
-        // Draw shelf location markers and labels
-        if (cell.type === 'shelf' && cell.locations.length > 0) {
+        // Draw shelf location markers and labels — only in 'current' mode.
+        // Paper variants paint the stock itself (rounded tiles), so the
+        // z-level dots/labels would double up on top of it.
+        if (cell.type === 'shelf' && cell.locations.length > 0 && shelfVariant === 'current') {
           if (zVisualizationMode === 'all') {
             // Show mini dots for each level present — color indicates z-level
             const levelCounts = new Map<number, number>();
@@ -623,7 +788,7 @@ function WarehouseCanvasInner({
     }
 
     ctx.restore();
-  }, [warehouse, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell, logicalW]);
+  }, [warehouse, activeRoute, activeRouteHeatmap, zVisualizationMode, hoveredCell, logicalW, drawShelf]);
 
   // Re-rasterize the canvas backing store at the current zoom × devicePixelRatio.
   // Resizing the backing store reallocates the GPU texture, so it must NOT happen

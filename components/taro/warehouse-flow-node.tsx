@@ -5,6 +5,7 @@ import type { Node, NodeProps } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/lib/taro/types';
 import type { MutableRefObject } from 'react';
 import { WarehouseCanvas } from './warehouse-canvas';
+import type { ShelfVariant } from './shelf-variant-toolbar';
 import { Copy, Trash2, Settings, Users, Check, Plus, Loader2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -36,6 +37,8 @@ export type WarehouseNodeData = Record<string, unknown> & {
   animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
   animationReplayId: number;
+  /** Shelf render variant (see `ShelfVariantToolbar`). Defaults to 'current'. */
+  shelfVariant?: ShelfVariant;
   /** Whether this node is the currently active/selected warehouse. */
   isActive: boolean;
   /** Whether this warehouse is currently being duplicated — shows spinner on the duplicate button. */
@@ -369,6 +372,7 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
         animationProgressRef={data.animationProgressRef}
         zVisualizationMode={data.zVisualizationMode}
         animationReplayId={data.animationReplayId}
+        shelfVariant={data.shelfVariant}
       />
     </div>
   );
