@@ -58,7 +58,7 @@ function IconButton({
 }: {
   title: string;
   label: string;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   disabled?: boolean;
   danger?: boolean;
   children: React.ReactNode;
@@ -364,8 +364,22 @@ function VariantAccordion(props: ProjectViewProps) {
   const isRenaming = renamingId === project.id;
 
   return (
-    <div className="group rounded-md border border-[#1C2118]/10 bg-white overflow-hidden">
-      <div className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-[#F4F4F3]">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        if (!isRenaming) onOpenProject(project.id);
+      }}
+      onKeyDown={(e) => {
+        if (isRenaming) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpenProject(project.id);
+        }
+      }}
+      className="group relative rounded-md border border-[#1C2118]/10 bg-white overflow-hidden cursor-pointer hover:border-[#1C2118]/25 hover:shadow-sm transition-all"
+    >
+      <div className="flex items-center justify-between gap-4 px-4 py-3">
         <div className="min-w-0 flex-1">
           {isRenaming ? (
             <RenameInput
@@ -377,29 +391,23 @@ function VariantAccordion(props: ProjectViewProps) {
               saving={renamingProjectId === project.id}
             />
           ) : (
-            <button
-              type="button"
-              onClick={() => onOpenProject(project.id)}
-              className="font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118] text-base font-medium hover:underline text-left truncate"
-            >
+            <span className="font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118] text-base font-medium text-left truncate">
               {project.name}
-            </button>
+            </span>
           )}
         </div>
         <span className="text-xs text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif] shrink-0">
           Updated {timeAgo(project.updatedAt)}
         </span>
-        <div className="flex items-center gap-0.5 shrink-0">
-          <IconButton title="Edit" label={`Edit ${project.name}`} onClick={() => onOpenProject(project.id)}>
-            {EDIT_ICON}
-          </IconButton>
-          <IconButton title="Rename" label={`Rename ${project.name}`} onClick={() => onStartRename(project)}>
-            {RENAME_ICON}
-          </IconButton>
+        {/* Hover-only actions — order: duplicate, edit, rename, delete */}
+        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
           <IconButton
-            title="Copy"
-            label={`Copy ${project.name}`}
-            onClick={() => onCopy(project)}
+            title="Duplicate"
+            label={`Duplicate ${project.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopy(project);
+            }}
             disabled={copyingProjectId === project.id}
           >
             {copyingProjectId === project.id ? (
@@ -408,7 +416,35 @@ function VariantAccordion(props: ProjectViewProps) {
               COPY_ICON
             )}
           </IconButton>
-          <IconButton title="Delete" label={`Delete ${project.name}`} onClick={() => onDelete(project)} danger>
+          <IconButton
+            title="Edit"
+            label={`Edit ${project.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenProject(project.id);
+            }}
+          >
+            {EDIT_ICON}
+          </IconButton>
+          <IconButton
+            title="Rename"
+            label={`Rename ${project.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartRename(project);
+            }}
+          >
+            {RENAME_ICON}
+          </IconButton>
+          <IconButton
+            title="Delete"
+            label={`Delete ${project.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(project);
+            }}
+            danger
+          >
             {DELETE_ICON}
           </IconButton>
         </div>
@@ -556,7 +592,7 @@ export function ProjectListView({
   renamingProjectId: string | null;
   copyingProjectId: string | null;
 }) {
-  const [activeVariant, setActiveVariant] = useState(1);
+  const [activeVariant, setActiveVariant] = useState(4);
 
   // Keyboard shortcuts: 1-5 switch variants
   useEffect(() => {
