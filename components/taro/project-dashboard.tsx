@@ -19,6 +19,7 @@ import {
   updateProjectNameAction,
 } from '@/lib/db/actions';
 import type { ProjectSummary } from '@/lib/db/actions';
+import { ProjectListView } from '@/components/taro/project-list-variants';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -33,32 +34,6 @@ function timeAgo(date: Date): string {
   if (days < 7) return `${days}d ago`;
   return date.toLocaleDateString();
 }
-
-// ── Row action icons (edit / rename / copy / delete) ─────────────────────
-
-const EDIT_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
-    <path d="M135 20H55a5 5 0 0 0-5 5V50H25a5 5 0 0 0-5 5V135a5 5 0 0 0 5 5H105a5 5 0 0 0 5-5V110h25a5 5 0 0 0 5-5V25A5 5 0 0 0 135 20ZM100 130H30V60H100Zm30-30H110V55a5 5 0 0 0-5-5H60V30H130Z" fill="#000000" />
-  </svg>
-);
-
-const RENAME_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
-    <path d="M142.069 45.856L114.144 17.925a10 10 0 0 0-14.144 0L22.931 95A9.912 9.912 0 0 0 20 102.069V130a10 10 0 0 0 10 10H57.931A9.912 9.912 0 0 0 65 137.069L142.069 60a10 10 0 0 0 0-14.144ZM57.931 130H30V102.069l55-55L112.931 75ZM120 67.925L92.069 40l15-15L135 52.925Z" fill="#000000" />
-  </svg>
-);
-
-const COPY_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
-    <path d="M115.001 130a5 5 0 0 1-5 5H100.001a25 25 0 0 1-20-10 25 25 0 0 1-20 10H50.001a5 5 0 0 1 0-10H60.001a15 15 0 0 0 15-15V85H65.001a5 5 0 0 1 0-10h10V50A15 15 0 0 0 60.001 35H50.001a5 5 0 0 1 0-10H60.001a25 25 0 0 1 20 10 25 25 0 0 1 20-10h10a5 5 0 0 1 0 10H100.001a15 15 0 0 0-15 15v25h10a5 5 0 0 1 0 10H85.001v25a15 15 0 0 0 15 15h10A5 5 0 0 1 115.001 130Z" fill="#000000" />
-  </svg>
-);
-
-const DELETE_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
-    <path d="M135 30H110V25a15 15 0 0 0-15-15H65A15 15 0 0 0 50 25v5H25a5 5 0 0 0 0 10h5V130a10 10 0 0 0 10 10H120a10 10 0 0 0 10-10V40h5a5 5 0 0 0 0-10ZM60 25a5 5 0 0 1 5-5h30a5 5 0 0 1 5 5v5H60Zm60 105H40V40H120ZM70 65v40a5 5 0 0 1-10 0V65a5 5 0 0 1 10 0Zm30 0v40a5 5 0 0 1-10 0V65a5 5 0 0 1 10 0Z" fill="#D96868" />
-  </svg>
-);
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -289,94 +264,21 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
 
         {/* ── All Projects List ──────────────────────────────────────────── */}
         {!isLoading && !error && projects.length > 0 && (
-          <div className="flex flex-col items-stretch">
-            {projects.map((project) => {
-              const isRenaming = renamingId === project.id;
-
-              return (
-                <div
-                  key={project.id}
-                  className="group flex w-full items-center justify-between gap-4 rounded-md py-3 px-3 transition-colors duration-150 hover:bg-[#F4F4F3]"
-                >
-                  {/* Name / rename input */}
-                  <div className="min-w-0 flex-1">
-                    {isRenaming ? (
-                      <div className="flex items-center gap-1.5">
-                        <Input
-                          ref={renameInputRef}
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onBlur={commitRename}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') commitRename();
-                            if (e.key === 'Escape') setRenamingId(null);
-                          }}
-                          className="h-8 text-base font-['Instrument_Sans',system-ui,sans-serif] px-2 flex-1 bg-transparent border-[#1C2118]/20"
-                          disabled={renamingProjectId === project.id}
-                        />
-                        {renamingProjectId === project.id && (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-[#1C2118]/50 shrink-0" />
-                        )}
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onOpenProject(project.id)}
-                        className="w-fit shrink-0 font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118] text-base sm:text-[17px] leading-snug hover:underline text-left"
-                      >
-                        {project.name}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Row action controls — visible only on hover */}
-                  <div className="flex items-center gap-1.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-                    <button
-                      type="button"
-                      title="Edit"
-                      aria-label={`Edit ${project.name}`}
-                      className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
-                      onClick={() => onOpenProject(project.id)}
-                    >
-                      {EDIT_ICON}
-                    </button>
-                    <button
-                      type="button"
-                      title="Rename"
-                      aria-label={`Rename ${project.name}`}
-                      className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
-                      onClick={() => startRename(project)}
-                    >
-                      {RENAME_ICON}
-                    </button>
-                    <button
-                      type="button"
-                      title="Copy"
-                      aria-label={`Copy ${project.name}`}
-                      className="p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors"
-                      onClick={() => handleCopy(project)}
-                      disabled={copyingProjectId === project.id}
-                    >
-                      {copyingProjectId === project.id ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
-                      ) : (
-                        COPY_ICON
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      title="Delete"
-                      aria-label={`Delete ${project.name}`}
-                      className="p-1.5 rounded-md text-[#D96868]/60 hover:text-[#D96868] hover:bg-[#D96868]/10 transition-colors"
-                      onClick={() => setDeleteTarget(project)}
-                    >
-                      {DELETE_ICON}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <ProjectListView
+            projects={projects}
+            onOpenProject={onOpenProject}
+            onStartRename={startRename}
+            onCopy={handleCopy}
+            onDelete={setDeleteTarget}
+            renamingId={renamingId}
+            renameValue={renameValue}
+            onRenameChange={setRenameValue}
+            onCommitRename={commitRename}
+            onCancelRename={() => setRenamingId(null)}
+            renameInputRef={renameInputRef}
+            renamingProjectId={renamingProjectId}
+            copyingProjectId={copyingProjectId}
+          />
         )}
 
         {/* ── Delete Confirmation Dialog ──────────────────────────────── */}
