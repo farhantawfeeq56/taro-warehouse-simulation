@@ -87,7 +87,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
     editing?.id === id && editing.type === type;
 
   return (
-    <div className="w-72 border-r border-border bg-background flex flex-col">
+    <div className="w-72 border-r border-border bg-surface flex flex-col">
       {/* App header: Logo + Project name */}
       <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border shrink-0">
         {props.onBackToDashboard ? (
