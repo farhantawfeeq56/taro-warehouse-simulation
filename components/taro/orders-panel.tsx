@@ -284,7 +284,7 @@ export function OrdersPanel({
                       >
                         <div className="min-w-0">
                           <div
-                            className={`font-mono truncate ${
+                            className={`font-sans truncate ${
                               isHighlighted
                                 ? 'text-amber-900 dark:text-amber-100 font-semibold'
                                 : 'text-foreground'
@@ -303,7 +303,7 @@ export function OrdersPanel({
                             )}
                           </div>
                           <div
-                            className={`font-mono text-[10px] truncate ${
+                            className={`font-sans text-[10px] truncate ${
                               isHighlighted
                                 ? 'text-amber-700 dark:text-amber-400'
                                 : 'text-muted-foreground'

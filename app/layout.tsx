@@ -1,14 +1,9 @@
 import type { Metadata } from 'next'
-import { Manrope, Instrument_Sans } from 'next/font/google'
+import { Instrument_Sans } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 export const dynamic = 'force-dynamic';
-
-const manrope = Manrope({
-  subsets: ["latin"],
-  variable: '--font-manrope',
-});
 
 const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
@@ -44,7 +39,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${manrope.variable} ${instrumentSans.variable} font-sans antialiased`}>
+      <body className={`${instrumentSans.variable} font-sans antialiased`}>
         {children}
         <Analytics />
       </body>

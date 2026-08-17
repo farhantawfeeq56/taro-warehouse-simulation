@@ -291,7 +291,7 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
                   <div key={label} className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-medium">{label}</label>
-                      <span className="text-xs font-mono text-muted-foreground">{value}</span>
+                      <span className="text-xs font-sans text-muted-foreground">{value}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{desc}</p>
                     <input
@@ -331,7 +331,7 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
                   <div key={label} className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-medium">{label}</label>
-                      <span className="text-xs font-mono text-muted-foreground">{label.includes('Density') ? `${value}%` : value}</span>
+                      <span className="text-xs font-sans text-muted-foreground">{label.includes('Density') ? `${value}%` : value}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{desc}</p>
                     <input
@@ -348,9 +348,9 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
             ) : (
               <div className="space-y-4">
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Paste your warehouse location data as CSV. Expected columns: <span className="font-mono text-foreground">Aisle, Rack, Bin, [Level], SKU</span>
+                  Paste your warehouse location data as CSV. Expected columns: <span className="font-sans text-foreground">Aisle, Rack, Bin, [Level], SKU</span>
                 </p>
-                <div className="bg-muted/30 rounded p-3 font-mono text-xs text-muted-foreground space-y-0.5">
+                <div className="bg-muted/30 rounded p-3 font-sans text-xs text-muted-foreground space-y-0.5">
                   <div className="text-foreground font-medium mb-1">Example format:</div>
                   <div>Aisle,Rack,Bin,SKU</div>
                   <div>A1,1,1,ITEM-001</div>
@@ -363,7 +363,7 @@ export function WarehouseBuilderDialog({ onGenerate, onClose }: WarehouseBuilder
                   onChange={e => { setCsvText(e.target.value); setCsvError(''); }}
                   rows={6}
                   placeholder="Paste your warehouse CSV here..."
-                  className="w-full text-xs font-mono border border-border rounded-lg p-3 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                  className="w-full text-xs font-sans border border-border rounded-lg p-3 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
                 />
                 {csvError && <p className="text-xs text-red-500">{csvError}</p>}
               </div>

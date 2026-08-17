@@ -68,22 +68,22 @@ function ResultCard({
           <div className="flex items-center gap-1.5 text-xs">
             <MapPin className="h-3 w-3 text-muted-foreground" />
             <span className="text-muted-foreground">Distance</span>
-            <span className="font-mono font-semibold ml-auto">{best.totalDistance}m</span>
+            <span className="font-sans font-semibold ml-auto">{best.totalDistance}m</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs">
             <Clock className="h-3 w-3 text-muted-foreground" />
             <span className="text-muted-foreground">Time</span>
-            <span className="font-mono font-semibold ml-auto">{best.estimatedTime} min</span>
+            <span className="font-sans font-semibold ml-auto">{best.estimatedTime} min</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs">
             <TrendingUp className="h-3 w-3 text-muted-foreground" />
             <span className="text-muted-foreground">Efficiency</span>
-            <span className="font-mono font-semibold ml-auto">{best.efficiency}%</span>
+            <span className="font-sans font-semibold ml-auto">{best.efficiency}%</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs">
             <DollarSign className="h-3 w-3 text-muted-foreground" />
             <span className="text-muted-foreground">Cost</span>
-            <span className="font-mono font-semibold ml-auto">${best.costPerOrder}</span>
+            <span className="font-sans font-semibold ml-auto">${best.costPerOrder}</span>
           </div>
         </div>
       ) : (
