@@ -536,7 +536,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Grid Height</Label>
-                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{gridHeight}</span>
+                        <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{gridHeight}</span>
                       </div>
                       <Slider
                         min={4} max={60} step={getHeightStep(gridHeight)}
@@ -553,7 +553,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Rack Count</Label>
-                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{rackCount}</span>
+                        <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{rackCount}</span>
                       </div>
                       <Slider
                         min={5} max={60} step={getRackStep(rackCount)}
@@ -570,7 +570,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Aisle Width</Label>
-                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{aisleWidth}</span>
+                        <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{aisleWidth}</span>
                       </div>
                       <Slider
                         min={1} max={5} step={1}
@@ -586,7 +586,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                   <div className="space-y-4 border-t pt-8">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-semibold">Cross Aisles</Label>
-                      <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{crossAisleCount}</span>
+                      <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{crossAisleCount}</span>
                     </div>
                     <Slider
                       min={1} max={4} step={1}
@@ -608,42 +608,42 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Width</Label>
-                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{fbWidth}</span>
+                        <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{fbWidth}</span>
                       </div>
                       <Slider min={10} max={60} step={1} value={[fbWidth]} onValueChange={(val) => setFbWidth(val[0])} />
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Height</Label>
-                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{fbHeight}</span>
+                        <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{fbHeight}</span>
                       </div>
                       <Slider min={10} max={60} step={1} value={[fbHeight]} onValueChange={(val) => setFbHeight(val[0])} />
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Aisle Angle (Theta)</Label>
-                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{fbTheta}°</span>
+                        <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{fbTheta}°</span>
                       </div>
                       <Slider min={20} max={70} step={5} value={[fbTheta]} onValueChange={(val) => setFbTheta(val[0])} />
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Aisle Spacing</Label>
-                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{fbS}</span>
+                        <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{fbS}</span>
                       </div>
                       <Slider min={2} max={10} step={1} value={[fbS]} onValueChange={(val) => setFbS(val[0])} />
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Growth Factor (I2)</Label>
-                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{fbI2}</span>
+                        <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{fbI2}</span>
                       </div>
                       <Slider min={1} max={3} step={0.1} value={[fbI2]} onValueChange={(val) => setFbI2(val[0])} />
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-semibold">Density</Label>
-                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{Math.round(fbAp * 100)}%</span>
+                        <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{Math.round(fbAp * 100)}%</span>
                       </div>
                       <Slider min={0.1} max={1} step={0.05} value={[fbAp]} onValueChange={(val) => setFbAp(val[0])} />
                     </div>
@@ -659,7 +659,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">SKU Count</Label>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{skuCount}</span>
+                    <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">{skuCount}</span>
                   </div>
                   <Slider
                     min={500} max={10000} step={1}
@@ -673,7 +673,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Demand Distribution</Label>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                    <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">
                       {demandDistribution}%
                     </span>
                   </div>
@@ -689,7 +689,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                   <p className="text-xs text-muted-foreground">
                     How customer demand is spread across SKUs.
                   </p>
-                  <p className="text-[11px] text-muted-foreground font-mono">
+                  <p className="text-[11px] text-muted-foreground font-sans">
                     Top 20% hold {Math.round(demandSummary.topShare * 100)}% of demand · min {demandSummary.min.toFixed(2)} / max {demandSummary.max.toFixed(2)}
                   </p>
                 </div>
@@ -698,7 +698,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Product Affinity</Label>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                    <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">
                       {productAffinity}%
                     </span>
                   </div>
@@ -714,7 +714,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                   <p className="text-xs text-muted-foreground">
                     Which products tend to be bought together.
                   </p>
-                  <p className="text-[11px] text-muted-foreground font-mono">
+                  <p className="text-[11px] text-muted-foreground font-sans">
                     {affinitySummary.groupCount} groups · largest {affinitySummary.largestGroupSize} · {Math.round(affinitySummary.groupedShare * 100)}% of SKUs have a group-mate
                   </p>
                 </div>
@@ -723,7 +723,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Storage Footprint</Label>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                    <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">
                       {storageFootprint}%
                     </span>
                   </div>
@@ -739,7 +739,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                   <p className="text-xs text-muted-foreground">
                     How much warehouse space each SKU requires.
                   </p>
-                  <p className="text-[11px] text-muted-foreground font-mono">
+                  <p className="text-[11px] text-muted-foreground font-sans">
                     {footprintSummary.singleBinCount} single-bin · {footprintSummary.multiBinCount} multi-bin · mean {footprintSummary.meanFootprint.toFixed(2)} · needs {footprintSummary.totalBins} bins
                   </p>
                 </div>
@@ -754,7 +754,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Slotting Bias</Label>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                    <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">
                       {slottingBias}%
                     </span>
                   </div>
@@ -770,7 +770,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                   <p className="text-xs text-muted-foreground">
                     How strongly product demand influences storage location.
                   </p>
-                  <p className="text-[11px] text-muted-foreground font-mono">
+                  <p className="text-[11px] text-muted-foreground font-sans">
                     {inventory.length - placementPreview.unplacedCount} / {inventory.length} SKUs placed · {placementPreview.placedBinCount} / {placementPreview.binCount} bins used
                     {placementPreview.unplacedCount > 0 && (
                       <span className="text-amber-600">
@@ -784,7 +784,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Category Clustering</Label>
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                    <span className="text-xs font-sans bg-muted px-1.5 py-0.5 rounded">
                       {categoryClustering}%
                     </span>
                   </div>
@@ -800,7 +800,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                   <p className="text-xs text-muted-foreground">
                     How strongly products of the same category are stored together in contiguous zones.
                   </p>
-                  <p className="text-[11px] text-muted-foreground font-mono">
+                  <p className="text-[11px] text-muted-foreground font-sans">
                     {placementPreview.categoryCount} categor{placementPreview.categoryCount === 1 ? 'y' : 'ies'} · clustering {categoryClustering}%
                   </p>
                 </div>
