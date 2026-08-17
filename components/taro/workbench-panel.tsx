@@ -71,19 +71,19 @@ export function WorkbenchPanel(props: WorkbenchPanelProps) {
           <TabsList className="grid grid-cols-3 h-9 items-center w-full justify-center p-[3px] rounded-[10px] bg-muted/60">
             <TabsTrigger
               value="config"
-              className="items-center h-[calc(100%-1px)] flex justify-center py-1 px-2 gap-1 rounded-[10px] text-[12px] leading-[133.333%] font-medium text-foreground data-[state=active]:border-b data-[state=active]:border-b-accent data-[state=active]:rounded-none data-[state=active]:shadow-none data-[state=inactive]:border data-[state=inactive]:border-transparent"
+              className="items-center h-[calc(100%-1px)] flex justify-center py-1 px-2 gap-1 rounded-[10px] text-[12px] leading-[133.333%] font-medium text-foreground data-[state=active]:bg-transparent data-[state=active]:border-b data-[state=active]:border-b-accent data-[state=active]:rounded-none data-[state=active]:shadow-none data-[state=inactive]:border data-[state=inactive]:border-transparent"
             >
               Config
             </TabsTrigger>
             <TabsTrigger
               value="orders"
-              className="items-center h-[calc(100%-1px)] flex justify-center py-1 px-2 gap-1 rounded-[10px] text-[12px] leading-[133.333%] font-medium text-foreground data-[state=active]:border-b data-[state=active]:border-b-accent data-[state=active]:rounded-none data-[state=active]:shadow-none data-[state=inactive]:border data-[state=inactive]:border-transparent"
+              className="items-center h-[calc(100%-1px)] flex justify-center py-1 px-2 gap-1 rounded-[10px] text-[12px] leading-[133.333%] font-medium text-foreground data-[state=active]:bg-transparent data-[state=active]:border-b data-[state=active]:border-b-accent data-[state=active]:rounded-none data-[state=active]:shadow-none data-[state=inactive]:border data-[state=inactive]:border-transparent"
             >
               Orders
             </TabsTrigger>
             <TabsTrigger
               value="simulation"
-              className="items-center h-[calc(100%-1px)] flex justify-center py-1 px-2 gap-1 rounded-[10px] text-[12px] leading-[133.333%] font-medium text-foreground data-[state=active]:border-b data-[state=active]:border-b-accent data-[state=active]:rounded-none data-[state=active]:shadow-none data-[state=inactive]:border data-[state=inactive]:border-transparent"
+              className="items-center h-[calc(100%-1px)] flex justify-center py-1 px-2 gap-1 rounded-[10px] text-[12px] leading-[133.333%] font-medium text-foreground data-[state=active]:bg-transparent data-[state=active]:border-b data-[state=active]:border-b-accent data-[state=active]:rounded-none data-[state=active]:shadow-none data-[state=inactive]:border data-[state=inactive]:border-transparent"
             >
               Simulation
             </TabsTrigger>
