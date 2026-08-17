@@ -60,7 +60,7 @@ export function WorkbenchPanel(props: WorkbenchPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('orders');
 
   return (
-    <div className="w-72 border-l border-border bg-surface flex flex-col">
+    <div className="w-72 border-l border-border bg-[#F4F4F2] flex flex-col">
       {/* Tabs — Paper design */}
       <Tabs
         value={activeTab}
