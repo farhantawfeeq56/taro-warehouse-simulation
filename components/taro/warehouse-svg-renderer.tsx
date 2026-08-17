@@ -26,7 +26,7 @@ import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout'
 import { getNextSku } from '@/lib/taro/demo-generator';
 
 const PAPER = {
-  dark: '#1C2118',
+  dark: '#111111',
   gold: '#D6A83D',
   purple: '#8A70A8',
   blue: '#5B8DB8',

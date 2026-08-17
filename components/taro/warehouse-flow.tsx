@@ -602,7 +602,7 @@ function WarehouseFlowInner({
           variant={BackgroundVariant.Dots}
           gap={20}
           size={1}
-          color="#d1d5db"
+          color="#C9C5C4"
         />
       </ReactFlow>
 
@@ -613,9 +613,9 @@ function WarehouseFlowInner({
         className="
           nodrag absolute top-3 left-3 z-50
           flex items-center gap-1 px-2 py-1.5
-          bg-white/60 backdrop-blur-sm text-muted-foreground
+          bg-surface/60 backdrop-blur-sm text-muted-foreground
           border border-border rounded-lg
-          hover:bg-white hover:text-foreground hover:border-muted-foreground/30
+          hover:bg-surface hover:text-foreground hover:border-border-strong
           active:bg-muted
           transition-colors text-[11px] font-medium shadow-sm
         "

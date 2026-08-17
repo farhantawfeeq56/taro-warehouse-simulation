@@ -425,7 +425,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
             <div
               key={key}
               style={{ width: cellSize, height: cellSize }}
-              className="relative transition-colors duration-200 bg-orange-500"
+              className="relative transition-colors duration-200 bg-warning"
             />
           );
         } else if (cell.type === 'shelf') {
@@ -439,7 +439,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                 height: cellSize,
                 ...(shelfColor ? { backgroundColor: shelfColor } : {}),
               }}
-              className={`relative ${isLayoutMode ? 'bg-slate-800' : ''}`}
+              className={`relative ${isLayoutMode ? 'bg-accent' : ''}`}
             />
           );
         } else {
@@ -447,7 +447,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
             <div
               key={key}
               style={{ width: cellSize, height: cellSize }}
-              className="relative transition-colors duration-200 bg-slate-100"
+              className="relative transition-colors duration-200 bg-muted"
             />
           );
         }
@@ -601,7 +601,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                   <div className="space-y-6">
                     <Alert className="bg-amber-50/50 border-amber-200/50 p-3 mb-4">
                       <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      <AlertDescription className="text-amber-800 text-[11px] font-medium">
+                      <AlertDescription className="text-warning text-[11px] font-medium">
                         Experimental: Research-backed Fishbone simulation is under development and is not yet recommended for production comparisons.
                       </AlertDescription>
                     </Alert>
@@ -872,15 +872,15 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
         {previewMode === 'layout' && (
           <>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-slate-800 inline-block rounded-sm" />
+              <span className="w-3 h-3 bg-accent inline-block rounded-sm" />
               <span>Shelf</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-slate-400 inline-block rounded-sm" />
+              <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
               <span>Empty Shelf</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
+              <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
               <span>Dispatch</span>
             </span>
           </>
@@ -902,11 +902,11 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               <span>High demand</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-slate-400 inline-block rounded-sm" />
+              <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
               <span>No item placed</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
+              <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
               <span>Dispatch</span>
             </span>
           </>
@@ -928,11 +928,11 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               </span>
             )}
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-slate-400 inline-block rounded-sm" />
+              <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
               <span>No item</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-orange-500 inline-block rounded-sm" />
+              <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
               <span>Dispatch</span>
             </span>
           </>

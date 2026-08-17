@@ -202,8 +202,8 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
                 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold
                 transition-colors
                 ${data.isMember
-                  ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                  : 'bg-muted/60 text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600'
+                  ? 'bg-accent-soft text-accent hover:bg-accent/20'
+                  : 'bg-muted/60 text-muted-foreground hover:bg-accent-subtle hover:text-accent'
                 }
                 disabled:opacity-70
               `}

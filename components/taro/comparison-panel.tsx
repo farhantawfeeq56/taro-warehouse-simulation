@@ -43,19 +43,19 @@ function ResultCard({
     <div
       className={`border rounded-lg p-3 space-y-2 ${
         isWinner
-          ? 'border-amber-300/70 bg-amber-50/40 ring-1 ring-amber-300/40'
+          ? 'border-warning/70 bg-warning-soft/60 ring-1 ring-warning/40'
           : 'border-border bg-muted/20'
       }`}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
-          {isWinner && <Trophy className="h-4 w-4 text-amber-500 shrink-0" />}
+          {isWinner && <Trophy className="h-4 w-4 text-warning shrink-0" />}
           <span className="text-sm font-semibold text-foreground truncate">
             {result.warehouseName}
           </span>
         </div>
         {isWinner && (
-          <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">
+          <Badge className="text-[10px] bg-warning-soft text-warning border-warning/30">
             Best
           </Badge>
         )}
@@ -127,13 +127,13 @@ export function ComparisonPanel({
       {/* Header */}
       <div className="p-3 border-b border-border shrink-0">
         <div className="flex items-center gap-2 mb-2">
-          <GitCompareArrows className="h-4 w-4 text-emerald-600" />
+          <GitCompareArrows className="h-4 w-4 text-accent" />
           <h2 className="text-sm font-semibold text-foreground truncate">
             {comparison.name}
           </h2>
           {isStale && results && (
             <span
-              className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0"
+              className="text-[10px] font-medium text-warning bg-warning-soft px-1.5 py-0.5 rounded border border-warning/30 shrink-0"
               title="Results are stale — a member warehouse or orders changed since the last run"
             >
               Stale
@@ -151,7 +151,7 @@ export function ComparisonPanel({
             }
             className={`h-7 text-xs flex-1 ${
               isStale && results
-                ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                ? 'bg-warning hover:bg-warning/90 text-white'
                 : ''
             }`}
           >

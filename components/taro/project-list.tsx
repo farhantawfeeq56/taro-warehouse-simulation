@@ -8,19 +8,19 @@ import type { ProjectSummary } from '@/lib/db/actions';
 
 const EDIT_ICON = (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
-    <path d="M135 20H55a5 5 0 0 0-5 5V50H25a5 5 0 0 0-5 5V135a5 5 0 0 0 5 5H105a5 5 0 0 0 5-5V110h25a5 5 0 0 0 5-5V25A5 5 0 0 0 135 20ZM100 130H30V60H100Zm30-30H110V55a5 5 0 0 0-5-5H60V30H130Z" fill="#000000" />
+    <path d="M135 20H55a5 5 0 0 0-5 5V50H25a5 5 0 0 0-5 5V135a5 5 0 0 0 5 5H105a5 5 0 0 0 5-5V110h25a5 5 0 0 0 5-5V25A5 5 0 0 0 135 20ZM100 130H30V60H100Zm30-30H110V55a5 5 0 0 0-5-5H60V30H130Z" fill="currentColor" />
   </svg>
 );
 
 const RENAME_ICON = (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
-    <path d="M142.069 45.856L114.144 17.925a10 10 0 0 0-14.144 0L22.931 95A9.912 9.912 0 0 0 20 102.069V130a10 10 0 0 0 10 10H57.931A9.912 9.912 0 0 0 65 137.069L142.069 60a10 10 0 0 0 0-14.144ZM57.931 130H30V102.069l55-55L112.931 75ZM120 67.925L92.069 40l15-15L135 52.925Z" fill="#000000" />
+    <path d="M142.069 45.856L114.144 17.925a10 10 0 0 0-14.144 0L22.931 95A9.912 9.912 0 0 0 20 102.069V130a10 10 0 0 0 10 10H57.931A9.912 9.912 0 0 0 65 137.069L142.069 60a10 10 0 0 0 0-14.144ZM57.931 130H30V102.069l55-55L112.931 75ZM120 67.925L92.069 40l15-15L135 52.925Z" fill="currentColor" />
   </svg>
 );
 
 const COPY_ICON = (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 160 160" style={{ flexShrink: '0' }}>
-    <path d="M115.001 130a5 5 0 0 1-5 5H100.001a25 25 0 0 1-20-10 25 25 0 0 1-20 10H50.001a5 5 0 0 1 0-10H60.001a15 15 0 0 0 15-15V85H65.001a5 5 0 0 1 0-10h10V50A15 15 0 0 0 60.001 35H50.001a5 5 0 0 1 0-10H60.001a25 25 0 0 1 20 10 25 25 0 0 1 20-10h10a5 5 0 0 1 0 10H100.001a15 15 0 0 0-15 15v25h10a5 5 0 0 1 0 10H85.001v25a15 15 0 0 0 15 15h10A5 5 0 0 1 115.001 130Z" fill="#000000" />
+    <path d="M115.001 130a5 5 0 0 1-5 5H100.001a25 25 0 0 1-20-10 25 25 0 0 1-20 10H50.001a5 5 0 0 1 0-10H60.001a15 15 0 0 0 15-15V85H65.001a5 5 0 0 1 0-10h10V50A15 15 0 0 0 60.001 35H50.001a5 5 0 0 1 0-10H60.001a25 25 0 0 1 20 10 25 25 0 0 1 20-10h10a5 5 0 0 1 0 10H100.001a15 15 0 0 0-15 15v25h10a5 5 0 0 1 0 10H85.001v25a15 15 0 0 0 15 15h10A5 5 0 0 1 115.001 130Z" fill="currentColor" />
   </svg>
 );
 
@@ -69,8 +69,8 @@ function IconButton({
       disabled={disabled}
       className={
         danger
-          ? 'p-1.5 rounded-md text-[#D96868]/60 hover:text-[#D96868] hover:bg-[#D96868]/10 transition-colors disabled:opacity-40'
-          : 'p-1.5 rounded-md text-black/50 hover:text-black hover:bg-black/5 transition-colors disabled:opacity-40'
+          ? 'p-1.5 rounded-md text-error/60 hover:text-error hover:bg-error/10 transition-colors disabled:opacity-40'
+          : 'p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40'
       }
       onClick={onClick}
     >
@@ -108,9 +108,9 @@ function RenameInput({
           if (e.key === 'Escape') onCancel();
         }}
         disabled={saving}
-        className="h-8 w-full text-base font-['Instrument_Sans',system-ui,sans-serif] px-2 bg-transparent border border-[#1C2118]/20 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4C5C2D]/40"
+        className="h-8 w-full text-base font-['Instrument_Sans',system-ui,sans-serif] px-2 bg-transparent border border-border-default rounded-md focus:outline-none focus:ring-2 focus:ring-accent/40"
       />
-      {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#1C2118]/50 shrink-0" />}
+      {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
     </div>
   );
 }
@@ -165,7 +165,7 @@ function ProjectCard({
           onOpenProject(project.id);
         }
       }}
-      className="group relative rounded-lg border border-[#1C2118]/10 bg-white p-4 hover:shadow-sm hover:border-[#1C2118]/20 transition-all flex flex-col gap-3 cursor-pointer"
+      className="group relative rounded-lg border border-border-default bg-surface p-4 hover:shadow-sm hover:border-border-strong transition-all flex flex-col gap-3 cursor-pointer"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -179,7 +179,7 @@ function ProjectCard({
               saving={renamingProjectId === project.id}
             />
           ) : (
-            <span className="font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118] font-semibold text-base leading-tight text-left line-clamp-2">
+            <span className="font-['Instrument_Sans',system-ui,sans-serif] text-primary font-semibold text-base leading-tight text-left line-clamp-2">
               {project.name}
             </span>
           )}
@@ -196,7 +196,7 @@ function ProjectCard({
             disabled={copyingProjectId === project.id}
           >
             {copyingProjectId === project.id ? (
-              <Loader2 className="h-5 w-5 animate-spin text-[#1C2118]/60" />
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             ) : (
               EDIT_ICON
             )}
@@ -234,18 +234,18 @@ function ProjectCard({
           </IconButton>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif] mt-auto">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground font-['Instrument_Sans',system-ui,sans-serif] mt-auto">
         <span>Updated {timeAgo(project.updatedAt)}</span>
-        <span className="w-1 h-1 rounded-full bg-[#1C2118]/20" />
+        <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />
         <span>{project.itemCount} storage locations</span>
         {project.hasWarehouse ? (
           <span className="inline-flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#4C5C2D]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
             Configured
           </span>
         ) : (
           <span className="inline-flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#D96868]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-error" />
             Draft
           </span>
         )}

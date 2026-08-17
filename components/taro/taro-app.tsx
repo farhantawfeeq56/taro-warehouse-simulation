@@ -1240,10 +1240,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
                 disabled={isCreatingFromSelection}
                 className="
                   flex items-center gap-1.5 px-3 py-1.5
-                  bg-white/90 backdrop-blur-sm text-xs font-medium
-                  border border-emerald-300/70 rounded-lg shadow-md
-                  text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400
-                  active:bg-emerald-100 transition-colors
+                  bg-surface/90 backdrop-blur-sm text-xs font-medium
+                  border border-accent/30 rounded-lg shadow-md
+                  text-accent hover:bg-accent-soft hover:border-accent/50
+                  active:bg-accent-subtle transition-colors
                   disabled:opacity-70 disabled:cursor-not-allowed
                 "
               >

@@ -75,7 +75,7 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
     >
       {/* Highlight ring */}
       {isHighlighted && (
-        <div className="absolute inset-0 rounded-[5px] pointer-events-none ring-2 ring-emerald-500/60 ring-inset z-10 transition-shadow duration-150" />
+        <div className="absolute inset-0 rounded-[5px] pointer-events-none ring-2 ring-accent/60 ring-inset z-10 transition-shadow duration-150" />
       )}
 
       {/* Title bar */}
@@ -92,7 +92,7 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
         className={`
           flex items-center justify-between px-3 py-1.5 text-xs font-medium border-b select-none gap-2
           ${data.isActive
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
+            ? 'bg-accent-soft border-accent/30 text-accent'
             : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
           }
         `}
@@ -111,7 +111,7 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
                 if (e.key === 'Escape') setIsEditing(false);
               }}
               onClick={(e) => e.stopPropagation()}
-              className="nodrag flex-1 min-w-0 h-5 px-1 text-xs font-medium bg-background border border-emerald-500/50 rounded outline-none ring-1 ring-emerald-500/30"
+              className="nodrag flex-1 min-w-0 h-5 px-1 text-xs font-medium bg-background border border-accent/50 rounded outline-none ring-1 ring-accent/30"
             />
           ) : (
             <span
@@ -135,7 +135,7 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
                 e.stopPropagation();
                 data.onExitLink?.();
               }}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-accent-soft text-accent hover:bg-accent/20 transition-colors"
               title="Exit link mode"
             >
               <Check className="h-3 w-3" />
@@ -150,7 +150,7 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
                 data.onStartLink?.(data.comparisonId);
               }}
               title="Link warehouses to this comparison"
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-accent-subtle text-accent hover:bg-accent-soft transition-colors"
               aria-label="Link warehouses"
             >
               <Link className="h-3 w-3" />
@@ -160,15 +160,15 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
           {/* Stale indicator */}
           {data.stale && data.score && (
             <span
-              className="flex items-center gap-0.5 text-[10px] text-amber-600 font-medium"
+              className="flex items-center gap-0.5 text-[10px] text-warning font-medium"
               title="Results are stale — a warehouse or orders changed since the last run"
             >
               <RefreshCw className="h-3 w-3" />
             </span>
           )}
           {data.isActive && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 mr-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-accent mr-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent" />
               Active
             </span>
           )}
@@ -198,13 +198,13 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
         ) : data.stale && data.score ? (
           <div className="flex items-center gap-2">
             <div>
-              <Trophy className="h-4 w-4 text-amber-400/80 shrink-0" />
+              <Trophy className="h-4 w-4 text-warning/80 shrink-0" />
             </div>
             <div className="min-w-0">
               <div className="text-[11px] font-semibold text-foreground truncate">
                 {data.score.winnerName}
               </div>
-              <div className="flex items-center gap-1 text-[10px] text-amber-600 font-medium">
+              <div className="flex items-center gap-1 text-[10px] text-warning font-medium">
                 <RefreshCw className="h-2.5 w-2.5" />
                 Re-run needed
               </div>
@@ -212,7 +212,7 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
           </div>
         ) : data.score ? (
           <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-amber-500 shrink-0" />
+            <Trophy className="h-4 w-4 text-warning shrink-0" />
             <div className="min-w-0">
               <div className="text-[11px] font-semibold text-foreground truncate">
                 {data.score.winnerName}
