@@ -10,9 +10,16 @@
  *
  * All five variants share the non-negotiable constraints:
  *   • Fishbone is removed entirely (no tab, no controls, no preview).
- *   • Parallel and Cross Aisle are merged into a single geometry control
- *     group — the cross-aisle slider is the ONLY survivor, defaulting to 1
+ *   • There are no layout types — just a single geometry config.
+ *   • The cross-aisle slider is the ONLY survivor, defaulting to 1
  *     and able to reach 0 (plain parallel).
+ *
+ * Variant lineup (vartest5):
+ *   6 · Cockpit          — tab strip × dial instruments (merge of 2 + 5)
+ *   7 · Priority Matrix  — impact × effort 2×2 board of expandable cards
+ *   8 · Timeline         — Define → Stock → Place pipeline with progress rail
+ *   9 · Radial Console   — concentric rings, everything orbits one centre
+ *   10· Feedback Loop    — systems diagram of 4 connected nodes
  *
  * The rendering of each variant is a pure function of the shared
  * `LayoutConfigVariantProps`, so switching costs nothing and state is never
@@ -38,11 +45,13 @@ import {
   Columns3,
   BadgeCheck,
   MapPin,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ── Shared types ────────────────────────────────────────────────────────────
 
+type StepRailId = 'geometry' | 'inventory' | 'placement';
 export type PreviewMode = 'layout' | 'demand' | 'affinity';
 
 export interface DemandSummaryLike {
@@ -148,11 +157,9 @@ export function VariantSlider({ label, value, display, min, max, step, low, high
         <label htmlFor={id} className="text-sm font-medium text-text-primary">
           {label}
         </label>
-        {label && (
-          <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-text-primary">
-            {display ?? value}
-          </span>
-        )}
+        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-text-primary">
+          {display ?? value}
+        </span>
       </div>
       <input
         id={id}
@@ -370,468 +377,44 @@ function Gauge({ value, label }: { value: number; label: string }) {
     </div>
   );
 }
+// ── Variant 6 · COCKPIT ────────────────────────────────────────────────────
+// The combined evolution of Horizon Tabs + Dial Board: a compact tab strip
+// (Geometry / Inventory / Placement) on top, and inside each tab a cockpit of
+// mini instruments — gauges, sparklines, bin histograms, health tiles — each
+// with its slider embedded. Everything about one variable family is on a
+// single page, read as dials, tweaked with sliders.
 
-// ── Variant 1 · STEP RAILS ──────────────────────────────────────────────────
-// Three horizontally stacked rails, one per variable group. Each rail is a
-// numbered stage (1 Geometry → 2 Inventory → 3 Placement); the variable that
-// is "in focus" expands its full slider set inline. Every control remains
-// visible with zero clicks — the step affordance is purely visual ordering.
-
-const STEP_RAIL_META = [
-  { id: 'geometry', num: 1, label: 'Geometry', icon: Warehouse, blurb: 'Racks & aisles' },
-  { id: 'inventory', num: 2, label: 'Inventory', icon: Package, blurb: 'What exists' },
-  { id: 'placement', num: 3, label: 'Placement', icon: Boxes, blurb: 'Where it lives' },
-] as const;
-
-type StepRailId = (typeof STEP_RAIL_META)[number]['id'];
-
-export function VariantStepRails(props: LayoutConfigVariantProps) {
-  const [focus, setFocus] = useState<StepRailId>('geometry');
-  return (
-    <div className="space-y-3">
-      {STEP_RAIL_META.map((rail) => {
-        const Icon = rail.icon;
-        const active = focus === rail.id;
-        return (
-          <div
-            key={rail.id}
-            className={cn(
-              'rounded-xl border transition-colors',
-              active ? 'border-accent/50 bg-surface shadow-sm' : 'border-border-default bg-surface/60'
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => setFocus(rail.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left"
-            >
-              <span
-                className={cn(
-                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                  active ? 'bg-accent text-primary-foreground' : 'bg-muted text-text-muted'
-                )}
-              >
-                {rail.num}
-              </span>
-              <Icon className={cn('h-4 w-4', active ? 'text-accent' : 'text-text-muted')} />
-              <span className="flex-1">
-                <span className={cn('block text-sm font-semibold', active ? 'text-text-primary' : 'text-text-secondary')}>
-                  {rail.label}
-                </span>
-                <span className="block text-[11px] text-text-muted">{rail.blurb}</span>
-              </span>
-              <ChevronRight className={cn('h-4 w-4 text-text-muted transition-transform', active && 'rotate-90')} />
-            </button>
-            {active && (
-              <div className="px-4 pb-4 pt-1 space-y-5">
-                {rail.id === 'geometry' && (
-                  <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} />
-                )}
-                {rail.id === 'inventory' && (
-                  <>
-                    <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} hint="Unique products to generate." onChange={props.onSkuCountChange} />
-                    <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% hold ${Math.round(props.demandSummary.topShare * 100)}% of demand`} onChange={props.onDemandDistributionChange} />
-                    <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups · largest ${props.affinitySummary.largestGroupSize}`} onChange={props.onProductAffinityChange} />
-                    <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`${props.footprintSummary.multiBinCount} multi-bin · needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
-                  </>
-                )}
-                {rail.id === 'placement' && (
-                  <>
-                    <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} SKUs placed`} onChange={props.onSlottingBiasChange} />
-                    <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Variant 2 · HORIZON TABS ───────────────────────────────────────────────
-// A single tab strip for the three variable groups; each tab opens its own
-// scrollable "page". Inside a page the controls flow top-to-bottom with no
-// section headers — the tab itself is the heading.
-
-export function VariantHorizonTabs(props: LayoutConfigVariantProps) {
-  const [tab, setTab] = useState<'geometry' | 'inventory' | 'placement'>('geometry');
-  const pages = [
+export function VariantCockpit(props: LayoutConfigVariantProps) {
+  const [tab, setTab] = useState<StepRailId>('geometry');
+  const tabs = [
     { id: 'geometry' as const, label: 'Geometry', icon: Warehouse },
     { id: 'inventory' as const, label: 'Inventory', icon: Package },
     { id: 'placement' as const, label: 'Placement', icon: Boxes },
   ];
-  return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center gap-1 border-b border-border-default px-1 pt-1">
-        {pages.map((p) => {
-          const Icon = p.icon;
-          const active = tab === p.id;
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setTab(p.id)}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors border-b-2 -mb-px',
-                active
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-text-muted hover:text-text-secondary'
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {p.label}
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
-        {tab === 'geometry' && (
-          <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="plain" />
-        )}
-        {tab === 'inventory' && (
-          <>
-            <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} hint="Unique products to generate." onChange={props.onSkuCountChange} />
-            <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% hold ${Math.round(props.demandSummary.topShare * 100)}% of demand`} onChange={props.onDemandDistributionChange} />
-            <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups · largest ${props.affinitySummary.largestGroupSize}`} onChange={props.onProductAffinityChange} />
-            <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`${props.footprintSummary.multiBinCount} multi-bin · needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
-          </>
-        )}
-        {tab === 'placement' && (
-          <>
-            <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} SKUs placed`} onChange={props.onSlottingBiasChange} />
-            <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Variant 3 · QUESTION WIZARD ─────────────────────────────────────────────
-// A forced linear flow: ONE question at a time, big binary slider, large
-// Continue button. Progress is drawn as a segmented stepper ("2 / 7").
-// Answering a question auto-advances; the header row lets you jump back to
-// any answered step.
-
-const WIZARD_STEPS = [
-  { id: 'geometry', icon: Warehouse, label: 'Size', question: 'How big is the storage area?', hint: 'Tune grid height, rack count and aisle spacing.' },
-  { id: 'aisle', icon: Split, label: 'Aisles', question: 'How many cross aisles cut through the racks?', hint: '0 keeps a plain parallel grid — each extra aisle is another horizontal thoroughfare.' },
-  { id: 'skus', icon: Package, label: 'Catalogue', question: 'How many unique products do you sell?', hint: 'More SKUs need more bins to hold them.' },
-  { id: 'demand', icon: TrendingUp, label: 'Demand', question: 'Is demand spread evenly or concentrated?', hint: 'Uniform spreads volume across all products; Pareto concentrates it on a few best-sellers.' },
-  { id: 'affinity', icon: Tags, label: 'Affinity', question: 'Do products tend to be bought together?', hint: 'Related products can share storage zones and appear together in orders.' },
-  { id: 'footprint', icon: Layers, label: 'Footprint', question: 'How bulky is the average product?', hint: 'Compact products take one bin; bulky ones need several.' },
-  { id: 'placement', icon: Boxes, label: 'Place', question: 'Where should inventory live?', hint: 'Balance demand-based slotting with category zoning.' },
-] as const;
-
-export function VariantWizard(props: LayoutConfigVariantProps) {
-  const [step, setStep] = useState(0);
-  const lastAnswered = Math.max(0, step);
-  const total = WIZARD_STEPS.length;
-
-  const next = () => setStep((s) => Math.min(total - 1, s + 1));
-  const prev = () => setStep((s) => Math.max(0, s - 1));
-
-  const current = WIZARD_STEPS[step];
-  const Icon = current.icon;
-
-  return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* Progress stepper */}
-      <div className="px-5 pt-4 pb-2">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-            Step {step + 1} of {total}
-          </span>
-          <span className="text-[11px] text-text-muted">{Math.round(((step + 1) / total) * 100)}% complete</span>
-        </div>
-        <div className="flex gap-1">
-          {WIZARD_STEPS.map((s, i) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setStep(i)}
-              className={cn(
-                'h-1.5 flex-1 rounded-full transition-colors',
-                i === step ? 'bg-accent' : i < step ? 'bg-accent/40' : 'bg-muted'
-              )}
-              title={s.label}
-            />
-          ))}
-        </div>
-        <div className="mt-2 flex gap-1 overflow-x-auto">
-          {WIZARD_STEPS.map((s, i) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setStep(i)}
-              className={cn(
-                'px-2 py-1 rounded-md text-[10px] font-medium whitespace-nowrap transition-colors',
-                i === step ? 'bg-accent-soft text-accent' : 'text-text-muted hover:bg-muted'
-              )}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Current question */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
-        <div className="rounded-2xl border border-border-default bg-surface p-5 space-y-5">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent">
-              <Icon className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{current.label}</p>
-              <h3 className="text-base font-bold text-text-primary leading-snug">{current.question}</h3>
-            </div>
-          </div>
-          <p className="text-xs text-text-muted">{current.hint}</p>
-
-          <div className="space-y-5 pt-1">
-            {step === 0 && (
-              <>
-                {buildGeometrySliders(props.geometry, props.onGeometryChange, props.onGeometryCommit).map((s) => (
-                  <VariantSlider key={s.label} {...s} />
-                ))}
-              </>
-            )}
-            {step === 1 && (
-              <VariantSlider
-                label="Cross Aisles"
-                value={props.geometry.crossAisleCount}
-                min={0}
-                max={4}
-                step={1}
-                low="0 · Parallel"
-                high="4 · Thoroughfares"
-                display={`${props.geometry.crossAisleCount}${props.geometry.crossAisleCount === 0 ? ' · parallel' : ''}`}
-                onChange={(v) => props.onGeometryChange({ crossAisleCount: v })}
-              />
-            )}
-            {step === 2 && (
-              <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} onChange={props.onSkuCountChange} />
-            )}
-            {step === 3 && (
-              <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}% of demand`} onChange={props.onDemandDistributionChange} />
-            )}
-            {step === 4 && (
-              <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups · largest ${props.affinitySummary.largestGroupSize}`} onChange={props.onProductAffinityChange} />
-            )}
-            {step === 5 && (
-              <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
-            )}
-            {step === 6 && (
-              <>
-                <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" onChange={props.onSlottingBiasChange} />
-                <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" onChange={props.onCategoryClusteringChange} />
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Nav */}
-      <div className="p-4 border-t border-border-default flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={prev}
-          disabled={step === 0}
-          className="px-3 py-2 rounded-lg text-xs font-semibold text-text-secondary hover:bg-muted disabled:opacity-40 transition-colors"
-        >
-          ← Back
-        </button>
-        {step < total - 1 ? (
-          <button
-            type="button"
-            onClick={next}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-primary-foreground text-xs font-semibold hover:bg-accent-hover transition-colors"
-          >
-            Continue <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        ) : (
-          <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-positive-soft text-positive text-xs font-semibold">
-            <Check className="h-3.5 w-3.5" /> Ready to generate
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Variant 4 · FIELD MAP ───────────────────────────────────────────────────
-// A spatial map of the whole configuration: the left half renders the actual
-// warehouse cells (rows = grid height, columns = racks), colour-coded by the
-// three variable families. Clicking any region focuses the matching family,
-// which then owns the right half of the panel. Drag "hot spots" are dropped
-// in favour of click-to-focus so state stays simple.
-
-export function VariantFieldMap(props: LayoutConfigVariantProps) {
-  const [focus, setFocus] = useState<StepRailId>('geometry');
-  const rows = props.previewSize.height;
-  const cols = props.previewSize.width;
-  const raster = props.layoutRaster;
-
-  const maxRows = 34;
-  const maxCols = 60;
-  const shownRows = Math.min(rows, maxRows);
-  const shownCols = Math.min(cols, maxCols);
-
-  const cell = useMemo(() => {
-    // best-fit square cell for the shown region
-    return Math.max(4, Math.min(10, Math.floor(Math.min(320 / shownCols, 220 / shownRows))));
-  }, [shownCols, shownRows]);
-
-  const zones: { id: 'geometry' | 'inventory' | 'placement'; label: string; desc: string }[] = [
-    { id: 'geometry', label: 'Geometry', desc: `${shownCols}×${shownRows} cells · ${props.geometry.crossAisleCount} cross aisles` },
-    { id: 'inventory', label: 'Inventory', desc: `${props.skuCount.toLocaleString()} SKUs` },
-    { id: 'placement', label: 'Placement', desc: `${props.placementSummary.placed}/${props.placementSummary.total} placed` },
-  ];
-
-  const zoneColor: Record<string, string> = {
-    geometry: 'bg-accent/70',
-    inventory: 'bg-accent-soft',
-    placement: 'bg-muted',
-  };
-
-  const rowsToRender: ('empty' | 'shelf' | 'worker')[][] = [];
-  for (let y = 0; y < shownRows; y++) {
-    const row: ('empty' | 'shelf' | 'worker')[] = [];
-    for (let x = 0; x < shownCols; x++) {
-      row.push(raster[y]?.[x] ?? 'empty');
-    }
-    rowsToRender.push(row);
-  }
-
-  return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex-1 min-h-0 overflow-y-auto p-4">
-        {/* Map */}
-        <div className="rounded-xl border border-border-default bg-surface p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-accent" />
-              <h4 className="text-xs font-bold uppercase tracking-wide text-text-muted">Field map</h4>
-            </div>
-            <span className="text-[10px] font-mono text-text-muted">
-              {shownCols}w × {shownRows}h
-            </span>
-          </div>
-          <div
-            className="grid gap-[1px] bg-border-default"
-            style={{
-              gridTemplateColumns: `repeat(${shownCols}, ${cell}px)`,
-              width: 'max-content',
-            }}
-          >
-            {rowsToRender.map((row, y) =>
-              row.map((type, x) => {
-                let cls = 'bg-muted';
-                if (type === 'worker') cls = 'bg-warning';
-                if (type === 'shelf') {
-                  const meta = props.shelfMeta.get(`${x},${y}`);
-                  cls = meta?.active ? 'bg-accent' : 'bg-accent/30';
-                }
-                return (
-                  <div
-                    key={`${x}-${y}`}
-                    className={cn('rounded-[1px]', cls)}
-                    style={{ width: cell, height: cell }}
-                  />
-                );
-              })
-            )}
-          </div>
-          <div className="flex items-center gap-3 text-[10px] text-text-muted">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-accent rounded-sm" /> Shelf</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-accent/30 rounded-sm" /> Empty shelf</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-warning rounded-sm" /> Dispatch</span>
-          </div>
-        </div>
-
-        {/* Focus legend */}
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {zones.map((z) => (
-            <button
-              key={z.id}
-              type="button"
-              onClick={() => setFocus(z.id)}
-              className={cn(
-                'rounded-lg border p-2 text-left transition-colors',
-                focus === z.id
-                  ? 'border-accent/60 bg-accent-soft/60'
-                  : 'border-border-default bg-surface hover:bg-muted/40'
-              )}
-            >
-              <span className={cn('block h-1.5 w-6 rounded-full mb-1.5', zoneColor[z.id])} />
-              <span className="block text-[11px] font-semibold text-text-primary">{z.label}</span>
-              <span className="block text-[10px] text-text-muted leading-tight">{z.desc}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Focused controls */}
-        <div className="mt-4 space-y-5">
-          {focus === 'geometry' && (
-            <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="card" />
-          )}
-          {focus === 'inventory' && (
-            <div className="space-y-5">
-              <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} hint="Unique products to generate." onChange={props.onSkuCountChange} />
-              <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}%`} onChange={props.onDemandDistributionChange} />
-              <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups`} onChange={props.onProductAffinityChange} />
-              <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
-            </div>
-          )}
-          {focus === 'placement' && (
-            <div className="space-y-5">
-              <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} SKUs placed`} onChange={props.onSlottingBiasChange} />
-              <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Variant 5 · DIAL BOARD ──────────────────────────────────────────────────
-// A cockpit of mini "instruments" per variable — gauges, sparklines, bars.
-// Every slider is an adjustable dial; every value is also read back as a live
-// gauge. Organized into three instrument clusters.
-
-export function VariantDialBoard(props: LayoutConfigVariantProps) {
-  const [cluster, setCluster] = useState<StepRailId>('geometry');
 
   const demandCurve = useMemo(() => {
-    // approximate Pareto curve for sparkline: (i+1)^-alpha normalized
     const alpha = (props.demandDistribution / 100) * 2;
     const n = 32;
     return Array.from({ length: n }, (_, i) => 1 / Math.pow((i + 1) / n, alpha));
   }, [props.demandDistribution]);
 
-  const clusterTabs = [
-    { id: 'geometry' as const, label: 'Geometry', icon: Warehouse },
-    { id: 'inventory' as const, label: 'Inventory', icon: Package },
-    { id: 'placement' as const, label: 'Placement', icon: Boxes },
-  ];
-
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center gap-1 px-4 pt-4">
-        {clusterTabs.map((t) => {
+      {/* Tab strip */}
+      <div className="flex items-center gap-1 border-b border-border-default px-1 pt-1">
+        {tabs.map((t) => {
           const Icon = t.icon;
+          const active = tab === t.id;
           return (
             <button
               key={t.id}
               type="button"
-              onClick={() => setCluster(t.id)}
+              onClick={() => setTab(t.id)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                cluster === t.id ? 'bg-accent text-primary-foreground' : 'text-text-muted hover:bg-muted'
+                'flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors border-b-2 -mb-px',
+                active
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-text-muted hover:text-text-secondary'
               )}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -841,8 +424,8 @@ export function VariantDialBoard(props: LayoutConfigVariantProps) {
         })}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
-        {cluster === 'geometry' && (
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+        {tab === 'geometry' && (
           <>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl border border-border-default bg-surface p-3 space-y-2">
@@ -914,7 +497,7 @@ export function VariantDialBoard(props: LayoutConfigVariantProps) {
           </>
         )}
 
-        {cluster === 'inventory' && (
+        {tab === 'inventory' && (
           <>
             <div className="rounded-xl border border-border-default bg-surface p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -982,7 +565,7 @@ export function VariantDialBoard(props: LayoutConfigVariantProps) {
           </>
         )}
 
-        {cluster === 'placement' && (
+        {tab === 'placement' && (
           <>
             <div className="rounded-xl border border-accent/40 bg-accent-soft/40 p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -1047,10 +630,390 @@ export function VariantDialBoard(props: LayoutConfigVariantProps) {
   );
 }
 
-// ── Preview insights (layout / demand / affinity) ─────────────────────────
-// Small live readouts under the grid that "figure something out" from the
-// current placement: geometry footprint, demand-to-dispatch correlation,
-// affinity group concentration.
+// ── Variant 7 · PRIORITY MATRIX ─────────────────────────────────────────────
+// Everything is a 2×2 matrix (impact × effort) rendered as a single board of
+// cards. Each knob is a card in its own quadrant; the card is a live "dial"
+// (value + small state bar) and its slider expands beneath. The whole
+// configuration becomes a visual map of where the levers sit — high-impact
+// easy knobs in the top-right get an accent ring.
+
+export function VariantPriorityMatrix(props: LayoutConfigVariantProps) {
+  const [expanded, setExpanded] = useState<StepRailId | null>('geometry');
+
+  const matrix: { id: StepRailId; label: string; icon: typeof Warehouse; sub: string; impact: number; effort: number }[] = [
+    { id: 'geometry', label: 'Geometry', icon: Warehouse, sub: 'Racks, aisles, thoroughfares', impact: 0.85, effort: 0.2 },
+    { id: 'inventory', label: 'Inventory', icon: Package, sub: 'Catalogue, demand, affinity, footprint', impact: 0.7, effort: 0.5 },
+    { id: 'placement', label: 'Placement', icon: Boxes, sub: 'Slotting bias & category zoning', impact: 0.6, effort: 0.4 },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-text-muted px-1">
+        <span>Effort →</span>
+        <span>Impact ↑</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {matrix.map((m) => {
+          const Icon = m.icon;
+          const isExpanded = expanded === m.id;
+          return (
+            <div
+              key={m.id}
+              className={cn(
+                'rounded-xl border p-3 transition-colors',
+                isExpanded ? 'border-accent/60 bg-accent-soft/40' : 'border-border-default bg-surface',
+                m.impact > 0.8 && 'ring-1 ring-accent/30'
+              )}
+            >
+              <button type="button" onClick={() => setExpanded(isExpanded ? null : m.id)} className="w-full text-left">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg', isExpanded ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-text-primary">{m.label}</p>
+                      <p className="text-[10px] text-text-muted leading-tight">{m.sub}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className={cn('h-4 w-4 text-text-muted transition-transform', isExpanded && 'rotate-90')} />
+                </div>
+                {/* impact × effort meter */}
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-[9px] uppercase tracking-wide text-text-muted">Impact</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full bg-accent" style={{ width: `${m.impact * 100}%` }} />
+                  </div>
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-[9px] uppercase tracking-wide text-text-muted">Effort</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full bg-warning/70" style={{ width: `${m.effort * 100}%` }} />
+                  </div>
+                </div>
+              </button>
+
+              {isExpanded && (
+                <div className="mt-3 pt-3 border-t border-border-default space-y-4">
+                  {m.id === 'geometry' && (
+                    <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="plain" />
+                  )}
+                  {m.id === 'inventory' && (
+                    <>
+                      <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} onChange={props.onSkuCountChange} />
+                      <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}%`} onChange={props.onDemandDistributionChange} />
+                      <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups`} onChange={props.onProductAffinityChange} />
+                      <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
+                    </>
+                  )}
+                  {m.id === 'placement' && (
+                    <>
+                      <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} placed`} onChange={props.onSlottingBiasChange} />
+                      <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {/* Placeholder quadrant card (keeps the 2×2 matrix balanced) */}
+        <div className="rounded-xl border border-dashed border-border-default p-3 flex flex-col items-center justify-center text-center text-text-muted">
+          <Sparkles className="h-4 w-4 mb-1" />
+          <p className="text-[10px] leading-tight">Customise the three levers; each expands into its full controls.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Variant 8 · TIMELINE ────────────────────────────────────────────────────
+// The configuration as a horizontal build pipeline: three connected stage
+// "cards" (Define → Stock → Place) flowing left to right. Each stage shows a
+// compact summary chip-row of its values; clicking a stage opens a drawer of
+// its sliders. A progress rail across the top shows overall completeness
+// (all 7 knobs have non-default values).
+
+export function VariantTimeline(props: LayoutConfigVariantProps) {
+  const [stage, setStage] = useState<StepRailId>('geometry');
+
+  const stages = [
+    { id: 'geometry' as const, label: 'Define', icon: Warehouse, desc: 'Physical rack layout' },
+    { id: 'inventory' as const, label: 'Stock', icon: Package, desc: 'What exists to pick' },
+    { id: 'placement' as const, label: 'Place', icon: Boxes, desc: 'Where it lives' },
+  ];
+
+  const nonDefault = [
+    props.geometry.gridHeight !== 30,
+    props.geometry.rackCount !== 30,
+    props.geometry.aisleWidth !== 2,
+    props.geometry.crossAisleCount !== 1,
+    props.skuCount !== 2500,
+    props.demandDistribution !== 0,
+    props.productAffinity !== 0,
+    props.storageFootprint !== 0,
+    props.slottingBias !== 0,
+    props.categoryClustering !== 0,
+  ].filter(Boolean).length;
+  const pct = Math.round((nonDefault / 10) * 100);
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      {/* Progress rail */}
+      <div className="px-1 pb-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Pipeline</span>
+          <span className="text-[10px] font-mono text-text-muted">{pct}% configured</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className="h-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      {/* Connected stages */}
+      <div className="flex items-stretch gap-1">
+        {stages.map((s, i) => {
+          const Icon = s.icon;
+          const active = stage === s.id;
+          return (
+            <div key={s.id} className="flex-1 flex items-stretch">
+              <button
+                type="button"
+                onClick={() => setStage(s.id)}
+                className={cn(
+                  'flex-1 rounded-lg border px-2 py-2.5 text-center transition-colors',
+                  active ? 'border-accent/60 bg-accent-soft/50' : 'border-border-default bg-surface hover:bg-muted/40'
+                )}
+              >
+                <Icon className={cn('h-4 w-4 mx-auto mb-1', active ? 'text-accent' : 'text-text-muted')} />
+                <span className={cn('block text-[11px] font-bold', active ? 'text-accent' : 'text-text-primary')}>{s.label}</span>
+                <span className="block text-[9px] text-text-muted leading-tight">{s.desc}</span>
+              </button>
+              {i < stages.length - 1 && <ChevronRight className="h-3.5 w-3.5 self-center text-text-muted/50 shrink-0" />}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Stage drawer */}
+      <div className="mt-3 rounded-xl border border-border-default bg-surface p-4 space-y-4">
+        {stage === 'geometry' && (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.geometry.gridHeight}H</span>
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.geometry.rackCount}R</span>
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">aisle {props.geometry.aisleWidth}</span>
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">×{props.geometry.crossAisleCount} cross</span>
+            </div>
+            <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="plain" />
+          </>
+        )}
+        {stage === 'inventory' && (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.skuCount.toLocaleString()} SKUs</span>
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.demandDistribution}% pareto</span>
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.affinitySummary.groupCount} groups</span>
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.footprintSummary.totalBins} bins</span>
+            </div>
+            <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} onChange={props.onSkuCountChange} />
+            <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}%`} onChange={props.onDemandDistributionChange} />
+            <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups`} onChange={props.onProductAffinityChange} />
+            <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
+          </>
+        )}
+        {stage === 'placement' && (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.slottingBias}% slot</span>
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.categoryClustering}% zone</span>
+              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.placementSummary.placed}/{props.placementSummary.total} placed</span>
+            </div>
+            <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} placed`} onChange={props.onSlottingBiasChange} />
+            <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Variant 9 · RADIAL CONSOLE ──────────────────────────────────────────────
+// A circular control surface: three concentric rings, one per variable family.
+// The outer ring is a row of quick-value "arcs"; the middle ring lists the
+// family's variables; the inner disc is the focused slider. Rotating between
+// families is a tap on the outer ring. Different in feel — everything orbits
+// the same centre.
+
+export function VariantRadialConsole(props: LayoutConfigVariantProps) {
+  const [ring, setRing] = useState<StepRailId>('geometry');
+
+  const rings = [
+    { id: 'geometry' as const, label: 'Geometry', icon: Warehouse, color: '#4C5C2D' },
+    { id: 'inventory' as const, label: 'Inventory', icon: Package, color: '#B7791F' },
+    { id: 'placement' as const, label: 'Placement', icon: Boxes, color: '#2563A8' },
+  ];
+
+  const active = rings.find((r) => r.id === ring)!;
+
+  return (
+    <div className="flex flex-col items-center">
+      {/* Concentric rings */}
+      <div className="relative w-56 h-56 my-2">
+        {/* outer ring segments */}
+        {rings.map((r, i) => {
+          const angle = (i / rings.length) * 360 - 90;
+          const isActive = ring === r.id;
+          return (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => setRing(r.id)}
+              className={cn(
+                'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-all',
+                isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+              )}
+              style={{
+                width: 200,
+                height: 200,
+                borderColor: r.color,
+                background: `conic-gradient(from ${angle}deg, ${r.color}22 0deg, transparent 0deg)`,
+              }}
+            />
+          );
+        })}
+        {/* middle ring label */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border border-border-default bg-surface flex flex-col items-center justify-center shadow-sm">
+          <active.icon className="h-4 w-4 text-accent mb-0.5" />
+          <span className="text-xs font-bold text-text-primary">{active.label}</span>
+          <span className="text-[9px] text-text-muted">{active.color === '#4C5C2D' ? 'Racks & aisles' : active.color === '#B7791F' ? 'What exists' : 'Where it lives'}</span>
+        </div>
+      </div>
+
+      {/* Focused variable controls */}
+      <div className="w-full rounded-xl border border-border-default bg-surface p-4 space-y-4">
+        {ring === 'geometry' && (
+          <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="plain" />
+        )}
+        {ring === 'inventory' && (
+          <>
+            <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} onChange={props.onSkuCountChange} />
+            <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}%`} onChange={props.onDemandDistributionChange} />
+            <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups`} onChange={props.onProductAffinityChange} />
+            <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
+          </>
+        )}
+        {ring === 'placement' && (
+          <>
+            <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} placed`} onChange={props.onSlottingBiasChange} />
+            <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
+          </>
+        )}
+      </div>
+
+      {/* Quick-value arcs */}
+      <div className="mt-3 w-full grid grid-cols-3 gap-1.5">
+        <div className="rounded-lg border border-border-default bg-surface px-2 py-1.5 text-center">
+          <p className="text-sm font-bold text-text-primary">{props.geometry.gridHeight}×{props.geometry.rackCount}</p>
+          <p className="text-[9px] uppercase tracking-wide text-text-muted">grid</p>
+        </div>
+        <div className="rounded-lg border border-border-default bg-surface px-2 py-1.5 text-center">
+          <p className="text-sm font-bold text-text-primary">{props.skuCount.toLocaleString()}</p>
+          <p className="text-[9px] uppercase tracking-wide text-text-muted">SKUs</p>
+        </div>
+        <div className="rounded-lg border border-border-default bg-surface px-2 py-1.5 text-center">
+          <p className="text-sm font-bold text-text-primary">{props.slottingBias}% / {props.categoryClustering}%</p>
+          <p className="text-[9px] uppercase tracking-wide text-text-muted">slot/zone</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Variant 10 · FEEDBACK LOOP ─────────────────────────────────────────────
+// A systems diagram: four cards arranged in a cycle (Generate → Demand →
+// Affinity → Place → back to Generate), each with a small "feedback" arrow
+// ring. Clicking a card opens its controls in the middle pane. The layout
+// reads like a control-flow diagram rather than a form.
+
+export function VariantFeedbackLoop(props: LayoutConfigVariantProps) {
+  const [active, setActive] = useState<StepRailId>('geometry');
+
+  const nodes: { id: StepRailId; label: string; icon: typeof Warehouse; desc: string }[] = [
+    { id: 'geometry', label: 'Generate', icon: Warehouse, desc: 'Define the physical rack layout.' },
+    { id: 'inventory', label: 'Demand', icon: TrendingUp, desc: 'Shape the catalogue & its demand.' },
+    { id: 'inventory', label: 'Affinity', icon: Tags, desc: 'Decide which products relate.' },
+    { id: 'placement', label: 'Place', icon: Boxes, desc: 'Slot inventory into zones.' },
+  ];
+
+  const isNodeActive = (label: string) =>
+    (label === 'Demand' || label === 'Affinity') ? active === 'inventory' : active === label.toLowerCase();
+
+  return (
+    <div className="space-y-3">
+      {/* Cycle diagram */}
+      <div className="relative">
+        <div className="grid grid-cols-2 gap-2">
+          {nodes.map((n, i) => {
+            const Icon = n.icon;
+            const on = isNodeActive(n.label);
+            return (
+              <button
+                key={`${n.label}-${i}`}
+                type="button"
+                onClick={() => setActive(n.id)}
+                className={cn(
+                  'rounded-xl border p-3 text-left transition-colors relative',
+                  on ? 'border-accent/60 bg-accent-soft/40 ring-1 ring-accent/20' : 'border-border-default bg-surface hover:bg-muted/40'
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg', on ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="text-xs font-bold text-text-primary">{n.label}</span>
+                </div>
+                <p className="text-[10px] text-text-muted leading-tight mt-1">{n.desc}</p>
+                {/* feedback arrow on the far corners */}
+                {i % 2 === 0 ? (
+                  <ArrowRight className="absolute -right-1.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-accent/50" />
+                ) : (
+                  <ArrowRight className="absolute -left-1.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-accent/50 rotate-180" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Active node controls */}
+      <div className="rounded-xl border border-border-default bg-surface p-4 space-y-4">
+        {active === 'geometry' && (
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Generate — physical layout</p>
+            <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="plain" />
+          </>
+        )}
+        {active === 'inventory' && (
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Demand & affinity — catalogue behaviour</p>
+            <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} onChange={props.onSkuCountChange} />
+            <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}%`} onChange={props.onDemandDistributionChange} />
+            <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups`} onChange={props.onProductAffinityChange} />
+            <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
+          </>
+        )}
+        {active === 'placement' && (
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Place — slot inventory into zones</p>
+            <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} placed`} onChange={props.onSlottingBiasChange} />
+            <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export interface LayoutInsights {
   shelfCells: number;
@@ -1157,11 +1120,11 @@ export function PreviewInsights({
 // ── Variant registry ────────────────────────────────────────────────────────
 
 export const LAYOUT_VARIANTS = [
-  { id: 1, name: 'Step Rails', short: 'Steps', Component: VariantStepRails },
-  { id: 2, name: 'Horizon Tabs', short: 'Tabs', Component: VariantHorizonTabs },
-  { id: 3, name: 'Question Wizard', short: 'Wizard', Component: VariantWizard },
-  { id: 4, name: 'Field Map', short: 'Map', Component: VariantFieldMap },
-  { id: 5, name: 'Dial Board', short: 'Dials', Component: VariantDialBoard },
+  { id: 6, name: 'Cockpit', short: 'Cockpit', Component: VariantCockpit },
+  { id: 7, name: 'Priority Matrix', short: 'Matrix', Component: VariantPriorityMatrix },
+  { id: 8, name: 'Timeline', short: 'Timeline', Component: VariantTimeline },
+  { id: 9, name: 'Radial Console', short: 'Radial', Component: VariantRadialConsole },
+  { id: 10, name: 'Feedback Loop', short: 'Loop', Component: VariantFeedbackLoop },
 ] as const;
 
 export type LayoutVariantId = (typeof LAYOUT_VARIANTS)[number]['id'];

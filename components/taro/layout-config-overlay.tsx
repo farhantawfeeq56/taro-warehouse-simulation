@@ -105,7 +105,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const isEditing = initialConfig != null;
 
   // ── Active variant (vartest5) ──────────────────────────────────────────
-  const [activeVariant, setActiveVariant] = useState(1);
+  const [activeVariant, setActiveVariant] = useState(6);
   useVariantKeyboard(activeVariant, setActiveVariant);
 
   // ── Adaptive sliders for Grid Height & Rack Count ──────────────────────
