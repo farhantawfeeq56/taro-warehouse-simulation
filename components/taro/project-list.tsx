@@ -231,10 +231,21 @@ function ProjectCard({
           </IconButton>
         </div>
       </div>
-      <div className="flex items-center gap-3 text-xs text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif] mt-auto">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif] mt-auto">
         <span>Updated {timeAgo(project.updatedAt)}</span>
         <span className="w-1 h-1 rounded-full bg-[#1C2118]/20" />
-        <span>{project.itemCount} locations</span>
+        <span>{project.itemCount} storage locations</span>
+        {project.hasWarehouse ? (
+          <span className="inline-flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#4C5C2D]" />
+            Configured
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#D96868]" />
+            Draft
+          </span>
+        )}
       </div>
     </div>
   );
