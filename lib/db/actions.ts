@@ -3,9 +3,7 @@
 import { getOrCreateProject, getProject, getWarehousesForProject, upsertWarehouse, duplicateWarehouse as repoDuplicateWarehouse, listProjects as repoListProjects, createProject as repoCreateProject, deleteProject as repoDeleteProject, updateProjectName as repoUpdateProjectName, renameWarehouse as repoRenameWarehouse, deleteWarehouse as repoDeleteWarehouse, updateWarehousePosition as repoUpdateWarehousePosition, getComparisonsForProject, createComparison, updateComparison, deleteComparison } from '@/lib/db/repository';
 import type { Warehouse, Order, Item, WorkspaceWarehouse, Comparison } from '@/lib/taro/types';
 import {
-  generateParallelLayout,
   generateCrossAisleLayout,
-  generateFishboneLayout,
 } from '@/lib/taro/layout-generator';
 import { applyInventoryPlacementDetailed } from '@/lib/taro/inventory-placement';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
@@ -266,22 +264,17 @@ export async function generateAndSaveWarehouse(
   projectId: string,
   params: GenerateAndSaveParams,
 ): Promise<GenerateAndSaveResult> {
-  // 1. Generate layout (pure domain logic) from configuration
+  // 1. Generate layout (pure domain logic) from configuration.
+  //    The single geometry config feeds one layout: the cross-aisle
+  //    generator, which degrades to a plain parallel layout at 0 cross
+  //    aisles. Fishbone was removed entirely.
   const cfg = params.configuration;
-  let newWarehouse: Warehouse;
-  switch (cfg.layout.type) {
-    case 'parallel':
-      newWarehouse = generateParallelLayout(cfg.layout.gridHeight, cfg.layout.rackCount, cfg.layout.aisleWidth);
-      break;
-    case 'cross-aisle':
-      newWarehouse = generateCrossAisleLayout(cfg.layout.gridHeight, cfg.layout.rackCount, cfg.layout.aisleWidth, cfg.layout.crossAisleCount);
-      break;
-    case 'fishbone':
-      newWarehouse = generateFishboneLayout(cfg.layout.fbWidth, cfg.layout.fbHeight, cfg.layout.fbTheta, cfg.layout.fbI2, cfg.layout.fbS, cfg.layout.fbAp);
-      break;
-    default:
-      newWarehouse = generateParallelLayout(cfg.layout.gridHeight, cfg.layout.rackCount, cfg.layout.aisleWidth);
-  }
+  const newWarehouse = generateCrossAisleLayout(
+    cfg.layout.gridHeight,
+    cfg.layout.rackCount,
+    cfg.layout.aisleWidth,
+    cfg.layout.crossAisleCount
+  );
 
   // 2. Place inventory (pure domain logic)
   const placementResult = applyInventoryPlacementDetailed(newWarehouse, {

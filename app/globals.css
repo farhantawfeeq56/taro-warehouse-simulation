@@ -224,3 +224,54 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   vartest5 — native range sliders used by the layout-config variants
+   ──────────────────────────────────────────────────────────────────────── */
+.layout-variant-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #4C5C2D var(--fill, 0%), #EDEDEC var(--fill, 0%));
+  outline: none;
+  cursor: pointer;
+}
+.layout-variant-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #FFFFFF;
+  border: 2px solid #4C5C2D;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.layout-variant-range::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+.layout-variant-range::-webkit-slider-thumb:active {
+  transform: scale(1.25);
+}
+.layout-variant-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #FFFFFF;
+  border: 2px solid #4C5C2D;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+}
+.layout-variant-range::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: #EDEDEC;
+}
+.layout-variant-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: #4C5C2D;
+}

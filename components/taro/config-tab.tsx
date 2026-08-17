@@ -9,12 +9,6 @@ interface ConfigTabProps {
   onEdit: () => void;
 }
 
-const layoutTypeLabels: Record<string, string> = {
-  parallel: 'Parallel',
-  'cross-aisle': 'Cross Aisle',
-  fishbone: 'Fishbone',
-};
-
 interface ConfigItemProps {
   icon: React.ReactNode;
   label: string;
@@ -68,11 +62,6 @@ export function ConfigTab({ configuration, onEdit }: ConfigTabProps) {
           <div className="border border-border rounded-lg p-3 bg-muted/20">
             <SectionTitle icon={<Grid3X3 className="h-3 w-3" />}>Warehouse Geometry</SectionTitle>
             <ConfigItem
-              icon={<Grid3X3 className="h-3 w-3" />}
-              label="Layout Type"
-              value={layoutTypeLabels[configuration.layout.type] ?? configuration.layout.type}
-            />
-            <ConfigItem
               icon={<Layers className="h-3 w-3" />}
               label="Grid Height"
               value={configuration.layout.gridHeight}
@@ -87,33 +76,11 @@ export function ConfigTab({ configuration, onEdit }: ConfigTabProps) {
               label="Aisle Width"
               value={configuration.layout.aisleWidth}
             />
-            {configuration.layout.type === 'cross-aisle' && (
-              <ConfigItem
-                icon={<Grid3X3 className="h-3 w-3" />}
-                label="Cross Aisles"
-                value={configuration.layout.crossAisleCount}
-              />
-            )}
-            {configuration.layout.type === 'fishbone' && (
-              <>
-                <ConfigItem
-                  icon={<Grid3X3 className="h-3 w-3" />}
-                  label="Width"
-                  value={configuration.layout.fbWidth}
-                />
-                <ConfigItem
-                  icon={<Layers className="h-3 w-3" />}
-                  label="Height"
-                  value={configuration.layout.fbHeight}
-                />
-                <ConfigItem
-                  icon={<TrendingUp className="h-3 w-3" />}
-                  label="Aisle Angle"
-                  value={configuration.layout.fbTheta}
-                  suffix="°"
-                />
-              </>
-            )}
+            <ConfigItem
+              icon={<Grid3X3 className="h-3 w-3" />}
+              label="Cross Aisles"
+              value={configuration.layout.crossAisleCount}
+            />
           </div>
 
           {/* Inventory Generation */}

@@ -1339,17 +1339,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               // Build the full WarehouseConfiguration from the overlay output
               const configuration: WarehouseConfiguration = {
                 layout: {
-                  type: config.type,
                   gridHeight: config.gridHeight,
                   rackCount: config.rackCount,
                   aisleWidth: config.aisleWidth,
                   crossAisleCount: config.crossAisleCount,
-                  fbWidth: config.fbWidth,
-                  fbHeight: config.fbHeight,
-                  fbTheta: config.fbTheta,
-                  fbI2: config.fbI2,
-                  fbS: config.fbS,
-                  fbAp: config.fbAp,
                 },
                 inventory: {
                   skuCount: config.inventory.length,
@@ -1448,17 +1441,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               // Build the full WarehouseConfiguration from the overlay output
               const configuration: WarehouseConfiguration = {
                 layout: {
-                  type: config.type,
                   gridHeight: config.gridHeight,
                   rackCount: config.rackCount,
                   aisleWidth: config.aisleWidth,
                   crossAisleCount: config.crossAisleCount,
-                  fbWidth: config.fbWidth,
-                  fbHeight: config.fbHeight,
-                  fbTheta: config.fbTheta,
-                  fbI2: config.fbI2,
-                  fbS: config.fbS,
-                  fbAp: config.fbAp,
                 },
                 inventory: {
                   skuCount: config.inventory.length,
