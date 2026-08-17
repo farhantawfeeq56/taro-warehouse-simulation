@@ -115,7 +115,7 @@ function RenameInput({
   );
 }
 
-// ── Project card (accordion style) ────────────────────────────────────────
+// ── Project card (card-grid style) ────────────────────────────────────────
 
 function ProjectCard({
   project,
@@ -162,9 +162,9 @@ function ProjectCard({
           onOpenProject(project.id);
         }
       }}
-      className="group relative rounded-md border border-[#1C2118]/10 bg-white overflow-hidden cursor-pointer hover:border-[#1C2118]/25 hover:shadow-sm transition-all"
+      className="group relative rounded-lg border border-[#1C2118]/10 bg-white p-4 hover:shadow-sm hover:border-[#1C2118]/20 transition-all flex flex-col gap-3 cursor-pointer"
     >
-      <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           {isRenaming ? (
             <RenameInput
@@ -176,14 +176,11 @@ function ProjectCard({
               saving={renamingProjectId === project.id}
             />
           ) : (
-            <span className="font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118] text-base font-medium text-left truncate">
+            <span className="font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118] font-semibold text-base leading-tight text-left line-clamp-2">
               {project.name}
             </span>
           )}
         </div>
-        <span className="text-xs text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif] shrink-0">
-          Updated {timeAgo(project.updatedAt)}
-        </span>
         {/* Hover-only actions — visual order: folder, pencil, boxes, trash */}
         <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
           <IconButton
@@ -234,25 +231,16 @@ function ProjectCard({
           </IconButton>
         </div>
       </div>
-      <div className="px-4 py-2 border-t border-[#1C2118]/8 flex items-center gap-4 text-xs text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif]">
-        <span>{project.itemCount} storage locations</span>
-        {project.hasWarehouse ? (
-          <span className="inline-flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#4C5C2D]" />
-            Configured
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#D96868]" />
-            Draft
-          </span>
-        )}
+      <div className="flex items-center gap-3 text-xs text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif] mt-auto">
+        <span>Updated {timeAgo(project.updatedAt)}</span>
+        <span className="w-1 h-1 rounded-full bg-[#1C2118]/20" />
+        <span>{project.itemCount} locations</span>
       </div>
     </div>
   );
 }
 
-// ── Project list (final — accordion cards) ────────────────────────────────
+// ── Project list (final — card grid) ──────────────────────────────────────
 
 export function ProjectListView({
   projects,
@@ -284,7 +272,7 @@ export function ProjectListView({
   copyingProjectId: string | null;
 }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {projects.map((project) => (
         <ProjectCard
           key={project.id}
