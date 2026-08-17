@@ -16,7 +16,6 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { X, Layout, Grid3X3, Thermometer, Tag, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Item } from '@/lib/taro/types';
 import type { ShelfPlacementPreview } from '@/lib/taro/inventory-placement';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
@@ -105,7 +104,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const isEditing = initialConfig != null;
 
   // ── Active variant (vartest5) ──────────────────────────────────────────
-  const [activeVariant, setActiveVariant] = useState(6);
+  const [activeVariant, setActiveVariant] = useState(1);
   useVariantKeyboard(activeVariant, setActiveVariant);
 
   // ── Adaptive sliders for Grid Height & Rack Count ──────────────────────
@@ -511,7 +510,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     return map;
   }, [placementPreview.shelves]);
 
-  const variantProps: LayoutConfigVariantProps = {
+  const variantProps: Omit<LayoutConfigVariantProps, 'renderPreview' | 'renderFooter'> = {
     geometry: { gridHeight, rackCount, aisleWidth, crossAisleCount },
     onGeometryChange,
     onGeometryCommit,
@@ -548,6 +547,145 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
 
   const ActiveVariantComponent = LAYOUT_VARIANTS.find((v) => v.id === activeVariant)?.Component ?? LAYOUT_VARIANTS[0].Component;
 
+  const renderFooter = () => (
+    <Button className="w-full" onClick={handleApply} disabled={isGenerating}>
+      {isGenerating ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          {isEditing ? 'Updating…' : 'Generating…'}
+        </>
+      ) : isEditing ? (
+        'Update Warehouse'
+      ) : (
+        'Generate Warehouse'
+      )}
+    </Button>
+  );
+
+  const renderPreview = () => (
+    <div ref={containerRef} className="flex flex-col items-center justify-center gap-4 w-full">
+      <div
+        className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
+        style={{
+          gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
+          width: "max-content",
+        }}
+      >
+        {renderGrid()}
+      </div>
+
+      {/* Live insight strip — layout / demand / affinity */}
+      <PreviewInsights
+        mode={previewMode}
+        layout={layoutInsights}
+        demand={demandInsights}
+        affinity={affinityInsights}
+      />
+
+      {/* Preview mode selector */}
+      <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-0.5">
+        {([
+          ['layout', Grid3X3, 'Layout'],
+          ['demand', Thermometer, 'Demand'],
+          ['affinity', Tag, 'Affinity'],
+        ] as const).map(([mode, Icon, label]) => (
+          <button
+            key={mode}
+            onClick={() => setPreviewMode(mode)}
+            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+              previewMode === mode
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Icon className="h-3 w-3" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Legend — adapts to the active preview mode */}
+      <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
+        {previewMode === 'layout' && (
+          <>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-accent inline-block rounded-sm" />
+              <span>Shelf</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
+              <span>Empty Shelf</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
+              <span>Dispatch</span>
+            </span>
+          </>
+        )}
+        {previewMode === 'demand' && (
+          <>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="w-3 h-3 inline-block rounded-sm"
+                style={{ backgroundColor: 'hsl(217, 65%, 55%)' }}
+              />
+              <span>Low demand</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="w-3 h-3 inline-block rounded-sm"
+                style={{ backgroundColor: 'hsl(0, 65%, 55%)' }}
+              />
+              <span>High demand</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
+              <span>No item placed</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
+              <span>Dispatch</span>
+            </span>
+          </>
+        )}
+        {previewMode === 'affinity' && (
+          <>
+            {placedAffinityIds.slice(0, 8).map((gid) => (
+              <span key={gid} className="flex items-center gap-1.5">
+                <span
+                  className="w-3 h-3 inline-block rounded-sm"
+                  style={{ backgroundColor: affinityColor(gid) }}
+                />
+                <span>Group {gid}</span>
+              </span>
+            ))}
+            {placedAffinityIds.length > 8 && (
+              <span className="text-muted-foreground/70">
+                +{placedAffinityIds.length - 8} more
+              </span>
+            )}
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
+              <span>No item</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
+              <span>Dispatch</span>
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  // Rebuild variantProps with the render props (renderPreview/renderFooter are
+  // stable enough to be passed once — they close over current state).
+  const screenProps: LayoutConfigVariantProps = {
+    ...variantProps,
+    renderPreview,
+    renderFooter,
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col animate-in fade-in duration-200">
       {/* Header */}
@@ -579,160 +717,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left Panel - Controls (variant-rendered) */}
-        <aside className="w-[360px] border-r bg-card flex flex-col min-h-0">
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <ScrollArea className="h-full w-full">
-              <div className="p-4">
-                <ActiveVariantComponent {...variantProps} />
-              </div>
-            </ScrollArea>
-          </div>
-
-          <div className="p-4 border-t bg-card/50">
-            <Button
-              className="w-full"
-              onClick={handleApply}
-              disabled={isGenerating}
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  {isEditing ? 'Updating…' : 'Generating…'}
-                </>
-              ) : isEditing ? (
-                'Update Warehouse'
-              ) : (
-                'Generate Warehouse'
-              )}
-            </Button>
-          </div>
-        </aside>
-
-        {/* Right Panel - Live Preview */}
-        <main
-          ref={containerRef}
-          className="flex-1 bg-muted/20 overflow-hidden min-h-0"
-        >
-          <ScrollArea className="h-full w-full">
-            <div className="flex flex-col items-center justify-center min-h-full min-w-full p-8 gap-4">
-              <div
-                className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
-                style={{
-                  gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
-                  width: "max-content",
-                }}
-              >
-                {renderGrid()}
-              </div>
-
-              {/* Live insight strip — layout / demand / affinity */}
-              <PreviewInsights
-                mode={previewMode}
-                layout={layoutInsights}
-                demand={demandInsights}
-                affinity={affinityInsights}
-              />
-
-              {/* Preview mode selector */}
-              <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-0.5">
-                {([
-                  ['layout', Grid3X3, 'Layout'],
-                  ['demand', Thermometer, 'Demand'],
-                  ['affinity', Tag, 'Affinity'],
-                ] as const).map(([mode, Icon, label]) => (
-                  <button
-                    key={mode}
-                    onClick={() => setPreviewMode(mode)}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
-                      previewMode === mode
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <Icon className="h-3 w-3" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Legend — adapts to the active preview mode */}
-              <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
-                {previewMode === 'layout' && (
-                  <>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 bg-accent inline-block rounded-sm" />
-                      <span>Shelf</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
-                      <span>Empty Shelf</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
-                      <span>Dispatch</span>
-                    </span>
-                  </>
-                )}
-                {previewMode === 'demand' && (
-                  <>
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className="w-3 h-3 inline-block rounded-sm"
-                        style={{ backgroundColor: 'hsl(217, 65%, 55%)' }}
-                      />
-                      <span>Low demand</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className="w-3 h-3 inline-block rounded-sm"
-                        style={{ backgroundColor: 'hsl(0, 65%, 55%)' }}
-                      />
-                      <span>High demand</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
-                      <span>No item placed</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
-                      <span>Dispatch</span>
-                    </span>
-                  </>
-                )}
-                {previewMode === 'affinity' && (
-                  <>
-                    {placedAffinityIds.slice(0, 8).map((gid) => (
-                      <span key={gid} className="flex items-center gap-1.5">
-                        <span
-                          className="w-3 h-3 inline-block rounded-sm"
-                          style={{ backgroundColor: affinityColor(gid) }}
-                        />
-                        <span>Group {gid}</span>
-                      </span>
-                    ))}
-                    {placedAffinityIds.length > 8 && (
-                      <span className="text-muted-foreground/70">
-                        +{placedAffinityIds.length - 8} more
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
-                      <span>No item</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
-                      <span>Dispatch</span>
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-          </ScrollArea>
-        </main>
-      </div>
+      {/* Main Content — the active screen-layout variant arranges controls + preview */}
+      <ActiveVariantComponent {...screenProps} />
 
       {/* Floating variant toolbar (bottom-right, keys 1-5) */}
       <VariantToolbar activeVariant={activeVariant} onSelect={setActiveVariant} />

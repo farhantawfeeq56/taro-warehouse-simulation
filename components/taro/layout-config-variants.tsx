@@ -1,27 +1,26 @@
 'use client';
 
 /**
- * vartest5 — Warehouse Layout Config screen variants.
+ * vartest5 — Warehouse Layout Config screen.
  *
- * Five radically different information architectures for the SAME set of
- * user-facing knobs (Warehouse Geometry / Inventory Generation / Inventory
- * Placement). A floating segmented control in the bottom-right corner
- * switches between them; keys 1–5 do the same from the keyboard.
+ * One controls component (VariantCockpit — the accepted vartest5 winner,
+ * tabs × dial instruments) rendered inside FIVE different SCREEN layouts.
+ * The floating segmented control in the bottom-right + keys 1–5 switch
+ * between the layouts:
  *
- * All five variants share the non-negotiable constraints:
+ *   1 · Classic Split — controls in a left sidebar, preview on the right
+ *   2 · Stacked       — controls on top, preview fills the bottom
+ *   3 · Drawer        — preview is the stage, controls slide in as a drawer
+ *   4 · Side-by-Side  — 50/50 two-pane, no sidebar
+ *   5 · Pinned Tabs   — full-width tab strip on top, controls + preview below
+ *
+ * All variants share the non-negotiable constraints:
  *   • Fishbone is removed entirely (no tab, no controls, no preview).
  *   • There are no layout types — just a single geometry config.
  *   • The cross-aisle slider is the ONLY survivor, defaulting to 1
  *     and able to reach 0 (plain parallel).
  *
- * Variant lineup (vartest5):
- *   6 · Cockpit          — tab strip × dial instruments (merge of 2 + 5)
- *   7 · Priority Matrix  — impact × effort 2×2 board of expandable cards
- *   8 · Timeline         — Define → Stock → Place pipeline with progress rail
- *   9 · Radial Console   — concentric rings, everything orbits one centre
- *   10· Feedback Loop    — systems diagram of 4 connected nodes
- *
- * The rendering of each variant is a pure function of the shared
+ * The rendering of each layout is a pure function of the shared
  * `LayoutConfigVariantProps`, so switching costs nothing and state is never
  * duplicated across variants.
  */
@@ -39,13 +38,10 @@ import {
   ChevronRight,
   Split,
   Combine,
-  ArrowRight,
-  Check,
+  ChevronLeft,
   Rows3,
   Columns3,
   BadgeCheck,
-  MapPin,
-  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -143,6 +139,10 @@ export interface LayoutConfigVariantProps {
   previewMode: PreviewMode;
   onPreviewModeChange: (mode: PreviewMode) => void;
   maxPlacedDemand: number;
+  /** Render prop: the live preview pane (grid + insights + legend). */
+  renderPreview: () => ReactNode;
+  /** Render prop: the Apply/Generate footer button. */
+  renderFooter: () => ReactNode;
 }
 
 // ── Shared building blocks ─────────────────────────────────────────────────
@@ -377,13 +377,25 @@ function Gauge({ value, label }: { value: number; label: string }) {
     </div>
   );
 }
-// ── Variant 6 · COCKPIT ────────────────────────────────────────────────────
-// The combined evolution of Horizon Tabs + Dial Board: a compact tab strip
-// (Geometry / Inventory / Placement) on top, and inside each tab a cockpit of
-// mini instruments — gauges, sparklines, bin histograms, health tiles — each
-// with its slider embedded. Everything about one variable family is on a
-// single page, read as dials, tweaked with sliders.
+// ── Screen-layout variants ─────────────────────────────────────────────────
+// These five variants test HOW the screen is arranged: where the controls
+// (Cockpit) sit relative to the live preview. Each is a full-height layout
+// that places `renderPreview()` and the Cockpit differently.
 
+/** Scrollable preview region shared by the split layouts. */
+function PreviewRegion({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn('overflow-hidden min-h-0', className)}>
+      <div className="h-full w-full overflow-auto">
+        <div className="flex flex-col items-center justify-center min-h-full min-w-full p-6 gap-3">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The single controls component — Cockpit (variant 6). */
 export function VariantCockpit(props: LayoutConfigVariantProps) {
   const [tab, setTab] = useState<StepRailId>('geometry');
   const tabs = [
@@ -630,386 +642,147 @@ export function VariantCockpit(props: LayoutConfigVariantProps) {
   );
 }
 
-// ── Variant 7 · PRIORITY MATRIX ─────────────────────────────────────────────
-// Everything is a 2×2 matrix (impact × effort) rendered as a single board of
-// cards. Each knob is a card in its own quadrant; the card is a live "dial"
-// (value + small state bar) and its slider expands beneath. The whole
-// configuration becomes a visual map of where the levers sit — high-impact
-// easy knobs in the top-right get an accent ring.
-
-export function VariantPriorityMatrix(props: LayoutConfigVariantProps) {
-  const [expanded, setExpanded] = useState<StepRailId | null>('geometry');
-
-  const matrix: { id: StepRailId; label: string; icon: typeof Warehouse; sub: string; impact: number; effort: number }[] = [
-    { id: 'geometry', label: 'Geometry', icon: Warehouse, sub: 'Racks, aisles, thoroughfares', impact: 0.85, effort: 0.2 },
-    { id: 'inventory', label: 'Inventory', icon: Package, sub: 'Catalogue, demand, affinity, footprint', impact: 0.7, effort: 0.5 },
-    { id: 'placement', label: 'Placement', icon: Boxes, sub: 'Slotting bias & category zoning', impact: 0.6, effort: 0.4 },
-  ];
-
+// ── Screen layout 1 · CLASSIC SPLIT ────────────────────────────────────────
+// Controls in a left sidebar, preview fills the rest on the right.
+export function LayoutClassicSplit(props: LayoutConfigVariantProps) {
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-text-muted px-1">
-        <span>Effort →</span>
-        <span>Impact ↑</span>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {matrix.map((m) => {
-          const Icon = m.icon;
-          const isExpanded = expanded === m.id;
-          return (
-            <div
-              key={m.id}
-              className={cn(
-                'rounded-xl border p-3 transition-colors',
-                isExpanded ? 'border-accent/60 bg-accent-soft/40' : 'border-border-default bg-surface',
-                m.impact > 0.8 && 'ring-1 ring-accent/30'
-              )}
-            >
-              <button type="button" onClick={() => setExpanded(isExpanded ? null : m.id)} className="w-full text-left">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg', isExpanded ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-bold text-text-primary">{m.label}</p>
-                      <p className="text-[10px] text-text-muted leading-tight">{m.sub}</p>
-                    </div>
-                  </div>
-                  <ChevronRight className={cn('h-4 w-4 text-text-muted transition-transform', isExpanded && 'rotate-90')} />
-                </div>
-                {/* impact × effort meter */}
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-[9px] uppercase tracking-wide text-text-muted">Impact</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-accent" style={{ width: `${m.impact * 100}%` }} />
-                  </div>
-                </div>
-                <div className="mt-1 flex items-center gap-2">
-                  <span className="text-[9px] uppercase tracking-wide text-text-muted">Effort</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-warning/70" style={{ width: `${m.effort * 100}%` }} />
-                  </div>
-                </div>
-              </button>
-
-              {isExpanded && (
-                <div className="mt-3 pt-3 border-t border-border-default space-y-4">
-                  {m.id === 'geometry' && (
-                    <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="plain" />
-                  )}
-                  {m.id === 'inventory' && (
-                    <>
-                      <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} onChange={props.onSkuCountChange} />
-                      <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}%`} onChange={props.onDemandDistributionChange} />
-                      <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups`} onChange={props.onProductAffinityChange} />
-                      <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
-                    </>
-                  )}
-                  {m.id === 'placement' && (
-                    <>
-                      <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} placed`} onChange={props.onSlottingBiasChange} />
-                      <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {/* Placeholder quadrant card (keeps the 2×2 matrix balanced) */}
-        <div className="rounded-xl border border-dashed border-border-default p-3 flex flex-col items-center justify-center text-center text-text-muted">
-          <Sparkles className="h-4 w-4 mb-1" />
-          <p className="text-[10px] leading-tight">Customise the three levers; each expands into its full controls.</p>
+    <div className="flex-1 flex overflow-hidden min-h-0">
+      <aside className="w-[360px] border-r bg-card flex flex-col min-h-0 shrink-0">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <VariantCockpit {...props} />
         </div>
-      </div>
+        <div className="p-4 border-t bg-card/50">{props.renderFooter()}</div>
+      </aside>
+      <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
     </div>
   );
 }
 
-// ── Variant 8 · TIMELINE ────────────────────────────────────────────────────
-// The configuration as a horizontal build pipeline: three connected stage
-// "cards" (Define → Stock → Place) flowing left to right. Each stage shows a
-// compact summary chip-row of its values; clicking a stage opens a drawer of
-// its sliders. A progress rail across the top shows overall completeness
-// (all 7 knobs have non-default values).
-
-export function VariantTimeline(props: LayoutConfigVariantProps) {
-  const [stage, setStage] = useState<StepRailId>('geometry');
-
-  const stages = [
-    { id: 'geometry' as const, label: 'Define', icon: Warehouse, desc: 'Physical rack layout' },
-    { id: 'inventory' as const, label: 'Stock', icon: Package, desc: 'What exists to pick' },
-    { id: 'placement' as const, label: 'Place', icon: Boxes, desc: 'Where it lives' },
-  ];
-
-  const nonDefault = [
-    props.geometry.gridHeight !== 30,
-    props.geometry.rackCount !== 30,
-    props.geometry.aisleWidth !== 2,
-    props.geometry.crossAisleCount !== 1,
-    props.skuCount !== 2500,
-    props.demandDistribution !== 0,
-    props.productAffinity !== 0,
-    props.storageFootprint !== 0,
-    props.slottingBias !== 0,
-    props.categoryClustering !== 0,
-  ].filter(Boolean).length;
-  const pct = Math.round((nonDefault / 10) * 100);
-
+// ── Screen layout 2 · STACKED ──────────────────────────────────────────────
+// Controls on top (full width), preview fills the bottom half.
+export function LayoutStacked(props: LayoutConfigVariantProps) {
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* Progress rail */}
-      <div className="px-1 pb-3">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Pipeline</span>
-          <span className="text-[10px] font-mono text-text-muted">{pct}% configured</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-          <div className="h-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      <div className="h-72 border-b bg-card flex flex-col min-h-0 shrink-0">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <VariantCockpit {...props} />
         </div>
       </div>
-
-      {/* Connected stages */}
-      <div className="flex items-stretch gap-1">
-        {stages.map((s, i) => {
-          const Icon = s.icon;
-          const active = stage === s.id;
-          return (
-            <div key={s.id} className="flex-1 flex items-stretch">
-              <button
-                type="button"
-                onClick={() => setStage(s.id)}
-                className={cn(
-                  'flex-1 rounded-lg border px-2 py-2.5 text-center transition-colors',
-                  active ? 'border-accent/60 bg-accent-soft/50' : 'border-border-default bg-surface hover:bg-muted/40'
-                )}
-              >
-                <Icon className={cn('h-4 w-4 mx-auto mb-1', active ? 'text-accent' : 'text-text-muted')} />
-                <span className={cn('block text-[11px] font-bold', active ? 'text-accent' : 'text-text-primary')}>{s.label}</span>
-                <span className="block text-[9px] text-text-muted leading-tight">{s.desc}</span>
-              </button>
-              {i < stages.length - 1 && <ChevronRight className="h-3.5 w-3.5 self-center text-text-muted/50 shrink-0" />}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Stage drawer */}
-      <div className="mt-3 rounded-xl border border-border-default bg-surface p-4 space-y-4">
-        {stage === 'geometry' && (
-          <>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.geometry.gridHeight}H</span>
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.geometry.rackCount}R</span>
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">aisle {props.geometry.aisleWidth}</span>
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">×{props.geometry.crossAisleCount} cross</span>
-            </div>
-            <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="plain" />
-          </>
-        )}
-        {stage === 'inventory' && (
-          <>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.skuCount.toLocaleString()} SKUs</span>
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.demandDistribution}% pareto</span>
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.affinitySummary.groupCount} groups</span>
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.footprintSummary.totalBins} bins</span>
-            </div>
-            <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} onChange={props.onSkuCountChange} />
-            <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}%`} onChange={props.onDemandDistributionChange} />
-            <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups`} onChange={props.onProductAffinityChange} />
-            <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
-          </>
-        )}
-        {stage === 'placement' && (
-          <>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.slottingBias}% slot</span>
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.categoryClustering}% zone</span>
-              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded-full">{props.placementSummary.placed}/{props.placementSummary.total} placed</span>
-            </div>
-            <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} placed`} onChange={props.onSlottingBiasChange} />
-            <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
-          </>
-        )}
-      </div>
+      <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
     </div>
   );
 }
 
-// ── Variant 9 · RADIAL CONSOLE ──────────────────────────────────────────────
-// A circular control surface: three concentric rings, one per variable family.
-// The outer ring is a row of quick-value "arcs"; the middle ring lists the
-// family's variables; the inner disc is the focused slider. Rotating between
-// families is a tap on the outer ring. Different in feel — everything orbits
-// the same centre.
-
-export function VariantRadialConsole(props: LayoutConfigVariantProps) {
-  const [ring, setRing] = useState<StepRailId>('geometry');
-
-  const rings = [
-    { id: 'geometry' as const, label: 'Geometry', icon: Warehouse, color: '#4C5C2D' },
-    { id: 'inventory' as const, label: 'Inventory', icon: Package, color: '#B7791F' },
-    { id: 'placement' as const, label: 'Placement', icon: Boxes, color: '#2563A8' },
-  ];
-
-  const active = rings.find((r) => r.id === ring)!;
-
+// ── Screen layout 3 · DRAWER OVERLAY ───────────────────────────────────────
+// Preview is the whole stage; controls slide in as a drawer (with the tab
+// strip pinned) over the right edge, and the footer rides on the preview.
+export function LayoutDrawer(props: LayoutConfigVariantProps) {
+  const [open, setOpen] = useState(true);
   return (
-    <div className="flex flex-col items-center">
-      {/* Concentric rings */}
-      <div className="relative w-56 h-56 my-2">
-        {/* outer ring segments */}
-        {rings.map((r, i) => {
-          const angle = (i / rings.length) * 360 - 90;
-          const isActive = ring === r.id;
+    <div className="flex-1 flex overflow-hidden min-h-0 relative">
+      {/* Full-stage preview */}
+      <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
+
+      {/* Slide-in controls drawer */}
+      <div
+        className={cn(
+          'absolute inset-y-0 right-0 w-[380px] bg-card border-l flex flex-col min-h-0 shadow-2xl transition-transform duration-300',
+          open ? 'translate-x-0' : 'translate-x-full'
+        )}
+      >
+        <div className="flex items-center justify-between px-4 pt-3 pb-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Controls</span>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="rounded-md p-1 text-text-muted hover:bg-muted hover:text-text-primary transition-colors"
+            title="Collapse"
+          >
+            <ChevronRight className="h-4 w-4 rotate-180" />
+          </button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <VariantCockpit {...props} />
+        </div>
+        <div className="p-4 border-t bg-card/50">{props.renderFooter()}</div>
+      </div>
+
+      {/* Re-open handle when collapsed */}
+      {!open && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="absolute top-1/2 -right-0 translate-y-1/2 z-10 rounded-l-lg border border-r-0 border-border-default bg-surface px-1.5 py-3 shadow-md text-text-muted hover:text-accent transition-colors"
+          title="Open controls"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Screen layout 4 · SIDE-BY-SIDE (2-UP) ──────────────────────────────────
+// Controls and preview split the screen 50/50 — no sidebar, no drawer.
+export function LayoutSideBySide(props: LayoutConfigVariantProps) {
+  return (
+    <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="w-1/2 border-r bg-card flex flex-col min-h-0 shrink-0">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <VariantCockpit {...props} />
+        </div>
+        <div className="p-4 border-t bg-card/50">{props.renderFooter()}</div>
+      </div>
+      <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
+    </div>
+  );
+}
+
+// ── Screen layout 5 · PINNED TABS ──────────────────────────────────────────
+// Tabs pinned to the top spanning the full width; below, controls and preview
+// share the row with a floating divider — the tab strip acts as the global
+// heading, controls feel like a palette.
+export function LayoutPinnedTabs(props: LayoutConfigVariantProps) {
+  const [tab, setTab] = useState<StepRailId>('geometry');
+  const tabs = [
+    { id: 'geometry' as const, label: 'Geometry', icon: Warehouse },
+    { id: 'inventory' as const, label: 'Inventory', icon: Package },
+    { id: 'placement' as const, label: 'Placement', icon: Boxes },
+  ];
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      {/* Full-width pinned tab strip */}
+      <div className="flex items-center gap-1 border-b border-border-default bg-card px-4 pt-2 shrink-0">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const active = tab === t.id;
           return (
             <button
-              key={r.id}
+              key={t.id}
               type="button"
-              onClick={() => setRing(r.id)}
+              onClick={() => setTab(t.id)}
               className={cn(
-                'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-all',
-                isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+                'flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors border-b-2 -mb-px',
+                active
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-text-muted hover:text-text-secondary'
               )}
-              style={{
-                width: 200,
-                height: 200,
-                borderColor: r.color,
-                background: `conic-gradient(from ${angle}deg, ${r.color}22 0deg, transparent 0deg)`,
-              }}
-            />
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t.label}
+            </button>
           );
         })}
-        {/* middle ring label */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border border-border-default bg-surface flex flex-col items-center justify-center shadow-sm">
-          <active.icon className="h-4 w-4 text-accent mb-0.5" />
-          <span className="text-xs font-bold text-text-primary">{active.label}</span>
-          <span className="text-[9px] text-text-muted">{active.color === '#4C5C2D' ? 'Racks & aisles' : active.color === '#B7791F' ? 'What exists' : 'Where it lives'}</span>
-        </div>
+        <div className="flex-1" />
+        <div className="flex items-center gap-2 pr-2 pb-1.5">{props.renderFooter()}</div>
       </div>
-
-      {/* Focused variable controls */}
-      <div className="w-full rounded-xl border border-border-default bg-surface p-4 space-y-4">
-        {ring === 'geometry' && (
-          <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="plain" />
-        )}
-        {ring === 'inventory' && (
-          <>
-            <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} onChange={props.onSkuCountChange} />
-            <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}%`} onChange={props.onDemandDistributionChange} />
-            <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups`} onChange={props.onProductAffinityChange} />
-            <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
-          </>
-        )}
-        {ring === 'placement' && (
-          <>
-            <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} placed`} onChange={props.onSlottingBiasChange} />
-            <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
-          </>
-        )}
-      </div>
-
-      {/* Quick-value arcs */}
-      <div className="mt-3 w-full grid grid-cols-3 gap-1.5">
-        <div className="rounded-lg border border-border-default bg-surface px-2 py-1.5 text-center">
-          <p className="text-sm font-bold text-text-primary">{props.geometry.gridHeight}×{props.geometry.rackCount}</p>
-          <p className="text-[9px] uppercase tracking-wide text-text-muted">grid</p>
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        <div className="w-[340px] border-r bg-card flex flex-col min-h-0 shrink-0">
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <VariantCockpit {...props} />
+          </div>
         </div>
-        <div className="rounded-lg border border-border-default bg-surface px-2 py-1.5 text-center">
-          <p className="text-sm font-bold text-text-primary">{props.skuCount.toLocaleString()}</p>
-          <p className="text-[9px] uppercase tracking-wide text-text-muted">SKUs</p>
-        </div>
-        <div className="rounded-lg border border-border-default bg-surface px-2 py-1.5 text-center">
-          <p className="text-sm font-bold text-text-primary">{props.slottingBias}% / {props.categoryClustering}%</p>
-          <p className="text-[9px] uppercase tracking-wide text-text-muted">slot/zone</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Variant 10 · FEEDBACK LOOP ─────────────────────────────────────────────
-// A systems diagram: four cards arranged in a cycle (Generate → Demand →
-// Affinity → Place → back to Generate), each with a small "feedback" arrow
-// ring. Clicking a card opens its controls in the middle pane. The layout
-// reads like a control-flow diagram rather than a form.
-
-export function VariantFeedbackLoop(props: LayoutConfigVariantProps) {
-  const [active, setActive] = useState<StepRailId>('geometry');
-
-  const nodes: { id: StepRailId; label: string; icon: typeof Warehouse; desc: string }[] = [
-    { id: 'geometry', label: 'Generate', icon: Warehouse, desc: 'Define the physical rack layout.' },
-    { id: 'inventory', label: 'Demand', icon: TrendingUp, desc: 'Shape the catalogue & its demand.' },
-    { id: 'inventory', label: 'Affinity', icon: Tags, desc: 'Decide which products relate.' },
-    { id: 'placement', label: 'Place', icon: Boxes, desc: 'Slot inventory into zones.' },
-  ];
-
-  const isNodeActive = (label: string) =>
-    (label === 'Demand' || label === 'Affinity') ? active === 'inventory' : active === label.toLowerCase();
-
-  return (
-    <div className="space-y-3">
-      {/* Cycle diagram */}
-      <div className="relative">
-        <div className="grid grid-cols-2 gap-2">
-          {nodes.map((n, i) => {
-            const Icon = n.icon;
-            const on = isNodeActive(n.label);
-            return (
-              <button
-                key={`${n.label}-${i}`}
-                type="button"
-                onClick={() => setActive(n.id)}
-                className={cn(
-                  'rounded-xl border p-3 text-left transition-colors relative',
-                  on ? 'border-accent/60 bg-accent-soft/40 ring-1 ring-accent/20' : 'border-border-default bg-surface hover:bg-muted/40'
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg', on ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="text-xs font-bold text-text-primary">{n.label}</span>
-                </div>
-                <p className="text-[10px] text-text-muted leading-tight mt-1">{n.desc}</p>
-                {/* feedback arrow on the far corners */}
-                {i % 2 === 0 ? (
-                  <ArrowRight className="absolute -right-1.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-accent/50" />
-                ) : (
-                  <ArrowRight className="absolute -left-1.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-accent/50 rotate-180" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Active node controls */}
-      <div className="rounded-xl border border-border-default bg-surface p-4 space-y-4">
-        {active === 'geometry' && (
-          <>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Generate — physical layout</p>
-            <GeometryBlock g={props.geometry} onChange={props.onGeometryChange} onCommit={props.onGeometryCommit} accent="plain" />
-          </>
-        )}
-        {active === 'inventory' && (
-          <>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Demand & affinity — catalogue behaviour</p>
-            <VariantSlider label="SKU Count" value={props.skuCount} min={500} max={10000} step={1} display={props.skuCount.toLocaleString()} onChange={props.onSkuCountChange} />
-            <VariantSlider label="Demand Distribution" value={props.demandDistribution} min={0} max={100} step={1} display={`${props.demandDistribution}%`} low="Uniform" high="Pareto" stat={`Top 20% → ${Math.round(props.demandSummary.topShare * 100)}%`} onChange={props.onDemandDistributionChange} />
-            <VariantSlider label="Product Affinity" value={props.productAffinity} min={0} max={100} step={1} display={`${props.productAffinity}%`} low="Independent" high="Related" stat={`${props.affinitySummary.groupCount} groups`} onChange={props.onProductAffinityChange} />
-            <VariantSlider label="Storage Footprint" value={props.storageFootprint} min={0} max={100} step={1} display={`${props.storageFootprint}%`} low="Compact" high="Bulky" stat={`Needs ${props.footprintSummary.totalBins} bins`} onChange={props.onStorageFootprintChange} />
-          </>
-        )}
-        {active === 'placement' && (
-          <>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Place — slot inventory into zones</p>
-            <VariantSlider label="Slotting Bias" value={props.slottingBias} min={0} max={100} step={1} display={`${props.slottingBias}%`} low="Random" high="Demand-Based" stat={`${props.placementSummary.placed}/${props.placementSummary.total} placed`} onChange={props.onSlottingBiasChange} />
-            <VariantSlider label="Category Clustering" value={props.categoryClustering} min={0} max={100} step={1} display={`${props.categoryClustering}%`} low="Scattered" high="Clustered" stat={`${props.placementSummary.categoryCount} categories`} onChange={props.onCategoryClusteringChange} />
-          </>
-        )}
+        <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
       </div>
     </div>
   );
@@ -1120,11 +893,11 @@ export function PreviewInsights({
 // ── Variant registry ────────────────────────────────────────────────────────
 
 export const LAYOUT_VARIANTS = [
-  { id: 6, name: 'Cockpit', short: 'Cockpit', Component: VariantCockpit },
-  { id: 7, name: 'Priority Matrix', short: 'Matrix', Component: VariantPriorityMatrix },
-  { id: 8, name: 'Timeline', short: 'Timeline', Component: VariantTimeline },
-  { id: 9, name: 'Radial Console', short: 'Radial', Component: VariantRadialConsole },
-  { id: 10, name: 'Feedback Loop', short: 'Loop', Component: VariantFeedbackLoop },
+  { id: 1, name: 'Classic Split', short: 'Split', Component: LayoutClassicSplit },
+  { id: 2, name: 'Stacked', short: 'Stack', Component: LayoutStacked },
+  { id: 3, name: 'Drawer Overlay', short: 'Drawer', Component: LayoutDrawer },
+  { id: 4, name: 'Side-by-Side', short: '2-Up', Component: LayoutSideBySide },
+  { id: 5, name: 'Pinned Tabs', short: 'Tabs', Component: LayoutPinnedTabs },
 ] as const;
 
 export type LayoutVariantId = (typeof LAYOUT_VARIANTS)[number]['id'];
