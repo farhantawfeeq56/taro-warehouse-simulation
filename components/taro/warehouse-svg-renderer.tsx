@@ -309,7 +309,17 @@ function WarehouseSvgRendererInner({
         if (cell.type === 'shelf') fill = SHELF_COLOR;
         if (cell.type === 'worker-start') fill = WORKER_COLOR;
         cells.push(
-          <rect key={`c-${x}-${y}`} x={px} y={py} width={CELL_SIZE} height={CELL_SIZE} fill={fill} stroke={cell.type === 'shelf' ? '#E7E8EC' : GRID_COLOR} strokeWidth={cell.type === 'shelf' ? 1 : 0.5} />,
+          <rect
+            key={`c-${x}-${y}`}
+            x={px}
+            y={py}
+            width={CELL_SIZE}
+            height={CELL_SIZE}
+            fill={fill}
+            stroke={cell.type === 'shelf' ? 'none' : GRID_COLOR}
+            strokeWidth={cell.type === 'shelf' ? 0 : 0.5}
+            rx={cell.type === 'shelf' ? 2 : 0}
+          />,
         );
       }
     }

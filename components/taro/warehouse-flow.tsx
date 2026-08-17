@@ -592,7 +592,7 @@ function WarehouseFlowInner({
         fitView={false}
         onlyRenderVisibleElements={true}
         colorMode="light"
-        className="bg-muted/30"
+        className="bg-background"
         deleteKeyCode={null}
         selectionKeyCode={null}
         multiSelectionKeyCode={null}
