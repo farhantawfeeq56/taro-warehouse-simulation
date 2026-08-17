@@ -157,6 +157,9 @@ function ProjectCard({
       }}
       onKeyDown={(e) => {
         if (isRenaming) return;
+        // Ignore keydown originating from an inner control (action button).
+        // Enter/Space there should activate the button, not open the project.
+        if ((e.target as HTMLElement).closest('button')) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onOpenProject(project.id);
@@ -182,7 +185,7 @@ function ProjectCard({
           )}
         </div>
         {/* Hover-only actions — visual order: folder, pencil, boxes, trash */}
-        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto focus-within:pointer-events-auto transition-opacity duration-150">
           <IconButton
             title="Duplicate"
             label={`Duplicate ${project.name}`}
