@@ -132,7 +132,7 @@ export function AffinityGrid({
   for (let y = 0; y < fullHeight; y++) {
     for (let x = 0; x < fullWidth; x++) {
       const cell = grid[y][x];
-      const key = `${x}-${y}`;
+      const key = `${x},${y}`;
       const style: CSSProperties = { width: cellSize, height: cellSize };
       if (cell.type === 'worker-start') {
         cells.push(<div key={key} style={style} className="relative bg-warning" />);
