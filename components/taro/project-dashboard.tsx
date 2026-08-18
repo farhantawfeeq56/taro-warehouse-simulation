@@ -169,20 +169,20 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="[font-synthesis:none] relative bg-[#FBF6F6] antialiased w-full min-h-full overflow-y-auto">
+    <div className="[font-synthesis:none] relative bg-background antialiased w-full min-h-full overflow-y-auto">
       <div className="mx-auto max-w-[1100px] px-5 py-8">
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4 mb-8">
           <div className="flex flex-col items-start gap-1">
-            <h1 className="font-['Instrument_Sans',system-ui,sans-serif] font-bold text-[#1C2118] text-2xl sm:text-[26px] leading-tight">
+            <h1 className="font-['Instrument_Sans',system-ui,sans-serif] font-bold text-primary text-2xl sm:text-[26px] leading-tight">
               Projects
             </h1>
-            <p className="font-['Instrument_Sans',system-ui,sans-serif] font-medium text-black/70 text-sm sm:text-base">
+            <p className="font-['Instrument_Sans',system-ui,sans-serif] font-medium text-muted-foreground text-sm sm:text-base">
               Manage warehouse layouts and simulations
             </p>
           </div>
           <div
-            className="flex items-center rounded-lg justify-center py-2 px-5 bg-[#4C5C2D] cursor-pointer select-none hover:bg-[#3f4d25] transition-colors"
+            className="flex items-center rounded-lg justify-center py-2 px-5 bg-accent cursor-pointer select-none hover:bg-accent-hover transition-colors"
             onClick={() => setShowNewDialog(true)}
             role="button"
             tabIndex={0}
@@ -193,7 +193,7 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
               }
             }}
           >
-            <span className="whitespace-pre font-['Instrument_Sans',system-ui,sans-serif] font-semibold text-[#F5F5F5] text-sm sm:text-base">
+            <span className="whitespace-pre font-['Instrument_Sans',system-ui,sans-serif] font-semibold text-white text-sm sm:text-base">
               +{'  '}New Project
             </span>
           </div>
@@ -203,8 +203,8 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
         {isLoading && (
           <div className="flex items-center justify-center py-24">
             <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-[#1C2118]/50" />
-              <p className="text-sm text-[#1C2118]/50 font-['Instrument_Sans',system-ui,sans-serif]">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground font-['Instrument_Sans',system-ui,sans-serif]">
                 Loading projects...
               </p>
             </div>
@@ -215,8 +215,8 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
         {!isLoading && error && (
           <div className="flex items-center justify-center py-24">
             <div className="flex flex-col items-center gap-3 text-center max-w-md">
-              <AlertCircle className="h-10 w-10 text-[#D96868]" />
-              <p className="text-sm text-[#D96868] font-medium font-['Instrument_Sans',system-ui,sans-serif]">
+              <AlertCircle className="h-10 w-10 text-error" />
+              <p className="text-sm text-error font-medium font-['Instrument_Sans',system-ui,sans-serif]">
                 {error}
               </p>
               <Button
@@ -235,15 +235,15 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
         {!isLoading && !error && projects.length === 0 && (
           <div className="flex items-center justify-center py-24">
             <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-              <h2 className="text-lg font-semibold font-['Instrument_Sans',system-ui,sans-serif] text-[#1C2118]">
+              <h2 className="text-lg font-semibold font-['Instrument_Sans',system-ui,sans-serif] text-primary">
                 No projects yet
               </h2>
-              <p className="text-sm text-[#1C2118]/60 font-['Instrument_Sans',system-ui,sans-serif]">
+              <p className="text-sm text-muted-foreground font-['Instrument_Sans',system-ui,sans-serif]">
                 Create your first warehouse simulation project to get started with layout design, inventory
                 placement, and picking strategy analysis.
               </p>
               <div
-                className="flex items-center rounded-lg justify-center py-2 px-5 bg-[#4C5C2D] cursor-pointer select-none hover:bg-[#3f4d25] transition-colors mt-2"
+                className="flex items-center rounded-lg justify-center py-2 px-5 bg-accent cursor-pointer select-none hover:bg-accent-hover transition-colors mt-2"
                 onClick={() => setShowNewDialog(true)}
                 role="button"
                 tabIndex={0}
@@ -254,7 +254,7 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
                   }
                 }}
               >
-                <span className="whitespace-pre font-['Instrument_Sans',system-ui,sans-serif] font-semibold text-[#F5F5F5] text-sm sm:text-base">
+                <span className="whitespace-pre font-['Instrument_Sans',system-ui,sans-serif] font-semibold text-white text-sm sm:text-base">
                   +{'  '}Create Project
                 </span>
               </div>

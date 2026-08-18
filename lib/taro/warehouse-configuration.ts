@@ -15,20 +15,23 @@
  * For example, `skuCount` is derived from `inventoryJson.length` on load.
  */
 
-export type LayoutType = 'parallel' | 'cross-aisle' | 'fishbone';
-
 export interface LayoutConfiguration {
-  type: LayoutType;
   gridHeight: number;
   rackCount: number;
   aisleWidth: number;
   crossAisleCount: number;
-  fbWidth: number;
-  fbHeight: number;
-  fbTheta: number;
-  fbI2: number;
-  fbS: number;
-  fbAp: number;
+  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  fbWidth?: number;
+  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  fbHeight?: number;
+  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  fbTheta?: number;
+  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  fbI2?: number;
+  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  fbS?: number;
+  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  fbAp?: number;
 }
 
 export interface InventoryGenerationConfiguration {
@@ -52,7 +55,6 @@ export interface WarehouseConfiguration {
 // ── Defaults ───────────────────────────────────────────────────────────────
 
 export const DEFAULT_LAYOUT_CONFIGURATION: LayoutConfiguration = {
-  type: 'parallel',
   gridHeight: 30,
   rackCount: 30,
   aisleWidth: 2,
@@ -132,7 +134,6 @@ export function mergeConfiguration(
 function mergeLegacyFlatConfig(old: Record<string, unknown>): WarehouseConfiguration {
   return {
     layout: {
-      type: (old.type as LayoutType) ?? DEFAULT_LAYOUT_CONFIGURATION.type,
       gridHeight: (old.gridHeight as number) ?? DEFAULT_LAYOUT_CONFIGURATION.gridHeight,
       rackCount: (old.rackCount as number) ?? DEFAULT_LAYOUT_CONFIGURATION.rackCount,
       aisleWidth: (old.aisleWidth as number) ?? DEFAULT_LAYOUT_CONFIGURATION.aisleWidth,

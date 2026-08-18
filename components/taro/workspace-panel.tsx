@@ -87,7 +87,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
     editing?.id === id && editing.type === type;
 
   return (
-    <div className="w-72 border-r border-border bg-background flex flex-col">
+    <div className="w-72 border-r border-border bg-[#F4F4F2] flex flex-col">
       {/* App header: Logo + Project name */}
       <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border shrink-0">
         {props.onBackToDashboard ? (
@@ -120,7 +120,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
             {props.projectName}
           </div>
           {props.importSummary && (
-            <div className="text-[10px] text-emerald-600 truncate leading-tight">
+            <div className="text-[10px] text-positive truncate leading-tight">
               {props.importSummary}
             </div>
           )}
@@ -235,7 +235,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                     {editing ? (
                       <div
                         className="w-full px-2 py-1.5 rounded-md text-xs
-                          flex items-center gap-2 ring-1 ring-emerald-500/30"
+                          flex items-center gap-2 ring-1 ring-accent/30"
                       >
                         <GitCompareArrows className="h-3 w-3 text-muted-foreground/60 shrink-0" />
                         <input
@@ -248,7 +248,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                             if (e.key === 'Escape') cancelEdit();
                           }}
                           onClick={(e) => e.stopPropagation()}
-                          className="nodrag flex-1 min-w-0 h-5 px-1 text-xs font-medium bg-background border border-emerald-500/50 rounded outline-none ring-1 ring-emerald-500/30"
+                          className="nodrag flex-1 min-w-0 h-5 px-1 text-xs font-medium bg-background border border-accent/50 rounded outline-none ring-1 ring-accent/30"
                         />
                       </div>
                     ) : (
@@ -259,7 +259,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                           w-full text-left px-2 py-1.5 rounded-md text-xs truncate
                           flex items-center gap-2 transition-colors group
                           ${isActive
-                            ? 'bg-emerald-500/10 text-emerald-700 font-semibold'
+                            ? 'bg-accent-soft text-accent font-semibold'
                             : 'text-foreground hover:bg-muted'
                           }
                         `}
@@ -268,7 +268,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                         <span
                           className={`
                             inline-block w-1.5 h-1.5 rounded-full shrink-0
-                            ${isActive ? 'bg-emerald-500' : 'bg-muted-foreground/30'}
+                            ${isActive ? 'bg-accent' : 'bg-muted-foreground/30'}
                           `}
                         />
                         <GitCompareArrows className="h-3 w-3 text-muted-foreground/60 shrink-0" />

@@ -34,7 +34,7 @@ export function ValidationModal({
         <AlertDialogHeader>
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0 mt-0.5">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <AlertTriangle className="h-5 w-5 text-warning" />
             </div>
             <div className="flex-1">
               <AlertDialogTitle className="text-lg">Items missing from layout</AlertDialogTitle>

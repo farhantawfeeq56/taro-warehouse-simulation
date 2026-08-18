@@ -237,7 +237,7 @@ export function SystemStatePanel({
               {readiness?.conditions.map((condition) => (
                 <div key={condition.id} className="flex items-center gap-3">
                   {condition.isMet ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-positive shrink-0" />
                   ) : (
                     <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />
                   )}
@@ -264,7 +264,7 @@ export function SystemStatePanel({
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">System State</h2>
-            <Badge variant="outline" className="ml-auto text-[10px] uppercase font-bold text-emerald-600 border-emerald-200 bg-emerald-50">
+            <Badge variant="outline" className="ml-auto text-[10px] uppercase font-bold text-positive border-positive-soft bg-positive-soft/60">
               Ready
             </Badge>
           </div>
@@ -272,7 +272,7 @@ export function SystemStatePanel({
         <div className="flex-1 flex items-center justify-center p-6">
           <Empty className="border-0 p-0">
             <EmptyMedia variant="icon">
-              <PlayCircle className="h-6 w-6 text-emerald-600" />
+              <PlayCircle className="h-6 w-6 text-positive" />
             </EmptyMedia>
             <EmptyHeader>
               <EmptyTitle>Ready to Simulate</EmptyTitle>
@@ -281,7 +281,7 @@ export function SystemStatePanel({
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button onClick={onSimulate} className="w-full bg-emerald-600 hover:bg-emerald-700">
+              <Button onClick={onSimulate} className="w-full bg-positive hover:bg-positive/90">
                 Run Simulation
               </Button>
             </EmptyContent>
@@ -307,7 +307,7 @@ export function SystemStatePanel({
             <BarChart3 className="h-4 w-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">System State</h2>
           </div>
-          <Badge variant="outline" className="text-[10px] uppercase font-bold text-blue-600 border-blue-200 bg-blue-50">
+          <Badge variant="outline" className="text-[10px] uppercase font-bold text-info border-info-soft bg-info-soft/60">
             Results
           </Badge>
         </div>
@@ -327,7 +327,7 @@ export function SystemStatePanel({
                 className={cn(
                   'w-full text-left border rounded p-2 transition-all',
                   isSelected
-                    ? 'border-[#D8D8D8] bg-primary/5 shadow-sm'
+                    ? 'border-border-strong bg-accent-subtle shadow-sm'
                     : 'border-border bg-card hover:border-muted-foreground/50',
                   isBaseline && 'opacity-70'
                 )}
@@ -343,11 +343,11 @@ export function SystemStatePanel({
                     {strategy.strategyName}
                   </span>
                   {!isBaseline && (
-                    <span className="text-sm font-bold text-green-600 dark:text-green-400 shrink-0">{strategy.efficiency}%</span>
+                    <span className="text-sm font-bold text-positive dark:text-positive/80 shrink-0">{strategy.efficiency}%</span>
                   )}
                   <div className="flex-1" />
                   {isBest && !isBaseline && (
-                    <Badge className="text-[10px] px-1.5 py-0 shrink-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                    <Badge className="text-[10px] px-1.5 py-0 shrink-0 bg-positive-soft text-positive">
                       Best
                     </Badge>
                   )}
@@ -411,8 +411,8 @@ export function SystemStatePanel({
         )}
 
         {executionPlan && (
-          <div className="space-y-3 border border-emerald-300/70 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-800 rounded-lg p-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+          <div className="space-y-3 border border-positive/40 bg-positive-soft/60 dark:bg-positive-soft/30 dark:border-positive/40 rounded-lg p-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-positive">
               Execution Plan Output
             </div>
 

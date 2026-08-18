@@ -278,7 +278,7 @@ export function OrdersPanel({
                         key={`${item.skuId}-${idx}`}
                         className={`flex items-center text-xs rounded px-2 py-1 ${
                           isHighlighted
-                            ? 'bg-amber-100/80 dark:bg-amber-900/30 border border-amber-400/50 dark:border-amber-700/50'
+                            ? 'bg-warning-soft border border-warning/50'
                             : 'bg-muted/30'
                         }`}
                       >
@@ -286,7 +286,7 @@ export function OrdersPanel({
                           <div
                             className={`font-sans truncate ${
                               isHighlighted
-                                ? 'text-amber-900 dark:text-amber-100 font-semibold'
+                                ? 'text-warning font-semibold'
                                 : 'text-foreground'
                             }`}
                           >
@@ -297,7 +297,7 @@ export function OrdersPanel({
                               </span>
                             )}
                             {isHighlighted && (
-                              <span className="ml-1.5 text-[10px] text-amber-700 dark:text-amber-300">
+                              <span className="ml-1.5 text-[10px] text-warning">
                                 (not found)
                               </span>
                             )}
@@ -305,7 +305,7 @@ export function OrdersPanel({
                           <div
                             className={`font-sans text-[10px] truncate ${
                               isHighlighted
-                                ? 'text-amber-700 dark:text-amber-400'
+                                ? 'text-warning'
                                 : 'text-muted-foreground'
                             }`}
                           >
