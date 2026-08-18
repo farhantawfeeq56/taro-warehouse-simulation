@@ -1,13 +1,18 @@
 'use client';
 
 /**
- * Warehouse Layout Config — final design (vartest5, variant 4: Split Deck).
+ * Warehouse Layout Config — vartest5: Tabbed Navigation.
  *
- * Left sidebar: three stacked cards (Geometry / Inventory / Placement).
- * Only ONE card is open at a time — opening one closes the others.
- * Each card contains plain sliders with small descriptions — no fancy
- * graphics. Right side: the live warehouse preview, which ALWAYS fits the
- * screen regardless of warehouse size.
+ * Left sidebar: three tabs (Geometry / Inventory / Placement) instead of
+ * expandable cards. The active tab renders its sliders below the tab bar.
+ * A floating segmented toolbar (bottom-right, keys 1–5) switches between
+ * five tab-navigation visual directions:
+ *   1. Pills   — rounded pill tabs, active = filled accent
+ *   2. Ruled   — underline ruler, active tab shows a bottom bar
+ *   3. Segmented — one shared track, active segment is a raised chip
+ *   4. Deck    — three side-by-side tab cards, active one lifts
+ *   5. Stepped — numbered step tabs joined by a rail
+ * Right side: the live warehouse preview, which ALWAYS fits the screen.
  *
  * Constraints:
  *   • Fishbone is removed entirely.
@@ -16,7 +21,7 @@
  */
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { X, Layout, Loader2, ChevronRight, Warehouse, Package, Boxes } from 'lucide-react';
+import { X, Layout, Loader2, Warehouse, Package, Boxes } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Item } from '@/lib/taro/types';
@@ -74,6 +79,222 @@ interface LayoutConfigOverlayProps {
 }
 
 type CardId = 'geometry' | 'inventory' | 'placement';
+
+/** Tab-navigation visual direction (vartest5 keys 1–5). */
+type TabVariant = 1 | 2 | 3 | 4 | 5;
+
+/**
+ * Tab bar — five visual directions for the same three tabs.
+ * 1 = Pills · 2 = Ruled · 3 = Segmented · 4 = Deck · 5 = Stepped.
+ */
+function TabBar({
+  cards,
+  active,
+  onSelect,
+  variant,
+}: {
+  cards: { id: CardId; title: string; icon: typeof Warehouse; subtitle: string }[];
+  active: CardId;
+  onSelect: (id: CardId) => void;
+  variant: TabVariant;
+}) {
+  const base = 'flex-1 min-w-0 text-left transition-all duration-200';
+
+  if (variant === 5) {
+    // Stepped — numbered chips joined by a rail; the active step pops.
+    return (
+      <div className="flex items-stretch gap-0 p-0.5">
+        {cards.map((c, i) => {
+          const Icon = c.icon;
+          const isActive = active === c.id;
+          return (
+            <div key={c.id} className="flex flex-1 min-w-0 items-center">
+              {i > 0 && (
+                <div
+                  className={cn(
+                    'h-px w-3 shrink-0 transition-colors',
+                    isActive || cards.findIndex((x) => x.id === active) >= i
+                      ? 'bg-accent'
+                      : 'bg-border-default'
+                  )}
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => onSelect(c.id)}
+                title={`${c.title} — ${c.subtitle}`}
+                className={cn(
+                  base,
+                  'flex items-center justify-center gap-1.5 rounded-lg py-1.5',
+                  isActive ? 'bg-accent-soft text-accent' : 'text-text-muted hover:bg-muted hover:text-text-primary'
+                )}
+              >
+                <span
+                  className={cn(
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+                    isActive ? 'bg-accent text-accent-soft' : 'bg-muted text-text-muted'
+                  )}
+                >
+                  {i + 1}
+                </span>
+                <span className="truncate text-[11px] font-semibold">{c.title}</span>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (variant === 4) {
+    // Deck — three side-by-side tab cards; the active one lifts.
+    return (
+      <div className="grid grid-cols-3 gap-1.5">
+        {cards.map((c) => {
+          const Icon = c.icon;
+          const isActive = active === c.id;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onSelect(c.id)}
+              className={cn(
+                'flex flex-col items-start gap-1 rounded-lg border p-2.5 text-left transition-all duration-200',
+                isActive
+                  ? 'border-accent/60 bg-accent-subtle shadow-sm -translate-y-px'
+                  : 'border-border-default bg-surface hover:border-accent/40'
+              )}
+            >
+              <span
+                className={cn(
+                  'flex h-6 w-6 items-center justify-center rounded-md',
+                  isActive ? 'bg-accent text-accent-soft' : 'bg-accent-soft text-accent'
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </span>
+              <span className={cn('text-[11px] font-bold truncate', isActive ? 'text-text-primary' : 'text-text-secondary')}>
+                {c.title}
+              </span>
+              {isActive && <span className="text-[9px] text-text-muted truncate">{c.subtitle}</span>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (variant === 3) {
+    // Segmented — one shared track; the active segment is a raised chip.
+    return (
+      <div className="flex gap-1 rounded-xl border border-border-default bg-muted/40 p-1">
+        {cards.map((c) => {
+          const Icon = c.icon;
+          const isActive = active === c.id;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onSelect(c.id)}
+              className={cn(
+                base,
+                'flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5',
+                isActive ? 'bg-surface shadow-sm text-text-primary' : 'text-text-muted hover:text-text-primary'
+              )}
+            >
+              <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent' : '')} />
+              <span className="truncate text-[11px] font-semibold">{c.title}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (variant === 2) {
+    // Ruled — underline ruler; active tab gets a bottom bar.
+    return (
+      <div className="flex border-b border-border-default">
+        {cards.map((c) => {
+          const Icon = c.icon;
+          const isActive = active === c.id;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onSelect(c.id)}
+              className={cn(
+                base,
+                'relative flex items-center justify-center gap-1.5 px-2.5 pb-2 pt-1',
+                isActive ? 'text-accent' : 'text-text-muted hover:text-text-primary'
+              )}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate text-[11px] font-bold">{c.title}</span>
+              {isActive && (
+                <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent)]" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Pills (default) — rounded pill tabs, active = filled accent.
+  return (
+    <div className="flex gap-1.5">
+      {cards.map((c) => {
+        const Icon = c.icon;
+        const isActive = active === c.id;
+        return (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => onSelect(c.id)}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 transition-all duration-200',
+              isActive
+                ? 'border-accent bg-accent text-accent-soft shadow-sm'
+                : 'border-border-default bg-surface text-text-muted hover:border-accent/40 hover:text-text-primary'
+            )}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate text-[11px] font-bold">{c.title}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Floating segmented toolbar — bottom-right, keyboard-driven (1–5). */
+function TabVariantToolbar({
+  active,
+  onSelect,
+}: {
+  active: TabVariant;
+  onSelect: (v: TabVariant) => void;
+}) {
+  return (
+    <div className="fixed bottom-4 right-4 z-[120] flex items-center gap-0.5 rounded-full border border-border-default bg-surface shadow-lg px-1.5 py-1">
+      {([1, 2, 3, 4, 5] as TabVariant[]).map((v) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onSelect(v)}
+          title={`Tab direction ${v}`}
+          className={cn(
+            'flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[11px] font-semibold transition-colors',
+            active === v ? 'bg-accent text-accent-soft' : 'text-text-muted hover:bg-muted hover:text-text-primary'
+          )}
+        >
+          {v}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** Piecewise-adaptive step for Grid Height (4–60). */
 function getHeightStep(v: number): number {
@@ -342,8 +563,21 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     onClose();
   };
 
-  // ── One-card-open accordion state (may be fully closed) ───────────────
-  const [openCard, setOpenCard] = useState<CardId | null>('geometry');
+  // ── Tab state (vartest5: tabs replace the expandable cards) ──────────
+  const [activeTab, setActiveTab] = useState<CardId>('geometry');
+  const [tabVariant, setTabVariant] = useState<TabVariant>(1);
+
+  // Keys 1–5 switch the tab-navigation direction (ignored while typing).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      const n = Number(e.key);
+      if (n >= 1 && n <= 5) setTabVariant(n as TabVariant);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const cards: { id: CardId; title: string; icon: typeof Warehouse; subtitle: string }[] = [
     { id: 'geometry', title: 'Geometry', icon: Warehouse, subtitle: 'Racks, aisles & thoroughfares' },
@@ -518,43 +752,15 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
 
       {/* Main — Split Deck: left cards, right preview */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left sidebar — one card open at a time */}
-        <aside className="w-[340px] shrink-0 border-r bg-card overflow-y-auto p-3 space-y-2">
-          {cards.map((c) => {
-            const Icon = c.icon;
-            const isOpen = openCard === c.id;
-            return (
-              <div
-                key={c.id}
-                className={cn(
-                  'rounded-xl border bg-surface transition-all',
-                  isOpen ? 'border-accent/60 shadow-md' : 'border-border-default hover:border-accent/40'
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenCard(isOpen ? null : c.id)}
-                  className="flex items-center gap-2.5 px-3 py-2.5 w-full text-left"
-                >
-                  <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg', isOpen ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className={cn('block text-xs font-bold truncate', isOpen ? 'text-text-primary' : 'text-text-secondary')}>{c.title}</span>
-                    {!isOpen && <span className="block text-[9px] text-text-muted truncate">{c.subtitle}</span>}
-                  </span>
-                  <ChevronRight className={cn('h-3.5 w-3.5 text-text-muted transition-transform shrink-0', isOpen && 'rotate-90')} />
-                </button>
-                {isOpen && (
-                  <div className="px-3 pb-3 space-y-4 border-t border-border-default pt-2.5">
-                    {renderCardBody(c.id)}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        {/* Left sidebar — tabs, one active at a time */}
+        <aside className="w-[340px] shrink-0 border-r bg-card overflow-y-auto p-3 space-y-3">
+          <TabBar cards={cards} active={activeTab} onSelect={setActiveTab} variant={tabVariant} />
 
-          <div className="pt-2">
+          <div className="rounded-xl border border-border-default bg-surface p-3 space-y-4">
+            {renderCardBody(activeTab)}
+          </div>
+
+          <div className="pt-1">
             <Button className="w-full" onClick={handleApply} disabled={isGenerating}>
               {isGenerating ? (
                 <>
@@ -603,6 +809,9 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               </span>
             </div>
           </div>
+
+          {/* vartest5 — floating tab-direction toolbar */}
+          <TabVariantToolbar active={tabVariant} onSelect={setTabVariant} />
         </main>
       </div>
     </div>
