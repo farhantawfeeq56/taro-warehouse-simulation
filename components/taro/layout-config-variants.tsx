@@ -70,14 +70,6 @@ const STATS: Stat[] = [
 /* Flow stepper                                                              */
 /* ------------------------------------------------------------------------ */
 
-function StepBadge({ n }: { n: number }) {
-  return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent text-[11px] font-bold">
-      {n}
-    </span>
-  );
-}
-
 function StatCard({ s }: { s: Stat }) {
   return (
     <div className="rounded-lg border border-border-default bg-surface px-3 py-2">
@@ -97,20 +89,10 @@ function StatCard({ s }: { s: Stat }) {
 
 export function PreviewStats() {
   return (
-    <div className="w-full max-w-2xl">
-      <div className="flex items-center mb-2 px-1">
-        {STATS.map((s, i) => (
-          <div key={s.title} className="flex items-center flex-1 min-w-0">
-            <StepBadge n={i + 1} />
-            {i < STATS.length - 1 && <span className="flex-1 h-px bg-border-default mx-2" />}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full">
-        {STATS.map((s) => (
-          <StatCard key={s.title} s={s} />
-        ))}
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full max-w-2xl">
+      {STATS.map((s) => (
+        <StatCard key={s.title} s={s} />
+      ))}
     </div>
   );
 }
