@@ -1,21 +1,24 @@
 'use client';
 
 /**
- * vartest5 — Warehouse Layout Config screen.
+ * Warehouse Layout Config — final design (vartest5, variant 4: Split Deck).
  *
- * The control sidebar is now rendered by one of five radical layout variants
- * (see layout-config-variants.tsx). A floating segmented control in the
- * bottom-right corner + keys 1–5 switch between them.
+ * Left sidebar: three stacked cards (Geometry / Inventory / Placement).
+ * Only ONE card is open at a time — opening one closes the others.
+ * Each card contains plain sliders with small descriptions — no fancy
+ * graphics. Right side: the live warehouse preview, which ALWAYS fits the
+ * screen regardless of warehouse size.
  *
- * Non-negotiable constraints implemented here:
- *   • Fishbone is gone entirely (no tab, no preview, no controls, no config).
- *   • Parallel & Cross Aisle share one geometry group; the cross-aisle slider
- *     is the only survivor — default 1, can go to 0 (plain parallel).
+ * Constraints:
+ *   • Fishbone is removed entirely.
+ *   • No layout types — just a single geometry config.
+ *   • Cross-aisle slider: default 1, range 0–4 (0 = plain parallel).
  */
 
-import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { X, Layout, Grid3X3, Thermometer, Tag, Loader2 } from 'lucide-react';
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import { X, Layout, Grid3X3, Thermometer, Tag, Loader2, ChevronRight, Warehouse, Package, Boxes } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import type { Item } from '@/lib/taro/types';
 import type { ShelfPlacementPreview } from '@/lib/taro/inventory-placement';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
@@ -23,9 +26,7 @@ import {
   computePlacementPreview,
   PREVIEW_MAX_ITEMS,
 } from '@/lib/taro/inventory-placement';
-import {
-  generateCrossAisleLayout,
-} from '@/lib/taro/layout-generator';
+import { generateCrossAisleLayout } from '@/lib/taro/layout-generator';
 import {
   generateDemandScores,
   summarizeDemandScores,
@@ -39,14 +40,7 @@ import {
   generateFootprints,
   summarizeFootprints,
 } from '@/lib/taro/footprint';
-import {
-  LAYOUT_VARIANTS,
-  VariantToolbar,
-  useVariantKeyboard,
-  PreviewInsights,
-  type LayoutConfigVariantProps,
-  type PreviewMode,
-} from './layout-config-variants';
+import { PreviewInsights, type PreviewMode } from './layout-config-variants';
 
 export interface LayoutConfig {
   gridHeight: number;
@@ -72,64 +66,115 @@ interface LayoutConfigOverlayProps {
   onApply?: (config: LayoutConfig) => void;
   /** When false, the close button is hidden — user must generate a warehouse. */
   canClose?: boolean;
-  /**
-   * When provided, the overlay pre-populates all controls from this
-   * configuration and behaves as an editor (edit header & update button).
-   */
+  /** When provided, the overlay pre-populates all controls from this config. */
   initialConfig?: WarehouseConfiguration;
-  /**
-   * When true, the Apply button is disabled and shows a spinner —
-   * indicates a warehouse generation is in-flight.
-   */
+  /** When true, the Apply button is disabled and shows a spinner. */
   isGenerating?: boolean;
 }
 
-/** Piecewise‑adaptive step for Grid Height (4–60):
- *  1 at ≤20, 2 at ≤50, 5 at ≤60. */
+type CardId = 'geometry' | 'inventory' | 'placement';
+
+/** Piecewise-adaptive step for Grid Height (4–60). */
 function getHeightStep(v: number): number {
   if (v <= 20) return 1;
   if (v <= 50) return 2;
   return 5;
 }
 
-/** Piecewise‑adaptive step for Rack Count (5–60):
- *  1 at ≤20, 2 at ≤50, 5 at ≤60. */
+/** Piecewise-adaptive step for Rack Count (5–60). */
 function getRackStep(v: number): number {
   if (v <= 20) return 1;
   if (v <= 50) return 2;
   return 5;
 }
 
+/** A plain labeled slider with a small description. */
+function PlainSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  display,
+  low,
+  high,
+  description,
+  onChange,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  display?: string;
+  low?: string;
+  high?: string;
+  description?: string;
+  onChange: (v: number) => void;
+  onCommit?: (v: number) => void;
+}) {
+  const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] font-medium text-text-primary">{label}</span>
+        <span className="text-xs font-mono text-text-primary bg-muted px-1.5 py-0.5 rounded">
+          {display ?? value}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        style={{ ['--fill' as string]: `${pct}%` }}
+        onChange={(e) => onChange(Number(e.target.value))}
+        onPointerUp={() => onCommit?.(value)}
+        onKeyUp={() => onCommit?.(value)}
+        className="layout-variant-range"
+      />
+      {(low || high) && (
+        <div className="flex justify-between text-[10px] text-text-muted">
+          <span>{low}</span>
+          <span>{high}</span>
+        </div>
+      )}
+      {description && (
+        <p className="text-[11px] text-text-muted leading-snug">{description}</p>
+      )}
+    </div>
+  );
+}
+
 export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initialConfig, isGenerating = false }: LayoutConfigOverlayProps) {
   const isEditing = initialConfig != null;
 
-  // ── Active variant (vartest5) ──────────────────────────────────────────
-  // ── Active variant (vartest5) — ids are 6-10; default to the first. ─────
-  const [activeVariant, setActiveVariant] = useState<number>(() => LAYOUT_VARIANTS[0].id);
-  useVariantKeyboard(activeVariant, setActiveVariant);
-
-  // ── Adaptive sliders for Grid Height & Rack Count ──────────────────────
-  const [gridHeight,          setGridHeight]          = useState(initialConfig?.layout.gridHeight ?? 30);
+  // ── Geometry state ─────────────────────────────────────────────────────
+  const [gridHeight, setGridHeight] = useState(initialConfig?.layout.gridHeight ?? 30);
   const [debouncedGridHeight, setDebouncedGridHeight] = useState(initialConfig?.layout.gridHeight ?? 30);
-  const [rackCount,           setRackCount]           = useState(initialConfig?.layout.rackCount ?? 30);
-  const [debouncedRackCount,  setDebouncedRackCount]  = useState(initialConfig?.layout.rackCount ?? 30);
-
-  // 200 ms debounce while dragging: preview updates after a brief pause.
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedGridHeight(gridHeight), 200);
-    return () => clearTimeout(t);
-  }, [gridHeight]);
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedRackCount(rackCount), 200);
-    return () => clearTimeout(t);
-  }, [rackCount]);
-
-  // Other params (no adaptive step needed — narrow ranges)
+  const [rackCount, setRackCount] = useState(initialConfig?.layout.rackCount ?? 30);
+  const [debouncedRackCount, setDebouncedRackCount] = useState(initialConfig?.layout.rackCount ?? 30);
   const [aisleWidth, setAisleWidth] = useState(initialConfig?.layout.aisleWidth ?? 2);
-  // Cross-aisle slider: DEFAULT 1, may go to 0 (plain parallel).
   const [crossAisleCount, setCrossAisleCount] = useState(initialConfig?.layout.crossAisleCount ?? 1);
 
-  // A SKU identity before any enrichment is assigned.
+  // 200 ms debounce while dragging.
+  const gridTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleGridChange = (v: number) => {
+    setGridHeight(v);
+    if (gridTimer.current) clearTimeout(gridTimer.current);
+    gridTimer.current = setTimeout(() => setDebouncedGridHeight(v), 200);
+  };
+  const handleRackChange = (v: number) => {
+    setRackCount(v);
+    if (rackTimer.current) clearTimeout(rackTimer.current);
+    rackTimer.current = setTimeout(() => setDebouncedRackCount(v), 200);
+  };
+
+  // ── Inventory pipeline ─────────────────────────────────────────────────
   type BaseItem = Pick<Item, 'id'>;
 
   const generateItems = useCallback((count: number): BaseItem[] => {
@@ -141,16 +186,12 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const assignDemandDistribution = useCallback(
     (items: BaseItem[], distribution: number): Item[] => {
       if (items.length === 0) return [];
-      const scores = generateDemandScores({
-        count: items.length,
-        distribution,
-      });
+      const scores = generateDemandScores({ count: items.length, distribution });
       const minQty = 10;
       const maxQty = 250;
       return items.map((item, i) => {
         const demandScore = scores[i];
-        const totalQuantity =
-          minQty + Math.round((demandScore / 10) * (maxQty - minQty));
+        const totalQuantity = minQty + Math.round((demandScore / 10) * (maxQty - minQty));
         return { ...item, demandScore, totalQuantity };
       });
     },
@@ -160,10 +201,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const assignProductAffinity = useCallback(
     (items: Item[], affinity: number): Item[] => {
       if (items.length === 0) return items;
-      const groups = generateAffinityGroups({
-        count: items.length,
-        affinity,
-      });
+      const groups = generateAffinityGroups({ count: items.length, affinity });
       return items.map((item, i) => ({ ...item, affinityGroup: groups[i] }));
     },
     []
@@ -172,10 +210,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const assignStorageFootprint = useCallback(
     (items: Item[], footprint: number): Item[] => {
       if (items.length === 0) return items;
-      const footprints = generateFootprints({
-        count: items.length,
-        footprint,
-      });
+      const footprints = generateFootprints({ count: items.length, footprint });
       return items.map((item, i) => ({ ...item, storageFootprint: footprints[i] }));
     },
     []
@@ -200,7 +235,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     );
   });
 
-  // Which inventory view to overlay on the grid.
   const [previewMode, setPreviewMode] = useState<PreviewMode>('layout');
 
   useEffect(() => {
@@ -218,11 +252,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   }, [skuCount, demandDistribution, productAffinity, storageFootprint, generateItems, assignDemandDistribution, assignProductAffinity, assignStorageFootprint]);
 
   const demandSummary = useMemo(
-    () =>
-      summarizeDemandScores(
-        inventory.map((i) => i.demandScore ?? 0),
-        0.2
-      ),
+    () => summarizeDemandScores(inventory.map((i) => i.demandScore ?? 0), 0.2),
     [inventory]
   );
 
@@ -236,13 +266,11 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     [inventory]
   );
 
-  // Callback ref so the ResizeObserver re-attaches whenever the preview node
-  // remounts (e.g. switching between screen-layout variants).
+  // ── Preview measurement (callback ref re-attaches on remount) ──────────
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   const setPreviewRef = useCallback((node: HTMLDivElement | null) => {
-    // Disconnect any observer still attached to a previous node (variant switch).
     const prev = containerRef.current as (HTMLDivElement & { __layoutObserver?: ResizeObserver }) | null;
     prev?.__layoutObserver?.disconnect();
     prev?.__layoutObserver && delete (prev as { __layoutObserver?: ResizeObserver }).__layoutObserver;
@@ -258,11 +286,9 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     (node as HTMLDivElement & { __layoutObserver?: ResizeObserver }).__layoutObserver = observer;
   }, []);
 
-  // The only layout generator left: cross-aisle handles 0 cross aisles
-  // (i.e. plain parallel) naturally.
+  // ── Warehouse + placement previews ─────────────────────────────────────
   const previewWarehouse = useMemo(
-    () =>
-      generateCrossAisleLayout(debouncedGridHeight, debouncedRackCount, aisleWidth, crossAisleCount),
+    () => generateCrossAisleLayout(debouncedGridHeight, debouncedRackCount, aisleWidth, crossAisleCount),
     [debouncedGridHeight, debouncedRackCount, aisleWidth, crossAisleCount]
   );
 
@@ -282,17 +308,12 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
 
   const cellSize = useMemo(() => {
     if (containerSize.width === 0 || containerSize.height === 0) return 16;
-
-    const padding = 24; // 12px on each side
+    const padding = 24;
     const availableWidth = Math.max(1, containerSize.width - padding);
     const availableHeight = Math.max(1, containerSize.height - padding);
-
-    // Fit the ENTIRE warehouse regardless of size: no 4px floor, no 40px cap
-    // beyond a sensible readability ceiling.
     const optimalWidth = (availableWidth - (fullWidth - 1)) / fullWidth;
     const optimalHeight = (availableHeight - (fullHeight - 1)) / fullHeight;
     const fit = Math.min(optimalWidth, optimalHeight);
-    // Never below 1px so the grid still renders; cap at 40px for readability.
     return Math.max(1, Math.min(40, Math.floor(fit)));
   }, [containerSize, fullWidth, fullHeight]);
 
@@ -319,8 +340,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const affinityColor = useCallback(
     (groupId: number | undefined): string => {
       if (groupId == null || groupId <= 0) return '#64748b';
-      const hue =
-        ((groupId * 137.508 + 20) % 360) | 0;
+      const hue = ((groupId * 137.508 + 20) % 360) | 0;
       return `hsl(${hue}, 65%, 50%)`;
     },
     []
@@ -330,25 +350,20 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     (x: number, y: number): string => {
       const sp = shelfLookup.get(`${x},${y}`);
       if (!sp || !sp.active) return '#94a3b8';
-
       if (previewMode === 'demand') {
         const t = maxPlacedDemand > 0 ? Math.min(1, sp.demand / maxPlacedDemand) : 0;
         const h = (1 - t) * 217 + t * 0;
-        const s = 65;
-        const l = 50 + t * 5;
-        return `hsl(${h | 0}, ${s}%, ${l}%)`;
+        return `hsl(${h | 0}, 65%, ${50 + t * 5}%)`;
       }
-
       if (previewMode === 'affinity') {
         return affinityColor(sp.affinityGroup);
       }
-
       return '#1e293b';
     },
     [shelfLookup, previewMode, maxPlacedDemand, affinityColor]
   );
 
-  // ── Live insight metrics (layout / demand / affinity) ──────────────────
+  // ── Insight metrics ────────────────────────────────────────────────────
   const layoutInsights = useMemo(() => {
     let shelfCells = 0;
     let totalCells = 0;
@@ -368,8 +383,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   }, [fullWidth, fullHeight, previewWarehouse, placementPreview.binCount, crossAisleCount]);
 
   const demandInsights = useMemo(() => {
-    // Pearson correlation between shelf proximity (0 = near dispatch) and demand.
-    // Negative r → high demand sits near dispatch (slotting working).
     const pairs = placementPreview.shelves
       .filter((s) => s.active && s.demand > 0)
       .map((s) => ({ p: s.proximity, d: s.demand }));
@@ -378,15 +391,10 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     if (n > 2) {
       const mx = pairs.reduce((a, b) => a + b.p, 0) / n;
       const my = pairs.reduce((a, b) => a + b.d, 0) / n;
-      let num = 0;
-      let dx2 = 0;
-      let dy2 = 0;
+      let num = 0, dx2 = 0, dy2 = 0;
       for (const { p, d } of pairs) {
-        const dx = p - mx;
-        const dy = d - my;
-        num += dx * dy;
-        dx2 += dx * dx;
-        dy2 += dy * dy;
+        const dx = p - mx, dy = d - my;
+        num += dx * dy; dx2 += dx * dx; dy2 += dy * dy;
       }
       if (dx2 > 0 && dy2 > 0) r = num / Math.sqrt(dx2 * dy2);
     }
@@ -414,44 +422,27 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     };
   }, [placementPreview.shelves, placementPreview.categoryCount, categoryClustering]);
 
+  // ── Render helpers ─────────────────────────────────────────────────────
   const renderGrid = () => {
     const cells = [];
-
     for (let y = 0; y < fullHeight; y++) {
       for (let x = 0; x < fullWidth; x++) {
         const cell = previewWarehouse.grid[y][x];
         const key = `${x}-${y}`;
-
         if (cell.type === 'worker-start') {
-          cells.push(
-            <div
-              key={key}
-              style={{ width: cellSize, height: cellSize }}
-              className="relative transition-colors duration-200 bg-warning"
-            />
-          );
+          cells.push(<div key={key} style={{ width: cellSize, height: cellSize }} className="relative transition-colors duration-200 bg-warning" />);
         } else if (cell.type === 'shelf') {
           const isLayoutMode = previewMode === 'layout';
           const shelfColor = isLayoutMode ? undefined : getShelfColor(x, y);
           cells.push(
             <div
               key={key}
-              style={{
-                width: cellSize,
-                height: cellSize,
-                ...(shelfColor ? { backgroundColor: shelfColor } : {}),
-              }}
+              style={{ width: cellSize, height: cellSize, ...(shelfColor ? { backgroundColor: shelfColor } : {}) }}
               className={`relative ${isLayoutMode ? 'bg-accent' : ''}`}
             />
           );
         } else {
-          cells.push(
-            <div
-              key={key}
-              style={{ width: cellSize, height: cellSize }}
-              className="relative transition-colors duration-200 bg-muted"
-            />
-          );
+          cells.push(<div key={key} style={{ width: cellSize, height: cellSize }} className="relative transition-colors duration-200 bg-muted" />);
         }
       }
     }
@@ -475,227 +466,158 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     onClose();
   };
 
-  // ── Props shared with all variants ─────────────────────────────────────
-  const onGeometryChange = useCallback((patch: Partial<{ gridHeight: number; rackCount: number; aisleWidth: number; crossAisleCount: number }>) => {
-    if (patch.gridHeight != null) setGridHeight(patch.gridHeight);
-    if (patch.rackCount != null) setRackCount(patch.rackCount);
-    if (patch.aisleWidth != null) setAisleWidth(patch.aisleWidth);
-    if (patch.crossAisleCount != null) setCrossAisleCount(patch.crossAisleCount);
-  }, []);
+  // ── One-card-open accordion state (may be fully closed) ───────────────
+  const [openCard, setOpenCard] = useState<CardId | null>('geometry');
 
-  const onGeometryCommit = useCallback((patch: Partial<{ gridHeight: number; rackCount: number; aisleWidth: number; crossAisleCount: number }>) => {
-    if (patch.gridHeight != null) setDebouncedGridHeight(patch.gridHeight);
-    if (patch.rackCount != null) setDebouncedRackCount(patch.rackCount);
-  }, []);
+  const cards: { id: CardId; title: string; icon: typeof Warehouse; subtitle: string }[] = [
+    { id: 'geometry', title: 'Geometry', icon: Warehouse, subtitle: 'Racks, aisles & thoroughfares' },
+    { id: 'inventory', title: 'Inventory', icon: Package, subtitle: 'Catalogue, demand & affinity' },
+    { id: 'placement', title: 'Placement', icon: Boxes, subtitle: 'Slotting & zoning' },
+  ];
 
-  // Raster of the warehouse for the Field Map variant (clamped for perf).
-  const layoutRaster = useMemo(() => {
-    const MAX_RASTER = 80;
-    const rh = Math.min(fullHeight, MAX_RASTER);
-    const rw = Math.min(fullWidth, MAX_RASTER);
-    const raster: ('empty' | 'shelf' | 'worker')[][] = [];
-    for (let y = 0; y < rh; y++) {
-      const row: ('empty' | 'shelf' | 'worker')[] = [];
-      for (let x = 0; x < rw; x++) {
-        const cell = previewWarehouse.grid[y]?.[x];
-        row.push(cell?.type === 'shelf' ? 'shelf' : cell?.type === 'worker-start' ? 'worker' : 'empty');
-      }
-      raster.push(row);
-    }
-    return raster;
-  }, [previewWarehouse, fullWidth, fullHeight]);
-
-  // Placement-shelf lookup for the Field Map variant (downsampled to raster).
-  const fieldMapShelfMeta = useMemo(() => {
-    const map = new Map<string, { active: boolean; demand: number; affinity?: number }>();
-    for (const s of placementPreview.shelves) {
-      if (s.x < 80 && s.y < 80) {
-        map.set(`${s.x},${s.y}`, { active: s.active, demand: s.demand, affinity: s.affinityGroup });
-      }
-    }
-    return map;
-  }, [placementPreview.shelves]);
-
-  const variantProps: Omit<LayoutConfigVariantProps, 'renderPreview' | 'renderFooter'> = {
-    geometry: { gridHeight, rackCount, aisleWidth, crossAisleCount },
-    onGeometryChange,
-    onGeometryCommit,
-    skuCount,
-    onSkuCountChange: setSkuCount,
-    demandDistribution,
-    onDemandDistributionChange: setDemandDistribution,
-    productAffinity,
-    onProductAffinityChange: setProductAffinity,
-    storageFootprint,
-    onStorageFootprintChange: setStorageFootprint,
-    slottingBias,
-    onSlottingBiasChange: setSlottingBias,
-    categoryClustering,
-    onCategoryClusteringChange: setCategoryClustering,
-    demandSummary,
-    affinitySummary,
-    footprintSummary,
-    placementSummary: {
-      placed: inventory.length - placementPreview.unplacedCount,
-      total: inventory.length,
-      placedBins: placementPreview.placedBinCount,
-      totalBins: placementPreview.binCount,
-      unplaced: placementPreview.unplacedCount,
-      categoryCount: placementPreview.categoryCount,
-    },
-    previewSize: { width: fullWidth, height: fullHeight },
-    layoutRaster,
-    shelfMeta: fieldMapShelfMeta,
-    previewMode,
-    onPreviewModeChange: setPreviewMode,
-    maxPlacedDemand,
-  };
-
-  const ActiveVariantComponent = LAYOUT_VARIANTS.find((v) => v.id === activeVariant)?.Component ?? LAYOUT_VARIANTS[0].Component;
-
-  const renderFooter = () => (
-    <Button className="w-full" onClick={handleApply} disabled={isGenerating}>
-      {isGenerating ? (
-        <>
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          {isEditing ? 'Updating…' : 'Generating…'}
-        </>
-      ) : isEditing ? (
-        'Update Warehouse'
-      ) : (
-        'Generate Warehouse'
-      )}
-    </Button>
-  );
-
-  const renderPreview = () => (
-    <div ref={setPreviewRef} className="flex flex-col items-center justify-center gap-4 w-full h-full">
-      <div
-        className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
-        style={{
-          gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
-          width: "max-content",
-        }}
-      >
-        {renderGrid()}
-      </div>
-
-      {/* Live insight strip — layout / demand / affinity */}
-      <PreviewInsights
-        mode={previewMode}
-        layout={layoutInsights}
-        demand={demandInsights}
-        affinity={affinityInsights}
-      />
-
-      {/* Preview mode selector */}
-      <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-0.5">
-        {([
-          ['layout', Grid3X3, 'Layout'],
-          ['demand', Thermometer, 'Demand'],
-          ['affinity', Tag, 'Affinity'],
-        ] as const).map(([mode, Icon, label]) => (
-          <button
-            key={mode}
-            onClick={() => setPreviewMode(mode)}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
-              previewMode === mode
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Icon className="h-3 w-3" />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Legend — adapts to the active preview mode */}
-      <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
-        {previewMode === 'layout' && (
-          <>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-accent inline-block rounded-sm" />
-              <span>Shelf</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
-              <span>Empty Shelf</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
-              <span>Dispatch</span>
-            </span>
-          </>
-        )}
-        {previewMode === 'demand' && (
-          <>
-            <span className="flex items-center gap-1.5">
-              <span
-                className="w-3 h-3 inline-block rounded-sm"
-                style={{ backgroundColor: 'hsl(217, 65%, 55%)' }}
-              />
-              <span>Low demand</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className="w-3 h-3 inline-block rounded-sm"
-                style={{ backgroundColor: 'hsl(0, 65%, 55%)' }}
-              />
-              <span>High demand</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
-              <span>No item placed</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
-              <span>Dispatch</span>
-            </span>
-          </>
-        )}
-        {previewMode === 'affinity' && (
-          <>
-            {placedAffinityIds.slice(0, 8).map((gid) => (
-              <span key={gid} className="flex items-center gap-1.5">
-                <span
-                  className="w-3 h-3 inline-block rounded-sm"
-                  style={{ backgroundColor: affinityColor(gid) }}
-                />
-                <span>Group {gid}</span>
-              </span>
-            ))}
-            {placedAffinityIds.length > 8 && (
-              <span className="text-muted-foreground/70">
-                +{placedAffinityIds.length - 8} more
-              </span>
+  const renderCardBody = (id: CardId) => {
+    switch (id) {
+      case 'geometry':
+        return (
+          <div className="space-y-4">
+            <PlainSlider
+              label="Grid Height"
+              value={gridHeight}
+              min={4}
+              max={60}
+              step={getHeightStep(gridHeight)}
+              description={`Vertical height of the storage area (4–60). Step ${getHeightStep(gridHeight)}.`}
+              onChange={handleGridChange}
+              onCommit={(v) => setDebouncedGridHeight(v)}
+            />
+            <PlainSlider
+              label="Rack Count"
+              value={rackCount}
+              min={5}
+              max={60}
+              step={getRackStep(rackCount)}
+              description={`Number of double-row racks (5–60). Step ${getRackStep(rackCount)}.`}
+              onChange={handleRackChange}
+              onCommit={(v) => setDebouncedRackCount(v)}
+            />
+            <PlainSlider
+              label="Aisle Width"
+              value={aisleWidth}
+              min={1}
+              max={5}
+              step={1}
+              description="Spacing between rack columns."
+              onChange={setAisleWidth}
+            />
+            <PlainSlider
+              label="Cross Aisles"
+              value={crossAisleCount}
+              min={0}
+              max={4}
+              step={1}
+              low="0 · Parallel"
+              high="4 · Thoroughfares"
+              description={
+                crossAisleCount === 0
+                  ? 'No cross aisles — a plain parallel layout.'
+                  : `${crossAisleCount} horizontal thoroughfare${crossAisleCount === 1 ? '' : 's'} cutting across the racks.`
+              }
+              onChange={setCrossAisleCount}
+            />
+          </div>
+        );
+      case 'inventory':
+        return (
+          <div className="space-y-4">
+            <PlainSlider
+              label="SKU Count"
+              value={skuCount}
+              min={500}
+              max={10000}
+              step={1}
+              display={skuCount.toLocaleString()}
+              description="Number of unique products to generate."
+              onChange={setSkuCount}
+            />
+            <PlainSlider
+              label="Demand Distribution"
+              value={demandDistribution}
+              min={0}
+              max={100}
+              step={1}
+              display={`${demandDistribution}%`}
+              low="Uniform"
+              high="Pareto"
+              description={`How demand spreads across SKUs. Top 20% hold ${Math.round(demandSummary.topShare * 100)}% of demand.`}
+              onChange={setDemandDistribution}
+            />
+            <PlainSlider
+              label="Product Affinity"
+              value={productAffinity}
+              min={0}
+              max={100}
+              step={1}
+              display={`${productAffinity}%`}
+              low="Independent"
+              high="Highly Related"
+              description={`Which products get bought together. ${affinitySummary.groupCount} groups · largest ${affinitySummary.largestGroupSize}.`}
+              onChange={setProductAffinity}
+            />
+            <PlainSlider
+              label="Storage Footprint"
+              value={storageFootprint}
+              min={0}
+              max={100}
+              step={1}
+              display={`${storageFootprint}%`}
+              low="Compact"
+              high="Bulky"
+              description={`Bins per product. ${footprintSummary.multiBinCount} multi-bin · needs ${footprintSummary.totalBins} bins.`}
+              onChange={setStorageFootprint}
+            />
+          </div>
+        );
+      case 'placement':
+        return (
+          <div className="space-y-4">
+            <PlainSlider
+              label="Slotting Bias"
+              value={slottingBias}
+              min={0}
+              max={100}
+              step={1}
+              display={`${slottingBias}%`}
+              low="Random"
+              high="Demand-Based"
+              description={`How strongly demand drives location. ${inventory.length - placementPreview.unplacedCount} / ${inventory.length} SKUs placed.`}
+              onChange={setSlottingBias}
+            />
+            <PlainSlider
+              label="Category Clustering"
+              value={categoryClustering}
+              min={0}
+              max={100}
+              step={1}
+              display={`${categoryClustering}%`}
+              low="Scattered"
+              high="Clustered"
+              description={`How strongly same-category products are zoned together. ${placementPreview.categoryCount} categories.`}
+              onChange={setCategoryClustering}
+            />
+            {placementPreview.unplacedCount > 0 && (
+              <p className="text-[11px] text-warning font-medium">
+                ⚠ {placementPreview.unplacedCount} SKUs overflow (not enough bins).
+              </p>
             )}
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
-              <span>No item</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
-              <span>Dispatch</span>
-            </span>
-          </>
-        )}
-      </div>
-    </div>
-  );
-
-  // Rebuild variantProps with the render props (renderPreview/renderFooter are
-  // stable enough to be passed once — they close over current state).
-  const screenProps: LayoutConfigVariantProps = {
-    ...variantProps,
-    renderPreview,
-    renderFooter,
+          </div>
+        );
+    }
   };
 
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col animate-in fade-in duration-200">
       {/* Header */}
-      <header className="h-16 border-b flex items-center justify-between px-6 bg-card">
+      <header className="h-16 border-b flex items-center justify-between px-6 bg-card shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-primary/10 p-2 rounded-lg">
             <Layout className="h-5 w-5 text-primary" />
@@ -711,23 +633,173 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            {LAYOUT_VARIANTS.find((v) => v.id === activeVariant)?.name}
-          </span>
-          {canClose && (
-            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
-              <X className="h-5 w-5" />
-            </Button>
-          )}
-        </div>
+        {canClose && (
+          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+            <X className="h-5 w-5" />
+          </Button>
+        )}
       </header>
 
-      {/* Main Content — the active screen-layout variant arranges controls + preview */}
-      <ActiveVariantComponent {...screenProps} />
+      {/* Main — Split Deck: left cards, right preview */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left sidebar — one card open at a time */}
+        <aside className="w-[340px] shrink-0 border-r bg-card overflow-y-auto p-3 space-y-2">
+          {cards.map((c) => {
+            const Icon = c.icon;
+            const isOpen = openCard === c.id;
+            return (
+              <div
+                key={c.id}
+                className={cn(
+                  'rounded-xl border bg-surface transition-all',
+                  isOpen ? 'border-accent/60 shadow-md' : 'border-border-default hover:border-accent/40'
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenCard(isOpen ? null : c.id)}
+                  className="flex items-center gap-2.5 px-3 py-2.5 w-full text-left"
+                >
+                  <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg', isOpen ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className={cn('block text-xs font-bold truncate', isOpen ? 'text-text-primary' : 'text-text-secondary')}>{c.title}</span>
+                    {!isOpen && <span className="block text-[9px] text-text-muted truncate">{c.subtitle}</span>}
+                  </span>
+                  <ChevronRight className={cn('h-3.5 w-3.5 text-text-muted transition-transform shrink-0', isOpen && 'rotate-90')} />
+                </button>
+                {isOpen && (
+                  <div className="px-3 pb-3 space-y-4 border-t border-border-default pt-2.5">
+                    {renderCardBody(c.id)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
-      {/* Floating variant toolbar (bottom-right, keys 1-5) */}
-      <VariantToolbar activeVariant={activeVariant} onSelect={setActiveVariant} />
+          <div className="pt-2">
+            <Button className="w-full" onClick={handleApply} disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {isEditing ? 'Updating…' : 'Generating…'}
+                </>
+              ) : isEditing ? (
+                'Update Warehouse'
+              ) : (
+                'Generate Warehouse'
+              )}
+            </Button>
+          </div>
+        </aside>
+
+        {/* Right — live preview, always fits */}
+        <main ref={setPreviewRef} className="flex-1 bg-muted/20 overflow-auto min-h-0">
+          <div className="flex flex-col items-center justify-center min-h-full min-w-full p-6 gap-4">
+            <div
+              className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
+              style={{
+                gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
+                width: 'max-content',
+              }}
+            >
+              {renderGrid()}
+            </div>
+
+            <PreviewInsights
+              mode={previewMode}
+              layout={layoutInsights}
+              demand={demandInsights}
+              affinity={affinityInsights}
+            />
+
+            {/* Preview mode selector */}
+            <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-0.5">
+              {([
+                ['layout', Grid3X3, 'Layout'],
+                ['demand', Thermometer, 'Demand'],
+                ['affinity', Tag, 'Affinity'],
+              ] as const).map(([mode, Icon, label]) => (
+                <button
+                  key={mode}
+                  onClick={() => setPreviewMode(mode)}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                    previewMode === mode
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Icon className="h-3 w-3" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Legend — adapts to the active preview mode */}
+            <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
+              {previewMode === 'layout' && (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 bg-accent inline-block rounded-sm" />
+                    <span>Shelf</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
+                    <span>Empty Shelf</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
+                    <span>Dispatch</span>
+                  </span>
+                </>
+              )}
+              {previewMode === 'demand' && (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 inline-block rounded-sm" style={{ backgroundColor: 'hsl(217, 65%, 55%)' }} />
+                    <span>Low demand</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 inline-block rounded-sm" style={{ backgroundColor: 'hsl(0, 65%, 55%)' }} />
+                    <span>High demand</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
+                    <span>No item placed</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
+                    <span>Dispatch</span>
+                  </span>
+                </>
+              )}
+              {previewMode === 'affinity' && (
+                <>
+                  {placedAffinityIds.slice(0, 8).map((gid) => (
+                    <span key={gid} className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 inline-block rounded-sm" style={{ backgroundColor: affinityColor(gid) }} />
+                      <span>Group {gid}</span>
+                    </span>
+                  ))}
+                  {placedAffinityIds.length > 8 && (
+                    <span className="text-muted-foreground/70">+{placedAffinityIds.length - 8} more</span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
+                    <span>No item</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
+                    <span>Dispatch</span>
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
+
