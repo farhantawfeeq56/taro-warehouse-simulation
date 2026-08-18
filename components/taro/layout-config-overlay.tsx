@@ -41,7 +41,7 @@ import {
   summarizeFootprints,
 } from '@/lib/taro/footprint';
 import { PreviewStats } from './layout-config-variants';
-import { AffinityView, affinityColor, type AffinityColorVariant } from './affinity-view-variants';
+import { AffinityGrid, affinityColor } from './affinity-view';
 
 export interface LayoutConfig {
   gridHeight: number;
@@ -250,8 +250,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
       )
     );
   }, [skuCount, demandDistribution, productAffinity, storageFootprint, generateItems, assignDemandDistribution, assignProductAffinity, assignStorageFootprint]);
-
-  const [affinityVariant, setAffinityVariant] = useState<AffinityColorVariant>(1);
 
   const demandSummary = useMemo(
     () => summarizeDemandScores(inventory.map((i) => i.demandScore ?? 0), 0.2),
@@ -576,24 +574,22 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
         <main ref={setPreviewRef} className="flex-1 bg-muted/20 overflow-auto min-h-0">
           <div className="flex flex-col items-center justify-center min-h-full min-w-full p-6 gap-4">
             {/* Affinity floorplan — the only preview view now */}
-            <AffinityView
+            <AffinityGrid
               grid={previewWarehouse.grid}
               shelfLookup={shelfLookup}
               cellSize={cellSize}
               fullWidth={fullWidth}
               fullHeight={fullHeight}
-              variant={affinityVariant}
-              onVariantChange={setAffinityVariant}
             />
 
             <PreviewStats />
 
-            {/* Affinity legend — adapts to the active variant */}
+            {/* Affinity legend */}
             <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <span
                   className="w-3 h-3 inline-block rounded-sm"
-                  style={{ backgroundColor: affinityColor(affinityVariant, 1) }}
+                  style={{ backgroundColor: affinityColor(1) }}
                 />
                 <span>Each color = an affinity group</span>
               </span>
