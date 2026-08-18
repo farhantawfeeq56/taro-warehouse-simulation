@@ -40,7 +40,7 @@ import {
   generateFootprints,
   summarizeFootprints,
 } from '@/lib/taro/footprint';
-import { PreviewInsights, type PreviewMode } from './layout-config-variants';
+import { PreviewStats, type PreviewMode } from './layout-config-variants';
 
 export interface LayoutConfig {
   gridHeight: number;
@@ -327,16 +327,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
 
   const maxPlacedDemand = placementPreview.maxDemand;
 
-  const placedAffinityIds = useMemo(() => {
-    const ids = new Set<number>();
-    for (const s of placementPreview.shelves) {
-      if (s.affinityGroup != null && s.affinityGroup > 0) {
-        ids.add(s.affinityGroup);
-      }
-    }
-    return Array.from(ids).sort((a, b) => a - b);
-  }, [placementPreview.shelves]);
-
   const affinityColor = useCallback(
     (groupId: number | undefined): string => {
       if (groupId == null || groupId <= 0) return '#64748b';
@@ -362,65 +352,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     },
     [shelfLookup, previewMode, maxPlacedDemand, affinityColor]
   );
-
-  // ── Insight metrics ────────────────────────────────────────────────────
-  const layoutInsights = useMemo(() => {
-    let shelfCells = 0;
-    let totalCells = 0;
-    for (let y = 0; y < fullHeight; y++) {
-      for (let x = 0; x < fullWidth; x++) {
-        totalCells++;
-        if (previewWarehouse.grid[y][x].type === 'shelf') shelfCells++;
-      }
-    }
-    return {
-      shelfCells,
-      totalCells,
-      binCapacity: placementPreview.binCount,
-      crossAisles: crossAisleCount,
-      segments: Math.max(1, crossAisleCount + 1),
-    };
-  }, [fullWidth, fullHeight, previewWarehouse, placementPreview.binCount, crossAisleCount]);
-
-  const demandInsights = useMemo(() => {
-    const pairs = placementPreview.shelves
-      .filter((s) => s.active && s.demand > 0)
-      .map((s) => ({ p: s.proximity, d: s.demand }));
-    const n = pairs.length;
-    let r = 0;
-    if (n > 2) {
-      const mx = pairs.reduce((a, b) => a + b.p, 0) / n;
-      const my = pairs.reduce((a, b) => a + b.d, 0) / n;
-      let num = 0, dx2 = 0, dy2 = 0;
-      for (const { p, d } of pairs) {
-        const dx = p - mx, dy = d - my;
-        num += dx * dy; dx2 += dx * dx; dy2 += dy * dy;
-      }
-      if (dx2 > 0 && dy2 > 0) r = num / Math.sqrt(dx2 * dy2);
-    }
-    return {
-      topShare: demandSummary.topShare,
-      demandProximityCorrelation: Number.isFinite(r) ? r : 0,
-      slottingBias,
-    };
-  }, [placementPreview.shelves, demandSummary.topShare, slottingBias]);
-
-  const affinityInsights = useMemo(() => {
-    const active = placementPreview.shelves.filter((s) => s.active);
-    const placedGroups = new Map<number, number>();
-    for (const s of active) {
-      if (s.affinityGroup != null && s.affinityGroup > 0) {
-        placedGroups.set(s.affinityGroup, (placedGroups.get(s.affinityGroup) ?? 0) + 1);
-      }
-    }
-    const largest = Math.max(0, ...placedGroups.values());
-    return {
-      placedGroupCount: placedGroups.size,
-      largestGroupShare: active.length > 0 ? largest / active.length : 0,
-      categoryCount: placementPreview.categoryCount,
-      clustering: categoryClustering,
-    };
-  }, [placementPreview.shelves, placementPreview.categoryCount, categoryClustering]);
 
   // ── Render helpers ─────────────────────────────────────────────────────
   const renderGrid = () => {
@@ -707,12 +638,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               {renderGrid()}
             </div>
 
-            <PreviewInsights
-              mode={previewMode}
-              layout={layoutInsights}
-              demand={demandInsights}
-              affinity={affinityInsights}
-            />
+            <PreviewStats />
 
             {/* Preview mode selector */}
             <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-0.5">
@@ -776,15 +702,13 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               )}
               {previewMode === 'affinity' && (
                 <>
-                  {placedAffinityIds.slice(0, 8).map((gid) => (
-                    <span key={gid} className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 inline-block rounded-sm" style={{ backgroundColor: affinityColor(gid) }} />
-                      <span>Group {gid}</span>
-                    </span>
-                  ))}
-                  {placedAffinityIds.length > 8 && (
-                    <span className="text-muted-foreground/70">+{placedAffinityIds.length - 8} more</span>
-                  )}
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="w-3 h-3 inline-block rounded-sm"
+                      style={{ backgroundColor: affinityColor(1) }}
+                    />
+                    <span>Each color = an affinity group</span>
+                  </span>
                   <span className="flex items-center gap-1.5">
                     <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
                     <span>No item</span>
