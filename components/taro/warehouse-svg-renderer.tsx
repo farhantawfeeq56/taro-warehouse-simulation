@@ -504,7 +504,7 @@ function WarehouseSvgRendererInner({
             fontSize={12}
             textAnchor="middle"
             dominantBaseline="central"
-            fontFamily="sans-serif"
+            fontFamily="Instrument Sans, sans-serif"
           >
             S
           </text>
@@ -529,7 +529,7 @@ function WarehouseSvgRendererInner({
                 <div key={idx} className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#3b82f6' }} />
                   <span>Z{loc.z}</span>
-                  <span className="font-mono">{loc.sku}</span>
+                  <span className="font-sans">{loc.sku}</span>
                   <span className="text-background/70">×{loc.quantity}</span>
                 </div>
               ))
@@ -560,7 +560,7 @@ function WarehouseSvgRendererInner({
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
               {shelfBins.map((bin) => (
                 <div key={bin.id} className="flex items-center justify-between gap-2 p-2 rounded bg-muted/50 text-xs">
-                  <div className="font-mono font-medium truncate">{bin.sku}</div>
+                  <div className="font-sans font-medium truncate">{bin.sku}</div>
                   <div className="text-muted-foreground">Z{bin.z} · qty {bin.quantity}</div>
                 </div>
               ))}

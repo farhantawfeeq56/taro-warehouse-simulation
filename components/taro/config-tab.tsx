@@ -34,7 +34,7 @@ function ConfigItem({ icon, label, value, suffix }: ConfigItemProps) {
         <span className="text-muted-foreground">{icon}</span>
         <span>{label}</span>
       </div>
-      <span className="text-xs font-mono font-semibold text-foreground">
+      <span className="text-xs font-sans font-semibold text-foreground">
         {value}
         {suffix && <span className="text-muted-foreground font-normal ml-0.5">{suffix}</span>}
       </span>

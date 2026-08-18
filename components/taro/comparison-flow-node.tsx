@@ -217,7 +217,7 @@ function ComparisonFlowNode({ data }: NodeProps<Node<ComparisonNodeData>>) {
               <div className="text-[11px] font-semibold text-foreground truncate">
                 {data.score.winnerName}
               </div>
-              <div className="text-[10px] text-muted-foreground font-mono">
+              <div className="text-[10px] text-muted-foreground font-sans">
                 {data.score.winnerEfficiency}% efficiency
               </div>
             </div>

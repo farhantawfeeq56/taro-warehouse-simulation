@@ -122,7 +122,7 @@ function PlainSlider({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[13px] font-medium text-text-primary">{label}</span>
-        <span className="text-xs font-mono text-text-primary bg-muted px-1.5 py-0.5 rounded">
+        <span className="text-xs font-sans text-text-primary bg-muted px-1.5 py-0.5 rounded">
           {display ?? value}
         </span>
       </div>

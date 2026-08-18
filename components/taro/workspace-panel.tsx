@@ -135,7 +135,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
             <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80">
               <WarehouseIcon className="h-3 w-3" />
               <span>Warehouses</span>
-              <span className="text-muted-foreground/50 font-mono">({props.warehouses.length})</span>
+              <span className="text-muted-foreground/50 font-sans">({props.warehouses.length})</span>
             </div>
           </div>
           {props.warehouses.length === 0 ? (
@@ -218,7 +218,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
             <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80">
               <GitCompareArrows className="h-3 w-3" />
               <span>Comparisons</span>
-              <span className="text-muted-foreground/50 font-mono">({props.comparisons.length})</span>
+              <span className="text-muted-foreground/50 font-sans">({props.comparisons.length})</span>
             </div>
           </div>
           {props.comparisons.length === 0 ? (
@@ -276,7 +276,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                         {props.renamingComparisonId === c.id && (
                           <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
                         )}
-                        <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
+                        <span className="text-[10px] text-muted-foreground/60 font-sans shrink-0">
                           {c.warehouseIds.length}w
                         </span>
                         <button

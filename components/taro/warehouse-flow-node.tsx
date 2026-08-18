@@ -243,7 +243,7 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
               aria-label="Worker count"
             >
               <Users className="h-3.5 w-3.5" />
-              <span className="text-[10px] font-mono font-semibold">{data.workerCount}</span>
+              <span className="text-[10px] font-sans font-semibold">{data.workerCount}</span>
             </button>
             {workersOpen && (
               <div
@@ -266,7 +266,7 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
                 />
                 <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
                   <span>1</span>
-                  <span className="font-mono font-semibold text-foreground">{data.workerCount}</span>
+                  <span className="font-sans font-semibold text-foreground">{data.workerCount}</span>
                   <span>10</span>
                 </div>
               </div>

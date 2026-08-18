@@ -353,11 +353,11 @@ export function SystemStatePanel({
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5 ml-5 text-xs text-muted-foreground">
-                  <span className="font-mono">{strategy.totalDistance}m</span>
+                  <span className="font-sans">{strategy.totalDistance}m</span>
                   <span className="text-[10px] opacity-50">•</span>
-                  <span className="font-mono">{strategy.estimatedTime} min</span>
+                  <span className="font-sans">{strategy.estimatedTime} min</span>
                   <span className="text-[10px] opacity-50">•</span>
-                  <span className="font-mono">${strategy.costPerOrder}</span>
+                  <span className="font-sans">${strategy.costPerOrder}</span>
                 </div>
               </button>
             );
@@ -371,7 +371,7 @@ export function SystemStatePanel({
                 Worker Allocation
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-muted-foreground">
+                <span className="text-xs font-sans text-muted-foreground">
                   Req: {workerCount} | Active: {activeResult.workerRoutes.filter(w => w.assignedPickCount > 0).length}
                 </span>
               </div>
@@ -390,7 +390,7 @@ export function SystemStatePanel({
                   <div key={worker.workerId} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold">Worker {worker.workerId}</span>
-                      <span className="font-mono text-muted-foreground">{completedPicks} / {totalPicks} picks</span>
+                      <span className="font-sans text-muted-foreground">{completedPicks} / {totalPicks} picks</span>
                     </div>
                     {isIdle && (
                       <div className="text-[10px] text-muted-foreground/60 italic leading-tight">
@@ -422,7 +422,7 @@ export function SystemStatePanel({
                   <div className="text-xs font-semibold mb-1">Worker {worker.workerId}</div>
                   <ol className="space-y-1 text-xs">
                     {worker.tasks.map((task) => (
-                      <li key={`${worker.workerId}-${task.step}`} className="font-mono">
+                      <li key={`${worker.workerId}-${task.step}`} className="font-sans">
                         {task.step}. {task.zone ? `${task.zone} → ` : ''}{task.location} ({task.sku})
                       </li>
                     ))}
@@ -434,7 +434,7 @@ export function SystemStatePanel({
             <div className="text-xs space-y-1">
               <div className="font-semibold">Route Order</div>
               {executionPlan.workerRoutes.map((worker) => (
-                <div key={`route-${worker.workerId}`} className="font-mono text-muted-foreground">
+                <div key={`route-${worker.workerId}`} className="font-sans text-muted-foreground">
                   Worker {worker.workerId}: Start → {worker.tasks.map((task) => task.location).join(' → ') || 'No picks'}
                 </div>
               ))}
@@ -443,15 +443,15 @@ export function SystemStatePanel({
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="border border-border rounded-md p-2 bg-background">
                 <div className="text-muted-foreground">Distance</div>
-                <div className="font-bold font-mono">{executionPlan.totalDistance}m</div>
+                <div className="font-bold font-sans">{executionPlan.totalDistance}m</div>
               </div>
               <div className="border border-border rounded-md p-2 bg-background">
                 <div className="text-muted-foreground">Time</div>
-                <div className="font-bold font-mono">{executionPlan.estimatedTime} min</div>
+                <div className="font-bold font-sans">{executionPlan.estimatedTime} min</div>
               </div>
               <div className="border border-border rounded-md p-2 bg-background">
                 <div className="text-muted-foreground">Efficiency</div>
-                <div className="font-bold font-mono">{executionPlan.efficiency}%</div>
+                <div className="font-bold font-sans">{executionPlan.efficiency}%</div>
               </div>
             </div>
 
