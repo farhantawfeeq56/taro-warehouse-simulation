@@ -16,7 +16,7 @@
  */
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { X, Layout, Grid3X3, Thermometer, Tag, Loader2, ChevronRight, Warehouse, Package, Boxes } from 'lucide-react';
+import { X, Layout, Loader2, ChevronRight, Warehouse, Package, Boxes } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Item } from '@/lib/taro/types';
@@ -40,7 +40,8 @@ import {
   generateFootprints,
   summarizeFootprints,
 } from '@/lib/taro/footprint';
-import { PreviewStats, type PreviewMode } from './layout-config-variants';
+import { PreviewStats } from './layout-config-variants';
+import { AffinityView, affinityColor } from './affinity-view-variants';
 
 export interface LayoutConfig {
   gridHeight: number;
@@ -235,7 +236,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     );
   });
 
-  const [previewMode, setPreviewMode] = useState<PreviewMode>('layout');
 
   useEffect(() => {
     setInventory(
@@ -324,61 +324,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     }
     return map;
   }, [placementPreview.shelves]);
-
-  const maxPlacedDemand = placementPreview.maxDemand;
-
-  const affinityColor = useCallback(
-    (groupId: number | undefined): string => {
-      if (groupId == null || groupId <= 0) return '#64748b';
-      const hue = ((groupId * 137.508 + 20) % 360) | 0;
-      return `hsl(${hue}, 65%, 50%)`;
-    },
-    []
-  );
-
-  const getShelfColor = useCallback(
-    (x: number, y: number): string => {
-      const sp = shelfLookup.get(`${x},${y}`);
-      if (!sp || !sp.active) return '#94a3b8';
-      if (previewMode === 'demand') {
-        const t = maxPlacedDemand > 0 ? Math.min(1, sp.demand / maxPlacedDemand) : 0;
-        const h = (1 - t) * 217 + t * 0;
-        return `hsl(${h | 0}, 65%, ${50 + t * 5}%)`;
-      }
-      if (previewMode === 'affinity') {
-        return affinityColor(sp.affinityGroup);
-      }
-      return '#1e293b';
-    },
-    [shelfLookup, previewMode, maxPlacedDemand, affinityColor]
-  );
-
-  // ── Render helpers ─────────────────────────────────────────────────────
-  const renderGrid = () => {
-    const cells = [];
-    for (let y = 0; y < fullHeight; y++) {
-      for (let x = 0; x < fullWidth; x++) {
-        const cell = previewWarehouse.grid[y][x];
-        const key = `${x}-${y}`;
-        if (cell.type === 'worker-start') {
-          cells.push(<div key={key} style={{ width: cellSize, height: cellSize }} className="relative transition-colors duration-200 bg-warning" />);
-        } else if (cell.type === 'shelf') {
-          const isLayoutMode = previewMode === 'layout';
-          const shelfColor = isLayoutMode ? undefined : getShelfColor(x, y);
-          cells.push(
-            <div
-              key={key}
-              style={{ width: cellSize, height: cellSize, ...(shelfColor ? { backgroundColor: shelfColor } : {}) }}
-              className={`relative ${isLayoutMode ? 'bg-accent' : ''}`}
-            />
-          );
-        } else {
-          cells.push(<div key={key} style={{ width: cellSize, height: cellSize }} className="relative transition-colors duration-200 bg-muted" />);
-        }
-      }
-    }
-    return cells;
-  };
 
   const handleApply = async () => {
     const config: LayoutConfig = {
@@ -628,97 +573,34 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
         {/* Right — live preview, always fits */}
         <main ref={setPreviewRef} className="flex-1 bg-muted/20 overflow-auto min-h-0">
           <div className="flex flex-col items-center justify-center min-h-full min-w-full p-6 gap-4">
-            <div
-              className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
-              style={{
-                gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
-                width: 'max-content',
-              }}
-            >
-              {renderGrid()}
-            </div>
+            {/* Affinity floorplan — the only preview view now */}
+            <AffinityView
+              grid={previewWarehouse.grid}
+              shelfLookup={shelfLookup}
+              cellSize={cellSize}
+              fullWidth={fullWidth}
+              fullHeight={fullHeight}
+            />
 
             <PreviewStats />
 
-            {/* Preview mode selector */}
-            <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-0.5">
-              {([
-                ['layout', Grid3X3, 'Layout'],
-                ['demand', Thermometer, 'Demand'],
-                ['affinity', Tag, 'Affinity'],
-              ] as const).map(([mode, Icon, label]) => (
-                <button
-                  key={mode}
-                  onClick={() => setPreviewMode(mode)}
-                  className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
-                    previewMode === mode
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <Icon className="h-3 w-3" />
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Legend — adapts to the active preview mode */}
+            {/* Affinity legend — adapts to the active variant */}
             <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
-              {previewMode === 'layout' && (
-                <>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-accent inline-block rounded-sm" />
-                    <span>Shelf</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
-                    <span>Empty Shelf</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
-                    <span>Dispatch</span>
-                  </span>
-                </>
-              )}
-              {previewMode === 'demand' && (
-                <>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 inline-block rounded-sm" style={{ backgroundColor: 'hsl(217, 65%, 55%)' }} />
-                    <span>Low demand</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 inline-block rounded-sm" style={{ backgroundColor: 'hsl(0, 65%, 55%)' }} />
-                    <span>High demand</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
-                    <span>No item placed</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
-                    <span>Dispatch</span>
-                  </span>
-                </>
-              )}
-              {previewMode === 'affinity' && (
-                <>
-                  <span className="flex items-center gap-1.5">
-                    <span
-                      className="w-3 h-3 inline-block rounded-sm"
-                      style={{ backgroundColor: affinityColor(1) }}
-                    />
-                    <span>Each color = an affinity group</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
-                    <span>No item</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
-                    <span>Dispatch</span>
-                  </span>
-                </>
-              )}
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="w-3 h-3 inline-block rounded-sm"
+                  style={{ backgroundColor: affinityColor(1) }}
+                />
+                <span>Each color = an affinity group</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 bg-muted-foreground inline-block rounded-sm" />
+                <span>No item</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 bg-warning inline-block rounded-sm" />
+                <span>Dispatch</span>
+              </span>
             </div>
           </div>
         </main>

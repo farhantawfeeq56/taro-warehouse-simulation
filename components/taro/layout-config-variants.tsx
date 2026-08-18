@@ -9,8 +9,6 @@
 import type { ReactNode } from 'react';
 import { Boxes, Layers, LayoutGrid, Target, type LucideIcon } from 'lucide-react';
 
-export type PreviewMode = 'layout' | 'demand' | 'affinity';
-
 export interface PreviewStatRow {
   label: string;
   value?: string;
