@@ -1,123 +1,121 @@
 'use client';
 
 /**
- * Affinity preview — vartest10.
+ * Affinity preview — vartest10 (colors only).
  *
- * The layout-config preview is now affinity-only (the layout & demand views
- * were removed). This module renders the affinity floorplan in TEN visual
- * directions — each a different encoding of the same affinity-group data:
+ * The layout-config preview is affinity-only (layout & demand views were
+ * removed). The rendering is always the same: shelves are solid squares
+ * colored by their affinity group, empty shelves stay grey. What changes
+ * between variants is ONLY the color mapping — ten different color
+ * directions for the same data:
  *
- *   1. Flat     — solid group-color fill per shelf (baseline).
- *   2. Zones    — pale wash + inset hue ring, contiguous zones pop.
- *   3. Weight   — intensity scales with group size (bigger = bolder).
- *   4. Dots     — each shelf becomes a colored dot on a quiet grid.
- *   5. Diamonds — shelves render as rotated diamonds.
- *   6. Blobs    — soft radial glow around each group's centroid.
- *   7. Rings    — topo-style contour rings around group centroids.
- *   8. Pulse    — staggered breathing animation per group.
- *   9. Chips    — rounded chips on a tray, shelf gaps emphasized.
- *  10. Links    — nearest-neighbour lines tie each group together.
+ *   1. Rainbow   — classic golden-angle hue spread (baseline).
+ *   2. Pastel    — soft, desaturated tints (better shelf differentiation
+ *                  at a glance, calmer).
+ *   3. Deep      — dark, saturated tones (strong contrast, heavier).
+ *   4. Neon      — electric saturated hues on a dark-ink floor.
+ *   5. Cool      — blue–green–teal family only.
+ *   6. Warm      — red–orange–yellow family only.
+ *   7. Spectrum  — strict hue sweep around the wheel (golden angle removed).
+ *   8. Gradient  — groups sorted by size, colored across a fixed ramp
+ *                  (blue → teal → green → amber → red).
+ *   9. Analogous — neighbouring hues around a fixed base.
+ *  10. Mono      — single hue; lightness scales with group id.
  *
  * A floating segmented toolbar sits bottom-right of the preview.
  * Keys 1–9 switch variants, 0 switches to variant 10 (ignored while typing).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Cell } from '@/lib/taro/types';
 import type { ShelfPlacementPreview } from '@/lib/taro/inventory-placement';
 
-export type AffinityVariant = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+export type AffinityColorVariant = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
-const VARIANT_LABELS: { id: AffinityVariant; label: string }[] = [
-  { id: 1, label: 'Flat' },
-  { id: 2, label: 'Zones' },
-  { id: 3, label: 'Weight' },
-  { id: 4, label: 'Dots' },
-  { id: 5, label: 'Diamonds' },
-  { id: 6, label: 'Blobs' },
-  { id: 7, label: 'Rings' },
-  { id: 8, label: 'Pulse' },
-  { id: 9, label: 'Chips' },
-  { id: 10, label: 'Links' },
+const VARIANT_LABELS: { id: AffinityColorVariant; label: string }[] = [
+  { id: 1, label: 'Rainbow' },
+  { id: 2, label: 'Pastel' },
+  { id: 3, label: 'Deep' },
+  { id: 4, label: 'Neon' },
+  { id: 5, label: 'Cool' },
+  { id: 6, label: 'Warm' },
+  { id: 7, label: 'Spectrum' },
+  { id: 8, label: 'Gradient' },
+  { id: 9, label: 'Analogous' },
+  { id: 10, label: 'Mono' },
 ];
 
 /* ------------------------------------------------------------------------ */
-/* Group colors + stats                                                      */
+/* Color schemes — one function per variant, same signature                 */
 /* ------------------------------------------------------------------------ */
 
-/** Stable hue for an affinity group id. */
+type ColorFn = (groupId: number) => string;
+
+/** Stable golden-angle hue for a group id (the pre-vartest baseline). */
 export function groupHue(groupId: number): number {
   return ((groupId * 137.508 + 20) % 360) | 0;
 }
 
-/** Solid group color — also used by the legend below the preview. */
-export function affinityColor(groupId: number | undefined): string {
-  if (groupId == null || groupId <= 0) return '#64748b';
-  return `hsl(${groupHue(groupId)}, 65%, 50%)`;
-}
-
-interface GroupStats {
-  id: number;
-  hue: number;
-  size: number;
-  cx: number;
-  cy: number;
-  shelves: { x: number; y: number }[];
-  maxRadius: number;
-}
-
-function buildGroupStats(shelfLookup: Map<string, ShelfPlacementPreview>): GroupStats[] {
-  const byId = new Map<number, GroupStats>();
-  for (const sp of shelfLookup.values()) {
-    if (!sp.active || sp.affinityGroup == null || sp.affinityGroup <= 0) continue;
-    let g = byId.get(sp.affinityGroup);
-    if (!g) {
-      g = {
-        id: sp.affinityGroup,
-        hue: groupHue(sp.affinityGroup),
-        size: 0,
-        cx: 0,
-        cy: 0,
-        shelves: [],
-        maxRadius: 0,
-      };
-      byId.set(sp.affinityGroup, g);
-    }
-    g.size += 1;
-    g.cx += sp.x;
-    g.cy += sp.y;
-    g.shelves.push({ x: sp.x, y: sp.y });
-  }
-  const groups = [...byId.values()];
-  for (const g of groups) {
-    g.cx /= g.size;
-    g.cy /= g.size;
-    let maxR = 0;
-    for (const s of g.shelves) {
-      const r = Math.hypot(s.x - g.cx, s.y - g.cy);
-      if (r > maxR) maxR = r;
-    }
-    g.maxRadius = maxR;
-  }
-  return groups;
-}
+const colorSchemes: Record<AffinityColorVariant, ColorFn> = {
+  // 1. Rainbow — baseline golden-angle spread, mid saturation/lightness.
+  1: (g) => `hsl(${groupHue(g)}, 65%, 50%)`,
+  // 2. Pastel — soft tints, low-ish saturation, high lightness.
+  2: (g) => `hsl(${groupHue(g)}, 55%, 78%)`,
+  // 3. Deep — dark saturated tones.
+  3: (g) => `hsl(${groupHue(g)}, 72%, 34%)`,
+  // 4. Neon — electric hues; the variant overlay paints the floor near-black.
+  4: (g) => `hsl(${groupHue(g)}, 100%, 60%)`,
+  // 5. Cool — blue → cyan → teal → green band (90°..200°).
+  5: (g) => `hsl(${90 + ((g * 137.508) % 110) | 0}, 65%, 50%)`,
+  // 6. Warm — red → orange → yellow band (0°..70°).
+  6: (g) => `hsl(${((g * 137.508) % 70) | 0}, 65%, 50%)`,
+  // 7. Spectrum — strict 360° sweep, evenly spaced by id.
+  7: (g) => `hsl(${(g * 36) % 360}, 65%, 50%)`,
+  // 8. Gradient — sorted-by-size groups across a blue→red ramp (size-rank
+  //    override in the grid; this fallback only guards direct calls).
+  8: (g) => `hsl(${(g * 19) % 220 | 0}, 65%, 50%)`,
+  // 9. Analogous — neighbouring hues around a fixed base (220°).
+  9: (g) => `hsl(${220 + (g % 5) * 12 - 24}, 65%, 50%)`,
+  // 10. Mono — single hue, lightness steps up with group id.
+  10: (g) => `hsl(260, 55%, ${(34 + (g % 5) * 13) | 0}%)`,
+};
 
 /* ------------------------------------------------------------------------ */
 /* Affinity grid                                                             */
 /* ------------------------------------------------------------------------ */
 
-export interface AffinityViewProps {
+export interface AffinityGridProps {
   grid: Cell[][];
   shelfLookup: Map<string, ShelfPlacementPreview>;
   cellSize: number;
   fullWidth: number;
   fullHeight: number;
-  variant: AffinityVariant;
+  variant: AffinityColorVariant;
+}
+
+/** Color for an affinity group under the given scheme (0/undefined → grey). */
+export function affinityColor(variant: AffinityColorVariant, groupId: number | undefined): string {
+  if (groupId == null || groupId <= 0) return '#64748b';
+  return colorSchemes[variant](groupId);
 }
 
 const EMPTY_SHELF = '#94a3b8';
 const NO_ITEM = '#e2e8f0';
+
+/** Blue → teal → green → amber → red ramp positions (0..240). */
+const SIZE_RAMP = [0, 38, 76, 114, 152, 190, 220, 240];
+
+/** Rank groups by size (largest = 0) so bigger groups get the hottest color. */
+function sizeRank(shelfLookup: Map<string, ShelfPlacementPreview>): Map<number, number> {
+  const sizes = new Map<number, number>();
+  for (const sp of shelfLookup.values()) {
+    if (!sp.active || sp.affinityGroup == null || sp.affinityGroup <= 0) continue;
+    sizes.set(sp.affinityGroup, (sizes.get(sp.affinityGroup) ?? 0) + 1);
+  }
+  const sorted = [...sizes.entries()].sort((a, b) => b[1] - a[1]);
+  return new Map(sorted.map(([g], i) => [g, i]));
+}
 
 export function AffinityGrid({
   grid,
@@ -126,21 +124,10 @@ export function AffinityGrid({
   fullWidth,
   fullHeight,
   variant,
-}: AffinityViewProps) {
-  const groups = useMemo(() => buildGroupStats(shelfLookup), [shelfLookup]);
-  const sizeByGroup = useMemo(() => new Map(groups.map((g) => [g.id, g.size])), [groups]);
-  const maxSize = useMemo(() => Math.max(1, ...groups.map((g) => g.size)), [groups]);
-
-  // Grid box geometry (border 1px + padding 1px each side, 1px gaps).
-  const step = cellSize + 1;
-  const boxOffset = 2;
-  const gridW = fullWidth * step + 3;
-  const gridH = fullHeight * step + 3;
-  const center = (x: number, y: number) => ({
-    x: boxOffset + x * step + cellSize / 2,
-    y: boxOffset + y * step + cellSize / 2,
-  });
-
+}: AffinityGridProps) {
+  const isNeon = variant === 4;
+  const colorFn = colorSchemes[variant];
+  const rank = variant === 8 ? sizeRank(shelfLookup) : null;
   const cells = [];
   for (let y = 0; y < fullHeight; y++) {
     for (let x = 0; x < fullWidth; x++) {
@@ -152,230 +139,35 @@ export function AffinityGrid({
         continue;
       }
       if (cell.type !== 'shelf') {
-        cells.push(<div key={key} style={style} className="relative bg-muted" />);
+        cells.push(
+          <div
+            key={key}
+            style={{ ...style, backgroundColor: isNeon ? '#10162b' : undefined }}
+            className="relative bg-muted transition-colors duration-200"
+          />
+        );
         continue;
       }
       const sp = shelfLookup.get(key);
       const group = sp && sp.active ? sp.affinityGroup : undefined;
-      const color = group ? affinityColor(group) : undefined;
-      const hue = group ? groupHue(group) : 210;
-
-      switch (variant) {
-        case 1:
-          cells.push(
-            <div
-              key={key}
-              style={{ ...style, backgroundColor: color ?? EMPTY_SHELF }}
-              className="relative transition-colors duration-200"
-            />
-          );
-          break;
-        case 2:
-          cells.push(
-            <div
-              key={key}
-              style={{
-                ...style,
-                backgroundColor: group ? `hsl(${hue}, 60%, 90%)` : NO_ITEM,
-                boxShadow: color ? `inset 0 0 0 1.5px ${color}` : undefined,
-              }}
-              className="relative transition-colors duration-200"
-            />
-          );
-          break;
-        case 3: {
-          const t = group ? (sizeByGroup.get(group) ?? 0) / maxSize : 0;
-          cells.push(
-            <div
-              key={key}
-              style={{
-                ...style,
-                backgroundColor: group ? `hsl(${hue}, ${40 + t * 35}%, ${64 - t * 24}%)` : NO_ITEM,
-              }}
-              className="relative transition-colors duration-200"
-            />
-          );
-          break;
+      let color: string | undefined;
+      if (group && group > 0) {
+        if (variant === 8 && rank) {
+          const r = rank.get(group) ?? 0;
+          color = `hsl(${SIZE_RAMP[Math.min(r, SIZE_RAMP.length - 1)]}, 70%, 48%)`;
+        } else {
+          color = colorFn(group);
         }
-        case 4:
-          cells.push(
-            <div
-              key={key}
-              style={{ ...style, backgroundColor: NO_ITEM }}
-              className="relative flex items-center justify-center transition-colors duration-200"
-            >
-              {color && (
-                <div
-                  className="rounded-full"
-                  style={{ width: cellSize * 0.55, height: cellSize * 0.55, backgroundColor: color }}
-                />
-              )}
-            </div>
-          );
-          break;
-        case 5:
-          cells.push(
-            <div
-              key={key}
-              style={{ ...style, backgroundColor: NO_ITEM }}
-              className="relative flex items-center justify-center transition-colors duration-200"
-            >
-              {color && (
-                <div
-                  className="rounded-sm"
-                  style={{
-                    width: cellSize * 0.6,
-                    height: cellSize * 0.6,
-                    backgroundColor: color,
-                    transform: 'rotate(45deg)',
-                  }}
-                />
-              )}
-            </div>
-          );
-          break;
-        case 8:
-          cells.push(
-            <div
-              key={key}
-              style={{
-                ...style,
-                backgroundColor: color ?? EMPTY_SHELF,
-                animationDelay: group ? `${((group % 10) * 0.18).toFixed(2)}s` : '0s',
-              }}
-              className={`relative transition-colors duration-200 ${group ? 'animate-pulse' : ''}`}
-            />
-          );
-          break;
-        case 9:
-          cells.push(
-            <div
-              key={key}
-              style={{ ...style, backgroundColor: NO_ITEM }}
-              className="relative flex items-center justify-center transition-colors duration-200"
-            >
-              {color && (
-                <div
-                  className="rounded-[4px]"
-                  style={{
-                    width: cellSize - Math.max(2, Math.round(cellSize * 0.16)) * 2,
-                    height: cellSize - Math.max(2, Math.round(cellSize * 0.16)) * 2,
-                    backgroundColor: color,
-                  }}
-                />
-              )}
-            </div>
-          );
-          break;
-        default: // 6, 7, 10 — quiet floor, the SVG overlay carries the encoding
-          cells.push(
-            <div
-              key={key}
-              style={{ ...style, backgroundColor: group ? `hsl(${hue}, 60%, 93%)` : NO_ITEM }}
-              className="relative transition-colors duration-200"
-            />
-          );
-          break;
       }
+      cells.push(
+        <div
+          key={key}
+          style={{ ...style, backgroundColor: color ?? (group == null ? EMPTY_SHELF : NO_ITEM) }}
+          className="relative transition-colors duration-200"
+        />
+      );
     }
   }
-
-  const svg =
-    groups.length > 0 && (variant === 6 || variant === 7 || variant === 10) ? (
-      <svg className="pointer-events-none absolute inset-0" viewBox={`0 0 ${gridW} ${gridH}`}>
-        {variant === 6 &&
-          groups.map((g) => {
-            const c = center(g.cx, g.cy);
-            const r = Math.max(cellSize * 1.4, g.maxRadius * step + cellSize);
-            const id = `av-blob-${g.id}`;
-            return (
-              <g key={g.id}>
-                <defs>
-                  <radialGradient id={id}>
-                    <stop offset="0%" stopColor={`hsl(${g.hue}, 70%, 55%)`} stopOpacity="0.6" />
-                    <stop offset="65%" stopColor={`hsl(${g.hue}, 70%, 55%)`} stopOpacity="0.18" />
-                    <stop offset="100%" stopColor={`hsl(${g.hue}, 70%, 55%)`} stopOpacity="0" />
-                  </radialGradient>
-                </defs>
-                <circle cx={c.x} cy={c.y} r={r} fill={`url(#${id})`} />
-                <circle
-                  cx={c.x}
-                  cy={c.y}
-                  r={Math.max(2, cellSize * 0.9)}
-                  fill={`hsl(${g.hue}, 70%, 48%)`}
-                />
-              </g>
-            );
-          })}
-        {variant === 7 &&
-          groups.map((g) => {
-            const c = center(g.cx, g.cy);
-            const rings = Math.max(2, Math.ceil(g.maxRadius / 2));
-            return (
-              <g key={g.id}>
-                {Array.from({ length: rings }, (_, i) => (
-                  <circle
-                    key={i}
-                    cx={c.x}
-                    cy={c.y}
-                    r={(i + 1) * step * 1.4}
-                    fill="none"
-                    stroke={`hsl(${g.hue}, 65%, 45%)`}
-                    strokeWidth={1.4}
-                    strokeOpacity={Math.max(0.08, 0.55 - i * 0.09)}
-                  />
-                ))}
-                <circle
-                  cx={c.x}
-                  cy={c.y}
-                  r={Math.max(2, cellSize * 0.7)}
-                  fill={`hsl(${g.hue}, 65%, 45%)`}
-                />
-              </g>
-            );
-          })}
-        {variant === 10 &&
-          groups.map((g) => (
-            <g
-              key={g.id}
-              fill="none"
-              stroke={`hsl(${g.hue}, 60%, 48%)`}
-              strokeWidth={1.5}
-              strokeOpacity={0.85}
-            >
-              {g.shelves.map((s, i) => {
-                let best: { x: number; y: number } | null = null;
-                let bestD = Infinity;
-                for (const t of g.shelves) {
-                  if (t === s) continue;
-                  const d = (t.x - s.x) ** 2 + (t.y - s.y) ** 2;
-                  if (d < bestD) {
-                    bestD = d;
-                    best = t;
-                  }
-                }
-                if (!best) return null;
-                const a = center(s.x, s.y);
-                const b = center(best.x, best.y);
-                return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
-              })}
-              {g.shelves.map((s, i) => {
-                const c = center(s.x, s.y);
-                return (
-                  <circle
-                    key={`dot${i}`}
-                    cx={c.x}
-                    cy={c.y}
-                    r={Math.max(1.5, cellSize * 0.32)}
-                    fill={`hsl(${g.hue}, 70%, 48%)`}
-                    stroke="none"
-                  />
-                );
-              })}
-            </g>
-          ))}
-      </svg>
-    ) : null;
 
   return (
     <div className="relative w-max">
@@ -384,11 +176,11 @@ export function AffinityGrid({
         style={{
           gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
           width: 'max-content',
+          ...(isNeon ? { backgroundColor: '#0b0f19', borderColor: '#0b0f19' } : {}),
         }}
       >
         {cells}
       </div>
-      {svg}
     </div>
   );
 }
@@ -402,8 +194,8 @@ function AffinityToolbar({
   active,
   onSelect,
 }: {
-  active: AffinityVariant;
-  onSelect: (v: AffinityVariant) => void;
+  active: AffinityColorVariant;
+  onSelect: (v: AffinityColorVariant) => void;
 }) {
   return (
     <div className="fixed bottom-4 right-4 z-[120] flex items-center gap-0.5 rounded-full border border-border-default bg-surface shadow-lg px-1.5 py-1">
@@ -426,8 +218,20 @@ function AffinityToolbar({
   );
 }
 
-export function AffinityView(props: Omit<AffinityViewProps, 'variant'>) {
-  const [variant, setVariant] = useState<AffinityVariant>(1);
+export function AffinityView({
+  variant: controlledVariant,
+  onVariantChange,
+  ...props
+}: Omit<AffinityGridProps, 'variant'> & {
+  variant?: AffinityColorVariant;
+  onVariantChange?: (v: AffinityColorVariant) => void;
+}) {
+  const [internalVariant, setInternalVariant] = useState<AffinityColorVariant>(1);
+  const variant = controlledVariant ?? internalVariant;
+  const setVariant = (v: AffinityColorVariant) => {
+    if (onVariantChange) onVariantChange(v);
+    else setInternalVariant(v);
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -438,7 +242,7 @@ export function AffinityView(props: Omit<AffinityViewProps, 'variant'>) {
         return;
       }
       const n = Number(e.key);
-      if (n >= 1 && n <= 9) setVariant(n as AffinityVariant);
+      if (n >= 1 && n <= 9) setVariant(n as AffinityColorVariant);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

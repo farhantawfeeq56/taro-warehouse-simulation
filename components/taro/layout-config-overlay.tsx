@@ -41,7 +41,7 @@ import {
   summarizeFootprints,
 } from '@/lib/taro/footprint';
 import { PreviewStats } from './layout-config-variants';
-import { AffinityView, affinityColor } from './affinity-view-variants';
+import { AffinityView, affinityColor, type AffinityColorVariant } from './affinity-view-variants';
 
 export interface LayoutConfig {
   gridHeight: number;
@@ -250,6 +250,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
       )
     );
   }, [skuCount, demandDistribution, productAffinity, storageFootprint, generateItems, assignDemandDistribution, assignProductAffinity, assignStorageFootprint]);
+
+  const [affinityVariant, setAffinityVariant] = useState<AffinityColorVariant>(1);
 
   const demandSummary = useMemo(
     () => summarizeDemandScores(inventory.map((i) => i.demandScore ?? 0), 0.2),
@@ -580,6 +582,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               cellSize={cellSize}
               fullWidth={fullWidth}
               fullHeight={fullHeight}
+              variant={affinityVariant}
+              onVariantChange={setAffinityVariant}
             />
 
             <PreviewStats />
@@ -589,7 +593,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               <span className="flex items-center gap-1.5">
                 <span
                   className="w-3 h-3 inline-block rounded-sm"
-                  style={{ backgroundColor: affinityColor(1) }}
+                  style={{ backgroundColor: affinityColor(affinityVariant, 1) }}
                 />
                 <span>Each color = an affinity group</span>
               </span>
