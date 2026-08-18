@@ -99,7 +99,6 @@ function PlainSlider({
   low,
   high,
   description,
-  stat,
   onChange,
   onCommit,
 }: {
@@ -112,8 +111,6 @@ function PlainSlider({
   low?: string;
   high?: string;
   description?: string;
-  /** Small mono-font readout line (e.g. "2,450 / 2,500 placed"). */
-  stat?: string;
   onChange: (v: number) => void;
   onCommit?: (v: number) => void;
 }) {
@@ -146,9 +143,6 @@ function PlainSlider({
       )}
       {description && (
         <p className="text-[11px] text-text-muted leading-snug">{description}</p>
-      )}
-      {stat && (
-        <p className="text-[11px] font-mono text-text-muted leading-snug">{stat}</p>
       )}
     </div>
   );
@@ -492,8 +486,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               min={4}
               max={60}
               step={getHeightStep(gridHeight)}
-              description="Vertical height of the storage area."
-              stat={`${fullWidth} × ${fullHeight} cells (incl. padding)`}
+              description={`Vertical height of the storage area (4–60). Step ${getHeightStep(gridHeight)}.`}
               onChange={handleGridChange}
               onCommit={(v) => setDebouncedGridHeight(v)}
             />
@@ -503,8 +496,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               min={5}
               max={60}
               step={getRackStep(rackCount)}
-              description="Number of double-row racks."
-              stat={`${placementPreview.binCount.toLocaleString()} bins · ${previewWarehouse.shelves.length} shelves`}
+              description={`Number of double-row racks (5–60). Step ${getRackStep(rackCount)}.`}
               onChange={handleRackChange}
               onCommit={(v) => setDebouncedRackCount(v)}
             />
@@ -515,7 +507,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               max={5}
               step={1}
               description="Spacing between rack columns."
-              stat={`${crossAisleCount > 0 ? crossAisleCount + 1 : 1} vertical segment${crossAisleCount > 0 ? 's' : ''}`}
               onChange={setAisleWidth}
             />
             <PlainSlider
@@ -531,7 +522,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
                   ? 'No cross aisles — a plain parallel layout.'
                   : `${crossAisleCount} horizontal thoroughfare${crossAisleCount === 1 ? '' : 's'} cutting across the racks.`
               }
-              stat={`${Math.max(1, crossAisleCount + 1)} rack segment${crossAisleCount + 1 > 1 ? 's' : ''} · aisle ${aisleWidth}`}
               onChange={setCrossAisleCount}
             />
           </div>
@@ -547,7 +537,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               step={1}
               display={skuCount.toLocaleString()}
               description="Number of unique products to generate."
-              stat={`${inventory.length - placementPreview.unplacedCount} / ${inventory.length} SKUs placed`}
               onChange={setSkuCount}
             />
             <PlainSlider
@@ -559,8 +548,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               display={`${demandDistribution}%`}
               low="Uniform"
               high="Pareto"
-              description="How demand spreads across SKUs."
-              stat={`Top 20% hold ${Math.round(demandSummary.topShare * 100)}% · min ${demandSummary.min.toFixed(2)} / max ${demandSummary.max.toFixed(2)}`}
+              description={`How demand spreads across SKUs. Top 20% hold ${Math.round(demandSummary.topShare * 100)}% of demand.`}
               onChange={setDemandDistribution}
             />
             <PlainSlider
@@ -572,8 +560,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               display={`${productAffinity}%`}
               low="Independent"
               high="Highly Related"
-              description="Which products get bought together."
-              stat={`${affinitySummary.groupCount} groups · largest ${affinitySummary.largestGroupSize} · ${Math.round(affinitySummary.groupedShare * 100)}% have group-mates`}
+              description={`Which products get bought together. ${affinitySummary.groupCount} groups · largest ${affinitySummary.largestGroupSize}.`}
               onChange={setProductAffinity}
             />
             <PlainSlider
@@ -585,8 +572,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               display={`${storageFootprint}%`}
               low="Compact"
               high="Bulky"
-              description="Bins per product."
-              stat={`${footprintSummary.singleBinCount} single-bin · ${footprintSummary.multiBinCount} multi-bin · mean ${footprintSummary.meanFootprint.toFixed(2)} · needs ${footprintSummary.totalBins.toLocaleString()} bins`}
+              description={`Bins per product. ${footprintSummary.multiBinCount} multi-bin · needs ${footprintSummary.totalBins} bins.`}
               onChange={setStorageFootprint}
             />
           </div>
@@ -603,8 +589,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               display={`${slottingBias}%`}
               low="Random"
               high="Demand-Based"
-              description="How strongly demand drives location."
-              stat={`${inventory.length - placementPreview.unplacedCount} / ${inventory.length} SKUs placed · ${placementPreview.placedBinCount} / ${placementPreview.binCount} bins used`}
+              description={`How strongly demand drives location. ${inventory.length - placementPreview.unplacedCount} / ${inventory.length} SKUs placed.`}
               onChange={setSlottingBias}
             />
             <PlainSlider
@@ -616,8 +601,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               display={`${categoryClustering}%`}
               low="Scattered"
               high="Clustered"
-              description="How strongly same-category products are zoned together."
-              stat={`${placementPreview.categoryCount} categor${placementPreview.categoryCount === 1 ? 'y' : 'ies'} · clustering ${categoryClustering}%`}
+              description={`How strongly same-category products are zoned together. ${placementPreview.categoryCount} categories.`}
               onChange={setCategoryClustering}
             />
             {placementPreview.unplacedCount > 0 && (
