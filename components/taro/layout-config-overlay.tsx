@@ -104,7 +104,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const isEditing = initialConfig != null;
 
   // ── Active variant (vartest5) ──────────────────────────────────────────
-  const [activeVariant, setActiveVariant] = useState(1);
+  // ── Active variant (vartest5) — ids are 6-10; default to the first. ─────
+  const [activeVariant, setActiveVariant] = useState<number>(() => LAYOUT_VARIANTS[0].id);
   useVariantKeyboard(activeVariant, setActiveVariant);
 
   // ── Adaptive sliders for Grid Height & Rack Count ──────────────────────
@@ -235,23 +236,26 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     [inventory]
   );
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Callback ref so the ResizeObserver re-attaches whenever the preview node
+  // remounts (e.g. switching between screen-layout variants).
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
-  useEffect(() => {
-    if (!containerRef.current) return;
+  const setPreviewRef = useCallback((node: HTMLDivElement | null) => {
+    // Disconnect any observer still attached to a previous node (variant switch).
+    const prev = containerRef.current as (HTMLDivElement & { __layoutObserver?: ResizeObserver }) | null;
+    prev?.__layoutObserver?.disconnect();
+    prev?.__layoutObserver && delete (prev as { __layoutObserver?: ResizeObserver }).__layoutObserver;
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setContainerSize({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height,
-        });
-      }
-    });
-
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    containerRef.current = node;
+    if (!node) return;
+    const measure = () => {
+      setContainerSize({ width: node.clientWidth, height: node.clientHeight });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    (node as HTMLDivElement & { __layoutObserver?: ResizeObserver }).__layoutObserver = observer;
   }, []);
 
   // The only layout generator left: cross-aisle handles 0 cross aisles
@@ -277,17 +281,19 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   );
 
   const cellSize = useMemo(() => {
-    if (containerSize.width === 0 || containerSize.height === 0) return 24;
+    if (containerSize.width === 0 || containerSize.height === 0) return 16;
 
-    const padding = 64; // 32px on each side
-    const availableWidth = containerSize.width - padding;
-    const availableHeight = containerSize.height - padding;
+    const padding = 24; // 12px on each side
+    const availableWidth = Math.max(1, containerSize.width - padding);
+    const availableHeight = Math.max(1, containerSize.height - padding);
 
+    // Fit the ENTIRE warehouse regardless of size: no 4px floor, no 40px cap
+    // beyond a sensible readability ceiling.
     const optimalWidth = (availableWidth - (fullWidth - 1)) / fullWidth;
     const optimalHeight = (availableHeight - (fullHeight - 1)) / fullHeight;
-
-    // Constrain cellSize between 4px and 40px
-    return Math.floor(Math.min(Math.max(Math.min(optimalWidth, optimalHeight), 4), 40));
+    const fit = Math.min(optimalWidth, optimalHeight);
+    // Never below 1px so the grid still renders; cap at 40px for readability.
+    return Math.max(1, Math.min(40, Math.floor(fit)));
   }, [containerSize, fullWidth, fullHeight]);
 
   const shelfLookup = useMemo(() => {
@@ -563,7 +569,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   );
 
   const renderPreview = () => (
-    <div ref={containerRef} className="flex flex-col items-center justify-center gap-4 w-full">
+    <div ref={setPreviewRef} className="flex flex-col items-center justify-center gap-4 w-full h-full">
       <div
         className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
         style={{

@@ -3,18 +3,23 @@
 /**
  * vartest5 — Warehouse Layout Config screen.
  *
- * One controls component (VariantCockpit — the accepted vartest5 winner,
- * tabs × dial instruments) rendered inside FIVE different SCREEN layouts.
+ * The accepted controls component (Cockpit — tabs × dial instruments) split
+ * into three reusable bodies, presented in FIVE different card-based layouts.
  * The floating segmented control in the bottom-right + keys 1–5 switch
- * between the layouts:
+ * between them:
  *
- *   1 · Classic Split — controls in a left sidebar, preview on the right
- *   2 · Stacked       — controls on top, preview fills the bottom
- *   3 · Drawer        — preview is the stage, controls slide in as a drawer
- *   4 · Side-by-Side  — 50/50 two-pane, no sidebar
- *   5 · Pinned Tabs   — full-width tab strip on top, controls + preview below
+ *   6 · Floating Cards — three independently expandable cards across the top,
+ *                        warehouse preview below (always fits the screen)
+ *   7 · Filmstrip      — cards in a horizontal strip, only one open at a time
+ *   8 · Centered Compass — compact pods around the top-center, popover expand
+ *   9 · Split Deck     — cards stack vertically on the left, preview on right
+ *   10· Corner Console — single floating console card top-right, full-stage
+ *                        preview behind it
  *
- * All variants share the non-negotiable constraints:
+ * The warehouse preview ALWAYS fits: cell size is computed from the actual
+ * available area with no pixel floor.
+ *
+ * Shared constraints:
  *   • Fishbone is removed entirely (no tab, no controls, no preview).
  *   • There are no layout types — just a single geometry config.
  *   • The cross-aisle slider is the ONLY survivor, defaulting to 1
@@ -377,33 +382,85 @@ function Gauge({ value, label }: { value: number; label: string }) {
     </div>
   );
 }
-// ── Screen-layout variants ─────────────────────────────────────────────────
-// These five variants test HOW the screen is arranged: where the controls
-// (Cockpit) sit relative to the live preview. Each is a full-height layout
-// that places `renderPreview()` and the Cockpit differently.
+// ── Cockpit bodies (reusable card contents) ────────────────────────────────
+// The accepted Cockpit controls, split into the three variable-family bodies
+// so the new variants can present them as cards / pods / decks / a console.
 
-/** Scrollable preview region shared by the split layouts. */
-function PreviewRegion({ children, className }: { children: ReactNode; className?: string }) {
+function CockpitGeometryBody(props: LayoutConfigVariantProps) {
   return (
-    <div className={cn('overflow-hidden min-h-0', className)}>
-      <div className="h-full w-full overflow-auto">
-        <div className="flex flex-col items-center justify-center min-h-full min-w-full p-6 gap-3">
-          {children}
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-border-default bg-surface p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-text-muted">
+            <Rows3 className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-bold uppercase tracking-wide">Height</span>
+          </div>
+          <div className="flex items-end gap-0.5 h-12">
+            {Array.from({ length: 8 }, (_, i) => (
+              <div
+                key={i}
+                className="flex-1 rounded-t-sm bg-accent/60"
+                style={{ height: `${((i * 4 + Math.min(20, props.geometry.gridHeight)) % 100) / 100 * 100}%` }}
+              />
+            ))}
+          </div>
+          <span className="text-lg font-bold text-text-primary">{props.geometry.gridHeight}</span>
+        </div>
+        <div className="rounded-xl border border-border-default bg-surface p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-text-muted">
+            <Columns3 className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-bold uppercase tracking-wide">Racks</span>
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className={cn('rounded-sm h-5', i < Math.min(8, Math.ceil(props.geometry.rackCount / 8)) ? 'bg-accent' : 'bg-muted')} />
+            ))}
+          </div>
+          <span className="text-lg font-bold text-text-primary">{props.geometry.rackCount}</span>
         </div>
       </div>
-    </div>
+      <div className="rounded-xl border border-border-default bg-surface p-3">
+        <VariantSlider label="Aisle Width" value={props.geometry.aisleWidth} min={1} max={5} step={1} onChange={(v) => props.onGeometryChange({ aisleWidth: v })} />
+      </div>
+      <div className="rounded-xl border border-accent/40 bg-accent-soft/40 p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Split className="h-3.5 w-3.5 text-accent" />
+            <span className="text-xs font-bold text-text-primary">Cross Aisles</span>
+          </div>
+          <span className="text-lg font-bold text-text-primary">{props.geometry.crossAisleCount}</span>
+        </div>
+        <VariantSlider
+          label=""
+          value={props.geometry.crossAisleCount}
+          min={0}
+          max={4}
+          step={1}
+          low="Parallel"
+          high="4"
+          onChange={(v) => props.onGeometryChange({ crossAisleCount: v })}
+        />
+        <div className="flex gap-1">
+          {[1, 2, 3, 4].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => props.onGeometryChange({ crossAisleCount: n })}
+              className={cn(
+                'flex-1 h-8 rounded-md text-xs font-bold transition-colors',
+                props.geometry.crossAisleCount === n ? 'bg-accent text-primary-foreground' : 'bg-surface text-text-muted border border-border-default hover:border-accent/50'
+              )}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 
-/** The single controls component — Cockpit (variant 6). */
-export function VariantCockpit(props: LayoutConfigVariantProps) {
-  const [tab, setTab] = useState<StepRailId>('geometry');
-  const tabs = [
-    { id: 'geometry' as const, label: 'Geometry', icon: Warehouse },
-    { id: 'inventory' as const, label: 'Inventory', icon: Package },
-    { id: 'placement' as const, label: 'Placement', icon: Boxes },
-  ];
-
+function CockpitInventoryBody(props: LayoutConfigVariantProps) {
   const demandCurve = useMemo(() => {
     const alpha = (props.demandDistribution / 100) * 2;
     const n = 32;
@@ -411,8 +468,147 @@ export function VariantCockpit(props: LayoutConfigVariantProps) {
   }, [props.demandDistribution]);
 
   return (
+    <>
+      <div className="rounded-xl border border-border-default bg-surface p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-text-primary">SKU Count</p>
+            <p className="text-[10px] text-text-muted">Catalogue size</p>
+          </div>
+          <span className="text-xl font-bold text-text-primary">{props.skuCount.toLocaleString()}</span>
+        </div>
+        <VariantSlider label="" value={props.skuCount} min={500} max={10000} step={1} onChange={props.onSkuCountChange} />
+      </div>
+
+      <div className="rounded-xl border border-border-default bg-surface p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5 text-accent" />
+            <div>
+              <p className="text-xs font-bold text-text-primary">Demand Distribution</p>
+              <p className="text-[10px] text-text-muted">Uniform → Pareto</p>
+            </div>
+          </div>
+          <Gauge value={props.demandSummary.topShare} label="Top 20%" />
+        </div>
+        <Sparkline values={demandCurve} />
+        <VariantSlider label="" value={props.demandDistribution} min={0} max={100} step={1} onChange={props.onDemandDistributionChange} />
+      </div>
+
+      <div className="rounded-xl border border-border-default bg-surface p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Tags className="h-3.5 w-3.5 text-accent" />
+            <div>
+              <p className="text-xs font-bold text-text-primary">Product Affinity</p>
+              <p className="text-[10px] text-text-muted">Co-purchase structure</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <p className="text-sm font-bold text-text-primary">{props.affinitySummary.groupCount}</p>
+              <p className="text-[9px] uppercase tracking-wide text-text-muted">groups</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-bold text-text-primary">{props.affinitySummary.largestGroupSize}</p>
+              <p className="text-[9px] uppercase tracking-wide text-text-muted">largest</p>
+            </div>
+          </div>
+        </div>
+        <VariantSlider label="" value={props.productAffinity} min={0} max={100} step={1} onChange={props.onProductAffinityChange} />
+      </div>
+
+      <div className="rounded-xl border border-border-default bg-surface p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5 text-accent" />
+            <div>
+              <p className="text-xs font-bold text-text-primary">Storage Footprint</p>
+              <p className="text-[10px] text-text-muted">Bins per product</p>
+            </div>
+          </div>
+          <span className="text-sm font-bold text-text-primary">{props.footprintSummary.totalBins.toLocaleString()} bins</span>
+        </div>
+        <MiniHistogram buckets={footprintBuckets(props.footprintSummary)} />
+        <VariantSlider label="" value={props.storageFootprint} min={0} max={100} step={1} onChange={props.onStorageFootprintChange} />
+      </div>
+    </>
+  );
+}
+
+function CockpitPlacementBody(props: LayoutConfigVariantProps) {
+  return (
+    <>
+      <div className="rounded-xl border border-accent/40 bg-accent-soft/40 p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5 text-accent" />
+            <div>
+              <p className="text-xs font-bold text-text-primary">Slotting Bias</p>
+              <p className="text-[10px] text-text-muted">Hot SKUs near dispatch</p>
+            </div>
+          </div>
+          <Gauge value={props.slottingBias / 100} label="Bias" />
+        </div>
+        <VariantSlider label="" value={props.slottingBias} min={0} max={100} step={1} low="Random" high="Demand" onChange={props.onSlottingBiasChange} />
+      </div>
+
+      <div className="rounded-xl border border-border-default bg-surface p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Combine className="h-3.5 w-3.5 text-accent" />
+            <div>
+              <p className="text-xs font-bold text-text-primary">Category Clustering</p>
+              <p className="text-[10px] text-text-muted">Same family → same zone</p>
+            </div>
+          </div>
+          <Gauge value={props.categoryClustering / 100} label="Clusters" />
+        </div>
+        <VariantSlider label="" value={props.categoryClustering} min={0} max={100} step={1} low="Scattered" high="Zoned" onChange={props.onCategoryClusteringChange} />
+      </div>
+
+      <div className="rounded-xl border border-border-default bg-surface p-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-bold text-text-primary">Placement health</p>
+          <BadgeCheck className="h-4 w-4 text-positive" />
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="rounded-lg bg-muted/60 p-2">
+            <p className="text-lg font-bold text-text-primary">{props.placementSummary.placed}/{props.placementSummary.total}</p>
+            <p className="text-[9px] uppercase tracking-wide text-text-muted">SKUs placed</p>
+          </div>
+          <div className="rounded-lg bg-muted/60 p-2">
+            <p className="text-lg font-bold text-text-primary">{props.placementSummary.placedBins}/{props.placementSummary.totalBins}</p>
+            <p className="text-[9px] uppercase tracking-wide text-text-muted">bins used</p>
+          </div>
+          <div className="rounded-lg bg-muted/60 p-2">
+            <p className="text-lg font-bold text-text-primary">{props.placementSummary.categoryCount}</p>
+            <p className="text-[9px] uppercase tracking-wide text-text-muted">categories</p>
+          </div>
+          <div className={cn('rounded-lg p-2', props.placementSummary.unplaced > 0 ? 'bg-warning-soft' : 'bg-positive-soft')}>
+            <p className={cn('text-lg font-bold', props.placementSummary.unplaced > 0 ? 'text-warning' : 'text-positive')}>
+              {props.placementSummary.unplaced > 0 ? props.placementSummary.unplaced : 'OK'}
+            </p>
+            <p className={cn('text-[9px] uppercase tracking-wide', props.placementSummary.unplaced > 0 ? 'text-warning' : 'text-positive')}>
+              {props.placementSummary.unplaced > 0 ? 'overflow' : 'no overflow'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** The single controls component — Cockpit (tabs × dial instruments). */
+export function VariantCockpit(props: LayoutConfigVariantProps) {
+  const [tab, setTab] = useState<StepRailId>('geometry');
+  const tabs = [
+    { id: 'geometry' as const, label: 'Geometry', icon: Warehouse },
+    { id: 'inventory' as const, label: 'Inventory', icon: Package },
+    { id: 'placement' as const, label: 'Placement', icon: Boxes },
+  ];
+  return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Tab strip */}
       <div className="flex items-center gap-1 border-b border-border-default px-1 pt-1">
         {tabs.map((t) => {
           const Icon = t.icon;
@@ -435,359 +631,343 @@ export function VariantCockpit(props: LayoutConfigVariantProps) {
           );
         })}
       </div>
-
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
-        {tab === 'geometry' && (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-border-default bg-surface p-3 space-y-2">
-                <div className="flex items-center gap-1.5 text-text-muted">
-                  <Rows3 className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-bold uppercase tracking-wide">Height</span>
-                </div>
-                <div className="flex items-end gap-0.5 h-12">
-                  {Array.from({ length: 8 }, (_, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 rounded-t-sm bg-accent/60"
-                      style={{ height: `${((i * 4 + Math.min(20, props.geometry.gridHeight)) % 100) / 100 * 100}%` }}
-                    />
-                  ))}
-                </div>
-                <span className="text-lg font-bold text-text-primary">{props.geometry.gridHeight}</span>
-              </div>
-              <div className="rounded-xl border border-border-default bg-surface p-3 space-y-2">
-                <div className="flex items-center gap-1.5 text-text-muted">
-                  <Columns3 className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-bold uppercase tracking-wide">Racks</span>
-                </div>
-                <div className="grid grid-cols-4 gap-1">
-                  {Array.from({ length: 8 }, (_, i) => (
-                    <div key={i} className={cn('rounded-sm h-5', i < Math.min(8, Math.ceil(props.geometry.rackCount / 8)) ? 'bg-accent' : 'bg-muted')} />
-                  ))}
-                </div>
-                <span className="text-lg font-bold text-text-primary">{props.geometry.rackCount}</span>
-              </div>
-            </div>
-            <div className="rounded-xl border border-border-default bg-surface p-3">
-              <VariantSlider label="Aisle Width" value={props.geometry.aisleWidth} min={1} max={5} step={1} onChange={(v) => props.onGeometryChange({ aisleWidth: v })} />
-            </div>
-            <div className="rounded-xl border border-accent/40 bg-accent-soft/40 p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Split className="h-3.5 w-3.5 text-accent" />
-                  <span className="text-xs font-bold text-text-primary">Cross Aisles</span>
-                </div>
-                <span className="text-lg font-bold text-text-primary">{props.geometry.crossAisleCount}</span>
-              </div>
-              <VariantSlider
-                label=""
-                value={props.geometry.crossAisleCount}
-                min={0}
-                max={4}
-                step={1}
-                low="Parallel"
-                high="4"
-                onChange={(v) => props.onGeometryChange({ crossAisleCount: v })}
-              />
-              <div className="flex gap-1">
-                {[1, 2, 3, 4].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => props.onGeometryChange({ crossAisleCount: n })}
-                    className={cn(
-                      'flex-1 h-8 rounded-md text-xs font-bold transition-colors',
-                      props.geometry.crossAisleCount === n ? 'bg-accent text-primary-foreground' : 'bg-surface text-text-muted border border-border-default hover:border-accent/50'
-                    )}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {tab === 'inventory' && (
-          <>
-            <div className="rounded-xl border border-border-default bg-surface p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-text-primary">SKU Count</p>
-                  <p className="text-[10px] text-text-muted">Catalogue size</p>
-                </div>
-                <span className="text-xl font-bold text-text-primary">{props.skuCount.toLocaleString()}</span>
-              </div>
-              <VariantSlider label="" value={props.skuCount} min={500} max={10000} step={1} onChange={props.onSkuCountChange} />
-            </div>
-
-            <div className="rounded-xl border border-border-default bg-surface p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <TrendingUp className="h-3.5 w-3.5 text-accent" />
-                  <div>
-                    <p className="text-xs font-bold text-text-primary">Demand Distribution</p>
-                    <p className="text-[10px] text-text-muted">Uniform → Pareto</p>
-                  </div>
-                </div>
-                <Gauge value={props.demandSummary.topShare} label="Top 20%" />
-              </div>
-              <Sparkline values={demandCurve} />
-              <VariantSlider label="" value={props.demandDistribution} min={0} max={100} step={1} onChange={props.onDemandDistributionChange} />
-            </div>
-
-            <div className="rounded-xl border border-border-default bg-surface p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Tags className="h-3.5 w-3.5 text-accent" />
-                  <div>
-                    <p className="text-xs font-bold text-text-primary">Product Affinity</p>
-                    <p className="text-[10px] text-text-muted">Co-purchase structure</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-text-primary">{props.affinitySummary.groupCount}</p>
-                    <p className="text-[9px] uppercase tracking-wide text-text-muted">groups</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-text-primary">{props.affinitySummary.largestGroupSize}</p>
-                    <p className="text-[9px] uppercase tracking-wide text-text-muted">largest</p>
-                  </div>
-                </div>
-              </div>
-              <VariantSlider label="" value={props.productAffinity} min={0} max={100} step={1} onChange={props.onProductAffinityChange} />
-            </div>
-
-            <div className="rounded-xl border border-border-default bg-surface p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-accent" />
-                  <div>
-                    <p className="text-xs font-bold text-text-primary">Storage Footprint</p>
-                    <p className="text-[10px] text-text-muted">Bins per product</p>
-                  </div>
-                </div>
-                <span className="text-sm font-bold text-text-primary">{props.footprintSummary.totalBins.toLocaleString()} bins</span>
-              </div>
-              <MiniHistogram buckets={footprintBuckets(props.footprintSummary)} />
-              <VariantSlider label="" value={props.storageFootprint} min={0} max={100} step={1} onChange={props.onStorageFootprintChange} />
-            </div>
-          </>
-        )}
-
-        {tab === 'placement' && (
-          <>
-            <div className="rounded-xl border border-accent/40 bg-accent-soft/40 p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Zap className="h-3.5 w-3.5 text-accent" />
-                  <div>
-                    <p className="text-xs font-bold text-text-primary">Slotting Bias</p>
-                    <p className="text-[10px] text-text-muted">Hot SKUs near dispatch</p>
-                  </div>
-                </div>
-                <Gauge value={props.slottingBias / 100} label="Bias" />
-              </div>
-              <VariantSlider label="" value={props.slottingBias} min={0} max={100} step={1} low="Random" high="Demand" onChange={props.onSlottingBiasChange} />
-            </div>
-
-            <div className="rounded-xl border border-border-default bg-surface p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Combine className="h-3.5 w-3.5 text-accent" />
-                  <div>
-                    <p className="text-xs font-bold text-text-primary">Category Clustering</p>
-                    <p className="text-[10px] text-text-muted">Same family → same zone</p>
-                  </div>
-                </div>
-                <Gauge value={props.categoryClustering / 100} label="Clusters" />
-              </div>
-              <VariantSlider label="" value={props.categoryClustering} min={0} max={100} step={1} low="Scattered" high="Zoned" onChange={props.onCategoryClusteringChange} />
-            </div>
-
-            <div className="rounded-xl border border-border-default bg-surface p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold text-text-primary">Placement health</p>
-                <BadgeCheck className="h-4 w-4 text-positive" />
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="rounded-lg bg-muted/60 p-2">
-                  <p className="text-lg font-bold text-text-primary">{props.placementSummary.placed}/{props.placementSummary.total}</p>
-                  <p className="text-[9px] uppercase tracking-wide text-text-muted">SKUs placed</p>
-                </div>
-                <div className="rounded-lg bg-muted/60 p-2">
-                  <p className="text-lg font-bold text-text-primary">{props.placementSummary.placedBins}/{props.placementSummary.totalBins}</p>
-                  <p className="text-[9px] uppercase tracking-wide text-text-muted">bins used</p>
-                </div>
-                <div className="rounded-lg bg-muted/60 p-2">
-                  <p className="text-lg font-bold text-text-primary">{props.placementSummary.categoryCount}</p>
-                  <p className="text-[9px] uppercase tracking-wide text-text-muted">categories</p>
-                </div>
-                <div className={cn('rounded-lg p-2', props.placementSummary.unplaced > 0 ? 'bg-warning-soft' : 'bg-positive-soft')}>
-                  <p className={cn('text-lg font-bold', props.placementSummary.unplaced > 0 ? 'text-warning' : 'text-positive')}>
-                    {props.placementSummary.unplaced > 0 ? props.placementSummary.unplaced : 'OK'}
-                  </p>
-                  <p className={cn('text-[9px] uppercase tracking-wide', props.placementSummary.unplaced > 0 ? 'text-warning' : 'text-positive')}>
-                    {props.placementSummary.unplaced > 0 ? 'overflow' : 'no overflow'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
+        {tab === 'geometry' && <CockpitGeometryBody {...props} />}
+        {tab === 'inventory' && <CockpitInventoryBody {...props} />}
+        {tab === 'placement' && <CockpitPlacementBody {...props} />}
       </div>
     </div>
   );
 }
 
-// ── Screen layout 1 · CLASSIC SPLIT ────────────────────────────────────────
-// Controls in a left sidebar, preview fills the rest on the right.
-export function LayoutClassicSplit(props: LayoutConfigVariantProps) {
-  return (
-    <div className="flex-1 flex overflow-hidden min-h-0">
-      <aside className="w-[360px] border-r bg-card flex flex-col min-h-0 shrink-0">
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <VariantCockpit {...props} />
-        </div>
-        <div className="p-4 border-t bg-card/50">{props.renderFooter()}</div>
-      </aside>
-      <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
-    </div>
-  );
-}
+// ── Variant 6 · FLOATING CARDS ─────────────────────────────────────────────
+// Three floating cards (Geometry / Inventory / Placement) across the top,
+// independently expandable (multiple can be open at once). The warehouse
+// preview fills the space below and ALWAYS fits the screen — cell size is
+// computed from the remaining area with no floor.
 
-// ── Screen layout 2 · STACKED ──────────────────────────────────────────────
-// Controls on top (full width), preview fills the bottom half.
-export function LayoutStacked(props: LayoutConfigVariantProps) {
+function CardShell({
+  title,
+  icon: Icon,
+  subtitle,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  icon: typeof Warehouse;
+  subtitle: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-      <div className="h-72 border-b bg-card flex flex-col min-h-0 shrink-0">
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <VariantCockpit {...props} />
-        </div>
-      </div>
-      <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
-    </div>
-  );
-}
-
-// ── Screen layout 3 · DRAWER OVERLAY ───────────────────────────────────────
-// Preview is the whole stage; controls slide in as a drawer (with the tab
-// strip pinned) over the right edge, and the footer rides on the preview.
-export function LayoutDrawer(props: LayoutConfigVariantProps) {
-  const [open, setOpen] = useState(true);
-  return (
-    <div className="flex-1 flex overflow-hidden min-h-0 relative">
-      {/* Full-stage preview */}
-      <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
-
-      {/* Slide-in controls drawer */}
-      <div
-        className={cn(
-          'absolute inset-y-0 right-0 w-[380px] bg-card border-l flex flex-col min-h-0 shadow-2xl transition-transform duration-300',
-          open ? 'translate-x-0' : 'translate-x-full'
-        )}
+    <div
+      className={cn(
+        'rounded-2xl border bg-surface shadow-md transition-all flex flex-col',
+        open ? 'border-accent/60 shadow-lg' : 'border-border-default hover:border-accent/40'
+      )}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center gap-2.5 px-4 py-3 text-left"
       >
-        <div className="flex items-center justify-between px-4 pt-3 pb-1">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Controls</span>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="rounded-md p-1 text-text-muted hover:bg-muted hover:text-text-primary transition-colors"
-            title="Collapse"
-          >
-            <ChevronRight className="h-4 w-4 rotate-180" />
-          </button>
+        <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg', open ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className={cn('block text-sm font-bold', open ? 'text-text-primary' : 'text-text-secondary')}>{title}</span>
+          <span className="block text-[10px] text-text-muted truncate">{subtitle}</span>
+        </span>
+        <ChevronRight className={cn('h-4 w-4 text-text-muted transition-transform shrink-0', open && 'rotate-90')} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-4 border-t border-border-default pt-3 overflow-y-auto max-h-72">
+          {children}
         </div>
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <VariantCockpit {...props} />
-        </div>
-        <div className="p-4 border-t bg-card/50">{props.renderFooter()}</div>
-      </div>
-
-      {/* Re-open handle when collapsed */}
-      {!open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="absolute top-1/2 -right-0 translate-y-1/2 z-10 rounded-l-lg border border-r-0 border-border-default bg-surface px-1.5 py-3 shadow-md text-text-muted hover:text-accent transition-colors"
-          title="Open controls"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
       )}
     </div>
   );
 }
 
-// ── Screen layout 4 · SIDE-BY-SIDE (2-UP) ──────────────────────────────────
-// Controls and preview split the screen 50/50 — no sidebar, no drawer.
-export function LayoutSideBySide(props: LayoutConfigVariantProps) {
+export function LayoutFloatingCards(props: LayoutConfigVariantProps) {
+  const [open, setOpen] = useState<Set<StepRailId>>(new Set(['geometry']));
+
+  const toggle = (id: StepRailId) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   return (
-    <div className="flex-1 flex overflow-hidden min-h-0">
-      <div className="w-1/2 border-r bg-card flex flex-col min-h-0 shrink-0">
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <VariantCockpit {...props} />
-        </div>
-        <div className="p-4 border-t bg-card/50">{props.renderFooter()}</div>
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      {/* Floating cards across the top */}
+      <div className="shrink-0 p-4 pb-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <CardShell title="Geometry" icon={Warehouse} subtitle="Racks, aisles & thoroughfares" open={open.has('geometry')} onToggle={() => toggle('geometry')}>
+          <CockpitGeometryBody {...props} />
+        </CardShell>
+        <CardShell title="Inventory" icon={Package} subtitle="Catalogue, demand & affinity" open={open.has('inventory')} onToggle={() => toggle('inventory')}>
+          <CockpitInventoryBody {...props} />
+        </CardShell>
+        <CardShell title="Placement" icon={Boxes} subtitle="Slotting & zoning" open={open.has('placement')} onToggle={() => toggle('placement')}>
+          <CockpitPlacementBody {...props} />
+        </CardShell>
       </div>
-      <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
+
+      {/* Warehouse — always fits the remaining screen */}
+      <div className="flex-1 min-h-0 overflow-hidden bg-muted/20 rounded-2xl mx-4 mb-4">
+        <div className="h-full w-full overflow-auto">
+          <div className="flex flex-col items-center justify-center min-h-full min-w-full p-4 gap-3">
+            {props.renderPreview()}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── Screen layout 5 · PINNED TABS ──────────────────────────────────────────
-// Tabs pinned to the top spanning the full width; below, controls and preview
-// share the row with a floating divider — the tab strip acts as the global
-// heading, controls feel like a palette.
-export function LayoutPinnedTabs(props: LayoutConfigVariantProps) {
-  const [tab, setTab] = useState<StepRailId>('geometry');
-  const tabs = [
-    { id: 'geometry' as const, label: 'Geometry', icon: Warehouse },
-    { id: 'inventory' as const, label: 'Inventory', icon: Package },
-    { id: 'placement' as const, label: 'Placement', icon: Boxes },
+// ── Variant 7 · FILMSTRIP ──────────────────────────────────────────────────
+// The three cards sit in a horizontal strip across the top, but only ONE is
+// open at a time (accordion-in-a-row) — the open card widens to show its
+// controls, the other two stay narrow. Preview below always fits.
+
+export function LayoutFilmstrip(props: LayoutConfigVariantProps) {
+  const [active, setActive] = useState<StepRailId | null>('geometry');
+
+  const cards = [
+    { id: 'geometry' as const, title: 'Geometry', icon: Warehouse, body: <CockpitGeometryBody {...props} /> },
+    { id: 'inventory' as const, title: 'Inventory', icon: Package, body: <CockpitInventoryBody {...props} /> },
+    { id: 'placement' as const, title: 'Placement', icon: Boxes, body: <CockpitPlacementBody {...props} /> },
   ];
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-      {/* Full-width pinned tab strip */}
-      <div className="flex items-center gap-1 border-b border-border-default bg-card px-4 pt-2 shrink-0">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const active = tab === t.id;
+      <div className="shrink-0 p-4 pb-2 flex gap-3">
+        {cards.map((c) => {
+          const Icon = c.icon;
+          const isOpen = active === c.id;
           return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
+            <div
+              key={c.id}
               className={cn(
-                'flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors border-b-2 -mb-px',
-                active
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-text-muted hover:text-text-secondary'
+                'rounded-2xl border bg-surface shadow-md transition-all flex flex-col',
+                isOpen ? 'border-accent/60 flex-[3] shadow-lg' : 'flex-1 border-border-default hover:border-accent/40'
               )}
             >
-              <Icon className="h-3.5 w-3.5" />
-              {t.label}
+              <button
+                type="button"
+                onClick={() => setActive(isOpen ? null : c.id)}
+                className="flex items-center gap-2 px-3 py-3 text-left"
+              >
+                <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg', isOpen ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className={cn('block text-xs font-bold truncate', isOpen ? 'text-text-primary' : 'text-text-secondary')}>{c.title}</span>
+                  {isOpen && <span className="block text-[9px] text-text-muted truncate">Controls</span>}
+                </span>
+              </button>
+              {isOpen && (
+                <div className="px-3 pb-3 space-y-3 border-t border-border-default pt-2 overflow-y-auto min-h-0">
+                  {c.body}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden bg-muted/20 rounded-2xl mx-4 mb-4">
+        <div className="h-full w-full overflow-auto">
+          <div className="flex flex-col items-center justify-center min-h-full min-w-full p-4 gap-3">
+            {props.renderPreview()}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Variant 8 · CENTERED COMPASS ───────────────────────────────────────────
+// Three compact "pods" clustered around the top-center, preview fills the
+// rest. Each pod shows just the summary value; clicking expands it into a
+// popover-style panel that overlays the preview's top edge (no layout shift).
+
+export function LayoutCompass(props: LayoutConfigVariantProps) {
+  const [active, setActive] = useState<StepRailId | null>('geometry');
+
+  const pods = [
+    { id: 'geometry' as const, label: 'Geometry', icon: Warehouse, value: `${props.geometry.gridHeight}×${props.geometry.rackCount}`, body: <CockpitGeometryBody {...props} /> },
+    { id: 'inventory' as const, label: 'Inventory', icon: Package, value: `${props.skuCount.toLocaleString()} SKUs`, body: <CockpitInventoryBody {...props} /> },
+    { id: 'placement' as const, label: 'Placement', icon: Boxes, value: `${props.slottingBias}% · ${props.categoryClustering}%`, body: <CockpitPlacementBody {...props} /> },
+  ];
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      <div className="shrink-0 px-4 pt-4 pb-2 flex justify-center gap-3">
+        {pods.map((p) => {
+          const Icon = p.icon;
+          const isOpen = active === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setActive(isOpen ? null : p.id)}
+              className={cn(
+                'rounded-xl border px-3 py-2 flex items-center gap-2 transition-all',
+                isOpen ? 'border-accent/60 bg-accent-soft/50 shadow-md' : 'border-border-default bg-surface hover:border-accent/40'
+              )}
+            >
+              <span className={cn('flex h-6 w-6 items-center justify-center rounded-md', isOpen ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
+                <Icon className="h-3.5 w-3.5" />
+              </span>
+              <span className="text-left">
+                <span className={cn('block text-[11px] font-bold', isOpen ? 'text-accent' : 'text-text-primary')}>{p.label}</span>
+                <span className="block text-[9px] font-mono text-text-muted">{p.value}</span>
+              </span>
+              <ChevronRight className={cn('h-3.5 w-3.5 text-text-muted transition-transform', isOpen && 'rotate-90')} />
             </button>
           );
         })}
-        <div className="flex-1" />
-        <div className="flex items-center gap-2 pr-2 pb-1.5">{props.renderFooter()}</div>
       </div>
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        <div className="w-[340px] border-r bg-card flex flex-col min-h-0 shrink-0">
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <VariantCockpit {...props} />
+
+      {/* Expanded pod panel overlays the top of the preview area */}
+      {active && (
+        <div className="shrink-0 mx-4 mb-2 rounded-2xl border border-accent/50 bg-surface shadow-xl p-4 max-h-56 overflow-y-auto">
+          {pods.find((p) => p.id === active)?.body}
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 overflow-hidden bg-muted/20 rounded-2xl mx-4 mb-4">
+        <div className="h-full w-full overflow-auto">
+          <div className="flex flex-col items-center justify-center min-h-full min-w-full p-4 gap-3">
+            {props.renderPreview()}
           </div>
         </div>
-        <PreviewRegion className="flex-1 bg-muted/20">{props.renderPreview()}</PreviewRegion>
       </div>
     </div>
   );
 }
 
+// ── Variant 9 · SPLIT DECK ─────────────────────────────────────────────────
+// The three cards stack vertically on the LEFT as a scrollable deck; the
+// preview fills the right column edge-to-edge vertically. Cards are
+// independently expandable.
+
+export function LayoutSplitDeck(props: LayoutConfigVariantProps) {
+  const [open, setOpen] = useState<Set<StepRailId>>(new Set(['geometry']));
+
+  const toggle = (id: StepRailId) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const deck = [
+    { id: 'geometry' as const, title: 'Geometry', icon: Warehouse, subtitle: 'Racks, aisles & thoroughfares', body: <CockpitGeometryBody {...props} /> },
+    { id: 'inventory' as const, title: 'Inventory', icon: Package, subtitle: 'Catalogue, demand & affinity', body: <CockpitInventoryBody {...props} /> },
+    { id: 'placement' as const, title: 'Placement', icon: Boxes, subtitle: 'Slotting & zoning', body: <CockpitPlacementBody {...props} /> },
+  ];
+
+  return (
+    <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="w-[340px] shrink-0 border-r bg-card overflow-y-auto p-3 space-y-2">
+        {deck.map((c) => {
+          const Icon = c.icon;
+          const isOpen = open.has(c.id);
+          return (
+            <div key={c.id} className={cn('rounded-xl border bg-surface transition-all', isOpen ? 'border-accent/60 shadow-md' : 'border-border-default hover:border-accent/40')}>
+              <button type="button" onClick={() => toggle(c.id)} className="flex items-center gap-2.5 px-3 py-2.5 w-full text-left">
+                <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg', isOpen ? 'bg-accent text-primary-foreground' : 'bg-accent-soft text-accent')}>
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className={cn('block text-xs font-bold truncate', isOpen ? 'text-text-primary' : 'text-text-secondary')}>{c.title}</span>
+                  {isOpen && <span className="block text-[9px] text-text-muted truncate">{c.subtitle}</span>}
+                </span>
+                <ChevronRight className={cn('h-3.5 w-3.5 text-text-muted transition-transform shrink-0', isOpen && 'rotate-90')} />
+              </button>
+              {isOpen && (
+                <div className="px-3 pb-3 space-y-3 border-t border-border-default pt-2 overflow-y-auto max-h-80">
+                  {c.body}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden bg-muted/20">
+        <div className="h-full w-full overflow-auto">
+          <div className="flex flex-col items-center justify-center min-h-full min-w-full p-4 gap-3">
+            {props.renderPreview()}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Variant 10 · CORNER CONSOLE ────────────────────────────────────────────
+// A single floating console card pinned to the top-right corner containing
+// ALL controls (mini tabbed cockpit). The preview fills the ENTIRE remaining
+// stage edge-to-edge — maximum warehouse visibility.
+
+export function LayoutCornerConsole(props: LayoutConfigVariantProps) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="flex-1 flex overflow-hidden min-h-0 relative">
+      {/* Full-stage preview */}
+      <div className="flex-1 min-h-0 overflow-hidden bg-muted/20">
+        <div className="h-full w-full overflow-auto">
+          <div className="flex flex-col items-center justify-center min-h-full min-w-full p-4 gap-3">
+            {props.renderPreview()}
+          </div>
+        </div>
+      </div>
+
+      {/* Floating console card (top-right) */}
+      <div
+        className={cn(
+          'absolute top-4 right-4 w-[360px] max-h-[calc(100%-2rem)] flex flex-col rounded-2xl border bg-surface shadow-xl transition-all',
+          open ? 'border-accent/50' : 'border-border-default'
+        )}
+      >
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-default shrink-0">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Console</span>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="rounded-md p-1 text-text-muted hover:bg-muted hover:text-text-primary transition-colors"
+            title={open ? 'Collapse' : 'Expand'}
+          >
+            {open ? <ChevronRight className="h-4 w-4 rotate-180" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        </div>
+        {open && (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <VariantCockpit {...props} />
+          </div>
+        )}
+        {open && <div className="p-3 border-t border-border-default shrink-0">{props.renderFooter()}</div>}
+      </div>
+
+      {/* Collapsed chip to re-open */}
+      {!open && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="absolute top-4 right-4 z-10 rounded-xl border border-border-default bg-surface px-3 py-2 shadow-md text-xs font-semibold text-text-secondary hover:text-accent transition-colors"
+        >
+          Open Console
+        </button>
+      )}
+    </div>
+  );
+}
 export interface LayoutInsights {
   shelfCells: number;
   totalCells: number;
@@ -893,11 +1073,11 @@ export function PreviewInsights({
 // ── Variant registry ────────────────────────────────────────────────────────
 
 export const LAYOUT_VARIANTS = [
-  { id: 1, name: 'Classic Split', short: 'Split', Component: LayoutClassicSplit },
-  { id: 2, name: 'Stacked', short: 'Stack', Component: LayoutStacked },
-  { id: 3, name: 'Drawer Overlay', short: 'Drawer', Component: LayoutDrawer },
-  { id: 4, name: 'Side-by-Side', short: '2-Up', Component: LayoutSideBySide },
-  { id: 5, name: 'Pinned Tabs', short: 'Tabs', Component: LayoutPinnedTabs },
+  { id: 6, name: 'Floating Cards', short: 'Cards', Component: LayoutFloatingCards },
+  { id: 7, name: 'Filmstrip', short: 'Film', Component: LayoutFilmstrip },
+  { id: 8, name: 'Centered Compass', short: 'Compass', Component: LayoutCompass },
+  { id: 9, name: 'Split Deck', short: 'Deck', Component: LayoutSplitDeck },
+  { id: 10, name: 'Corner Console', short: 'Console', Component: LayoutCornerConsole },
 ] as const;
 
 export type LayoutVariantId = (typeof LAYOUT_VARIANTS)[number]['id'];
@@ -916,11 +1096,11 @@ export function VariantToolbar({
       <span className="px-2 text-[10px] font-bold uppercase tracking-wide text-text-muted select-none">
         Variants
       </span>
-      {LAYOUT_VARIANTS.map((v) => (
+      {LAYOUT_VARIANTS.map((v, i) => (
         <button
           key={v.id}
           type="button"
-          title={`${v.name} (key ${v.id})`}
+          title={`${v.name} (key ${i + 1})`}
           onClick={() => onSelect(v.id)}
           className={cn(
             'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors',
@@ -935,7 +1115,7 @@ export function VariantToolbar({
               activeVariant === v.id ? 'text-primary-foreground/70' : 'text-text-muted'
             )}
           >
-            {v.id}
+            {i + 1}
           </span>
           {v.short}
         </button>
@@ -953,7 +1133,11 @@ export function useVariantKeyboard(
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const n = Number(e.key);
-      if (n >= 1 && n <= LAYOUT_VARIANTS.length) setActive(n);
+      // Keys 1..N select the Nth variant in the registry (ids may not be 1-based).
+      if (n >= 1 && n <= LAYOUT_VARIANTS.length) {
+        const target = LAYOUT_VARIANTS[n - 1];
+        if (target) setActive(target.id);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
