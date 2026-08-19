@@ -5,9 +5,10 @@
  *
  * Finalized as the "V-Tabs" arrangement (vartest10, variant 2): a vertical
  * icon rail on the left edge switches between the Warehouses and Comparisons
- * sections. Each rail button carries a live count badge. The app header
- * (logo + project name) sits on top and the action footer
- * (Add Warehouse / New Comparison) stays pinned at the bottom.
+ * sections. Each tab pins its own matching action button at the top of the
+ * list area (vartest5, variant 2) — Warehouses shows "Add Warehouse",
+ * Comparisons shows "New Comparison". The app header (logo + project name)
+ * sits on top; no footer actions.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -109,6 +110,38 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       )}
     >
       <Icon className="h-4 w-4" />
+    </button>
+  );
+
+  /* ── Add buttons (per-tab top) ───────────────────────────────────── */
+
+  const AddWarehouseButton = () => (
+    <button
+      onClick={props.onAddWarehouse}
+      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium
+        text-foreground hover:bg-muted active:bg-muted/80 transition-colors
+        border border-dashed border-muted-foreground/30 hover:border-muted-foreground/50"
+    >
+      <Plus className="h-3.5 w-3.5" />
+      Add Warehouse
+    </button>
+  );
+
+  const AddComparisonButton = () => (
+    <button
+      onClick={props.onNewComparison}
+      disabled={props.isCreatingComparison}
+      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium
+        text-foreground hover:bg-muted active:bg-muted/80 transition-colors
+        border border-dashed border-muted-foreground/30 hover:border-muted-foreground/50
+        disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      {props.isCreatingComparison ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Plus className="h-3.5 w-3.5" />
+      )}
+      {props.isCreatingComparison ? 'Creating…' : 'New Comparison'}
     </button>
   );
 
@@ -304,38 +337,15 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
           {railButton('comparisons', 'Comparisons', GitCompareArrows)}
         </div>
 
-        {/* Active section */}
-        <div className="flex-1 min-w-0 p-2 overflow-y-auto">
-          {section === 'warehouses' ? warehouseList : comparisonList}
+        {/* Active section with its matching add button pinned on top */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="px-2 pt-2 shrink-0">
+            {section === 'warehouses' ? <AddWarehouseButton /> : <AddComparisonButton />}
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto p-2">
+            {section === 'warehouses' ? warehouseList : comparisonList}
+          </div>
         </div>
-      </div>
-
-      {/* Footer: action buttons */}
-      <div className="p-3 border-t border-border shrink-0 space-y-1.5">
-        <button
-          onClick={props.onAddWarehouse}
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium
-            text-foreground hover:bg-muted active:bg-muted/80 transition-colors
-            border border-dashed border-muted-foreground/30 hover:border-muted-foreground/50"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add Warehouse
-        </button>
-        <button
-          onClick={props.onNewComparison}
-          disabled={props.isCreatingComparison}
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium
-            text-foreground hover:bg-muted active:bg-muted/80 transition-colors
-            border border-dashed border-muted-foreground/30 hover:border-muted-foreground/50
-            disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {props.isCreatingComparison ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Plus className="h-3.5 w-3.5" />
-          )}
-          {props.isCreatingComparison ? 'Creating…' : 'New Comparison'}
-        </button>
       </div>
     </div>
   );
