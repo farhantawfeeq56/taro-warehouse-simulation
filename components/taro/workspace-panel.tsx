@@ -354,7 +354,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       </div>
 
       {/* Warehouses & Comparisons dock — icon cluster + expanding panel */}
-      <div className="relative z-40 flex items-start">
+      <div className="relative z-40 mt-2 flex items-start">
         {/* Dock — compact cluster: warehouses, comparisons */}
         <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
           <button
