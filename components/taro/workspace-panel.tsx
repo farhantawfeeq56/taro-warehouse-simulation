@@ -354,30 +354,24 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
             title="Warehouses"
             className={cn(
               'relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-              section === 'warehouses'
+              section === 'warehouses' && dockOpen
                 ? 'bg-accent-soft text-accent'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
             <WarehouseIcon className="h-4 w-4" />
-            {section === 'warehouses' && dockOpen && (
-              <span className="absolute left-1 right-1 -bottom-0.5 h-0.5 rounded-full bg-accent" />
-            )}
           </button>
           <button
             onClick={() => toggleSection('comparisons')}
             title="Comparisons"
             className={cn(
               'relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-              section === 'comparisons'
+              section === 'comparisons' && dockOpen
                 ? 'bg-accent-soft text-accent'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
             <GitCompareArrows className="h-4 w-4" />
-            {section === 'comparisons' && dockOpen && (
-              <span className="absolute left-1 right-1 -bottom-0.5 h-0.5 rounded-full bg-accent" />
-            )}
           </button>
         </div>
 
