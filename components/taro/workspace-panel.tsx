@@ -1,14 +1,13 @@
 'use client';
 
 /**
- * Workspace panel — the Taro left sidebar (final).
+ * Workspace panel — the Taro left dock (final).
  *
- * A slim left dock is the ONLY sidebar — there is no expanded full-height
- * sidebar anymore. The dock holds the Taro logo (back to dashboard) and
- * the two section icons (Warehouses / Comparisons).
+ * A compact 3-icon cluster dock (logo → Warehouses → Comparisons) sits at
+ * the TOP-LEFT corner of the screen. There is no full-height sidebar.
  *
  * Clicking a section icon expands a compact panel OUTWARD from the dock
- * (still hugging the left edge) with that section's content:
+ * (to the right) with that section's content:
  *   • header with close
  *   • matching add button ("Add Warehouse" / "New Comparison")
  *   • scrollable list
@@ -329,8 +328,8 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       {/* Click-outside overlay — closes the dock panel (kept under the dock) */}
       {dockOpen && <div className="fixed inset-0 z-30" onClick={() => setDockOpen(false)} />}
 
-      {/* Left dock + expanding mini panel */}
-      <div className="fixed left-0 top-0 bottom-0 z-40 flex items-center">
+      {/* Top-left dock + expanding mini panel */}
+      <div className="fixed left-0 top-0 z-40 flex items-start p-2">
         {/* Dock — compact cluster: logo, warehouses, comparisons */}
         <div className="flex flex-col items-center gap-1.5 rounded-r-xl border border-l-0 border-border-default bg-surface shadow-lg px-1.5 py-2">
           {/* Logo — always links to the main page (dashboard) */}
