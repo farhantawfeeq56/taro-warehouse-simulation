@@ -331,21 +331,22 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
 
       {/* Left dock + expanding mini panel */}
       <div className="fixed left-0 top-0 bottom-0 z-40 flex items-center">
-        {/* Dock — the only persistent sidebar */}
-        <div className="flex h-full flex-col items-center gap-1.5 rounded-r-xl border border-l-0 border-border-default bg-surface shadow-lg px-1.5 py-2">
-          {props.onBackToDashboard ? (
-            <button
-              onClick={props.onBackToDashboard}
-              title={`Back to dashboard — ${props.projectName}`}
-              className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            >
-              <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
-            </button>
-          ) : (
-            <div className="flex h-9 w-9 items-center justify-center opacity-70">
-              <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
-            </div>
-          )}
+        {/* Dock — compact cluster: logo, warehouses, comparisons */}
+        <div className="flex flex-col items-center gap-1.5 rounded-r-xl border border-l-0 border-border-default bg-surface shadow-lg px-1.5 py-2">
+          {/* Logo — always links to the main page (dashboard) */}
+          <a
+            href="/"
+            onClick={(e) => {
+              if (props.onBackToDashboard) {
+                e.preventDefault();
+                props.onBackToDashboard();
+              }
+            }}
+            title="Taro — back to main page"
+            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+          >
+            <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
+          </a>
 
           <div className="w-6 border-t border-border-default" />
 
