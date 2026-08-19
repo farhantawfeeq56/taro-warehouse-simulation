@@ -1143,7 +1143,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Workspace (warehouses + comparisons) */}
+        {/* Left Panel - Workspace (left dock) */}
         <WorkspacePanel
           onBackToDashboard={onBackToDashboard ?? undefined}
           projectName={projectName}
@@ -1204,7 +1204,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             deletingWarehouseId={deletingWarehouseId}
             renamingWarehouseId={renamingWarehouseId}
             togglingMembershipWarehouseId={togglingMembershipWarehouseId}
-            onNewWarehouse={handleNewWarehouse}
             workerCount={workerCount}
             onWorkerCountChange={setWorkerCount}
             onPersistPosition={handlePersistPosition}
