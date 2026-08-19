@@ -85,6 +85,15 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   // comparison" mode (see plan-comparison-canvas-association.md).
   const [linkModeComparisonId, setLinkModeComparisonId] = useState<string | null>(null);
 
+  // Which dock panel is open — only one at a time across all docks.
+  // 'warehouses' | 'comparisons' | 'workbench' | 'comparison' | null
+  const [openDockId, setOpenDockId] = useState<string | null>(null);
+
+  /** Toggle a dock; opening one closes any other open dock. */
+  const toggleDock = useCallback((id: string) => {
+    setOpenDockId((prev) => (prev === id ? null : id));
+  }, []);
+
   // Derived: the currently selected warehouse (drives all panels).
   const warehouse = useMemo(() => {
     if (!activeWarehouseId) return null;
@@ -1165,6 +1174,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onNewComparison={handleNewComparison}
               isCreatingComparison={isCreatingComparison}
               deletingComparisonId={deletingComparisonId}
+              isOpen={openDockId === 'workspace'}
+              onOpenChange={() => toggleDock('workspace')}
             />
           </div>
           <div className="pointer-events-auto">
@@ -1197,6 +1208,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onSetWorkerStart={() => setSelectedTool('worker')}
               onZVisualizationChange={setZVisualizationMode}
               isGeneratingOrders={isGeneratingOrders}
+              isOpen={openDockId === 'workbench'}
+              onOpenChange={() => toggleDock('workbench')}
             />
           </div>
           <div className="pointer-events-auto">
@@ -1219,6 +1232,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onRun={handleRunComparison}
               onAddWarehouse={handleAddComparisonWarehouse}
               onRemoveWarehouse={handleRemoveComparisonWarehouse}
+              isOpen={openDockId === 'comparison'}
+              onOpenChange={() => toggleDock('comparison')}
             />
           </div>
         </div>

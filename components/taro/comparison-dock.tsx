@@ -24,10 +24,14 @@ interface ComparisonDockProps {
   onRun: (comparisonId: string) => void;
   onAddWarehouse: (comparisonId: string, warehouseId: string) => void;
   onRemoveWarehouse: (comparisonId: string, warehouseId: string) => void;
+
+  // Dock open state — controlled from TaroApp so only one dock is open at a time
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function ComparisonDock(props: ComparisonDockProps) {
-  const [dockOpen, setDockOpen] = useState(false);
+  const { isOpen: dockOpen, onOpenChange: setDockOpen } = props;
 
   // Escape closes the dock panel.
   useEffect(() => {
@@ -36,12 +40,12 @@ export function ComparisonDock(props: ComparisonDockProps) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [setDockOpen]);
 
   // Auto-open when a comparison becomes active.
   useEffect(() => {
     if (props.comparison) setDockOpen(true);
-  }, [props.comparison?.id]);
+  }, [props.comparison?.id, setDockOpen]);
 
   /* ── Layout ───────────────────────────────────────────────────────── */
 
@@ -68,7 +72,7 @@ export function ComparisonDock(props: ComparisonDockProps) {
         {/* Mini panel — absolute, expands OUTWARD to the right (hugging the left edge) */}
         <div
           className={cn(
-            'fixed left-[56px] top-[68px] bottom-2 flex w-[300px] flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
+            'fixed left-[72px] top-[68px] bottom-2 flex w-[300px] flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
             dockOpen ? 'translate-x-0 opacity-100' : '-translate-x-3 opacity-0 pointer-events-none',
           )}
         >

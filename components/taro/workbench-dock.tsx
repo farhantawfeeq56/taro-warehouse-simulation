@@ -70,6 +70,10 @@ interface WorkbenchDockProps {
   onZVisualizationChange?: (mode: ZVisualizationMode) => void;
   /** Whether demo orders are being generated — shows spinner on the fix button. */
   isGeneratingOrders?: boolean;
+
+  // Dock open state — controlled from TaroApp so only one dock is open at a time
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 type Section = 'config' | 'orders' | 'simulation';
@@ -82,7 +86,7 @@ const SECTION_META: Record<Section, { title: string; icon: typeof SlidersHorizon
 
 export function WorkbenchDock(props: WorkbenchDockProps) {
   const [section, setSection] = useState<Section>('orders');
-  const [dockOpen, setDockOpen] = useState(false);
+  const { isOpen: dockOpen, onOpenChange: setDockOpen } = props;
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Escape closes the dock panel.
@@ -92,7 +96,7 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [setDockOpen]);
 
   /** Dock icon click: toggle open if same section, else switch + open. */
   const toggleSection = (t: Section) => {
@@ -191,7 +195,7 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
         {/* Mini panel — absolute, expands OUTWARD to the right (hugging the left edge) */}
         <div
           className={cn(
-            'fixed left-[56px] top-[68px] bottom-2 flex w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
+            'fixed left-[72px] top-[68px] bottom-2 flex w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
             dockOpen ? 'translate-x-0 opacity-100' : '-translate-x-3 opacity-0 pointer-events-none',
           )}
         >
