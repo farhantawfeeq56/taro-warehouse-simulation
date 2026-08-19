@@ -107,7 +107,13 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
   const content = (() => {
     switch (section) {
       case 'config':
-        return <ConfigTab configuration={props.configuration} onEdit={props.onEditConfig} />;
+        return (
+          <ConfigTab
+            stacked
+            configuration={props.configuration}
+            onEdit={props.onEditConfig}
+          />
+        );
       case 'orders':
         return (
           <OrdersPanel
@@ -188,7 +194,7 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
         {/* Mini panel — expands OUTWARD from the dock (hugging the left edge) */}
         <div
           className={cn(
-            'flex h-72 w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
+            'flex h-96 w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
             dockOpen ? 'translate-x-0 opacity-100' : '-translate-x-3 opacity-0 pointer-events-none',
           )}
         >

@@ -18,6 +18,12 @@ import { TabBar, TabVariantToolbar, type TabVariant } from './section-tabs';
 interface ConfigTabProps {
   configuration: WarehouseConfiguration | null;
   onEdit: () => void;
+  /**
+   * When true (used inside the compact dock), render all three option
+   * groups (Geometry / Inventory / Placement) stacked vertically with no
+   * tabs and no variant toolbar.
+   */
+  stacked?: boolean;
 }
 
 interface ConfigItemProps {
@@ -144,7 +150,7 @@ function TabBody({
   );
 }
 
-export function ConfigTab({ configuration, onEdit }: ConfigTabProps) {
+export function ConfigTab({ configuration, onEdit, stacked = false }: ConfigTabProps) {
   const [activeTab, setActiveTab] = useState<ConfigTabId>('geometry');
   const [tabVariant, setTabVariant] = useState<TabVariant>(1);
 
@@ -174,7 +180,16 @@ export function ConfigTab({ configuration, onEdit }: ConfigTabProps) {
       </div>
 
       {configuration ? (
-        <>
+        stacked ? (
+          <>
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
+              <TabBody id="geometry" configuration={configuration} />
+              <TabBody id="inventory" configuration={configuration} />
+              <TabBody id="placement" configuration={configuration} />
+            </div>
+          </>
+        ) : (
+          <>
           <div className="shrink-0">
             <TabBar
               cards={TABS}
@@ -189,7 +204,8 @@ export function ConfigTab({ configuration, onEdit }: ConfigTabProps) {
           </div>
 
           <TabVariantToolbar active={tabVariant} onSelect={setTabVariant} />
-        </>
+          </>
+        )
       ) : (
         <div className="flex flex-col items-center justify-center text-center py-10 gap-3">
           <Settings className="h-8 w-8 text-muted-foreground/40" />
