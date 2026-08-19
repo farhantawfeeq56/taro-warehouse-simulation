@@ -28,7 +28,6 @@ import WarehouseFlowNode from './warehouse-flow-node';
 import type { WarehouseNodeData } from './warehouse-flow-node';
 import ComparisonFlowNode from './comparison-flow-node';
 import type { ComparisonNodeData } from './comparison-flow-node';
-import { Plus } from 'lucide-react';
 
 /**
  * Auto-layout: simple 2-column grid that avoids overlap.
@@ -61,7 +60,6 @@ interface WarehouseFlowProps {
   renamingWarehouseId: string | null;
   /** Warehouse id currently toggled in link mode — shows spinner on the badge. */
   togglingMembershipWarehouseId: string | null;
-  onNewWarehouse: () => void;
   workerCount: number;
   onWorkerCountChange: (count: number) => void;
   onPersistPosition: (warehouseId: string, x: number, y: number) => void;
@@ -116,7 +114,6 @@ function WarehouseFlowInner({
   onRenameWarehouse,
   onDeleteWarehouse,
   onOpenLayoutConfig,
-  onNewWarehouse,
   workerCount,
   onWorkerCountChange,
   onPersistPosition,
@@ -605,24 +602,6 @@ function WarehouseFlowInner({
           color="#C9C5C4"
         />
       </ReactFlow>
-
-      {/* Floating Add Warehouse button — subtle top left */}
-      <button
-        onClick={onNewWarehouse}
-        title="Add a new warehouse"
-        className="
-          nodrag absolute top-3 left-3 z-50
-          flex items-center gap-1 px-2 py-1.5
-          bg-surface/60 backdrop-blur-sm text-muted-foreground
-          border border-border rounded-lg
-          hover:bg-surface hover:text-foreground hover:border-border-strong
-          active:bg-muted
-          transition-colors text-[11px] font-medium shadow-sm
-        "
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Add
-      </button>
     </div>
   );
 }

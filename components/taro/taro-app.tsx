@@ -1204,7 +1204,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             deletingWarehouseId={deletingWarehouseId}
             renamingWarehouseId={renamingWarehouseId}
             togglingMembershipWarehouseId={togglingMembershipWarehouseId}
-            onNewWarehouse={handleNewWarehouse}
             workerCount={workerCount}
             onWorkerCountChange={setWorkerCount}
             onPersistPosition={handlePersistPosition}
