@@ -325,9 +325,6 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
 
   return (
     <>
-      {/* Click-outside overlay — closes the dock panel (kept under the dock) */}
-      {dockOpen && <div className="fixed inset-0 z-30" onClick={() => setDockOpen(false)} />}
-
       {/* Logo dock — logo + project name (separate from the section docks) */}
       <div className="relative z-40 flex items-center gap-2.5 rounded-xl border border-border-default bg-surface shadow-lg px-2 py-2">
         {/* Logo — always links to the main page (dashboard) */}
@@ -386,7 +383,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
         {/* Mini panel — absolute, expands OUTWARD to the right (hugging the left edge) */}
         <div
           className={cn(
-            'absolute left-[56px] top-0 flex h-96 w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
+            'fixed left-[56px] top-[68px] bottom-2 flex w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
             dockOpen ? 'translate-x-0 opacity-100' : '-translate-x-3 opacity-0 pointer-events-none',
           )}
         >
