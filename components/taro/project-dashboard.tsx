@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Loader2, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -37,13 +38,10 @@ function timeAgo(date: Date): string {
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
-interface ProjectDashboardProps {
-  onOpenProject: (projectId: string) => void;
-}
-
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
+export function ProjectDashboard() {
+  const router = useRouter();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,14 +138,14 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
       const project = await createProjectAction(name);
       setShowNewDialog(false);
       setNewProjectName('');
-      // Navigate straight into the new project
-      onOpenProject(project.id);
+      // Navigate straight into the new project's own URL
+      router.push(`/projects/${project.id}`);
     } catch (err) {
       console.error('Failed to create project:', err);
     } finally {
       setIsCreating(false);
     }
-  }, [newProjectName, onOpenProject]);
+  }, [newProjectName, router]);
 
   // ── Copy ────────────────────────────────────────────────────────────────
 
@@ -157,13 +155,22 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
       try {
         const copy = await createProjectAction(`${project.name} (Copy)`);
         // Navigate to the empty copy; user can re-configure from scratch
-        onOpenProject(copy.id);
+        router.push(`/projects/${copy.id}`);
       } catch (err) {
         console.error('Failed to copy project:', err);
         setCopyingProjectId(null);
       }
     },
-    [onOpenProject],
+    [router],
+  );
+
+  // ── Open ─────────────────────────────────────────────────────────────────
+
+  const handleOpenProject = useCallback(
+    (projectId: string) => {
+      router.push(`/projects/${projectId}`);
+    },
+    [router],
   );
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -266,7 +273,7 @@ export function ProjectDashboard({ onOpenProject }: ProjectDashboardProps) {
         {!isLoading && !error && projects.length > 0 && (
           <ProjectListView
             projects={projects}
-            onOpenProject={onOpenProject}
+            onOpenProject={handleOpenProject}
             onStartRename={startRename}
             onCopy={handleCopy}
             onDelete={setDeleteTarget}
