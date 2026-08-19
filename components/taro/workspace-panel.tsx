@@ -1,19 +1,37 @@
 'use client';
 
 /**
- * Workspace panel — the Taro left sidebar.
+ * Workspace panel — the Taro left sidebar (final).
  *
- * Finalized as the "V-Tabs" arrangement (vartest10, variant 2): a vertical
- * icon rail on the left edge switches between the Warehouses and Comparisons
- * sections. Each tab pins its own matching action button at the top of the
- * list area (vartest5, variant 2) — Warehouses shows "Add Warehouse",
- * Comparisons shows "New Comparison". The app header (logo + project name)
- * sits on top; no footer actions.
+ * A slim left dock (46px) is the ONLY sidebar — there is no expanded
+ * full-height sidebar anymore. The dock holds the Taro logo (back to
+ * dashboard) and the two section icons (Warehouses / Comparisons).
+ *
+ * Clicking a section icon slides out a compact panel (256px) hugging the
+ * left edge with that section's list and its matching add button:
+ *   • Warehouses → "Add Warehouse"
+ *   • Comparisons → "New Comparison"
+ *
+ * Interactions:
+ *   • Click the active section's icon again → close the panel.
+ *   • Click the other icon → switch section (panel stays open).
+ *   • Close via the X, Escape, or clicking anywhere outside.
+ *   • Warehouse rows: click to select, shift-click multi-select,
+ *     double-click to rename.
+ *   • Comparison rows: click to select, double-click to rename,
+ *     trash button to delete, "nw" member count.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import type { WorkspaceWarehouse, Comparison } from '@/lib/taro/types';
-import { Plus, GitCompareArrows, Warehouse as WarehouseIcon, Trash2, Loader2 } from 'lucide-react';
+import {
+  Plus,
+  GitCompareArrows,
+  Warehouse as WarehouseIcon,
+  Trash2,
+  Loader2,
+  X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface WorkspacePanelProps {
@@ -51,6 +69,7 @@ type EditingTarget = { id: string; type: Section };
 
 export function WorkspacePanel(props: WorkspacePanelProps) {
   const [section, setSection] = useState<Section>('warehouses');
+  const [open, setOpen] = useState(false);
 
   // Inline rename
   const [editing, setEditing] = useState<EditingTarget | null>(null);
@@ -64,6 +83,25 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       inputRef.current?.select();
     });
   }, [editing]);
+
+  // Escape closes the panel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  /** Dock icon click: toggle open if same section, else switch + open. */
+  const toggleSection = (t: Section) => {
+    if (open && section === t) {
+      setOpen(false);
+      return;
+    }
+    setSection(t);
+    setOpen(true);
+  };
 
   const beginEdit = (target: EditingTarget, currentName: string) => {
     setEditing(target);
@@ -92,28 +130,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
   const isEditing = (id: string, type: Section) =>
     editing?.id === id && editing.type === type;
 
-  /* ── Rail buttons ─────────────────────────────────────────────────── */
-
-  const railButton = (
-    type: Section,
-    label: string,
-    Icon: typeof WarehouseIcon,
-  ) => (
-    <button
-      onClick={() => setSection(type)}
-      title={label}
-      className={cn(
-        'relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-        section === type
-          ? 'bg-accent-soft text-accent'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-      )}
-    >
-      <Icon className="h-4 w-4" />
-    </button>
-  );
-
-  /* ── Add buttons (per-tab top) ───────────────────────────────────── */
+  /* ── Add buttons ──────────────────────────────────────────────────── */
 
   const AddWarehouseButton = () => (
     <button
@@ -302,51 +319,102 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       </ul>
     );
 
+  /* ── Dock buttons ─────────────────────────────────────────────────── */
+
+  const dockSectionButton = (t: Section, label: string, Icon: typeof WarehouseIcon) => {
+    const isActive = section === t;
+    return (
+      <button
+        onClick={() => toggleSection(t)}
+        title={`${label} — click to ${open && section === t ? 'close' : 'open'}`}
+        className={cn(
+          'relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
+          isActive
+            ? 'bg-accent-soft text-accent'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+        )}
+      >
+        <Icon className="h-4 w-4" />
+        {/* Active underline indicator */}
+        {isActive && open && (
+          <span className="absolute left-1 right-1 -bottom-0.5 h-0.5 rounded-full bg-accent" />
+        )}
+      </button>
+    );
+  };
+
   /* ── Layout ───────────────────────────────────────────────────────── */
 
   return (
-    <div className="w-72 border-r border-border bg-[#F4F4F2] flex flex-col">
-      {/* App header: Logo + Project name */}
-      <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border shrink-0">
-        {props.onBackToDashboard ? (
-          <button
-            onClick={props.onBackToDashboard}
-            title="Back to dashboard"
-            className="shrink-0 hover:opacity-80 transition-opacity"
-          >
-            <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={28} height={28} className="rounded" />
-          </button>
-        ) : (
-          <div className="shrink-0 opacity-70">
-            <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={28} height={28} className="rounded" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold text-foreground truncate">{props.projectName}</div>
-          {props.importSummary && (
-            <div className="text-[10px] text-positive truncate leading-tight">{props.importSummary}</div>
+    <>
+      {/* Click-outside overlay — closes the panel (kept under the dock) */}
+      {open && <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />}
+
+      <div className="relative z-30 flex h-full shrink-0">
+        {/* Dock — the only persistent sidebar */}
+        <div className="w-[46px] border-r border-border bg-[#F4F4F2] flex flex-col items-center py-1.5 gap-1 shrink-0">
+          {props.onBackToDashboard ? (
+            <button
+              onClick={props.onBackToDashboard}
+              title={`Back to dashboard — ${props.projectName}`}
+              className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+            >
+              <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
+            </button>
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center opacity-70">
+              <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
+            </div>
           )}
-        </div>
-      </div>
 
-      {/* V-Tabs body: icon rail + active section */}
-      <div className="flex-1 flex min-h-0">
-        {/* Vertical icon rail */}
-        <div className="flex flex-col items-center gap-1 border-r border-border-default p-1.5 shrink-0">
-          {railButton('warehouses', 'Warehouses', WarehouseIcon)}
-          {railButton('comparisons', 'Comparisons', GitCompareArrows)}
+          <div className="w-6 border-t border-border-default" />
+
+          {dockSectionButton('warehouses', 'Warehouses', WarehouseIcon)}
+          {dockSectionButton('comparisons', 'Comparisons', GitCompareArrows)}
         </div>
 
-        {/* Active section with its matching add button pinned on top */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="px-2 pt-2 shrink-0">
-            {section === 'warehouses' ? <AddWarehouseButton /> : <AddComparisonButton />}
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto p-2">
-            {section === 'warehouses' ? warehouseList : comparisonList}
+        {/* Compact panel — slides out from the dock */}
+        <div
+          className={cn(
+            'overflow-hidden shrink-0 transition-[width] duration-200 ease-out',
+            open ? 'w-64' : 'w-0',
+          )}
+        >
+          <div className="w-64 h-full border-r border-border bg-[#F4F4F2] flex flex-col min-h-0">
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80">
+                {section === 'warehouses' ? (
+                  <WarehouseIcon className="h-3 w-3" />
+                ) : (
+                  <GitCompareArrows className="h-3 w-3" />
+                )}
+                <span>{section === 'warehouses' ? 'Warehouses' : 'Comparisons'}</span>
+                <span className="text-muted-foreground/50 font-sans">
+                  ({section === 'warehouses' ? props.warehouses.length : props.comparisons.length})
+                </span>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                title="Close panel (Esc)"
+                className="shrink-0 p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Matching add button pinned on top */}
+            <div className="px-2 pt-2 shrink-0">
+              {section === 'warehouses' ? <AddWarehouseButton /> : <AddComparisonButton />}
+            </div>
+
+            {/* Active section list */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-2">
+              {section === 'warehouses' ? warehouseList : comparisonList}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

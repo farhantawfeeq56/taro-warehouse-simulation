@@ -31,7 +31,7 @@ import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/con
 import { WarehouseFlow } from './warehouse-flow';
 import { WorkbenchPanel } from './workbench-panel';
 import { ComparisonPanel } from './comparison-panel';
-import { WorkspacePanelParadigmVariants } from './workspace-panel-paradigm-variants';
+import { WorkspacePanel } from './workspace-panel';
 import { Toolbar } from './toolbar';
 import { GitCompareArrows, Loader2 } from 'lucide-react';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
@@ -1143,8 +1143,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Workspace (warehouses + comparisons) — vartest10 left-anchored access */}
-        <WorkspacePanelParadigmVariants
+        {/* Left Panel - Workspace (warehouses + comparisons) */}
+        <WorkspacePanel
           onBackToDashboard={onBackToDashboard ?? undefined}
           projectName={projectName}
           importSummary={importSummary}
