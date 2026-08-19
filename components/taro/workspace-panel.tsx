@@ -96,7 +96,6 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
   const railButton = (
     type: Section,
     label: string,
-    count: number,
     Icon: typeof WarehouseIcon,
   ) => (
     <button
@@ -110,11 +109,6 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       )}
     >
       <Icon className="h-4 w-4" />
-      {count > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-accent px-0.5 text-[8px] font-bold text-accent-soft">
-          {count}
-        </span>
-      )}
     </button>
   );
 
@@ -306,8 +300,8 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       <div className="flex-1 flex min-h-0">
         {/* Vertical icon rail */}
         <div className="flex flex-col items-center gap-1 border-r border-border-default p-1.5 shrink-0">
-          {railButton('warehouses', 'Warehouses', props.warehouses.length, WarehouseIcon)}
-          {railButton('comparisons', 'Comparisons', props.comparisons.length, GitCompareArrows)}
+          {railButton('warehouses', 'Warehouses', WarehouseIcon)}
+          {railButton('comparisons', 'Comparisons', GitCompareArrows)}
         </div>
 
         {/* Active section */}
