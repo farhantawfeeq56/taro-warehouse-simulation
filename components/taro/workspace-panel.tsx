@@ -328,10 +328,9 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       {/* Click-outside overlay — closes the dock panel (kept under the dock) */}
       {dockOpen && <div className="fixed inset-0 z-30" onClick={() => setDockOpen(false)} />}
 
-      {/* Top-left dock + expanding mini panel */}
+      {/* Logo dock — separate top-left dock: logo + project name */}
       <div className="fixed left-0 top-0 z-40 flex items-start p-2">
-        {/* Dock — compact cluster: logo, warehouses, comparisons */}
-        <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
+        <div className="flex items-center gap-2.5 rounded-xl border border-border-default bg-surface shadow-lg px-2 py-2">
           {/* Logo — always links to the main page (dashboard) */}
           <a
             href="/"
@@ -342,13 +341,24 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
               }
             }}
             title="Taro — back to main page"
-            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors shrink-0"
           >
             <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
           </a>
+          {/* Project name — to the right of the logo */}
+          <span
+            className="text-sm font-semibold text-foreground truncate max-w-[220px] font-['Instrument_Sans',system-ui,sans-serif]"
+            title={props.projectName}
+          >
+            {props.projectName}
+          </span>
+        </div>
+      </div>
 
-          <div className="w-6 border-t border-border-default" />
-
+      {/* Warehouses & Comparisons dock — below the logo dock */}
+      <div className="fixed left-0 top-[64px] z-40 flex items-start p-2">
+        {/* Dock — compact cluster: warehouses, comparisons */}
+        <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
           <button
             onClick={() => toggleSection('warehouses')}
             title="Warehouses"

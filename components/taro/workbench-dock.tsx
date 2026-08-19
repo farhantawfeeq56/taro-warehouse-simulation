@@ -165,7 +165,7 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
       {dockOpen && <div className="fixed inset-0 z-30" onClick={() => setDockOpen(false)} />}
 
       {/* Second left dock — workbench (below the workspace dock) */}
-      <div className="fixed left-0 top-[150px] z-40 flex items-start p-2">
+      <div className="fixed left-0 top-[140px] z-40 flex items-start p-2">
         {/* Dock — compact icon cluster */}
         <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
           {(
