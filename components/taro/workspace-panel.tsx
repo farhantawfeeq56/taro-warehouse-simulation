@@ -331,7 +331,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       {/* Top-left dock + expanding mini panel */}
       <div className="fixed left-0 top-0 z-40 flex items-start p-2">
         {/* Dock — compact cluster: logo, warehouses, comparisons */}
-        <div className="flex flex-col items-center gap-1.5 rounded-r-xl border border-l-0 border-border-default bg-surface shadow-lg px-1.5 py-2">
+        <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
           {/* Logo — always links to the main page (dashboard) */}
           <a
             href="/"
@@ -378,7 +378,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
         {/* Mini panel — expands OUTWARD from the dock (still hugging the left edge) */}
         <div
           className={cn(
-            'flex h-72 w-64 flex-col overflow-hidden rounded-r-xl border border-l-0 border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
+            'flex h-72 w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
             dockOpen ? 'translate-x-0 opacity-100' : '-translate-x-3 opacity-0 pointer-events-none',
           )}
         >
