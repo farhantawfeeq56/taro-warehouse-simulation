@@ -1143,26 +1143,85 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Workspace (left dock) */}
-        <WorkspacePanel
-          onBackToDashboard={onBackToDashboard ?? undefined}
-          projectName={projectName}
-          importSummary={importSummary}
-          warehouses={workspaceWarehouses}
-          activeWarehouseId={activeWarehouseId}
-          selectedWarehouseIds={selectedWarehouseIds}
-          onSelectWarehouse={handleSelectWarehouse}
-          onRenameWarehouse={handleRenameWarehouse}
-          comparisons={comparisons}
-          activeComparisonId={activeComparisonId}
-          onSelectComparison={handleSelectComparison}
-          onRenameComparison={handleRenameComparison}
-          onDeleteComparison={handleDeleteComparison}
-          onAddWarehouse={handleNewWarehouse}
-          onNewComparison={handleNewComparison}
-          isCreatingComparison={isCreatingComparison}
-          deletingComparisonId={deletingComparisonId}
-        />
+        {/* Left dock stack — fixed column hugging the left edge: logo,
+            warehouses/comparisons, workbench, comparison */}
+        <div className="fixed left-0 top-0 z-40 flex flex-col items-start gap-2 p-2 pointer-events-none">
+          <div className="pointer-events-auto">
+            <WorkspacePanel
+              onBackToDashboard={onBackToDashboard ?? undefined}
+              projectName={projectName}
+              importSummary={importSummary}
+              warehouses={workspaceWarehouses}
+              activeWarehouseId={activeWarehouseId}
+              selectedWarehouseIds={selectedWarehouseIds}
+              onSelectWarehouse={handleSelectWarehouse}
+              onRenameWarehouse={handleRenameWarehouse}
+              comparisons={comparisons}
+              activeComparisonId={activeComparisonId}
+              onSelectComparison={handleSelectComparison}
+              onRenameComparison={handleRenameComparison}
+              onDeleteComparison={handleDeleteComparison}
+              onAddWarehouse={handleNewWarehouse}
+              onNewComparison={handleNewComparison}
+              isCreatingComparison={isCreatingComparison}
+              deletingComparisonId={deletingComparisonId}
+            />
+          </div>
+          <div className="pointer-events-auto">
+            <WorkbenchDock
+              configuration={activeWarehouseConfig}
+              onEditConfig={() => setShowLayoutConfig(true)}
+              orders={orders}
+              onOrdersChange={setOrders}
+              warehouse={warehouse ?? undefined}
+              highlightedMissingSkuIds={highlightedMissingSkuIds}
+              onClearHighlights={() => setHighlightedMissingSkuIds(null)}
+              orderCount={orderCount}
+              avgOrderSize={avgOrderSize}
+              onOrderCountChange={setOrderCount}
+              onAvgOrderSizeChange={setAvgOrderSize}
+              onAddDemoOrders={handleAddDemoOrders}
+              simulationResults={simulationResults}
+              readiness={readiness}
+              isSimulating={isSimulating}
+              activeStrategy={activeStrategy}
+              onStrategySelect={handleStrategySelect}
+              animationProgress={animationProgress}
+              workerCount={workerCount}
+              executionPlan={executionPlan}
+              validationContext={validationContext}
+              blockState={simulationBlockState}
+              onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
+              onSimulate={handleSimulateClick}
+              onAddShelves={() => setSelectedTool('shelf')}
+              onSetWorkerStart={() => setSelectedTool('worker')}
+              onZVisualizationChange={setZVisualizationMode}
+              isGeneratingOrders={isGeneratingOrders}
+            />
+          </div>
+          <div className="pointer-events-auto">
+            <ComparisonDock
+              comparison={(() => {
+                const activeComp =
+                  activeComparisonId &&
+                  comparisons.some((c) => c.id === activeComparisonId);
+                return activeComp
+                  ? comparisons.find((c) => c.id === activeComparisonId) ?? null
+                  : null;
+              })()}
+              warehouses={workspaceWarehouses}
+              results={comparisonResultsById[activeComparisonId ?? '']?.results ?? null}
+              isRunning={isComparing}
+              isStale={comparisonStaleness[activeComparisonId ?? ''] ?? false}
+              allWarehouseNames={Object.fromEntries(
+                workspaceWarehouses.map((w) => [w.id, w.name]),
+              )}
+              onRun={handleRunComparison}
+              onAddWarehouse={handleAddComparisonWarehouse}
+              onRemoveWarehouse={handleRemoveComparisonWarehouse}
+            />
+          </div>
+        </div>
 
         {/*
          * Center — Canvas.
@@ -1262,59 +1321,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         </div>
         )}
 
-        {/* Second left dock — workbench (Config / Orders / Simulation) */}
-        <WorkbenchDock
-          configuration={activeWarehouseConfig}
-          onEditConfig={() => setShowLayoutConfig(true)}
-          orders={orders}
-          onOrdersChange={setOrders}
-          warehouse={warehouse ?? undefined}
-          highlightedMissingSkuIds={highlightedMissingSkuIds}
-          onClearHighlights={() => setHighlightedMissingSkuIds(null)}
-          orderCount={orderCount}
-          avgOrderSize={avgOrderSize}
-          onOrderCountChange={setOrderCount}
-          onAvgOrderSizeChange={setAvgOrderSize}
-          onAddDemoOrders={handleAddDemoOrders}
-          simulationResults={simulationResults}
-          readiness={readiness}
-          isSimulating={isSimulating}
-          activeStrategy={activeStrategy}
-          onStrategySelect={handleStrategySelect}
-          animationProgress={animationProgress}
-          workerCount={workerCount}
-          executionPlan={executionPlan}
-          validationContext={validationContext}
-          blockState={simulationBlockState}
-          onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
-          onSimulate={handleSimulateClick}
-          onAddShelves={() => setSelectedTool('shelf')}
-          onSetWorkerStart={() => setSelectedTool('worker')}
-          onZVisualizationChange={setZVisualizationMode}
-          isGeneratingOrders={isGeneratingOrders}
-        />
-
-        {/* Second left dock — comparison view (hosted in a dock panel) */}
-        <ComparisonDock
-          comparison={(() => {
-            const activeComp =
-              activeComparisonId &&
-              comparisons.some((c) => c.id === activeComparisonId);
-            return activeComp
-              ? comparisons.find((c) => c.id === activeComparisonId) ?? null
-              : null;
-          })()}
-          warehouses={workspaceWarehouses}
-          results={comparisonResultsById[activeComparisonId ?? '']?.results ?? null}
-          isRunning={isComparing}
-          isStale={comparisonStaleness[activeComparisonId ?? ''] ?? false}
-          allWarehouseNames={Object.fromEntries(
-            workspaceWarehouses.map((w) => [w.id, w.name]),
-          )}
-          onRun={handleRunComparison}
-          onAddWarehouse={handleAddComparisonWarehouse}
-          onRemoveWarehouse={handleRemoveComparisonWarehouse}
-        />
       </div>
 
       {/* Validation Modal */}

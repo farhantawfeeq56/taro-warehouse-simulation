@@ -164,8 +164,8 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
       {/* Click-outside overlay — closes the dock panel (kept under the dock) */}
       {dockOpen && <div className="fixed inset-0 z-30" onClick={() => setDockOpen(false)} />}
 
-      {/* Second left dock — workbench (below the workspace dock) */}
-      <div className="fixed left-0 top-[140px] z-40 flex items-start p-2">
+      {/* Workbench dock — icon cluster + expanding panel */}
+      <div className="relative z-40 flex items-start">
         {/* Dock — compact icon cluster */}
         <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
           {(
@@ -191,10 +191,10 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
           ))}
         </div>
 
-        {/* Mini panel — expands OUTWARD from the dock (hugging the left edge) */}
+        {/* Mini panel — absolute, expands OUTWARD to the right (hugging the left edge) */}
         <div
           className={cn(
-            'flex h-96 w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
+            'absolute left-[56px] top-0 flex h-96 w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
             dockOpen ? 'translate-x-0 opacity-100' : '-translate-x-3 opacity-0 pointer-events-none',
           )}
         >

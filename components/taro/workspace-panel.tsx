@@ -328,35 +328,33 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       {/* Click-outside overlay — closes the dock panel (kept under the dock) */}
       {dockOpen && <div className="fixed inset-0 z-30" onClick={() => setDockOpen(false)} />}
 
-      {/* Logo dock — separate top-left dock: logo + project name */}
-      <div className="fixed left-0 top-0 z-40 flex items-start p-2">
-        <div className="flex items-center gap-2.5 rounded-xl border border-border-default bg-surface shadow-lg px-2 py-2">
-          {/* Logo — always links to the main page (dashboard) */}
-          <a
-            href="/"
-            onClick={(e) => {
-              if (props.onBackToDashboard) {
-                e.preventDefault();
-                props.onBackToDashboard();
-              }
-            }}
-            title="Taro — back to main page"
-            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors shrink-0"
-          >
-            <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
-          </a>
-          {/* Project name — to the right of the logo */}
-          <span
-            className="text-sm font-semibold text-foreground truncate max-w-[220px] font-['Instrument_Sans',system-ui,sans-serif]"
-            title={props.projectName}
-          >
-            {props.projectName}
-          </span>
-        </div>
+      {/* Logo dock — logo + project name (separate from the section docks) */}
+      <div className="relative z-40 flex items-center gap-2.5 rounded-xl border border-border-default bg-surface shadow-lg px-2 py-2">
+        {/* Logo — always links to the main page (dashboard) */}
+        <a
+          href="/"
+          onClick={(e) => {
+            if (props.onBackToDashboard) {
+              e.preventDefault();
+              props.onBackToDashboard();
+            }
+          }}
+          title="Taro — back to main page"
+          className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors shrink-0"
+        >
+          <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
+        </a>
+        {/* Project name — to the right of the logo */}
+        <span
+          className="text-sm font-semibold text-foreground truncate max-w-[220px] font-['Instrument_Sans',system-ui,sans-serif]"
+          title={props.projectName}
+        >
+          {props.projectName}
+        </span>
       </div>
 
-      {/* Warehouses & Comparisons dock — below the logo dock */}
-      <div className="fixed left-0 top-[64px] z-40 flex items-start p-2">
+      {/* Warehouses & Comparisons dock — icon cluster + expanding panel */}
+      <div className="relative z-40 flex items-start">
         {/* Dock — compact cluster: warehouses, comparisons */}
         <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
           <button
@@ -385,10 +383,10 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
           </button>
         </div>
 
-        {/* Mini panel — expands OUTWARD from the dock (still hugging the left edge) */}
+        {/* Mini panel — absolute, expands OUTWARD to the right (hugging the left edge) */}
         <div
           className={cn(
-            'flex h-96 w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
+            'absolute left-[56px] top-0 flex h-96 w-64 flex-col overflow-hidden rounded-xl border border-border-default bg-[#F4F4F2] shadow-2xl transition-all duration-300',
             dockOpen ? 'translate-x-0 opacity-100' : '-translate-x-3 opacity-0 pointer-events-none',
           )}
         >
