@@ -86,12 +86,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const [linkModeComparisonId, setLinkModeComparisonId] = useState<string | null>(null);
 
   // Which dock panel is open — only one at a time across all docks.
-  // 'warehouses' | 'comparisons' | 'workbench' | 'comparison' | null
+  // 'workspace' | 'workbench' | 'comparison' | null
   const [openDockId, setOpenDockId] = useState<string | null>(null);
 
-  /** Toggle a dock; opening one closes any other open dock. */
-  const toggleDock = useCallback((id: string) => {
-    setOpenDockId((prev) => (prev === id ? null : id));
+  /** Set a dock open/closed explicitly; opening one closes any other. */
+  const setDockOpen = useCallback((id: string, open: boolean) => {
+    setOpenDockId(open ? id : null);
   }, []);
 
   // Derived: the currently selected warehouse (drives all panels).
@@ -1175,7 +1175,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               isCreatingComparison={isCreatingComparison}
               deletingComparisonId={deletingComparisonId}
               isOpen={openDockId === 'workspace'}
-              onOpenChange={() => toggleDock('workspace')}
+              onOpenChange={(open) => setDockOpen('workspace', open)}
             />
           </div>
           <div className="pointer-events-auto">
@@ -1209,7 +1209,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onZVisualizationChange={setZVisualizationMode}
               isGeneratingOrders={isGeneratingOrders}
               isOpen={openDockId === 'workbench'}
-              onOpenChange={() => toggleDock('workbench')}
+              onOpenChange={(open) => setDockOpen('workbench', open)}
             />
           </div>
           <div className="pointer-events-auto">
@@ -1233,7 +1233,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onAddWarehouse={handleAddComparisonWarehouse}
               onRemoveWarehouse={handleRemoveComparisonWarehouse}
               isOpen={openDockId === 'comparison'}
-              onOpenChange={() => toggleDock('comparison')}
+              onOpenChange={(open) => setDockOpen('comparison', open)}
             />
           </div>
         </div>
