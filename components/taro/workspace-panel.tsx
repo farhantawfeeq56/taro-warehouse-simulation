@@ -1,21 +1,22 @@
 'use client';
 
 /**
- * Workspace panel — the Taro left sidebar (final).
+ * Workspace panel — the Taro left workspace access (final).
  *
- * A slim left dock (46px) is the ONLY sidebar — there is no expanded
- * full-height sidebar anymore. The dock holds the Taro logo (back to
- * dashboard) and the two section icons (Warehouses / Comparisons).
+ * A floating action button (FAB) in the bottom-left corner is the ONLY
+ * entry point — there is no persistent sidebar. Clicking it opens a
+ * popover menu with the two sections:
+ *   • Warehouses (with count)
+ *   • Comparisons (with count)
  *
- * Clicking a section icon slides out a compact panel (256px) hugging the
- * left edge with that section's list and its matching add button:
- *   • Warehouses → "Add Warehouse"
- *   • Comparisons → "New Comparison"
+ * Clicking a section slides out a compact 256px panel from the left edge
+ * with that section's content: header (with close), matching add button,
+ * and the scrollable list.
  *
  * Interactions:
- *   • Click the active section's icon again → close the panel.
- *   • Click the other icon → switch section (panel stays open).
- *   • Close via the X, Escape, or clicking anywhere outside.
+ *   • FAB toggles the popover (click again or click outside to close).
+ *   • Popover item → opens the panel for that section.
+ *   • Panel closes via X, Escape, or clicking outside.
  *   • Warehouse rows: click to select, shift-click multi-select,
  *     double-click to rename.
  *   • Comparison rows: click to select, double-click to rename,
@@ -69,7 +70,8 @@ type EditingTarget = { id: string; type: Section };
 
 export function WorkspacePanel(props: WorkspacePanelProps) {
   const [section, setSection] = useState<Section>('warehouses');
-  const [open, setOpen] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   // Inline rename
   const [editing, setEditing] = useState<EditingTarget | null>(null);
@@ -84,23 +86,28 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
     });
   }, [editing]);
 
-  // Escape closes the panel.
+  // Escape closes the popover and the panel.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        setPopoverOpen(false);
+        setPanelOpen(false);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  /** Dock icon click: toggle open if same section, else switch + open. */
-  const toggleSection = (t: Section) => {
-    if (open && section === t) {
-      setOpen(false);
-      return;
-    }
+  /** FAB click: toggle the popover (and close the panel if it was open). */
+  const handleFabClick = () => {
+    setPopoverOpen((o) => !o);
+  };
+
+  /** Popover item click: open the panel into that section. */
+  const openSection = (t: Section) => {
     setSection(t);
-    setOpen(true);
+    setPanelOpen(true);
+    setPopoverOpen(false);
   };
 
   const beginEdit = (target: EditingTarget, currentName: string) => {
@@ -319,102 +326,103 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       </ul>
     );
 
-  /* ── Dock buttons ─────────────────────────────────────────────────── */
-
-  const dockSectionButton = (t: Section, label: string, Icon: typeof WarehouseIcon) => {
-    const isActive = section === t;
-    return (
-      <button
-        onClick={() => toggleSection(t)}
-        title={`${label} — click to ${open && section === t ? 'close' : 'open'}`}
-        className={cn(
-          'relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-          isActive
-            ? 'bg-accent-soft text-accent'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-        )}
-      >
-        <Icon className="h-4 w-4" />
-        {/* Active underline indicator */}
-        {isActive && open && (
-          <span className="absolute left-1 right-1 -bottom-0.5 h-0.5 rounded-full bg-accent" />
-        )}
-      </button>
-    );
-  };
-
-  /* ── Layout ───────────────────────────────────────────────────────── */
+  /* ── Render ───────────────────────────────────────────────────────── */
 
   return (
     <>
-      {/* Click-outside overlay — closes the panel (kept under the dock) */}
-      {open && <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />}
+      {/* Click-outside overlay — closes the panel and popover */}
+      {(panelOpen || popoverOpen) && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => {
+            setPanelOpen(false);
+            setPopoverOpen(false);
+          }}
+        />
+      )}
 
-      <div className="relative z-30 flex h-full shrink-0">
-        {/* Dock — the only persistent sidebar */}
-        <div className="w-[46px] border-r border-border bg-[#F4F4F2] flex flex-col items-center py-1.5 gap-1 shrink-0">
-          {props.onBackToDashboard ? (
-            <button
-              onClick={props.onBackToDashboard}
-              title={`Back to dashboard — ${props.projectName}`}
-              className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            >
-              <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
-            </button>
-          ) : (
-            <div className="flex h-9 w-9 items-center justify-center opacity-70">
-              <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
-            </div>
-          )}
-
-          <div className="w-6 border-t border-border-default" />
-
-          {dockSectionButton('warehouses', 'Warehouses', WarehouseIcon)}
-          {dockSectionButton('comparisons', 'Comparisons', GitCompareArrows)}
+      {/* Compact panel — slides out from the left edge */}
+      <div
+        className={cn(
+          'fixed left-0 top-0 bottom-0 z-40 w-64 bg-[#F4F4F2] border-r border-border shadow-2xl flex flex-col min-h-0 transition-transform duration-200 ease-out',
+          !panelOpen && '-translate-x-full',
+        )}
+      >
+        {/* Panel header */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80">
+            {section === 'warehouses' ? (
+              <WarehouseIcon className="h-3 w-3" />
+            ) : (
+              <GitCompareArrows className="h-3 w-3" />
+            )}
+            <span>{section === 'warehouses' ? 'Warehouses' : 'Comparisons'}</span>
+            <span className="text-muted-foreground/50 font-sans">
+              ({section === 'warehouses' ? props.warehouses.length : props.comparisons.length})
+            </span>
+          </div>
+          <button
+            onClick={() => setPanelOpen(false)}
+            title="Close panel (Esc)"
+            className="shrink-0 p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
 
-        {/* Compact panel — slides out from the dock */}
-        <div
-          className={cn(
-            'overflow-hidden shrink-0 transition-[width] duration-200 ease-out',
-            open ? 'w-64' : 'w-0',
-          )}
-        >
-          <div className="w-64 h-full border-r border-border bg-[#F4F4F2] flex flex-col min-h-0">
-            {/* Panel header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-              <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80">
-                {section === 'warehouses' ? (
-                  <WarehouseIcon className="h-3 w-3" />
-                ) : (
-                  <GitCompareArrows className="h-3 w-3" />
-                )}
-                <span>{section === 'warehouses' ? 'Warehouses' : 'Comparisons'}</span>
-                <span className="text-muted-foreground/50 font-sans">
-                  ({section === 'warehouses' ? props.warehouses.length : props.comparisons.length})
-                </span>
-              </div>
-              <button
-                onClick={() => setOpen(false)}
-                title="Close panel (Esc)"
-                className="shrink-0 p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
+        {/* Matching add button pinned on top */}
+        <div className="px-2 pt-2 shrink-0">
+          {section === 'warehouses' ? <AddWarehouseButton /> : <AddComparisonButton />}
+        </div>
 
-            {/* Matching add button pinned on top */}
-            <div className="px-2 pt-2 shrink-0">
-              {section === 'warehouses' ? <AddWarehouseButton /> : <AddComparisonButton />}
-            </div>
-
-            {/* Active section list */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-2">
-              {section === 'warehouses' ? warehouseList : comparisonList}
-            </div>
-          </div>
+        {/* Active section list */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-2">
+          {section === 'warehouses' ? warehouseList : comparisonList}
         </div>
       </div>
+
+      {/* FAB — the only entry point */}
+      <button
+        onClick={handleFabClick}
+        title="Workspace"
+        className={cn(
+          'fixed bottom-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition-all',
+          popoverOpen
+            ? 'bg-accent-active text-accent-soft rotate-90'
+            : 'bg-accent text-accent-soft hover:bg-accent-hover active:bg-accent-active',
+        )}
+      >
+        <WarehouseIcon className="h-5 w-5" />
+      </button>
+
+      {/* Popover menu */}
+      {popoverOpen && (
+        <div className="fixed bottom-16 left-4 z-50 w-48 rounded-xl border border-border-default bg-surface shadow-xl p-1">
+          <p className="px-2 pt-1 pb-1 text-[9px] uppercase font-bold tracking-wider text-muted-foreground/70">
+            Workspace
+          </p>
+          <button
+            onClick={() => openSection('warehouses')}
+            className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            <WarehouseIcon className="h-3.5 w-3.5 text-muted-foreground" />
+            Warehouses
+            <span className="ml-auto text-[10px] font-sans text-muted-foreground/60">
+              {props.warehouses.length}
+            </span>
+          </button>
+          <button
+            onClick={() => openSection('comparisons')}
+            className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            <GitCompareArrows className="h-3.5 w-3.5 text-muted-foreground" />
+            Comparisons
+            <span className="ml-auto text-[10px] font-sans text-muted-foreground/60">
+              {props.comparisons.length}
+            </span>
+          </button>
+        </div>
+      )}
     </>
   );
 }
