@@ -29,8 +29,8 @@ import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseFlow } from './warehouse-flow';
-import { WorkbenchPanel } from './workbench-panel';
-import { ComparisonPanel } from './comparison-panel';
+import { WorkbenchDock } from './workbench-dock';
+import { ComparisonDock } from './comparison-dock';
 import { WorkspacePanel } from './workspace-panel';
 import { Toolbar } from './toolbar';
 import { GitCompareArrows, Loader2 } from 'lucide-react';
@@ -1262,25 +1262,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         </div>
         )}
 
-        {/* Right Panel — warehouse workbench or comparison view */}
-        {activeComparisonId && comparisons.some((c) => c.id === activeComparisonId) ? (
-          <ComparisonPanel
-            comparison={comparisons.find((c) => c.id === activeComparisonId)!}
-            warehouses={workspaceWarehouses}
-            results={comparisonResultsById[activeComparisonId]?.results ?? null}
-            isRunning={isComparing}
-            isStale={comparisonStaleness[activeComparisonId] ?? false}
-            allWarehouseNames={
-              Object.fromEntries(workspaceWarehouses.map((w) => [w.id, w.name]))
-            }
-            onRun={handleRunComparison}
-            onAddWarehouse={handleAddComparisonWarehouse}
-            onRemoveWarehouse={handleRemoveComparisonWarehouse}
-          />
-        ) : (
-          <WorkbenchPanel
-            configuration={activeWarehouseConfig}
-            onEditConfig={() => setShowLayoutConfig(true)}
+        {/* Second left dock — workbench (Config / Orders / Simulation) */}
+        <WorkbenchDock
+          configuration={activeWarehouseConfig}
+          onEditConfig={() => setShowLayoutConfig(true)}
           orders={orders}
           onOrdersChange={setOrders}
           warehouse={warehouse ?? undefined}
@@ -1307,8 +1292,29 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           onSetWorkerStart={() => setSelectedTool('worker')}
           onZVisualizationChange={setZVisualizationMode}
           isGeneratingOrders={isGeneratingOrders}
-          />
-        )}
+        />
+
+        {/* Second left dock — comparison view (hosted in a dock panel) */}
+        <ComparisonDock
+          comparison={(() => {
+            const activeComp =
+              activeComparisonId &&
+              comparisons.some((c) => c.id === activeComparisonId);
+            return activeComp
+              ? comparisons.find((c) => c.id === activeComparisonId) ?? null
+              : null;
+          })()}
+          warehouses={workspaceWarehouses}
+          results={comparisonResultsById[activeComparisonId ?? '']?.results ?? null}
+          isRunning={isComparing}
+          isStale={comparisonStaleness[activeComparisonId ?? ''] ?? false}
+          allWarehouseNames={Object.fromEntries(
+            workspaceWarehouses.map((w) => [w.id, w.name]),
+          )}
+          onRun={handleRunComparison}
+          onAddWarehouse={handleAddComparisonWarehouse}
+          onRemoveWarehouse={handleRemoveComparisonWarehouse}
+        />
       </div>
 
       {/* Validation Modal */}
