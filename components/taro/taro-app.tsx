@@ -1180,8 +1180,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           </div>
           <div className="pointer-events-auto">
             <WorkbenchDock
-              configuration={activeWarehouseConfig}
-              onEditConfig={() => setShowLayoutConfig(true)}
               orders={orders}
               onOrdersChange={setOrders}
               warehouse={warehouse ?? undefined}

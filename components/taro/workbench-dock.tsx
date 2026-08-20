@@ -3,16 +3,19 @@
 /**
  * Workbench dock — a compact left dock below the workspace dock.
  *
- * Follows the same pattern as WorkspacePanel: a 3-icon cluster
- * (Config / Orders / Simulation) sits at the LEFT edge, and clicking a
- * section icon expands a compact panel OUTWARD (to the right) with that
+ * Follows the same pattern as WorkspacePanel: a 2-icon cluster
+ * (Orders / Simulation) sits at the LEFT edge, and clicking a section
+ * icon expands a compact panel OUTWARD (to the right) with that
  * section's content, reusing the same embedded panels as the old right
- * sidebar (ConfigTab, OrdersPanel, SystemStatePanel).
+ * sidebar (OrdersPanel, SystemStatePanel).
+ *
+ * NOTE: The Config section was removed from the dock — each warehouse
+ * node on the canvas now carries its own configuration viewer (see
+ * warehouse-flow-node.tsx).
  */
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  SlidersHorizontal,
   ListOrdered,
   Play,
   X,
@@ -29,17 +32,11 @@ import type {
   SimulationBlockState,
 } from '@/lib/taro/types';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
-import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import type { StrategyResult } from '@/lib/taro/types';
 import { OrdersPanel } from './orders-panel';
 import { SystemStatePanel } from './results-panel';
-import { ConfigTab } from './config-tab';
 
 interface WorkbenchDockProps {
-  // Config section
-  configuration: WarehouseConfiguration | null;
-  onEditConfig: () => void;
-
   // Orders section
   orders: Order[];
   onOrdersChange: (orders: Order[]) => void;
@@ -76,10 +73,9 @@ interface WorkbenchDockProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type Section = 'config' | 'orders' | 'simulation';
+type Section = 'orders' | 'simulation';
 
-const SECTION_META: Record<Section, { title: string; icon: typeof SlidersHorizontal }> = {
-  config: { title: 'Config', icon: SlidersHorizontal },
+const SECTION_META: Record<Section, { title: string; icon: typeof ListOrdered }> = {
   orders: { title: 'Orders', icon: ListOrdered },
   simulation: { title: 'Simulation', icon: Play },
 };
@@ -110,14 +106,6 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
 
   const content = (() => {
     switch (section) {
-      case 'config':
-        return (
-          <ConfigTab
-            stacked
-            configuration={props.configuration}
-            onEdit={props.onEditConfig}
-          />
-        );
       case 'orders':
         return (
           <OrdersPanel
@@ -171,10 +159,9 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
         <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
           {(
             [
-              ['config', SECTION_META.config.icon],
               ['orders', SECTION_META.orders.icon],
               ['simulation', SECTION_META.simulation.icon],
-            ] as [Section, typeof SlidersHorizontal][]
+            ] as [Section, typeof ListOrdered][]
           ).map(([t, Icon]) => (
             <button
               key={t}
