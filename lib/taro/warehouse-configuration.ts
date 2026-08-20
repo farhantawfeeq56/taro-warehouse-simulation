@@ -57,7 +57,7 @@ export interface WarehouseConfiguration {
 export const DEFAULT_LAYOUT_CONFIGURATION: LayoutConfiguration = {
   gridHeight: 30,
   rackCount: 30,
-  aisleWidth: 2,
+  aisleWidth: 1,
   crossAisleCount: 1,
   fbWidth: 30,
   fbHeight: 20,

@@ -91,7 +91,7 @@ function TabBody({
         <ConfigItem
           icon={<Sparkles className="h-3 w-3" />}
           label="Aisle Width"
-          value="2"
+          value="1"
         />
         <ConfigItem
           icon={<Grid3X3 className="h-3 w-3" />}

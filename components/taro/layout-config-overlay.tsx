@@ -157,8 +157,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const [debouncedGridHeight, setDebouncedGridHeight] = useState(initialConfig?.layout.gridHeight ?? 30);
   const [rackCount, setRackCount] = useState(initialConfig?.layout.rackCount ?? 30);
   const [debouncedRackCount, setDebouncedRackCount] = useState(initialConfig?.layout.rackCount ?? 30);
-  // Aisle width is fixed at 2 (scope reduction — not user-configurable).
-  const aisleWidth = 2;
+  // Aisle width is fixed at 1 (scope reduction — not user-configurable).
+  const aisleWidth = 1;
   const [crossAisleCount, setCrossAisleCount] = useState(initialConfig?.layout.crossAisleCount ?? 1);
 
   // 200 ms debounce while dragging.
