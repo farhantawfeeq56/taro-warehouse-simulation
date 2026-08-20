@@ -14,6 +14,7 @@
  *     execution plan (the former SystemStatePanel).
  */
 
+import { useState } from 'react';
 import type {
   Warehouse,
   Order,
@@ -114,6 +115,7 @@ export function SimulationPanel({
   embedded = false,
 }: SimulationPanelProps) {
   const strategies = results?.strategies ?? [];
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const wrapperClass = embedded
     ? 'flex flex-col h-full'
     : 'w-80 border-l border-border bg-background flex flex-col';
@@ -141,47 +143,19 @@ export function SimulationPanel({
           </span>
         </div>
 
-        {/* Generate / Simulate */}
+        {/* Edit Orders — opens the generation settings popover */}
         <div className="flex gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onGenerateOrders}
-            disabled={!warehouse || isGeneratingOrders}
-            className="flex-1 h-8 text-xs"
-            title="Generate random orders"
-          >
-            {isGeneratingOrders ? (
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            ) : (
-              <Shuffle className="h-3 w-3 mr-1" />
-            )}
-            {isGeneratingOrders ? 'Generating…' : 'Generate Orders'}
-          </Button>
-          <Button
-            size="sm"
-            onClick={onSimulate}
-            disabled={!readiness?.isReady || isSimulating || orders.length === 0}
-            className="flex-1 h-8 text-xs"
-            title="Run simulation"
-          >
-            {isSimulating ? (
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            ) : (
-              <PlayCircle className="h-3 w-3 mr-1" />
-            )}
-            {isSimulating ? 'Simulating…' : 'Simulate'}
-          </Button>
-          {/* Settings — order count / size sliders live here, hidden by default */}
-          <Popover>
+          <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-8 text-xs px-0"
-                title="Order generation settings"
+                disabled={!warehouse}
+                className="flex-1 h-8 text-xs"
+                title="Edit order generation settings"
               >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <SlidersHorizontal className="h-3 w-3 mr-1" />
+                Edit Orders
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-4" align="end" side="bottom">
@@ -223,9 +197,41 @@ export function SimulationPanel({
                     <span>20</span>
                   </div>
                 </div>
+                {/* Generate — lives inside the settings popover, applies then closes */}
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    onGenerateOrders();
+                  }}
+                  disabled={!warehouse || isGeneratingOrders}
+                  className="w-full h-8 text-xs"
+                  title="Generate orders with these settings"
+                >
+                  {isGeneratingOrders ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Shuffle className="h-3 w-3 mr-1" />
+                  )}
+                  {isGeneratingOrders ? 'Generating…' : 'Generate Orders'}
+                </Button>
               </div>
             </PopoverContent>
           </Popover>
+          <Button
+            size="sm"
+            onClick={onSimulate}
+            disabled={!readiness?.isReady || isSimulating || orders.length === 0}
+            className="flex-1 h-8 text-xs"
+            title="Run simulation"
+          >
+            {isSimulating ? (
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <PlayCircle className="h-3 w-3 mr-1" />
+            )}
+            {isSimulating ? 'Simulating…' : 'Simulate'}
+          </Button>
         </div>
 
         {/* Workers — moved here from the individual warehouse nodes */}
