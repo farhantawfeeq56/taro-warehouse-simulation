@@ -6,7 +6,7 @@ import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/
 import type { MutableRefObject } from 'react';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
-import { Copy, Trash2, Settings, Users, Check, Plus, Loader2, X } from 'lucide-react';
+import { Copy, Trash2, Settings, Check, Plus, Loader2, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,8 +31,6 @@ export type WarehouseNodeData = Record<string, unknown> & {
   onOpenLayoutConfig?: (warehouseId: string) => void;
   /** Per-warehouse generation configuration — shown in the node's own config popover. */
   configuration?: WarehouseConfiguration | null;
-  workerCount: number;
-  onWorkerCountChange: (count: number) => void;
   canDelete?: boolean;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
@@ -81,28 +79,21 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
   // Delete confirmation state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  // Workers popover state
-  const [workersOpen, setWorkersOpen] = useState(false);
-  const workersRef = useRef<HTMLDivElement>(null);
-
   // Config popover state
   const [configOpen, setConfigOpen] = useState(false);
   const configRef = useRef<HTMLDivElement>(null);
 
   // Close popovers on outside click
   useEffect(() => {
-    if (!workersOpen && !configOpen) return;
+    if (!configOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (workersRef.current && !workersRef.current.contains(e.target as globalThis.Node)) {
-        setWorkersOpen(false);
-      }
       if (configRef.current && !configRef.current.contains(e.target as globalThis.Node)) {
         setConfigOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [workersOpen, configOpen]);
+  }, [configOpen]);
 
   // Hover affordance state
   const [isHovered, setIsHovered] = useState(false);
@@ -331,48 +322,6 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
                     </button>
                   </div>
                 )}
-              </div>
-            )}
-          </div>
-
-          {/* Workers control */}
-          <div className="relative" ref={workersRef}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setWorkersOpen(!workersOpen);
-              }}
-              title={`Workers: ${data.workerCount}`}
-              className="p-1 rounded hover:bg-muted transition-colors flex items-center gap-0.5"
-              aria-label="Worker count"
-            >
-              <Users className="h-3.5 w-3.5" />
-              <span className="text-[10px] font-sans font-semibold">{data.workerCount}</span>
-            </button>
-            {workersOpen && (
-              <div
-                className="nodrag absolute top-full right-0 mt-1 bg-background border border-border rounded-lg shadow-lg p-3 z-50 min-w-[140px]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-[11px] font-medium text-muted-foreground">Workers</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  step={1}
-                  value={data.workerCount}
-                  onChange={(e) => data.onWorkerCountChange(Number(e.target.value))}
-                  className="w-full h-6 accent-primary cursor-pointer"
-                  title={`Worker count: ${data.workerCount}`}
-                />
-                <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                  <span>1</span>
-                  <span className="font-sans font-semibold text-foreground">{data.workerCount}</span>
-                  <span>10</span>
-                </div>
               </div>
             )}
           </div>

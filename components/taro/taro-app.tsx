@@ -1181,15 +1181,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           <div className="pointer-events-auto">
             <WorkbenchDock
               orders={orders}
-              onOrdersChange={setOrders}
+              onGenerateOrders={handleAddDemoOrders}
               warehouse={warehouse ?? undefined}
-              highlightedMissingSkuIds={highlightedMissingSkuIds}
-              onClearHighlights={() => setHighlightedMissingSkuIds(null)}
               orderCount={orderCount}
               avgOrderSize={avgOrderSize}
               onOrderCountChange={setOrderCount}
               onAvgOrderSizeChange={setAvgOrderSize}
-              onAddDemoOrders={handleAddDemoOrders}
               simulationResults={simulationResults}
               readiness={readiness}
               isSimulating={isSimulating}
@@ -1197,6 +1194,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onStrategySelect={handleStrategySelect}
               animationProgress={animationProgress}
               workerCount={workerCount}
+              onWorkerCountChange={setWorkerCount}
               executionPlan={executionPlan}
               validationContext={validationContext}
               blockState={simulationBlockState}
@@ -1276,8 +1274,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             deletingWarehouseId={deletingWarehouseId}
             renamingWarehouseId={renamingWarehouseId}
             togglingMembershipWarehouseId={togglingMembershipWarehouseId}
-            workerCount={workerCount}
-            onWorkerCountChange={setWorkerCount}
             onPersistPosition={handlePersistPosition}
             comparisons={comparisons}
             activeComparisonId={activeComparisonId}
