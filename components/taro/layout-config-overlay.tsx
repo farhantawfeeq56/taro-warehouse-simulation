@@ -14,6 +14,8 @@
  *   • Fishbone is removed entirely.
  *   • No layout types — just a single geometry config.
  *   • Cross-aisle slider: default 1, range 0–4 (0 = plain parallel).
+ *   • Aisle width is fixed at 2 (scope reduction — no slider).
+ *   • SKU count max 3,000; grid height & rack count max 40.
  */
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
@@ -77,18 +79,14 @@ interface LayoutConfigOverlayProps {
 
 type CardId = 'geometry' | 'inventory' | 'placement';
 
-/** Piecewise-adaptive step for Grid Height (4–60). */
+/** Piecewise-adaptive step for Grid Height (4–40). */
 function getHeightStep(v: number): number {
-  if (v <= 20) return 1;
-  if (v <= 50) return 2;
-  return 5;
+  return v <= 20 ? 1 : 2;
 }
 
-/** Piecewise-adaptive step for Rack Count (5–60). */
+/** Piecewise-adaptive step for Rack Count (5–40). */
 function getRackStep(v: number): number {
-  if (v <= 20) return 1;
-  if (v <= 50) return 2;
-  return 5;
+  return v <= 20 ? 1 : 2;
 }
 
 /** A plain labeled slider with a small description. */
@@ -159,7 +157,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const [debouncedGridHeight, setDebouncedGridHeight] = useState(initialConfig?.layout.gridHeight ?? 30);
   const [rackCount, setRackCount] = useState(initialConfig?.layout.rackCount ?? 30);
   const [debouncedRackCount, setDebouncedRackCount] = useState(initialConfig?.layout.rackCount ?? 30);
-  const [aisleWidth, setAisleWidth] = useState(initialConfig?.layout.aisleWidth ?? 2);
+  // Aisle width is fixed at 2 (scope reduction — not user-configurable).
+  const aisleWidth = 2;
   const [crossAisleCount, setCrossAisleCount] = useState(initialConfig?.layout.crossAisleCount ?? 1);
 
   // 200 ms debounce while dragging.
@@ -362,9 +361,9 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               label="Grid Height"
               value={gridHeight}
               min={4}
-              max={60}
+              max={40}
               step={getHeightStep(gridHeight)}
-              description={`Vertical height of the storage area (4–60). Step ${getHeightStep(gridHeight)}.`}
+              description={`Vertical height of the storage area (4–40). Step ${getHeightStep(gridHeight)}.`}
               onChange={handleGridChange}
               onCommit={(v) => setDebouncedGridHeight(v)}
             />
@@ -372,20 +371,11 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               label="Rack Count"
               value={rackCount}
               min={5}
-              max={60}
+              max={40}
               step={getRackStep(rackCount)}
-              description={`Number of double-row racks (5–60). Step ${getRackStep(rackCount)}.`}
+              description={`Number of double-row racks (5–40). Step ${getRackStep(rackCount)}.`}
               onChange={handleRackChange}
               onCommit={(v) => setDebouncedRackCount(v)}
-            />
-            <PlainSlider
-              label="Aisle Width"
-              value={aisleWidth}
-              min={1}
-              max={5}
-              step={1}
-              description="Spacing between rack columns."
-              onChange={setAisleWidth}
             />
             <PlainSlider
               label="Cross Aisles"
@@ -411,10 +401,10 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               label="SKU Count"
               value={skuCount}
               min={500}
-              max={10000}
+              max={3000}
               step={1}
               display={skuCount.toLocaleString()}
-              description="Number of unique products to generate."
+              description="Number of unique products to generate (max 3,000)."
               onChange={setSkuCount}
             />
             <PlainSlider
@@ -482,11 +472,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               description={`How strongly same-category products are zoned together. ${placementPreview.categoryCount} categories.`}
               onChange={setCategoryClustering}
             />
-            {placementPreview.unplacedCount > 0 && (
-              <p className="text-[11px] text-warning font-medium">
-                ⚠ {placementPreview.unplacedCount} SKUs overflow (not enough bins).
-              </p>
-            )}
           </div>
         );
     }
@@ -550,6 +535,13 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
         {/* Right — live preview, always fits */}
         <main ref={setPreviewRef} className="flex-1 bg-muted/20 overflow-auto min-h-0">
           <div className="flex flex-col items-center justify-center min-h-full min-w-full p-6 gap-4">
+            {/* Overflow warning — shown above the warehouse preview */}
+            {placementPreview.unplacedCount > 0 && (
+              <p className="text-[11px] text-warning font-medium">
+                ⚠ {placementPreview.unplacedCount} SKUs overflow (not enough bins).
+              </p>
+            )}
+
             {/* Affinity floorplan — the only preview view now */}
             <AffinityGrid
               grid={previewWarehouse.grid}
