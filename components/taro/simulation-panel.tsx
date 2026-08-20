@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import {
   Activity,
   CheckCircle2,
@@ -41,6 +42,7 @@ import {
   Loader2,
   RotateCcw,
   Shuffle,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   Empty,
@@ -127,60 +129,20 @@ export function SimulationPanel({
 
   return (
     <div className={wrapperClass}>
-      {/* ═══ Orders header — count + generation sliders ═══ */}
+      {/* ═══ Orders header — compact meta + hidden generation sliders ═══ */}
       <div className="p-3 border-b border-border shrink-0">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-foreground">Orders</h2>
-          <span className="text-xs text-muted-foreground">
-            {orders.length.toLocaleString()} orders generated
+          <span className="text-xs text-muted-foreground font-sans">
+            {orders.length >= 1000
+              ? `${(orders.length / 1000).toFixed(orders.length % 1000 === 0 ? 0 : 1)}k`
+              : orders.length.toLocaleString()}{' '}
+            orders generated
           </span>
         </div>
 
-        {/* Generation sliders — live, no popover */}
-        <div className="space-y-3 pb-1">
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <label className="text-xs text-muted-foreground">Order Count</label>
-              <span className="text-xs font-medium text-foreground font-sans">
-                {orderCount.toLocaleString()}
-              </span>
-            </div>
-            <Slider
-              value={[orderCount]}
-              onValueChange={([value]) => onOrderCountChange(value)}
-              min={100}
-              max={2000}
-              step={100}
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>100</span>
-              <span>2,000</span>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <label className="text-xs text-muted-foreground">Average Order Size</label>
-              <span className="text-xs font-medium text-foreground font-sans">
-                {avgOrderSize} SKUs
-              </span>
-            </div>
-            <Slider
-              value={[avgOrderSize]}
-              onValueChange={([value]) => onAvgOrderSizeChange(value)}
-              min={1}
-              max={20}
-              step={1}
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>1</span>
-              <span>20</span>
-            </div>
-          </div>
-        </div>
-
         {/* Generate / Simulate */}
-        <div className="flex gap-1.5 pt-2">
+        <div className="flex gap-1.5">
           <Button
             variant="outline"
             size="sm"
@@ -210,6 +172,60 @@ export function SimulationPanel({
             )}
             {isSimulating ? 'Simulating…' : 'Simulate'}
           </Button>
+          {/* Settings — order count / size sliders live here, hidden by default */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 text-xs px-0"
+                title="Order generation settings"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-4" align="end" side="bottom">
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-foreground">Order Generation Settings</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-muted-foreground">Order Count</label>
+                    <span className="text-xs font-medium text-foreground font-sans">
+                      {orderCount.toLocaleString()} orders
+                    </span>
+                  </div>
+                  <Slider
+                    value={[orderCount]}
+                    onValueChange={([value]) => onOrderCountChange(value)}
+                    min={100}
+                    max={2000}
+                    step={100}
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>100</span>
+                    <span>2,000</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-muted-foreground">Average Order Size</label>
+                    <span className="text-xs font-medium text-foreground font-sans">{avgOrderSize} SKUs</span>
+                  </div>
+                  <Slider
+                    value={[avgOrderSize]}
+                    onValueChange={([value]) => onAvgOrderSizeChange(value)}
+                    min={1}
+                    max={20}
+                    step={1}
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>1</span>
+                    <span>20</span>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Workers — moved here from the individual warehouse nodes */}
