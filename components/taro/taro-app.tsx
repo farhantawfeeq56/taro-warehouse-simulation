@@ -1108,7 +1108,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         !(e.target instanceof HTMLSelectElement)
       ) {
         e.preventDefault();
-        setSelectedTool((prev) => (prev === 'hand' ? 'shelf' : 'hand'));
+        setSelectedTool((prev) => (prev === 'hand' ? 'select' : 'hand'));
       }
     };
     window.addEventListener('keydown', handleKeyDown);
