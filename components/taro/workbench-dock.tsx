@@ -3,56 +3,41 @@
 /**
  * Workbench dock — a compact left dock below the workspace dock.
  *
- * Follows the same pattern as WorkspacePanel: a 3-icon cluster
- * (Config / Orders / Simulation) sits at the LEFT edge, and clicking a
- * section icon expands a compact panel OUTWARD (to the right) with that
- * section's content, reusing the same embedded panels as the old right
- * sidebar (ConfigTab, OrdersPanel, SystemStatePanel).
+ * A single icon (Simulation) sits at the LEFT edge, and clicking it
+ * expands a compact panel OUTWARD (to the right) with the merged
+ * Orders + Simulation panel (see simulation-panel.tsx). The Config
+ * section was removed earlier — each warehouse node carries its own
+ * configuration viewer.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import {
-  SlidersHorizontal,
-  ListOrdered,
-  Play,
-  X,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Play, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type {
   Warehouse,
   Order,
-  ToolType,
-  SimulationResults,
   StrategyType,
+  SimulationResults,
+  StrategyResult,
   ZVisualizationMode,
   SimulationValidationContext,
   SimulationBlockState,
 } from '@/lib/taro/types';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
-import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
-import type { StrategyResult } from '@/lib/taro/types';
-import { OrdersPanel } from './orders-panel';
-import { SystemStatePanel } from './results-panel';
-import { ConfigTab } from './config-tab';
+import { SimulationPanel } from './simulation-panel';
 
 interface WorkbenchDockProps {
-  // Config section
-  configuration: WarehouseConfiguration | null;
-  onEditConfig: () => void;
-
-  // Orders section
+  // Orders generation
   orders: Order[];
-  onOrdersChange: (orders: Order[]) => void;
-  warehouse?: Warehouse;
-  highlightedMissingSkuIds?: Set<string> | null;
-  onClearHighlights?: () => void;
+  onGenerateOrders: () => void;
+  isGeneratingOrders?: boolean;
   orderCount: number;
   avgOrderSize: number;
   onOrderCountChange: (value: number) => void;
   onAvgOrderSizeChange: (value: number) => void;
-  onAddDemoOrders?: () => void;
+  warehouse?: Warehouse;
 
-  // Simulation section
+  // Simulation
   simulationResults: SimulationResults | null;
   readiness?: SimulationReadiness;
   isSimulating: boolean;
@@ -60,6 +45,7 @@ interface WorkbenchDockProps {
   onStrategySelect: (strategy: StrategyType) => void;
   animationProgress: number;
   workerCount: number;
+  onWorkerCountChange: (count: number) => void;
   executionPlan: StrategyResult | null;
   validationContext?: SimulationValidationContext | null;
   blockState?: SimulationBlockState | null;
@@ -68,26 +54,14 @@ interface WorkbenchDockProps {
   onAddShelves?: () => void;
   onSetWorkerStart?: () => void;
   onZVisualizationChange?: (mode: ZVisualizationMode) => void;
-  /** Whether demo orders are being generated — shows spinner on the fix button. */
-  isGeneratingOrders?: boolean;
 
   // Dock open state — controlled from TaroApp so only one dock is open at a time
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type Section = 'config' | 'orders' | 'simulation';
-
-const SECTION_META: Record<Section, { title: string; icon: typeof SlidersHorizontal }> = {
-  config: { title: 'Config', icon: SlidersHorizontal },
-  orders: { title: 'Orders', icon: ListOrdered },
-  simulation: { title: 'Simulation', icon: Play },
-};
-
 export function WorkbenchDock(props: WorkbenchDockProps) {
-  const [section, setSection] = useState<Section>('orders');
   const { isOpen: dockOpen, onOpenChange: setDockOpen } = props;
-  const inputRef = useRef<HTMLInputElement>(null);
 
   // Escape closes the dock panel.
   useEffect(() => {
@@ -98,98 +72,26 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [setDockOpen]);
 
-  /** Dock icon click: toggle open if same section, else switch + open. */
-  const toggleSection = (t: Section) => {
-    if (dockOpen && section === t) {
-      setDockOpen(false);
-      return;
-    }
-    setSection(t);
-    setDockOpen(true);
-  };
-
-  const content = (() => {
-    switch (section) {
-      case 'config':
-        return (
-          <ConfigTab
-            stacked
-            configuration={props.configuration}
-            onEdit={props.onEditConfig}
-          />
-        );
-      case 'orders':
-        return (
-          <OrdersPanel
-            embedded
-            orders={props.orders}
-            onOrdersChange={props.onOrdersChange}
-            warehouse={props.warehouse}
-            highlightedMissingSkuIds={props.highlightedMissingSkuIds}
-            onClearHighlights={props.onClearHighlights}
-            orderCount={props.orderCount}
-            avgOrderSize={props.avgOrderSize}
-            onOrderCountChange={props.onOrderCountChange}
-            onAvgOrderSizeChange={props.onAvgOrderSizeChange}
-          />
-        );
-      case 'simulation':
-        return (
-          <SystemStatePanel
-            embedded
-            results={props.simulationResults}
-            readiness={props.readiness}
-            isSimulating={props.isSimulating}
-            activeStrategy={props.activeStrategy}
-            onStrategySelect={props.onStrategySelect}
-            animationProgress={props.animationProgress}
-            workerCount={props.workerCount}
-            executionPlan={props.executionPlan}
-            validationContext={props.validationContext}
-            blockState={props.blockState}
-            onViewUnresolvableItems={props.onViewUnresolvableItems}
-            onSimulate={props.onSimulate}
-            onAddShelves={props.onAddShelves}
-            onAddDemoOrders={props.onAddDemoOrders}
-            onSetWorkerStart={props.onSetWorkerStart}
-            onZVisualizationChange={props.onZVisualizationChange}
-            isGeneratingOrders={props.isGeneratingOrders}
-          />
-        );
-    }
-  })();
-
-  const SectionIcon = SECTION_META[section].icon;
-
   /* ── Layout ───────────────────────────────────────────────────────── */
 
   return (
     <>
-      {/* Workbench dock — icon cluster + expanding panel */}
+      {/* Workbench dock — single Simulation icon + expanding panel */}
       <div className="relative z-40 flex items-start">
-        {/* Dock — compact icon cluster */}
+        {/* Dock — single icon */}
         <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
-          {(
-            [
-              ['config', SECTION_META.config.icon],
-              ['orders', SECTION_META.orders.icon],
-              ['simulation', SECTION_META.simulation.icon],
-            ] as [Section, typeof SlidersHorizontal][]
-          ).map(([t, Icon]) => (
-            <button
-              key={t}
-              onClick={() => toggleSection(t)}
-              title={SECTION_META[t].title}
-              className={cn(
-                'relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-                section === t && dockOpen
-                  ? 'bg-accent-soft text-accent'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              <Icon className="h-4 w-4" />
-            </button>
-          ))}
+          <button
+            onClick={() => setDockOpen(!dockOpen)}
+            title="Simulation"
+            className={cn(
+              'relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
+              dockOpen
+                ? 'bg-accent-soft text-accent'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <Play className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Mini panel — absolute, expands OUTWARD to the right (hugging the left edge) */}
@@ -201,8 +103,8 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
         >
           <div className="flex items-center justify-between border-b border-border-default px-2.5 py-2 shrink-0">
             <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80">
-              <SectionIcon className="h-3 w-3" />
-              {SECTION_META[section].title}
+              <Play className="h-3 w-3" />
+              Simulation
             </span>
             <button
               onClick={() => setDockOpen(false)}
@@ -212,7 +114,35 @@ export function WorkbenchDock(props: WorkbenchDockProps) {
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">{content}</div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <SimulationPanel
+              embedded
+              orders={props.orders}
+              onGenerateOrders={props.onGenerateOrders}
+              isGeneratingOrders={props.isGeneratingOrders}
+              orderCount={props.orderCount}
+              avgOrderSize={props.avgOrderSize}
+              onOrderCountChange={props.onOrderCountChange}
+              onAvgOrderSizeChange={props.onAvgOrderSizeChange}
+              warehouse={props.warehouse}
+              results={props.simulationResults}
+              readiness={props.readiness}
+              isSimulating={props.isSimulating}
+              activeStrategy={props.activeStrategy}
+              onStrategySelect={props.onStrategySelect}
+              animationProgress={props.animationProgress}
+              workerCount={props.workerCount}
+              onWorkerCountChange={props.onWorkerCountChange}
+              executionPlan={props.executionPlan}
+              validationContext={props.validationContext}
+              blockState={props.blockState}
+              onViewUnresolvableItems={props.onViewUnresolvableItems}
+              onSimulate={props.onSimulate}
+              onAddShelves={props.onAddShelves}
+              onSetWorkerStart={props.onSetWorkerStart}
+              onZVisualizationChange={props.onZVisualizationChange}
+            />
+          </div>
         </div>
       </div>
     </>

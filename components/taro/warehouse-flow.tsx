@@ -60,8 +60,6 @@ interface WarehouseFlowProps {
   renamingWarehouseId: string | null;
   /** Warehouse id currently toggled in link mode — shows spinner on the badge. */
   togglingMembershipWarehouseId: string | null;
-  workerCount: number;
-  onWorkerCountChange: (count: number) => void;
   onPersistPosition: (warehouseId: string, x: number, y: number) => void;
 
   // Comparison support
@@ -114,8 +112,6 @@ function WarehouseFlowInner({
   onRenameWarehouse,
   onDeleteWarehouse,
   onOpenLayoutConfig,
-  workerCount,
-  onWorkerCountChange,
   onPersistPosition,
   comparisons,
   activeComparisonId,
@@ -313,8 +309,7 @@ function WarehouseFlowInner({
             onRename: onRenameWarehouse,
             onDelete: onDeleteWarehouse,
             onOpenLayoutConfig,
-            workerCount,
-            onWorkerCountChange,
+            configuration: ww.configuration ?? null,
             canDelete: workspaceWarehouses.length > 1,
             selectedTool,
             // Only the active warehouse animates its route — passing the route to
@@ -408,8 +403,7 @@ function WarehouseFlowInner({
               onRename: onRenameWarehouse,
               onDelete: onDeleteWarehouse,
               onOpenLayoutConfig,
-              workerCount,
-              onWorkerCountChange,
+              configuration: ww.configuration ?? null,
               canDelete: workspaceWarehouses.length > 1,
               selectedTool,
               // Only the active warehouse animates its route — see above.
@@ -470,8 +464,6 @@ function WarehouseFlowInner({
     onDeleteWarehouse,
     onDuplicateWarehouse,
     onOpenLayoutConfig,
-    workerCount,
-    onWorkerCountChange,
     onSelectComparison,
     onRenameComparison,
     onDeleteComparison,
