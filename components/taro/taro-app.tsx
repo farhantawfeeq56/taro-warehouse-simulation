@@ -125,8 +125,6 @@ export function TaroApp(_props: TaroAppProps) {
   const animationRef = useRef<number | null>(null);
   const replaySpeedRef = useRef(replaySpeed);
   const csvInputRef = useRef<HTMLInputElement>(null);
-  const [projectName, setProjectName] = useState<string>('Untitled');
-  const [importSummary, setImportSummary] = useState<string>('');
   const [executionPlanStrategy, setExecutionPlanStrategy] = useState<StrategyType | null>(null);
   const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
@@ -260,7 +258,6 @@ export function TaroApp(_props: TaroAppProps) {
     setValidationResult(null);
     setShowValidationModal(false);
     setHighlightedMissingSkuIds(null);
-    setImportSummary('');
     resetAnimationState();
   }, [resetAnimationState]);
 
@@ -317,7 +314,6 @@ export function TaroApp(_props: TaroAppProps) {
     setValidationResult(null);
     setShowValidationModal(false);
     setHighlightedMissingSkuIds(null);
-    setImportSummary('');
     resetAnimationState();
   }, [resetAnimationState]);
 
@@ -352,7 +348,6 @@ export function TaroApp(_props: TaroAppProps) {
     setValidationResult(null);
     setShowValidationModal(false);
     setHighlightedMissingSkuIds(null);
-    setImportSummary('');
     animationProgressRef.current = 0;
   }, []);
 
@@ -378,7 +373,6 @@ export function TaroApp(_props: TaroAppProps) {
     setValidationResult(null);
     setShowValidationModal(false);
     setHighlightedMissingSkuIds(null);
-    setImportSummary('');
     animationProgressRef.current = 0;
 
     if (saveLayoutTimerRef.current) clearTimeout(saveLayoutTimerRef.current);
@@ -567,7 +561,6 @@ export function TaroApp(_props: TaroAppProps) {
       setShowValidationModal(false);
       setHighlightedMissingSkuIds(null);
       setSimulationBlockState(null);
-      setImportSummary('');
       resetAnimationState();
     }
   }, [updateActiveWarehouse, resetAnimationState]);
@@ -643,13 +636,12 @@ export function TaroApp(_props: TaroAppProps) {
     setIsImporting(true);
     try {
       const csvText = await file.text();
-      const { warehouse: importedWarehouse, summary } = parseWarehouseCsv(csvText);
+      const { warehouse: importedWarehouse } = parseWarehouseCsv(csvText);
       // Hidden corrector — CSV rows can collide on ids or land out of bounds;
       // repair before commit so readiness + simulation are clean.
       const corrected = reconcile(importedWarehouse, []);
       updateActiveWarehouse(corrected.warehouse);
       setOrders([]);
-      setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
       setExecutionPlanStrategy(null);
       setValidationContext(null);
       setValidationResult(null);
@@ -693,7 +685,6 @@ export function TaroApp(_props: TaroAppProps) {
     let cancelled = false;
 
     setActiveProjectId(crypto.randomUUID());
-    setProjectName('Session');
 
     // Start with a skeleton warehouse so the user lands on the setup
     // overlay (first-time experience) but always has a warehouse behind it.
@@ -772,13 +763,11 @@ export function TaroApp(_props: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left dock stack — fixed column hugging the left edge: logo,
+        {/* Left dock stack — fixed column hugging the left edge:
             warehouses, workbench */}
         <div className="fixed left-0 top-0 z-40 flex flex-col items-start gap-2 p-2 pointer-events-none">
           <div className="pointer-events-auto">
             <WorkspacePanel
-              projectName={projectName}
-              importSummary={importSummary}
               warehouses={workspaceWarehouses}
               activeWarehouseId={activeWarehouseId}
               selectedWarehouseIds={selectedWarehouseIds}
@@ -969,7 +958,6 @@ export function TaroApp(_props: TaroAppProps) {
               setValidationResult(null);
               setShowValidationModal(false);
               setHighlightedMissingSkuIds(null);
-              setImportSummary('');
               resetAnimationState();
             } catch (err) {
               console.error('Failed to generate warehouse:', err);
@@ -1061,7 +1049,6 @@ export function TaroApp(_props: TaroAppProps) {
               setValidationResult(null);
               setShowValidationModal(false);
               setHighlightedMissingSkuIds(null);
-              setImportSummary('');
               resetAnimationState();
             } catch (err) {
               console.error('Failed to generate warehouse:', err);

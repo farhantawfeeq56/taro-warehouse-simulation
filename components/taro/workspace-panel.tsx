@@ -3,8 +3,8 @@
 /**
  * Workspace panel — the Taro left dock (final).
  *
- * A compact 2-icon cluster dock (logo → Warehouses) sits at
- * the TOP-LEFT corner of the screen. There is no full-height sidebar.
+ * A compact Warehouses dock sits at the TOP-LEFT corner of the screen.
+ * There is no full-height sidebar.
  *
  * Clicking the Warehouses icon expands a compact panel OUTWARD from the dock
  * (to the right) with that section's content:
@@ -29,11 +29,6 @@ import {
 import { cn } from '@/lib/utils';
 
 interface WorkspacePanelProps {
-  // App header
-  onBackToDashboard?: () => void;
-  projectName: string;
-  importSummary: string;
-
   // Warehouses
   warehouses: WorkspaceWarehouse[];
   activeWarehouseId: string | null;
@@ -205,33 +200,8 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
 
   return (
     <>
-      {/* Logo dock — logo + project name (separate from the section docks) */}
-      <div className="relative z-40 flex items-center gap-2.5 rounded-xl border border-border-default bg-surface shadow-lg px-2 py-2">
-        {/* Logo — always links to the main page (dashboard) */}
-        <a
-          href="/"
-          onClick={(e) => {
-            if (props.onBackToDashboard) {
-              e.preventDefault();
-              props.onBackToDashboard();
-            }
-          }}
-          title="Taro — back to main page"
-          className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors shrink-0"
-        >
-          <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
-        </a>
-        {/* Project name — to the right of the logo */}
-        <span
-          className="text-sm font-semibold text-foreground truncate max-w-[220px] font-['Instrument_Sans',system-ui,sans-serif]"
-          title={props.projectName}
-        >
-          {props.projectName}
-        </span>
-      </div>
-
       {/* Warehouses dock — icon cluster + expanding panel */}
-      <div className="relative z-40 mt-2 flex items-start">
+      <div className="relative z-40 flex items-start">
         {/* Dock — compact cluster */}
         <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
           <button
