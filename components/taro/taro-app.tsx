@@ -42,7 +42,7 @@ import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { validateSkuQuantityInvariant } from '@/lib/taro/inventory';
-import { reconcile, reconcileComparison, pruneComparisonMembers } from '@/lib/taro/corrector';
+import { reconcile, pruneComparisonMembers } from '@/lib/taro/corrector';
 import {
   loadWorkspace,
   loadProject,
@@ -153,6 +153,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   comparisonsRef.current = comparisons;
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
 
   // Derived: per-comparison staleness — true when a member warehouse or orders
   // changed since the last run.  Declared here (after `orders`) because the
@@ -514,6 +516,22 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         setSelectedWarehouseIds(new Set([warehouseId]));
       }
       setActiveWarehouseId(warehouseId);
+
+      // Hidden corrector — the shared order set may reference SKUs missing
+      // from the newly-selected warehouse's catalog; reconcile before the
+      // readiness memo (which gates Simulate) reads them.
+      const ww = workspaceWarehousesRef.current.find((w) => w.id === warehouseId);
+      if (ww && ww.id !== activeWarehouseIdRef.current) {
+        const corrected = reconcile(ww.warehouse, ordersRef.current);
+        if (corrected.orders !== ordersRef.current) {
+          setOrders(corrected.orders);
+        }
+        if (corrected.warehouse !== ww.warehouse) {
+          setWorkspaceWarehouses((prev) =>
+            prev.map((w) => (w.id === warehouseId ? { ...w, warehouse: corrected.warehouse } : w)),
+          );
+        }
+      }
     },
     []
   );
@@ -541,11 +559,14 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       const result = await duplicateWarehouseAction(activeProjectId, sourceWarehouseId);
 
       // Append the duplicated warehouse to the project as a workspace entry
+      // Hidden corrector — reconcile the duplicate's warehouse + orders so the
+      // newly-active warehouse never carries stale/invalid order lines.
+      const corrected = reconcile(result.warehouse, result.orders);
       const newEntry: WorkspaceWarehouse = {
         id: result.warehouseId,
         name: result.name,
         position: null, // new duplicates start at auto-layout
-        warehouse: result.warehouse,
+        warehouse: corrected.warehouse,
         configuration: result.configuration,
       };
       setWorkspaceWarehouses((prev) => [...prev, newEntry]);
@@ -555,7 +576,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
       // If the source was the active warehouse, adopt the duplicate's orders
       if (sourceWarehouseId === activeWarehouseIdRef.current) {
-        setOrders(result.orders);
+        setOrders(corrected.orders);
 
       }
 
@@ -772,7 +793,21 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     saveLayoutTimerRef.current = setTimeout(() => {
       const pid = activeProjectIdRef.current;
       if (pid) {
-        saveWarehouseLayout(pid, newWh, whId).catch((err) => {
+        // Hidden corrector — run ONCE after drawing pauses (debounced, not
+        // per-cell) so the persisted state + readiness are clean. Idempotent.
+        const corrected = reconcile(newWh, ordersRef.current);
+        const isActive = whId === activeWarehouseIdRef.current;
+        if (isActive && corrected.orders !== ordersRef.current) {
+          setOrders(corrected.orders);
+        }
+        if (corrected.warehouse !== newWh || !isActive) {
+          setWorkspaceWarehouses((prev) =>
+            prev.map((ww) =>
+              ww.id === whId ? { ...ww, warehouse: corrected.warehouse } : ww,
+            ),
+          );
+        }
+        saveWarehouseLayout(pid, corrected.warehouse, whId).catch((err) => {
           console.error(err);
         });
       }
@@ -958,6 +993,20 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     // simulation can run. A blocked state (missing items, unreachable
     // locations) should never surface: the corrector resolves it first.
     const corrected = reconcile(warehouse, orders);
+
+    // Commit the corrected state unconditionally (idempotent when clean) so
+    // readiness + the actual run always operate on clean data.
+    if (corrected.warehouse !== warehouse || corrected.orders !== orders) {
+      setWorkspaceWarehouses((prev) =>
+        prev.map((ww) =>
+          ww.id === activeWarehouseIdRef.current
+            ? { ...ww, warehouse: corrected.warehouse }
+            : ww,
+        ),
+      );
+      setOrders(corrected.orders);
+    }
+
     const correctedReadiness = evaluateReadiness(
       corrected.warehouse,
       corrected.orders,
@@ -978,19 +1027,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       setExecutionPlanStrategy(null);
       setIsSimulating(false);
       return;
-    }
-
-    // Commit the corrected state so the simulation runs on it and the
-    // persistence layer saves it — the user never sees the fix.
-    if (corrected.warehouse !== warehouse || corrected.orders !== orders) {
-      setWorkspaceWarehouses((prev) =>
-        prev.map((ww) =>
-          ww.id === activeWarehouseIdRef.current
-            ? { ...ww, warehouse: corrected.warehouse }
-            : ww,
-        ),
-      );
-      setOrders(corrected.orders);
     }
 
     setSimulationBlockState(null);
@@ -1022,7 +1058,10 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     try {
       const csvText = await file.text();
       const { warehouse: importedWarehouse, summary } = parseWarehouseCsv(csvText);
-      updateActiveWarehouse(importedWarehouse);
+      // Hidden corrector — CSV rows can collide on ids or land out of bounds;
+      // repair before commit so readiness + simulation are clean.
+      const corrected = reconcile(importedWarehouse, []);
+      updateActiveWarehouse(corrected.warehouse);
       setOrders([]);
       setImportSummary(`Loaded ${summary.locationCount} locations across ${summary.rackCount} racks`);
       setExecutionPlanStrategy(null);
@@ -1045,12 +1084,16 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     setIsGeneratingOrders(true);
     try {
       const newOrders = await saveOrders(activeProjectId, warehouse, orderCount, avgOrderSize, activeWarehouseId ?? undefined);
-      setOrders(newOrders);
+      // Hidden corrector — the generator may reference SKUs that placement
+      // couldn't slot; reconcile before committing so readiness stays clean.
+      const corrected = reconcile(warehouse, newOrders);
+      setOrders(corrected.orders);
     } catch (err) {
       console.error('Failed to save orders:', err);
       // Fallback: generate client-side
       const fallbackOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
-      setOrders(fallbackOrders);
+      const corrected = reconcile(warehouse, fallbackOrders);
+      setOrders(corrected.orders);
     } finally {
       setIsGeneratingOrders(false);
     }
@@ -1433,20 +1476,23 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               // configuration, and sync the id with the DB record.
               // Always use result.warehouseId afterwards so subsequent saves
               // (orders, layout, position) target the real persisted id.
+              // Hidden corrector — orders may reference unplaced SKUs;
+              // reconcile both before commit so readiness stays clean.
+              const corrected = reconcile(result.warehouse, result.orders);
               setWorkspaceWarehouses((prev) =>
                 prev.map((ww) =>
                   ww.id === activeWarehouseIdRef.current
                     ? {
                         ...ww,
                         id: result.warehouseId, // sync with DB (no-op when editing)
-                        warehouse: result.warehouse,
+                        warehouse: corrected.warehouse,
                         configuration: result.configuration,
                       }
                     : ww,
                 ),
               );
               setActiveWarehouseId(result.warehouseId);
-              setOrders(result.orders);
+              setOrders(corrected.orders);
               setHasExistingWarehouse(true);
 
               if (result.quantityViolations.length > 0) {
@@ -1528,20 +1574,23 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
               // Append new warehouse to the project (don't replace)
               const newName = `Warehouse ${workspaceWarehousesRef.current.length + 1}`;
+              // Hidden corrector — orders may reference unplaced SKUs;
+              // reconcile against the new warehouse before commit.
+              const corrected = reconcile(result.warehouse, result.orders);
               setWorkspaceWarehouses((prev) => [
                 ...prev,
                 {
                   id: result.warehouseId,
                   name: newName,
                   position: null,
-                  warehouse: result.warehouse,
+                  warehouse: corrected.warehouse,
                   configuration: result.configuration,
                 },
               ]);
               setActiveWarehouseId(result.warehouseId);
 
               // Use new warehouse's orders
-              setOrders(result.orders);
+              setOrders(corrected.orders);
               setHasExistingWarehouse(true);
 
               if (result.quantityViolations.length > 0) {

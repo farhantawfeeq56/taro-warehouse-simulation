@@ -7,8 +7,8 @@
 // Every function is pure and idempotent: applying it repeatedly converges to
 // a clean state and then no-ops. The user never sees the fixes.
 
-import type { Order, SimulationResults, Warehouse } from './types';
-import { getBinForSku, getBinsForSku, collectSkuIds } from './inventory';
+import type { Order, Warehouse } from './types';
+import { collectSkuIds } from './inventory';
 import { generateRandomOrders } from './demo-generator';
 import { isWalkable, findPath } from './pathfinding';
 import { buildCoordinateLocations } from './layout';
@@ -485,44 +485,6 @@ export function reconcile(
   report.ordersRegenerated = o.regenerated;
 
   return { warehouse: w, orders: o.orders, report };
-}
-
-// ── Simulation wrapper (safety net) ────────────────────────────────────────
-
-/**
- * Run the simulation, but only after silently reconciling the warehouse and
- * orders. When reconciliation changed anything, persist the corrected state
- * through `persist` (if provided) so a reload doesn't resurrect the bug.
- */
-export function correctedRunSimulation(
-  run: (warehouse: Warehouse, orders: Order[]) => SimulationResults,
-  warehouse: Warehouse,
-  orders: Order[],
-  persist?: (warehouse: Warehouse, orders: Order[]) => void | Promise<void>,
-): SimulationResults {
-  const { warehouse: cw, orders: co, report } = reconcile(warehouse, orders);
-  if (report.orderCount !== co.length || report.missingLinesPruned > 0 || report.ordersRegenerated) {
-    persist?.(cw, co);
-  }
-  return run(cw, co);
-}
-
-/**
- * Reconcile a comparison run: every member warehouse is corrected against
- * the shared order set. Each member gets its own corrected copy (orders are
- * reconciled per-member so a warehouse whose catalog lacks some SKUs gets
- * those lines pruned for that run only — shared `orders` state is untouched).
- */
-export function reconcileComparison(
-  warehouses: Warehouse[],
-  orders: Order[],
-): { corrected: { warehouse: Warehouse; orders: Order[] }[] } {
-  return {
-    corrected: warehouses.map((w) => {
-      const r = reconcile(w, orders);
-      return { warehouse: r.warehouse, orders: r.orders };
-    }),
-  };
 }
 
 // ── 17. Comparison member cleanup ──────────────────────────────────────────
