@@ -42,6 +42,7 @@ import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { validateSkuQuantityInvariant } from '@/lib/taro/inventory';
+import { reconcile, reconcileComparison, pruneComparisonMembers } from '@/lib/taro/corrector';
 import {
   loadWorkspace,
   loadProject,
@@ -359,11 +360,15 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               continue;
             }
             try {
+              // Hidden corrector — reconcile this member warehouse against the
+              // shared order set before running, so a catalog mismatch never
+              // surfaces as a "Simulation failed" row.
+              const corrected = reconcile(ww.warehouse, orders);
               const simResults = runSimulation(
-                ww.warehouse,
-                orders,
+                corrected.warehouse,
+                corrected.orders,
                 workerCount,
-                { warehouseProfile, laborProfile },
+                { warehouseProfile, laborProfile, allowPartial: true },
               );
               const strategies = simResults.strategies;
               const best =
@@ -899,14 +904,16 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
       requestAnimationFrame(() => {
         try {
-          const results = runSimulation(warehouse, orders, workerCount, {
+          // Hidden corrector — fix everything before running, silently.
+          const corrected = reconcile(warehouse, orders);
+          const results = runSimulation(corrected.warehouse, corrected.orders, workerCount, {
             warehouseProfile,
             laborProfile,
           });
 
           setSimulationResults(results);
           setIsSimulating(false);
-          setValidationContext(results.validationContext ?? null);
+          setValidationContext(null);
           setValidationResult(null);
           startStrategyAnimation(results.bestStrategy);
         } catch (error) {
@@ -946,7 +953,19 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
   const handleSimulateClick = useCallback(() => {
     if (!warehouse) return;
-    if (!readiness.isReady) {
+
+    // Hidden corrector — fix everything silently BEFORE deciding whether the
+    // simulation can run. A blocked state (missing items, unreachable
+    // locations) should never surface: the corrector resolves it first.
+    const corrected = reconcile(warehouse, orders);
+    const correctedReadiness = evaluateReadiness(
+      corrected.warehouse,
+      corrected.orders,
+      zVisualizationMode,
+      validateItems(corrected.orders, corrected.warehouse),
+    );
+
+    if (!correctedReadiness.isReady) {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
@@ -958,21 +977,25 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       setAnimationProgress(0);
       setExecutionPlanStrategy(null);
       setIsSimulating(false);
-
-      const result = validateItems(orders, warehouse);
-      setValidationResult(result);
-      setValidationContext(result.context);
-
-      // If we're not ready because of items, show the modal to explain why
-      if (result.hasUnresolvableItems) {
-        setShowValidationModal(true);
-      }
       return;
+    }
+
+    // Commit the corrected state so the simulation runs on it and the
+    // persistence layer saves it — the user never sees the fix.
+    if (corrected.warehouse !== warehouse || corrected.orders !== orders) {
+      setWorkspaceWarehouses((prev) =>
+        prev.map((ww) =>
+          ww.id === activeWarehouseIdRef.current
+            ? { ...ww, warehouse: corrected.warehouse }
+            : ww,
+        ),
+      );
+      setOrders(corrected.orders);
     }
 
     setSimulationBlockState(null);
     runSimulationFlow();
-  }, [readiness, warehouse, orders, runSimulationFlow]);
+  }, [warehouse, orders, zVisualizationMode, runSimulationFlow]);
 
   const handleFixItems = useCallback(() => {
     setShowValidationModal(false);
@@ -1048,8 +1071,23 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         setWorkspaceWarehouses(snapshot.workspaceWarehouses);
         setComparisons(snapshot.comparisons ?? []);
         if (snapshot.workspaceWarehouses.length > 0) {
-          setActiveWarehouseId(snapshot.workspaceWarehouses[0].id);
-          setOrders(snapshot.orders);
+          const firstWh = snapshot.workspaceWarehouses[0];
+          // Hidden corrector — repair loaded data once, silently.
+          const reconciled = reconcile(firstWh.warehouse, snapshot.orders);
+          const correctedWarehouses = snapshot.workspaceWarehouses.map((ww) =>
+            ww.id === firstWh.id
+              ? { ...ww, warehouse: reconciled.warehouse }
+              : ww,
+          );
+          const knownIds = new Set(correctedWarehouses.map((ww) => ww.id));
+          const prunedComparisons = (snapshot.comparisons ?? []).map((c) => ({
+            ...c,
+            warehouseIds: pruneComparisonMembers(c.warehouseIds, knownIds),
+          }));
+          setWorkspaceWarehouses(correctedWarehouses);
+          setComparisons(prunedComparisons);
+          setActiveWarehouseId(firstWh.id);
+          setOrders(reconciled.orders);
           setHasExistingWarehouse(true);
           setShowLayoutConfig(false);
         } else {
