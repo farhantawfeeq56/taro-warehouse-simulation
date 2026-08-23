@@ -33,7 +33,7 @@ import { WorkbenchDock } from './workbench-dock';
 import { ComparisonDock } from './comparison-dock';
 import { WorkspacePanel } from './workspace-panel';
 import { Toolbar } from './toolbar';
-import { GitCompareArrows, Loader2 } from 'lucide-react';
+import { GitCompareArrows } from 'lucide-react';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
@@ -42,31 +42,24 @@ import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { validateSkuQuantityInvariant } from '@/lib/taro/inventory';
-import { reconcile, pruneComparisonMembers } from '@/lib/taro/corrector';
-import {
-  loadWorkspace,
-  loadProject,
-  generateAndSaveWarehouse,
-  saveOrders,
-  saveWarehouseLayout,
-  duplicateWarehouseAction,
-  renameWarehouseAction,
-  deleteWarehouseAction,
-  saveWarehousePositionAction,
-  createComparisonAction,
-  updateComparisonAction,
-  deleteComparisonAction,
-} from '@/lib/db/actions';
+import { reconcile } from '@/lib/taro/corrector';
+import { generateWarehouseSession } from '@/lib/taro/warehouse-generator';
 
 interface TaroAppProps {
-  /** Project to load. When omitted, falls back to the most recent project. */
+  /**
+   * Legacy prop (dashboard era) — no longer used. The app always boots a
+   * fresh in-memory session; kept for callers that still pass it.
+   */
   initialProjectId?: string;
-  /** Called when the user requests to go back to the project dashboard. */
-  onBackToDashboard?: () => void;
 }
 
-export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+export function TaroApp(_props: TaroAppProps) {
+  // Session-scoped id — every visit generates a brand-new warehouse. The
+  // value is only used to name the entry and to key per-warehouse state;
+  // nothing is ever persisted.
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() =>
+    crypto.randomUUID(),
+  );
   const [workspaceWarehouses, setWorkspaceWarehouses] = useState<WorkspaceWarehouse[]>([]);
   const [activeWarehouseId, setActiveWarehouseId] = useState<string | null>(null);
   // Multi-select set for shift-click operations on canvas and workspace list.
@@ -182,24 +175,17 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   }, [comparisonResultsById, comparisons, wwWarehouseMap, orders]);
 
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   // Warehouse generation — shown in LayoutConfigOverlay Apply button
   const [isGenerating, setIsGenerating] = useState(false);
-  // Warehouse duplicate/delete — drives spinner on canvas node buttons
-  const [duplicatingWarehouseId, setDuplicatingWarehouseId] = useState<string | null>(null);
-  const [deletingWarehouseId, setDeletingWarehouseId] = useState<string | null>(null);
-  // Comparison creation — drives spinner on New Comparison button
-  const [isCreatingComparison, setIsCreatingComparison] = useState(false);
   // Comparison deletion — drives spinner on WorkspacePanel delete button
   const [deletingComparisonId, setDeletingComparisonId] = useState<string | null>(null);
-  // "Compare Selected" floating button
-  const [isCreatingFromSelection, setIsCreatingFromSelection] = useState(false);
   // Demo orders generation
   const [isGeneratingOrders, setIsGeneratingOrders] = useState(false);
   // In-flight rename tracking
   const [renamingWarehouseId, setRenamingWarehouseId] = useState<string | null>(null);
   const [renamingComparisonId, setRenamingComparisonId] = useState<string | null>(null);
-  // Link-mode toggle membership — shows spinner on the badge
+  // Link-mode toggle membership — shows spinner on the badge (never active in
+  // session mode, kept for the WarehouseFlow props).
   const [togglingMembershipWarehouseId, setTogglingMembershipWarehouseId] = useState<string | null>(null);
   // CSV import
   const [isImporting, setIsImporting] = useState(false);
@@ -243,16 +229,18 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   const handleNewComparison = useCallback(async () => {
     const projectId = activeProjectIdRef.current;
     if (!projectId) return;
-    setIsCreatingComparison(true);
-    try {
-      const comp = await createComparisonAction(projectId);
-      setComparisons((prev) => [...prev, comp]);
-      setActiveComparisonId(comp.id);
-    } catch (err) {
-      console.error('Failed to create comparison:', err);
-    } finally {
-      setIsCreatingComparison(false);
-    }
+    const comp: Comparison = {
+      id: crypto.randomUUID(),
+      name: 'Comparison',
+      projectId,
+      warehouseIds: [],
+      positionX: null,
+      positionY: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    setComparisons((prev) => [...prev, comp]);
+    setActiveComparisonId(comp.id);
   }, []);
 
   const handleSelectComparison = useCallback(
@@ -271,30 +259,12 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     setComparisons((prev) =>
       prev.map((c) => (c.id === comparisonId ? { ...c, name } : c)),
     );
-    setRenamingComparisonId(comparisonId);
-    try {
-      await updateComparisonAction(comparisonId, { name });
-    } catch (err) {
-      console.error('Failed to rename comparison:', err);
-    } finally {
-      setRenamingComparisonId(null);
-    }
   }, []);
 
   const handleDeleteComparison = useCallback(async (comparisonId: string) => {
-    const projectId = activeProjectIdRef.current;
-    if (!projectId) return;
     setComparisons((prev) => prev.filter((c) => c.id !== comparisonId));
     if (activeComparisonId === comparisonId) {
       setActiveComparisonId(null);
-    }
-    setDeletingComparisonId(comparisonId);
-    try {
-      await deleteComparisonAction(comparisonId, projectId);
-    } catch (err) {
-      console.error('Failed to delete comparison:', err);
-    } finally {
-      setDeletingComparisonId(null);
     }
   }, []);
 
@@ -306,11 +276,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       setComparisons((prev) =>
         prev.map((c) => (c.id === comparisonId ? { ...c, warehouseIds: next } : c)),
       );
-      try {
-        await updateComparisonAction(comparisonId, { warehouseIds: next });
-      } catch (err) {
-        console.error('Failed to add warehouse to comparison:', err);
-      }
     },
     [comparisons],
   );
@@ -325,11 +290,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           c.id === comparisonId ? { ...c, warehouseIds: next } : c,
         ),
       );
-      try {
-        await updateComparisonAction(comparisonId, { warehouseIds: next });
-      } catch (err) {
-        console.error('Failed to remove warehouse from comparison:', err);
-      }
     },
     [comparisons],
   );
@@ -435,13 +395,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         const nextWarehouseIds = isMember
           ? comp.warehouseIds.filter((id) => id !== warehouseId)
           : [...comp.warehouseIds, warehouseId];
-        // Persist optimistically
+        // Persist optimistically — session-only: just update local state.
         setTogglingMembershipWarehouseId(warehouseId);
-        updateComparisonAction(comparisonId, {
-          warehouseIds: nextWarehouseIds,
-        })
-          .catch(console.error)
-          .finally(() => setTogglingMembershipWarehouseId(null));
+        setTogglingMembershipWarehouseId(null);
         return prev.map((c) =>
           c.id === comparisonId ? { ...c, warehouseIds: nextWarehouseIds } : c,
         );
@@ -477,19 +433,21 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     if (!projectId || selectedWarehouseIds.size < 2) return;
 
     const warehouseIds = [...selectedWarehouseIds];
-    setIsCreatingFromSelection(true);
-    try {
-      const comp = await createComparisonAction(projectId, undefined, warehouseIds);
-      setComparisons((prev) => [...prev, comp]);
-      setActiveComparisonId(comp.id);
-      setActiveWarehouseId(null);
-      setSelectedWarehouseIds(new Set());
-      setLinkModeComparisonId(null);
-    } catch (err) {
-      console.error('Failed to create comparison from selection:', err);
-    } finally {
-      setIsCreatingFromSelection(false);
-    }
+    const comp: Comparison = {
+      id: crypto.randomUUID(),
+      name: 'Comparison',
+      projectId,
+      warehouseIds,
+      positionX: null,
+      positionY: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    setComparisons((prev) => [...prev, comp]);
+    setActiveComparisonId(comp.id);
+    setActiveWarehouseId(null);
+    setSelectedWarehouseIds(new Set());
+    setLinkModeComparisonId(null);
   }, [selectedWarehouseIds]);
 
   /**
@@ -553,177 +511,141 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   }, []);
 
   const handleDuplicateWarehouse = useCallback(async (sourceWarehouseId: string) => {
-    if (!activeProjectId) return;
-    setDuplicatingWarehouseId(sourceWarehouseId);
-    try {
-      const result = await duplicateWarehouseAction(activeProjectId, sourceWarehouseId);
+    const source = workspaceWarehousesRef.current.find(
+      (w) => w.id === sourceWarehouseId,
+    );
+    if (!source) return;
 
-      // Append the duplicated warehouse to the project as a workspace entry
+    // In-memory duplicate — deep copy the layout (grid is an array of cell
+    // objects; React Flow / the corrector treat these as immutable, so a
+    // fresh array + fresh cell objects keep the copies fully independent).
+    const sourceWh = source.warehouse;
+    const newId = crypto.randomUUID();
+    const copy: Warehouse = {
+      ...sourceWh,
+      grid: sourceWh.grid.map((row) =>
+        row.map((cell) => ({ ...cell, locations: cell.locations.map((l) => ({ ...l })) })),
+      ),
+      shelves: sourceWh.shelves.map((s) => ({ ...s })),
+      locations: sourceWh.locations.map((l) => ({ ...l })),
+      workerStart: sourceWh.workerStart ? { ...sourceWh.workerStart } : null,
+    };
+    const base = source.name.replace(/ \(copy( \d+)?\)$/, '');
+    const existingCopies = workspaceWarehousesRef.current.filter((w) =>
+      w.name.startsWith(base + ' (copy'),
+    );
+    const newEntry: WorkspaceWarehouse = {
+      id: newId,
+      name:
+        existingCopies.length === 0
+          ? `${base} (copy)`
+          : `${base} (copy ${existingCopies.length + 1})`,
+      position: null, // new duplicates start at auto-layout
+      warehouse: copy,
+      configuration: source.configuration,
+    };
+    setWorkspaceWarehouses((prev) => [...prev, newEntry]);
+
+    // Auto-select the new duplicate
+    setActiveWarehouseId(newId);
+
+    // If the source was the active warehouse, adopt its orders
+    const sourceOrders = ordersRef.current;
+    if (sourceWarehouseId === activeWarehouseIdRef.current && sourceOrders.length > 0) {
       // Hidden corrector — reconcile the duplicate's warehouse + orders so the
       // newly-active warehouse never carries stale/invalid order lines.
-      const corrected = reconcile(result.warehouse, result.orders);
-      const newEntry: WorkspaceWarehouse = {
-        id: result.warehouseId,
-        name: result.name,
-        position: null, // new duplicates start at auto-layout
-        warehouse: corrected.warehouse,
-        configuration: result.configuration,
-      };
-      setWorkspaceWarehouses((prev) => [...prev, newEntry]);
-
-      // Auto-select the new duplicate
-      setActiveWarehouseId(result.warehouseId);
-
-      // If the source was the active warehouse, adopt the duplicate's orders
-      if (sourceWarehouseId === activeWarehouseIdRef.current) {
-        setOrders(corrected.orders);
-
-      }
-
-      setSimulationResults(null);
-      setSimulationBlockState(null);
-      setIsSimulating(false);
-      setActiveStrategy(null);
-      setExecutionPlanStrategy(null);
-      setValidationContext(null);
-      setValidationResult(null);
-      setShowValidationModal(false);
-      setHighlightedMissingSkuIds(null);
-      setImportSummary('');
-      resetAnimationState();
-    } catch (err) {
-      console.error('Failed to duplicate warehouse:', err);
-      alert('Failed to duplicate warehouse. Please try again.');
-    } finally {
-      setDuplicatingWarehouseId(null);
+      const corrected = reconcile(copy, sourceOrders);
+      setOrders(corrected.orders);
     }
-  }, [activeProjectId, resetAnimationState]);
+
+    setSimulationResults(null);
+    setSimulationBlockState(null);
+    setIsSimulating(false);
+    setActiveStrategy(null);
+    setExecutionPlanStrategy(null);
+    setValidationContext(null);
+    setValidationResult(null);
+    setShowValidationModal(false);
+    setHighlightedMissingSkuIds(null);
+    setImportSummary('');
+    resetAnimationState();
+  }, [resetAnimationState]);
 
   // ── Workspace: Rename ────────────────────────────────────────────────────
 
   const handleRenameWarehouse = useCallback(async (warehouseId: string, name: string) => {
-    const projectId = activeProjectIdRef.current;
-    if (!projectId) return;
-
     // Optimistically update local state
     setWorkspaceWarehouses((prev) =>
       prev.map((ww) => (ww.id === warehouseId ? { ...ww, name } : ww)),
     );
-
-    setRenamingWarehouseId(warehouseId);
-    try {
-      await renameWarehouseAction(warehouseId, name, projectId);
-    } catch (err) {
-      console.error('Failed to rename warehouse:', err);
-      // Revert by reloading on error — simplest rollback
-      const snapshot = await loadProject(projectId);
-      setWorkspaceWarehouses(snapshot.workspaceWarehouses);
-    } finally {
-      setRenamingWarehouseId(null);
-    }
   }, []);
 
   // ── Workspace: Delete ────────────────────────────────────────────────────
 
   const handleDeleteWarehouse = useCallback(async (warehouseId: string) => {
-    const projectId = activeProjectIdRef.current;
-    if (!projectId) return;
-
     // Guard: prevent deleting the last warehouse
     if (workspaceWarehousesRef.current.length <= 1) {
       alert('Cannot delete the last warehouse. Create another warehouse first.');
       return;
     }
 
-    setDeletingWarehouseId(warehouseId);
-    try {
-      await deleteWarehouseAction(warehouseId, projectId);
+    // Remove from local state
+    const removedIndex = workspaceWarehousesRef.current.findIndex((w) => w.id === warehouseId);
+    const isActive = activeWarehouseIdRef.current === warehouseId;
 
-      // Remove from local state
-      const removedIndex = workspaceWarehousesRef.current.findIndex((w) => w.id === warehouseId);
-      const isActive = activeWarehouseIdRef.current === warehouseId;
+    setWorkspaceWarehouses((prev) => prev.filter((w) => w.id !== warehouseId));
 
-      setWorkspaceWarehouses((prev) => prev.filter((w) => w.id !== warehouseId));
+    // Remove deleted warehouse from multi-select set
+    setSelectedWarehouseIds((prev) => {
+      if (!prev.has(warehouseId)) return prev;
+      const next = new Set(prev);
+      next.delete(warehouseId);
+      return next;
+    });
 
-      // Remove deleted warehouse from multi-select set
-      setSelectedWarehouseIds((prev) => {
-        if (!prev.has(warehouseId)) return prev;
-        const next = new Set(prev);
-        next.delete(warehouseId);
-        return next;
-      });
+    // Remove the deleted warehouse from all comparisons that reference it.
+    setComparisons((prev) =>
+      prev.map((c) =>
+        c.warehouseIds.includes(warehouseId)
+          ? { ...c, warehouseIds: c.warehouseIds.filter((id) => id !== warehouseId) }
+          : c,
+      ),
+    );
 
-      // Remove the deleted warehouse from all comparisons that reference it.
-      setComparisons((prev) =>
-        prev.map((c) =>
-          c.warehouseIds.includes(warehouseId)
-            ? { ...c, warehouseIds: c.warehouseIds.filter((id) => id !== warehouseId) }
-            : c,
-        ),
-      );
-      // Persist each affected comparison using the current ref value (the
-      // callback is memoized without `comparisons` in its deps, so the closure
-      // `comparisons` would be stale from the initial render).
-      for (const c of comparisonsRef.current) {
-        if (c.warehouseIds.includes(warehouseId)) {
-          const updated = c.warehouseIds.filter((id) => id !== warehouseId);
-          updateComparisonAction(c.id, { warehouseIds: updated }).catch(
-            console.error,
-          );
-        }
+    // If the deleted warehouse was active, auto-select another
+    if (isActive) {
+      const remaining = workspaceWarehousesRef.current.filter((w) => w.id !== warehouseId);
+      if (remaining.length > 0) {
+        // Pick the one at the same index, or the last one
+        const nextIndex = Math.min(removedIndex, remaining.length - 1);
+        setActiveWarehouseId(remaining[nextIndex].id);
+      } else {
+        setActiveWarehouseId(null);
       }
-
-      // If the deleted warehouse was active, auto-select another
-      if (isActive) {
-        const remaining = workspaceWarehousesRef.current.filter((w) => w.id !== warehouseId);
-        if (remaining.length > 0) {
-          // Pick the one at the same index, or the last one
-          const nextIndex = Math.min(removedIndex, remaining.length - 1);
-          setActiveWarehouseId(remaining[nextIndex].id);
-        } else {
-          setActiveWarehouseId(null);
-        }
-      }
-
-      setSimulationResults(null);
-      setSimulationBlockState(null);
-      setIsSimulating(false);
-      setActiveStrategy(null);
-      setExecutionPlanStrategy(null);
-      setValidationContext(null);
-      setValidationResult(null);
-      setShowValidationModal(false);
-      setHighlightedMissingSkuIds(null);
-      setImportSummary('');
-      resetAnimationState();
-    } catch (err) {
-      console.error('Failed to delete warehouse:', err);
-      alert('Failed to delete warehouse. Please try again.');
-    } finally {
-      setDeletingWarehouseId(null);
     }
+
+    setSimulationResults(null);
+    setSimulationBlockState(null);
+    setIsSimulating(false);
+    setActiveStrategy(null);
+    setExecutionPlanStrategy(null);
+    setValidationContext(null);
+    setValidationResult(null);
+    setShowValidationModal(false);
+    setHighlightedMissingSkuIds(null);
+    setImportSummary('');
+    resetAnimationState();
   }, [resetAnimationState]);
 
   // ── Workspace: Position ──────────────────────────────────────────────────
 
-  const positionTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const handlePersistPosition = useCallback(async (warehouseId: string, x: number, y: number) => {
-    const projectId = activeProjectIdRef.current;
-    if (!projectId) return;
-
-    // Update local state immediately
+    // Update local state immediately — session-only, nothing to persist.
     setWorkspaceWarehouses((prev) =>
       prev.map((ww) =>
         ww.id === warehouseId ? { ...ww, position: { x, y } } : ww,
       ),
     );
-
-    // Debounced persistence (handled in WarehouseFlow with setTimeout, but persist here too)
-    try {
-      await saveWarehousePositionAction(warehouseId, projectId, x, y);
-    } catch (err) {
-      console.error('Failed to save warehouse position:', err);
-    }
   }, []);
 
   const handlePersistComparisonPosition = useCallback(
@@ -733,11 +655,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
           c.id === comparisonId ? { ...c, positionX: x, positionY: y } : c,
         ),
       );
-      try {
-        await updateComparisonAction(comparisonId, { positionX: x, positionY: y });
-      } catch (err) {
-        console.error('Failed to save comparison position:', err);
-      }
     },
     [],
   );
@@ -766,7 +683,9 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     animationProgressRef.current = 0;
   }, []);
 
-  // Debounced persistence of canvas edits
+  // Debounced (no-op) persistence of canvas edits — layout edits stay in
+  // memory for the session; the timer keeps the reconcile (hidden corrector)
+  // debounce behaviour identical to the persisted flow.
   const saveLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleWarehouseChangePersisted = useCallback((
     whId: string,
@@ -791,25 +710,19 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
 
     if (saveLayoutTimerRef.current) clearTimeout(saveLayoutTimerRef.current);
     saveLayoutTimerRef.current = setTimeout(() => {
-      const pid = activeProjectIdRef.current;
-      if (pid) {
-        // Hidden corrector — run ONCE after drawing pauses (debounced, not
-        // per-cell) so the persisted state + readiness are clean. Idempotent.
-        const corrected = reconcile(newWh, ordersRef.current);
-        const isActive = whId === activeWarehouseIdRef.current;
-        if (isActive && corrected.orders !== ordersRef.current) {
-          setOrders(corrected.orders);
-        }
-        if (corrected.warehouse !== newWh || !isActive) {
-          setWorkspaceWarehouses((prev) =>
-            prev.map((ww) =>
-              ww.id === whId ? { ...ww, warehouse: corrected.warehouse } : ww,
-            ),
-          );
-        }
-        saveWarehouseLayout(pid, corrected.warehouse, whId).catch((err) => {
-          console.error(err);
-        });
+      // Hidden corrector — run ONCE after drawing pauses (debounced, not
+      // per-cell) so readiness stays clean. Idempotent.
+      const corrected = reconcile(newWh, ordersRef.current);
+      const isActive = whId === activeWarehouseIdRef.current;
+      if (isActive && corrected.orders !== ordersRef.current) {
+        setOrders(corrected.orders);
+      }
+      if (corrected.warehouse !== newWh || !isActive) {
+        setWorkspaceWarehouses((prev) =>
+          prev.map((ww) =>
+            ww.id === whId ? { ...ww, warehouse: corrected.warehouse } : ww,
+          ),
+        );
       }
     }, 500);
   }, []);
@@ -1080,16 +993,17 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
   }, [updateActiveWarehouse]);
 
   const handleAddDemoOrders = useCallback(async () => {
-    if (!warehouse || !activeProjectId) return;
+    if (!warehouse) return;
     setIsGeneratingOrders(true);
     try {
-      const newOrders = await saveOrders(activeProjectId, warehouse, orderCount, avgOrderSize, activeWarehouseId ?? undefined);
+      // Session-only: generate orders in the browser, never persist.
+      const newOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
       // Hidden corrector — the generator may reference SKUs that placement
       // couldn't slot; reconcile before committing so readiness stays clean.
       const corrected = reconcile(warehouse, newOrders);
       setOrders(corrected.orders);
     } catch (err) {
-      console.error('Failed to save orders:', err);
+      console.error('Failed to generate orders:', err);
       // Fallback: generate client-side
       const fallbackOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
       const corrected = reconcile(warehouse, fallbackOrders);
@@ -1097,81 +1011,38 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
     } finally {
       setIsGeneratingOrders(false);
     }
-  }, [warehouse, activeProjectId, orderCount, avgOrderSize]);
+  }, [warehouse, orderCount, avgOrderSize]);
 
   // 4. Side Effects
   useEffect(() => {
-    // Load workspace from database on mount
+    // Boot a fresh in-memory session. Every visit generates a brand-new
+    // warehouse — no database, no dashboard, no persistence.
     let cancelled = false;
-    async function init() {
-      try {
-        const snapshot = initialProjectId
-          ? await loadProject(initialProjectId)
-          : await loadWorkspace();
-        if (cancelled) return;
-        setActiveProjectId(snapshot.projectId);
-        setProjectName(snapshot.projectName);
-        setWorkspaceWarehouses(snapshot.workspaceWarehouses);
-        setComparisons(snapshot.comparisons ?? []);
-        if (snapshot.workspaceWarehouses.length > 0) {
-          const firstWh = snapshot.workspaceWarehouses[0];
-          // Hidden corrector — repair loaded data once, silently.
-          const reconciled = reconcile(firstWh.warehouse, snapshot.orders);
-          const correctedWarehouses = snapshot.workspaceWarehouses.map((ww) =>
-            ww.id === firstWh.id
-              ? { ...ww, warehouse: reconciled.warehouse }
-              : ww,
-          );
-          const knownIds = new Set(correctedWarehouses.map((ww) => ww.id));
-          const prunedComparisons = (snapshot.comparisons ?? []).map((c) => ({
-            ...c,
-            warehouseIds: pruneComparisonMembers(c.warehouseIds, knownIds),
-          }));
-          setWorkspaceWarehouses(correctedWarehouses);
-          setComparisons(prunedComparisons);
-          setActiveWarehouseId(firstWh.id);
-          setOrders(reconciled.orders);
-          setHasExistingWarehouse(true);
-          setShowLayoutConfig(false);
-        } else {
-          // No warehouse yet — create a skeleton as the single entry.
-          const skeleton = generateSkeletonWarehouse();
-          const skeletonId = crypto.randomUUID();
-          const skeletonEntry: WorkspaceWarehouse = {
-            id: skeletonId,
-            name: 'Default Warehouse',
-            position: null,
-            warehouse: skeleton,
-          };
-          setWorkspaceWarehouses([skeletonEntry]);
-          setActiveWarehouseId(skeletonId);
-          setHasExistingWarehouse(false);
-          setShowLayoutConfig(true);
-        }
-      } catch (err) {
-        console.error('Failed to load workspace:', err);
-        if (!cancelled) {
-          setLoadError('Could not connect to database. Running in offline mode.');
-          setProjectName('Offline Project');
-          const skeleton = generateSkeletonWarehouse();
-          const skeletonId = crypto.randomUUID();
-          const skeletonEntry: WorkspaceWarehouse = {
-            id: skeletonId,
-            name: 'Default Warehouse',
-            position: null,
-            warehouse: skeleton,
-          };
-          setWorkspaceWarehouses([skeletonEntry]);
-          setActiveWarehouseId(skeletonId);
-          setShowLayoutConfig(true);
-        }
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
+
+    setActiveProjectId(crypto.randomUUID());
+    setProjectName('Session');
+
+    // Start with a skeleton warehouse so the user lands on the setup
+    // overlay (first-time experience) but always has a warehouse behind it.
+    const skeleton = generateSkeletonWarehouse();
+    const skeletonId = crypto.randomUUID();
+    const skeletonEntry: WorkspaceWarehouse = {
+      id: skeletonId,
+      name: 'Default Warehouse',
+      position: null,
+      warehouse: skeleton,
+    };
+    if (!cancelled) {
+      setWorkspaceWarehouses([skeletonEntry]);
+      setActiveWarehouseId(skeletonId);
+      setHasExistingWarehouse(false);
+      setShowLayoutConfig(true);
+      setIsLoading(false);
     }
-    init();
+
     return () => { cancelled = true };
-  }, [initialProjectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
@@ -1225,11 +1096,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
       )}
 
       {/* DB error banner */}
-      {loadError && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-800 text-center">
-          {loadError}
-        </div>
-      )}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -1238,7 +1104,6 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
         <div className="fixed left-0 top-0 z-40 flex flex-col items-start gap-2 p-2 pointer-events-none">
           <div className="pointer-events-auto">
             <WorkspacePanel
-              onBackToDashboard={onBackToDashboard ?? undefined}
               projectName={projectName}
               importSummary={importSummary}
               warehouses={workspaceWarehouses}
@@ -1253,8 +1118,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               onDeleteComparison={handleDeleteComparison}
               onAddWarehouse={handleNewWarehouse}
               onNewComparison={handleNewComparison}
-              isCreatingComparison={isCreatingComparison}
-              deletingComparisonId={deletingComparisonId}
+              isCreatingComparison={false}
+              deletingComparisonId={null}
               isOpen={openDockId === 'workspace'}
               onOpenChange={(open) => setDockOpen('workspace', open)}
             />
@@ -1351,8 +1216,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             onRenameWarehouse={handleRenameWarehouse}
             onDeleteWarehouse={handleDeleteWarehouse}
             onOpenLayoutConfig={handleOpenLayoutConfig}
-            duplicatingWarehouseId={duplicatingWarehouseId}
-            deletingWarehouseId={deletingWarehouseId}
+            duplicatingWarehouseId={null}
+            deletingWarehouseId={null}
             renamingWarehouseId={renamingWarehouseId}
             togglingMembershipWarehouseId={togglingMembershipWarehouseId}
             onPersistPosition={handlePersistPosition}
@@ -1385,7 +1250,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
             {!linkModeComparisonId && selectedWarehouseIds.size >= 2 && (
               <button
                 onClick={handleCompareSelected}
-                disabled={isCreatingFromSelection}
+                disabled={false}
                 className="
                   flex items-center gap-1.5 px-3 py-1.5
                   bg-surface/90 backdrop-blur-sm text-xs font-medium
@@ -1395,11 +1260,7 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
                   disabled:opacity-70 disabled:cursor-not-allowed
                 "
               >
-                {isCreatingFromSelection ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <GitCompareArrows className="h-3.5 w-3.5" />
-                )}
+                <GitCompareArrows className="h-3.5 w-3.5" />
                 Compare {selectedWarehouseIds.size} selected
               </button>
             )}
@@ -1457,25 +1318,13 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
                 },
               };
 
-              const result = await generateAndSaveWarehouse(activeProjectId, {
-                configuration,
-                items: config.inventory,
-                slottingBias: config.slottingBias,
-                categoryClustering: config.categoryClustering,
-                storageFootprint: config.storageFootprint,
-                orderCount,
-                avgOrderSize,
-                // Only pass warehouseId when editing a persisted warehouse.
-                // For first-time setup (skeleton entry not yet in DB) let
-                // generateAndSaveWarehouse create a new record; the returned
-                // result.warehouseId replaces the temporary id below.
-                warehouseId: hasExistingWarehouse ? (activeWarehouseIdRef.current ?? undefined) : undefined,
-              });
+              // Session-only: generate entirely in the browser — no database.
+              const result = generateWarehouseSession(configuration, orderCount, avgOrderSize);
+              const warehouseId =
+                activeWarehouseIdRef.current ?? crypto.randomUUID();
 
-              // Update the workspace entry with new warehouse data, its own
-              // configuration, and sync the id with the DB record.
-              // Always use result.warehouseId afterwards so subsequent saves
-              // (orders, layout, position) target the real persisted id.
+              // Update the workspace entry with new warehouse data and its own
+              // configuration.
               // Hidden corrector — orders may reference unplaced SKUs;
               // reconcile both before commit so readiness stays clean.
               const corrected = reconcile(result.warehouse, result.orders);
@@ -1484,14 +1333,14 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
                   ww.id === activeWarehouseIdRef.current
                     ? {
                         ...ww,
-                        id: result.warehouseId, // sync with DB (no-op when editing)
+                        id: warehouseId,
                         warehouse: corrected.warehouse,
-                        configuration: result.configuration,
+                        configuration,
                       }
                     : ww,
                 ),
               );
-              setActiveWarehouseId(result.warehouseId);
+              setActiveWarehouseId(warehouseId);
               setOrders(corrected.orders);
               setHasExistingWarehouse(true);
 
@@ -1522,8 +1371,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               setImportSummary('');
               resetAnimationState();
             } catch (err) {
-              console.error('Failed to generate and save warehouse:', err);
-              alert('Failed to save warehouse. Please try again.');
+              console.error('Failed to generate warehouse:', err);
+              alert('Failed to generate warehouse. Please try again.');
             } finally {
               setIsGenerating(false);
               setShowLayoutConfig(false);
@@ -1562,32 +1411,26 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
                 },
               };
 
-              const result = await generateAndSaveWarehouse(activeProjectId, {
-                configuration,
-                items: config.inventory,
-                slottingBias: config.slottingBias,
-                categoryClustering: config.categoryClustering,
-                storageFootprint: config.storageFootprint,
-                orderCount,
-                avgOrderSize,
-              });
+              // Session-only: generate entirely in the browser — no database.
+              const result = generateWarehouseSession(configuration, orderCount, avgOrderSize);
 
-              // Append new warehouse to the project (don't replace)
+              // Append new warehouse to the workspace (don't replace)
               const newName = `Warehouse ${workspaceWarehousesRef.current.length + 1}`;
               // Hidden corrector — orders may reference unplaced SKUs;
               // reconcile against the new warehouse before commit.
               const corrected = reconcile(result.warehouse, result.orders);
+              const newId = crypto.randomUUID();
               setWorkspaceWarehouses((prev) => [
                 ...prev,
                 {
-                  id: result.warehouseId,
+                  id: newId,
                   name: newName,
                   position: null,
                   warehouse: corrected.warehouse,
-                  configuration: result.configuration,
+                  configuration,
                 },
               ]);
-              setActiveWarehouseId(result.warehouseId);
+              setActiveWarehouseId(newId);
 
               // Use new warehouse's orders
               setOrders(corrected.orders);
@@ -1620,8 +1463,8 @@ export function TaroApp({ initialProjectId, onBackToDashboard }: TaroAppProps) {
               setImportSummary('');
               resetAnimationState();
             } catch (err) {
-              console.error('Failed to generate and save warehouse:', err);
-              alert('Failed to save warehouse. Please try again.');
+              console.error('Failed to generate warehouse:', err);
+              alert('Failed to generate warehouse. Please try again.');
             } finally {
               setIsGenerating(false);
               setShowNewWarehouseConfig(false);
