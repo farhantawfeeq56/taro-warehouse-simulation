@@ -232,10 +232,39 @@ interface Bin {
 }
 
 /**
+ * Number of proximity bands used by `enumerateBins`' round-robin fill.
+ * Bins are grouped by Manhattan-distance band (nearest band first) so
+ * inventory spreads across the WHOLE floor instead of filling from one
+ * corner. Without this, a warehouse whose capacity comfortably exceeds its
+ * SKU count would concentrate every item in a dense wedge next to the
+ * dispatch point and leave the rest of the floor empty — which reads as
+ * "absurd" even though the data is internally consistent.
+ *
+ * With 8 bands the density still falls gently with distance (bands are
+ * filled in order), but every aisle and rack gets a visible share of stock
+ * as long as the catalogue fills most of the capacity.
+ */
+export const PROXIMITY_BANDS = 8;
+
+/**
  * Enumerate every placeable bin across the warehouse shelves and assign each
  * a proximity rank. The number of z-levels per shelf follows the same
  * deterministic 1..3 cycling used previously (this is *capacity*, not
  * inventory — it is not modified by slotting bias).
+ *
+ * The returned bins are ordered for an EVEN, floor-spreading fill:
+ *   • Bins are grouped into `PROXIMITY_BANDS` distance bands (band 0 =
+ *     nearest to dispatch, band N-1 = farthest).
+ *   • Within each band the bins are sorted nearest-first (distance, then
+ *     z-level as a tie-break).
+ *   • Bands are emitted in order, so a fill that consumes bins front-to-back
+ *     (the planner's fixed walk) still visits every region of the floor
+ *     round by round instead of draining the nearest corner first.
+ *
+ * At small catalogues the walk naturally settles into the nearest bands
+ * first, so the classic "high-demand near dispatch" signal is preserved —
+ * the nearest band is still filled first — while large catalogues now
+ * spread across the whole floor rather than wedging into one corner.
  */
 function enumerateBins(warehouse: Warehouse): Bin[] {
   const shelves = listShelves(warehouse);
@@ -256,15 +285,24 @@ function enumerateBins(warehouse: Warehouse): Bin[] {
     }
   });
 
-  // Sort nearest-first; tie-break by z (lower level closer to the picker).
-  raw.sort((a, b) =>
-    a.distance !== b.distance
-      ? a.distance - b.distance
-      : a.z - b.z
-  );
+  // Bucket bins into proximity bands by Manhattan distance to dispatch.
+  let maxDist = 0;
+  for (const b of raw) if (b.distance > maxDist) maxDist = b.distance;
 
-  const n = raw.length;
-  return raw.map((b, i) => ({
+  const banded = Array.from({ length: PROXIMITY_BANDS }, () => [] as typeof raw);
+  for (const b of raw) {
+    const band = maxDist > 0 ? Math.min(PROXIMITY_BANDS - 1, Math.floor((b.distance * PROXIMITY_BANDS) / (maxDist + 1))) : 0;
+    banded[band].push(b);
+  }
+
+  // Sort each band nearest-first; tie-break by z (lower level closer).
+  for (const band of banded) {
+    band.sort((a, b) => (a.distance !== b.distance ? a.distance - b.distance : a.z - b.z));
+  }
+
+  const flat = banded.flat();
+  const n = flat.length;
+  return flat.map((b, i) => ({
     ...b,
     proximityRank: n > 1 ? i / (n - 1) : 0,
   }));
@@ -688,6 +726,9 @@ export function computePlacementPreview(
 
   // Count how many bins each shelf occupies. A SKU with footprint > 1 may
   // fill several bins, potentially on the same shelf.
+  // NOTE: with banded enumeration the fill is even across the floor, so
+  // overflow surfaces as "the far bands never fill" rather than a corner
+  // wedge — the same ordering the planner actually uses.
   const occupiedBinsByShelf = new Map<string, number>();
   let placedBinCount = 0;
   for (const group of itemBins) {

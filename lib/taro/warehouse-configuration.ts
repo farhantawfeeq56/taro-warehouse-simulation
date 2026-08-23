@@ -55,8 +55,8 @@ export interface WarehouseConfiguration {
 // ── Defaults ───────────────────────────────────────────────────────────────
 
 export const DEFAULT_LAYOUT_CONFIGURATION: LayoutConfiguration = {
-  gridHeight: 30,
-  rackCount: 30,
+  gridHeight: 20,
+  rackCount: 12,
   aisleWidth: 1,
   crossAisleCount: 1,
   fbWidth: 30,
@@ -68,7 +68,7 @@ export const DEFAULT_LAYOUT_CONFIGURATION: LayoutConfiguration = {
 };
 
 export const DEFAULT_INVENTORY_GENERATION_CONFIGURATION: InventoryGenerationConfiguration = {
-  skuCount: 2500,
+  skuCount: 2000,
   demandDistribution: 0,
   productAffinity: 0,
   storageFootprint: 0,

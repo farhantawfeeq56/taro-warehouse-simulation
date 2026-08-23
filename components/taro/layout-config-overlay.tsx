@@ -29,6 +29,7 @@ import {
   PREVIEW_MAX_ITEMS,
 } from '@/lib/taro/inventory-placement';
 import { generateCrossAisleLayout } from '@/lib/taro/layout-generator';
+import { balanceSkuCount } from '@/lib/taro/warehouse-generator';
 import {
   generateDemandScores,
   summarizeDemandScores,
@@ -296,6 +297,10 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const fullWidth = previewWarehouse.width;
   const fullHeight = previewWarehouse.height;
 
+  // Effective catalogue size — the SKU slider is an upper limit; the layout's
+  // bin capacity (via `balanceSkuCount`) decides how many SKUs actually fit.
+  const effectiveSkuCount = balanceSkuCount(skuCount, previewWarehouse.shelves.length * 2);
+
   const placementPreview = useMemo(
     () =>
       computePlacementPreview(previewWarehouse, {
@@ -404,7 +409,11 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               max={3000}
               step={1}
               display={skuCount.toLocaleString()}
-              description="Number of unique products to generate (max 3,000)."
+              description={
+                effectiveSkuCount < skuCount
+                  ? `Capped at ${effectiveSkuCount.toLocaleString()} to fit the layout (bins). Increase rack count to raise it.`
+                  : `Number of unique products to generate (max 3,000).`
+              }
               onChange={setSkuCount}
             />
             <PlainSlider
