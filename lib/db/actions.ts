@@ -6,6 +6,7 @@ import {
   generateCrossAisleLayout,
 } from '@/lib/taro/layout-generator';
 import { applyInventoryPlacementDetailed } from '@/lib/taro/inventory-placement';
+import { balanceSkuCount, estimateBinCapacity } from '@/lib/taro/warehouse-generator';
 import { generateRandomOrders } from '@/lib/taro/demo-generator';
 import { validateSkuQuantityInvariant } from '@/lib/taro/inventory';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
@@ -276,9 +277,20 @@ export async function generateAndSaveWarehouse(
     cfg.layout.crossAisleCount
   );
 
+  // 1b. Balance the catalogue against the layout's bin capacity so the
+  //     warehouse always fills out fully (no overflow wedge, no unplaced
+  //     SKUs, no dead orders). Mirrors the session-only generator's
+  //     `generateWarehouseSession` so both paths produce identical output.
+  const binCapacity = estimateBinCapacity(newWarehouse);
+  const balancedSkuCount = balanceSkuCount(cfg.inventory.skuCount, binCapacity);
+  const balancedItems =
+    balancedSkuCount < params.items.length
+      ? params.items.slice(0, balancedSkuCount)
+      : params.items;
+
   // 2. Place inventory (pure domain logic)
   const placementResult = applyInventoryPlacementDetailed(newWarehouse, {
-    items: params.items,
+    items: balancedItems,
     slottingBias: params.slottingBias,
     categoryClustering: params.categoryClustering,
   });
@@ -288,7 +300,7 @@ export async function generateAndSaveWarehouse(
   const orders = generateRandomOrders(warehouseWithInventory, params.orderCount, params.avgOrderSize);
 
   // 4. Validate quantity invariant
-  const quantityViolations = validateSkuQuantityInvariant(warehouseWithInventory, params.items);
+  const quantityViolations = validateSkuQuantityInvariant(warehouseWithInventory, balancedItems);
 
   // 5. Persist everything — configuration, layout, inventory, and orders.
   // When a warehouseId is provided (edit mode), update that existing record.
@@ -299,7 +311,7 @@ export async function generateAndSaveWarehouse(
     warehouseId,
     layoutConfig: params.configuration as unknown as Record<string, unknown>,
     layoutJson: warehouseWithInventory as unknown as Record<string, unknown>,
-    inventoryJson: params.items as unknown as Record<string, unknown>,
+    inventoryJson: balancedItems as unknown as Record<string, unknown>,
     ordersJson: orders as unknown as Record<string, unknown>,
   });
 
