@@ -1,14 +1,14 @@
-import { TaroApp } from '@/components/taro/taro-app';
+import { redirect } from 'next/navigation';
 
+/**
+ * Project URLs are legacy (dashboard era). Projects no longer exist — every
+ * visit starts a fresh in-memory warehouse session on the main page.
+ */
 export default async function ProjectPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-  return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      <TaroApp initialProjectId={id} />
-    </div>
-  );
+  await params;
+  redirect('/');
 }
