@@ -1,49 +1,53 @@
 ## Motivation
 
-Previously, generating random orders used a hardcoded formula (`Math.min(5, Math.max(3, floor(availableSkus / 3)))`) that always produced a small, unpredictable number of orders. There was no way for users to control how many orders to generate or how many SKUs each order should contain. This limited testing at scale and made it impossible to simulate realistic order volumes.
+Generated warehouses looked "absurd" and were not production-sane:
 
-Additionally, the inner loop of `generateRandomOrders` cloned the full SKU array per order (`[...availableSkuIds]`) and used `splice(idx, 1)` to remove picked items — an O(n) shift per item. At 1,000 orders with 20 items each and 5,000+ SKUs, this caused quadratic work and significant UI freezes.
+1. **Oversized, unnatural layouts** — default 30 racks × 30 height produced a 93×34 grid (~3× wider than tall) with thousands of empty bins.
+2. **One-corner wedge** — inventory placement filled bins strictly in dispatch-proximity order, so when capacity exceeded SKU count, every item piled into a dense corner while ~70% of the floor stayed empty.
+3. **Guaranteed overflow at defaults** — sliders allowed SKU counts (2,500+) that exceeded bin capacity, so a chunk of the catalogue could never be placed → unplaced SKUs → orders referencing missing SKUs → blocked simulations ("NO_VALID_ITEMS").
+4. **Complexity mismatch** — this is a demo tool, not a production SaaS; creation should *just work* without the user having to balance layout size vs. SKU count by hand.
+
+The fix keeps the entire 10-slider config panel and Generate button as-is, but makes generation **self-balancing**: it always fills the layout fully, spreads inventory across the whole floor, and never leaves SKUs unplaced — so simulations always run.
 
 ## Summary
 
-Added a **Order Generation Settings** popover (triggered by a `SlidersHorizontal` icon button next to the Shuffle button) with two configurable sliders:
-
-1. **Order Count** – controls how many orders are generated (range 100–10,000, step 100, default 1,000)
-2. **Average Order Size** – controls the average number of SKUs per order (range 1–20, step 1, default 5)
-
-The settings use an **Apply/Cancel** pattern: sliders modify draft values that only take effect on "Apply"; "Cancel" (or clicking outside) discards changes. The state is lifted to `TaroApp` so all three order generation paths respect the same settings: the Shuffle button, the Add Demo Orders button, and layout config regeneration.
-
-Item count per order now varies naturally around the configured average using a ±40% uniform distribution (via `Math.max(1, Math.round(avgOrderSize * (0.6 + Math.random() * 0.8)))`), replacing the old hardcoded `Math.floor(Math.random() * 4) + 2`.
-
-**Performance fix:** The inner SKU-picking loop was rewritten from an O(n) clone+splice approach to rejection sampling with a `Set`. This eliminates 1,000 array clones and 20,000 O(n) splice shifts, reducing generation time from seconds to milliseconds at max settings.
+- The **SKU Count slider is now an upper limit, not a hard count**: after the layout is built, the catalogue is auto-capped at ~90% of the layout's bin capacity (`balanceSkuCount`), so every generated SKU always fits.
+- **Even, floor-spreading placement**: bins are grouped into 8 proximity bands and filled band-by-band, so inventory covers the whole warehouse instead of wedging into one corner. The nearest band still fills first, preserving the "high-demand near dispatch" signal at high slotting bias.
+- **Saner defaults**: gridHeight 30→20, rackCount 30→12, skuCount 2500→2000 → a natural 39×24 grid (~912 bins, ~820 auto-balanced SKUs).
+- **Server-side parity**: `generateAndSaveWarehouse` applies the identical balancing so persisted warehouses behave the same as session-only ones.
+- **Preview transparency**: the layout-config preview shows a "Capped at N to fit the layout" hint when the SKU slider exceeds capacity.
 
 ## Files Changed
 
-### `components/taro/orders-panel.tsx`
-- Added `SlidersHorizontal` icon button next to the Shuffle button that opens a `Popover` with Order Generation Settings
-- Added draft state (`draftOrderCount`, `draftAvgOrderSize`) that Apply/Cancel manage
-- Added new props: `orderCount`, `avgOrderSize`, `onOrderCountChange`, `onAvgOrderSizeChange`
-- Updated `generateRandom()` call to pass through `orderCount` and `avgOrderSize` from props (instead of the old hardcoded formula)
-- Removed unused imports (`X`, `Trash2`) and added `Popover`, `PopoverTrigger`, `PopoverContent`, `Slider` imports
+### `lib/taro/warehouse-generator.ts`
+- Added `balanceSkuCount(requestedCount, binCount)` — caps the catalogue at 90% of bin capacity (min 1).
+- Added `estimateBinCapacity(warehouse)` — cheap `shelves × 2` capacity estimate used before placement runs.
+- `generateWarehouseSession` now builds inventory from the balanced SKU count instead of the raw slider value.
 
-### `components/taro/taro-app.tsx`
-- Added `orderCount` (default `1000`) and `avgOrderSize` (default `5`) state with `useState`
-- Pass them down to `OrdersPanel` via new props
-- Updated `handleAddDemoOrders` callback to use `orderCount` and `avgOrderSize` instead of hardcoded `4`
-- Updated layout config regeneration to use `orderCount` and `avgOrderSize` instead of hardcoded `4`
+### `lib/taro/inventory-placement.ts`
+- Added `PROXIMITY_BANDS = 8` and rewrote `enumerateBins` to bucket bins by Manhattan-distance band and emit bands in order — the fill walk now spreads across the floor instead of draining the nearest corner first.
+- Noted the even-fill behavior in the preview comments.
 
-### `lib/taro/demo-generator.ts`
-- Added optional `avgOrderSize` parameter (default `5`) to `generateRandomOrders`
-- Replaced hardcoded `Math.floor(Math.random() * 4) + 2` with a natural variation formula that distributes items around the target average: `Math.max(1, Math.round(avgOrderSize * (0.6 + Math.random() * 0.8)))`
-- **Optimization:** Replaced per-order `[...availableSkuIds]` clone + `splice(idx, 1)` with rejection sampling via a `Set<number>` of picked indices. Eliminates O(n) array-shift cost per item and O(n) clone per order. Capped `itemCount` at available SKU count.
+### `lib/taro/warehouse-configuration.ts`
+- Defaults: `gridHeight 30 → 20`, `rackCount 30 → 12`, `skuCount 2500 → 2000` (aisle width / cross aisles unchanged).
 
-## What to Expect
+### `lib/db/actions.ts`
+- `generateAndSaveWarehouse` now balances the item list (`slice` to the balanced count) before placement and persists the balanced catalogue — same output as the session-only path.
 
-| Feature | UX |
-|---------|----|
-| Sliders icon | A new button next to Shuffle opens the settings popover |
-| Order Count slider | Range 100–10,000, step 100, default 1,000 |
-| Avg Order Size slider | Range 1–20, step 1, default 5 |
-| Apply/Cancel | Changes only take effect when Apply is clicked; Cancel discards |
-| All three generation paths | Shuffle, Add Demo Orders, and layout config regen all respect the settings |
-| Performance | Generating 1,000 orders × 20 items is now ~milliseconds instead of seconds |
+### `components/taro/layout-config-overlay.tsx`
+- SKU Count slider description shows the effective cap ("Capped at N to fit the layout (bins). Increase rack count to raise it.") when the slider exceeds capacity.
+
+### `lib/taro/__tests__/warehouse-generator.test.ts`
+- Added `balanceSkuCount` unit tests (keeps when fits, caps at 90%, caps small layouts).
+- Added full-session test: huge SKU request on a small layout → 0 unplaced SKUs, valid non-empty orders.
+- Added default-session test: defaults produce a fully-placed warehouse.
+
+## What to Expect After Merge
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Default layout | 93×34 grid, ~70% empty | 39×24 grid, inventory spread across ~90% of width |
+| SKU slider | Hard count → overflow/unplaced SKUs | Upper limit → always fully placed |
+| Unplaced SKUs at defaults | Possible (e.g. 1,000+ at high footprint) | 0 |
+| Simulation gate | Could block with "no valid items" | Always runnable |
+| Config sliders | 10 sliders, unchanged | 10 sliders, unchanged (Generate just works) |
