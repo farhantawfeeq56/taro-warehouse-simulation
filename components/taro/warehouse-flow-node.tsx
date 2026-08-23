@@ -6,7 +6,7 @@ import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode } from '@/
 import type { MutableRefObject } from 'react';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
-import { Copy, Trash2, Settings, Check, Plus, Loader2, X } from 'lucide-react';
+import { Copy, Trash2, Settings, Loader2, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,16 +45,6 @@ export type WarehouseNodeData = Record<string, unknown> & {
   isDeleting?: boolean;
   /** Whether this warehouse is currently being renamed — shows a brief spinner next to the name. */
   isRenaming?: boolean;
-  /** Link mode: canvas is in "link warehouses to a comparison" mode. */
-  isLinkMode?: boolean;
-  /** Link mode: this warehouse is already a member of the target comparison. */
-  isMember?: boolean;
-  /** Link mode: the comparison being linked to. */
-  linkModeComparisonId?: string | null;
-  /** Link mode: toggles membership when the user clicks the node badge. */
-  onToggleMember?: (comparisonId: string, warehouseId: string) => void;
-  /** Whether membership is currently being toggled for this warehouse — shows spinner on the badge. */
-  isTogglingMembership?: boolean;
 };
 
 /**
@@ -190,35 +180,6 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
         )}
 
         <div className="flex items-center gap-0.5 shrink-0">
-          {/* Link-mode toggle badge — only visible during link mode */}
-          {data.isLinkMode && data.linkModeComparisonId && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                data.onToggleMember?.(data.linkModeComparisonId!, data.warehouseId);
-              }}
-              disabled={data.isTogglingMembership}
-              title={data.isMember ? 'Remove from comparison' : 'Add to comparison'}
-              className={`
-                flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold
-                transition-colors
-                ${data.isMember
-                  ? 'bg-accent-soft text-accent hover:bg-accent/20'
-                  : 'bg-muted/60 text-muted-foreground hover:bg-accent-subtle hover:text-accent'
-                }
-                disabled:opacity-70
-              `}
-              aria-label={data.isMember ? 'Member (click to remove)' : 'Not a member (click to add)'}
-            >
-              {data.isTogglingMembership ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : data.isMember ? (
-                <Check className="h-3 w-3" />
-              ) : (
-                <Plus className="h-3 w-3" />
-              )}
-            </button>
-          )}
           {/* Layout Config button — opens this node's own config viewer */}
           <div className="relative" ref={configRef}>
             <button

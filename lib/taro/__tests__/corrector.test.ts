@@ -6,7 +6,6 @@ import {
   fixOutOfBoundsBins,
   fixUnreachableBins,
   reconcileOrders,
-  pruneComparisonMembers,
 } from '../corrector';
 import { generateDemoWarehouse, generateRandomOrders } from '../demo-generator';
 import { getShelfLocationId } from '../layout';
@@ -199,12 +198,6 @@ describe('corrector', () => {
       const { orders, regenerated } = reconcileOrders([], wh);
       expect(regenerated).toBe(true);
       expect(orders.length).toBe(0); // no count to preserve — stays empty
-    });
-  });
-
-  describe('pruneComparisonMembers', () => {
-    it('removes members pointing at unknown warehouses', () => {
-      expect(pruneComparisonMembers(['a', 'b', 'c'], new Set(['a', 'c']))).toEqual(['a', 'c']);
     });
   });
 

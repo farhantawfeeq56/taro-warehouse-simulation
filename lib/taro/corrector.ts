@@ -1,12 +1,11 @@
 // Hidden corrector — silently repairs state that would otherwise lead to
-// edge cases (missing items, duplicate ids, unreachable bins, orphaned
-// comparison members, …). Runs ONLY at explicit user actions (loading a
-// project, running the simulation, running a comparison, switching the
-// active warehouse) — never on a timer, so it adds no memory pressure.
+// edge cases (missing items, duplicate ids, unreachable bins, …). Runs ONLY
+// at explicit user actions (loading a project, running the simulation,
+// switching the active warehouse) — never on a timer, so it adds no memory
+// pressure.
 //
 // Every function is pure and idempotent: applying it repeatedly converges to
 // a clean state and then no-ops. The user never sees the fixes.
-
 import type { Order, Warehouse } from './types';
 import { collectSkuIds } from './inventory';
 import { generateRandomOrders } from './demo-generator';
@@ -485,17 +484,4 @@ export function reconcile(
   report.ordersRegenerated = o.regenerated;
 
   return { warehouse: w, orders: o.orders, report };
-}
-
-// ── 17. Comparison member cleanup ──────────────────────────────────────────
-
-/**
- * Remove comparison memberships that point at deleted/unknown warehouses.
- * Pure — returns the pruned warehouseIds list. Callers persist it.
- */
-export function pruneComparisonMembers(
-  warehouseIds: string[],
-  knownWarehouseIds: Set<string>,
-): string[] {
-  return warehouseIds.filter((id) => knownWarehouseIds.has(id));
 }
