@@ -12,7 +12,7 @@ const instrumentSans = Instrument_Sans({
 
 export const metadata: Metadata = {
   title: 'Taro - Warehouse Picking Simulator',
-  description: 'Simulate and compare warehouse picking strategies to optimize fulfillment efficiency',
+  description: 'Simulate warehouse picking strategies to optimize fulfillment efficiency',
   generator: 'v0.app',
   icons: {
     icon: [

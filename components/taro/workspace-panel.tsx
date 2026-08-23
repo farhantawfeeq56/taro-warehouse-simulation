@@ -3,43 +3,32 @@
 /**
  * Workspace panel — the Taro left dock (final).
  *
- * A compact 3-icon cluster dock (logo → Warehouses → Comparisons) sits at
- * the TOP-LEFT corner of the screen. There is no full-height sidebar.
+ * A compact Warehouses dock sits at the TOP-LEFT corner of the screen.
+ * There is no full-height sidebar.
  *
- * Clicking a section icon expands a compact panel OUTWARD from the dock
+ * Clicking the Warehouses icon expands a compact panel OUTWARD from the dock
  * (to the right) with that section's content:
  *   • header with close
- *   • matching add button ("Add Warehouse" / "New Comparison")
+ *   • matching add button ("Add Warehouse")
  *   • scrollable list
  *
  * Interactions:
  *   • Click the active section's icon again → close the panel.
- *   • Click the other icon → switch section (panel stays open).
  *   • Close via X, Escape, or clicking anywhere outside.
  *   • Warehouse rows: click to select, shift-click multi-select,
  *     double-click to rename.
- *   • Comparison rows: click to select, double-click to rename,
- *     trash button to delete, "nw" member count.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { WorkspaceWarehouse, Comparison } from '@/lib/taro/types';
+import type { WorkspaceWarehouse } from '@/lib/taro/types';
 import {
   Plus,
-  GitCompareArrows,
   Warehouse as WarehouseIcon,
-  Trash2,
-  Loader2,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface WorkspacePanelProps {
-  // App header
-  onBackToDashboard?: () => void;
-  projectName: string;
-  importSummary: string;
-
   // Warehouses
   warehouses: WorkspaceWarehouse[];
   activeWarehouseId: string | null;
@@ -47,28 +36,15 @@ interface WorkspacePanelProps {
   onSelectWarehouse: (id: string, opts?: { additive?: boolean }) => void;
   onRenameWarehouse: (id: string, name: string) => void;
 
-  // Comparisons
-  comparisons: Comparison[];
-  activeComparisonId: string | null;
-  onSelectComparison: (id: string) => void;
-  onRenameComparison: (id: string, name: string) => void;
-  onDeleteComparison: (id: string) => void;
-
   // Actions
   onAddWarehouse: () => void;
-  onNewComparison: () => void;
-  isCreatingComparison?: boolean;
-  /** Comparison id currently being deleted — shows spinner on its trash button. */
-  deletingComparisonId?: string | null;
-  /** Comparison id currently being renamed — shows a brief spinner. */
-  renamingComparisonId?: string | null;
 
   // Dock open state — controlled from TaroApp so only one dock is open at a time
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type Section = 'warehouses' | 'comparisons';
+type Section = 'warehouses';
 type EditingTarget = { id: string; type: Section };
 
 export function WorkspacePanel(props: WorkspacePanelProps) {
@@ -122,9 +98,6 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
     if (editing.type === 'warehouses') {
       const original = props.warehouses.find((w) => w.id === editing.id)?.name;
       if (original && trimmed !== original) props.onRenameWarehouse(editing.id, trimmed);
-    } else {
-      const original = props.comparisons.find((c) => c.id === editing.id)?.name;
-      if (original && trimmed !== original) props.onRenameComparison(editing.id, trimmed);
     }
     setEditing(null);
   };
@@ -145,24 +118,6 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
     >
       <Plus className="h-3.5 w-3.5" />
       Add Warehouse
-    </button>
-  );
-
-  const AddComparisonButton = () => (
-    <button
-      onClick={props.onNewComparison}
-      disabled={props.isCreatingComparison}
-      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium
-        text-foreground hover:bg-muted active:bg-muted/80 transition-colors
-        border border-dashed border-muted-foreground/30 hover:border-muted-foreground/50
-        disabled:opacity-60 disabled:cursor-not-allowed"
-    >
-      {props.isCreatingComparison ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      ) : (
-        <Plus className="h-3.5 w-3.5" />
-      )}
-      {props.isCreatingComparison ? 'Creating…' : 'New Comparison'}
     </button>
   );
 
@@ -228,77 +183,6 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
     );
   };
 
-  /* ── Comparison rows ──────────────────────────────────────────────── */
-
-  const comparisonRow = (c: Comparison) => {
-    const isActive = c.id === props.activeComparisonId;
-    const editingRow = isEditing(c.id, 'comparisons');
-
-    if (editingRow) {
-      return (
-        <div className="w-full px-2 py-1.5 rounded-md text-xs flex items-center gap-2 ring-1 ring-accent/30">
-          <GitCompareArrows className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-          <input
-            ref={editingRow ? inputRef : undefined}
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
-            onBlur={commitEdit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitEdit();
-              if (e.key === 'Escape') cancelEdit();
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="nodrag flex-1 min-w-0 h-5 px-1 text-xs font-medium bg-background border border-accent/50 rounded outline-none ring-1 ring-accent/30"
-          />
-        </div>
-      );
-    }
-
-    return (
-      <button
-        onClick={() => props.onSelectComparison(c.id)}
-        onDoubleClick={() => beginEdit({ id: c.id, type: 'comparisons' }, c.name)}
-        className={cn(
-          'w-full text-left px-2 py-1.5 rounded-md text-xs truncate flex items-center gap-2 transition-colors group',
-          isActive
-            ? 'bg-accent-soft text-accent font-semibold'
-            : 'text-foreground hover:bg-muted',
-        )}
-        title={`${c.name} (double-click to rename)`}
-      >
-        <span
-          className={cn(
-            'inline-block w-1.5 h-1.5 rounded-full shrink-0',
-            isActive ? 'bg-accent' : 'bg-muted-foreground/30',
-          )}
-        />
-        <GitCompareArrows className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-        <span className="truncate flex-1">{c.name}</span>
-        {props.renamingComparisonId === c.id && (
-          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
-        )}
-        <span className="text-[10px] text-muted-foreground/60 font-sans shrink-0">
-          {c.warehouseIds.length}w
-        </span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onDeleteComparison(c.id);
-          }}
-          disabled={props.deletingComparisonId === c.id}
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/10 hover:text-destructive transition-all shrink-0 disabled:opacity-100"
-          title="Delete comparison"
-        >
-          {props.deletingComparisonId === c.id ? (
-            <Loader2 className="h-3 w-3 animate-spin text-destructive" />
-          ) : (
-            <Trash2 className="h-3 w-3" />
-          )}
-        </button>
-      </button>
-    );
-  };
-
   /* ── Lists ────────────────────────────────────────────────────────── */
 
   const warehouseList =
@@ -312,51 +196,13 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       </ul>
     );
 
-  const comparisonList =
-    props.comparisons.length === 0 ? (
-      <p className="text-xs text-muted-foreground italic px-1 py-2">No comparisons yet</p>
-    ) : (
-      <ul className="space-y-0.5">
-        {props.comparisons.map((c) => (
-          <li key={c.id}>{comparisonRow(c)}</li>
-        ))}
-      </ul>
-    );
-
-  const activeList = section === 'warehouses' ? warehouseList : comparisonList;
-
   /* ── Layout ───────────────────────────────────────────────────────── */
 
   return (
     <>
-      {/* Logo dock — logo + project name (separate from the section docks) */}
-      <div className="relative z-40 flex items-center gap-2.5 rounded-xl border border-border-default bg-surface shadow-lg px-2 py-2">
-        {/* Logo — always links to the main page (dashboard) */}
-        <a
-          href="/"
-          onClick={(e) => {
-            if (props.onBackToDashboard) {
-              e.preventDefault();
-              props.onBackToDashboard();
-            }
-          }}
-          title="Taro — back to main page"
-          className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors shrink-0"
-        >
-          <img src="/taro%20transpara%20svg.svg" alt="Taro logo" width={22} height={22} className="rounded" />
-        </a>
-        {/* Project name — to the right of the logo */}
-        <span
-          className="text-sm font-semibold text-foreground truncate max-w-[220px] font-['Instrument_Sans',system-ui,sans-serif]"
-          title={props.projectName}
-        >
-          {props.projectName}
-        </span>
-      </div>
-
-      {/* Warehouses & Comparisons dock — icon cluster + expanding panel */}
-      <div className="relative z-40 mt-2 flex items-start">
-        {/* Dock — compact cluster: warehouses, comparisons */}
+      {/* Warehouses dock — icon cluster + expanding panel */}
+      <div className="relative z-40 flex items-start">
+        {/* Dock — compact cluster */}
         <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border-default bg-surface shadow-lg px-1.5 py-2">
           <button
             onClick={() => toggleSection('warehouses')}
@@ -370,18 +216,6 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
           >
             <WarehouseIcon className="h-4 w-4" />
           </button>
-          <button
-            onClick={() => toggleSection('comparisons')}
-            title="Comparisons"
-            className={cn(
-              'relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-              section === 'comparisons' && dockOpen
-                ? 'bg-accent-soft text-accent'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            )}
-          >
-            <GitCompareArrows className="h-4 w-4" />
-          </button>
         </div>
 
         {/* Mini panel — absolute, expands OUTWARD to the right (hugging the left edge) */}
@@ -393,14 +227,10 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
         >
           <div className="flex items-center justify-between border-b border-border-default px-2.5 py-2 shrink-0">
             <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80">
-              {section === 'warehouses' ? (
-                <WarehouseIcon className="h-3 w-3" />
-              ) : (
-                <GitCompareArrows className="h-3 w-3" />
-              )}
-              {section === 'warehouses' ? 'Warehouses' : 'Comparisons'}
+              <WarehouseIcon className="h-3 w-3" />
+              Warehouses
               <span className="text-muted-foreground/50 font-sans">
-                ({section === 'warehouses' ? props.warehouses.length : props.comparisons.length})
+                ({props.warehouses.length})
               </span>
             </span>
             <button
@@ -412,9 +242,9 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
             </button>
           </div>
           <div className="px-2 pt-2 shrink-0">
-            {section === 'warehouses' ? <AddWarehouseButton /> : <AddComparisonButton />}
+            <AddWarehouseButton />
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto p-2">{activeList}</div>
+          <div className="flex-1 min-h-0 overflow-y-auto p-2">{warehouseList}</div>
         </div>
       </div>
     </>

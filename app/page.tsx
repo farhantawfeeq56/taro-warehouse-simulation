@@ -5,8 +5,8 @@ import { TaroApp } from '@/components/taro/taro-app';
  *
  * Every visit starts a fresh, in-memory warehouse session — there is no
  * project dashboard and no database persistence. The TaroApp generates a
- * new warehouse in the browser and everything (edits, orders, comparisons)
- * lives only for the duration of the page.
+ * new warehouse in the browser and everything (edits, orders) lives only
+ * for the duration of the page.
  */
 export default function Page() {
   return (
