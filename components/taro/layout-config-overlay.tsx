@@ -80,14 +80,14 @@ interface LayoutConfigOverlayProps {
 
 type CardId = 'geometry' | 'inventory' | 'placement';
 
-/** Piecewise-adaptive step for Grid Height (4–25). */
-function getHeightStep(v: number): number {
-  return v <= 20 ? 1 : 2;
+/** Step for Grid Height (4–25). */
+function getHeightStep(): number {
+  return 1;
 }
 
-/** Piecewise-adaptive step for Rack Count (5–25). */
-function getRackStep(v: number): number {
-  return v <= 20 ? 1 : 2;
+/** Step for Rack Count (5–25). */
+function getRackStep(): number {
+  return 1;
 }
 
 /** A plain labeled slider with a small description. */
@@ -367,8 +367,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               value={gridHeight}
               min={4}
               max={25}
-              step={getHeightStep(gridHeight)}
-              description={`Vertical height of the storage area (4–25). Step ${getHeightStep(gridHeight)}.`}
+              step={getHeightStep()}
+              description={`Vertical height of the storage area (4–25). Step ${getHeightStep()}.`}
               onChange={handleGridChange}
               onCommit={(v) => setDebouncedGridHeight(v)}
             />
@@ -377,8 +377,8 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               value={rackCount}
               min={5}
               max={25}
-              step={getRackStep(rackCount)}
-              description={`Number of double-row racks (5–25). Step ${getRackStep(rackCount)}.`}
+              step={getRackStep()}
+              description={`Number of double-row racks (5–25). Step ${getRackStep()}.`}
               onChange={handleRackChange}
               onCommit={(v) => setDebouncedRackCount(v)}
             />
