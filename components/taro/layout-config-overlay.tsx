@@ -15,7 +15,7 @@
  *   • No layout types — just a single geometry config.
  *   • Cross-aisle slider: default 1, range 0–4 (0 = plain parallel).
  *   • Aisle width is fixed at 2 (scope reduction — no slider).
- *   • SKU count max 3,000; grid height & rack count max 40.
+ *   • SKU count max 1,000; grid height & rack count max 25.
  */
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
@@ -80,12 +80,12 @@ interface LayoutConfigOverlayProps {
 
 type CardId = 'geometry' | 'inventory' | 'placement';
 
-/** Piecewise-adaptive step for Grid Height (4–40). */
+/** Piecewise-adaptive step for Grid Height (4–25). */
 function getHeightStep(v: number): number {
   return v <= 20 ? 1 : 2;
 }
 
-/** Piecewise-adaptive step for Rack Count (5–40). */
+/** Piecewise-adaptive step for Rack Count (5–25). */
 function getRackStep(v: number): number {
   return v <= 20 ? 1 : 2;
 }
@@ -154,10 +154,10 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const isEditing = initialConfig != null;
 
   // ── Geometry state ─────────────────────────────────────────────────────
-  const [gridHeight, setGridHeight] = useState(initialConfig?.layout.gridHeight ?? 30);
-  const [debouncedGridHeight, setDebouncedGridHeight] = useState(initialConfig?.layout.gridHeight ?? 30);
-  const [rackCount, setRackCount] = useState(initialConfig?.layout.rackCount ?? 30);
-  const [debouncedRackCount, setDebouncedRackCount] = useState(initialConfig?.layout.rackCount ?? 30);
+  const [gridHeight, setGridHeight] = useState(initialConfig?.layout.gridHeight ?? 20);
+  const [debouncedGridHeight, setDebouncedGridHeight] = useState(initialConfig?.layout.gridHeight ?? 20);
+  const [rackCount, setRackCount] = useState(initialConfig?.layout.rackCount ?? 12);
+  const [debouncedRackCount, setDebouncedRackCount] = useState(initialConfig?.layout.rackCount ?? 12);
   // Aisle width is fixed at 1 (scope reduction — not user-configurable).
   const aisleWidth = 1;
   const [crossAisleCount, setCrossAisleCount] = useState(initialConfig?.layout.crossAisleCount ?? 1);
@@ -219,14 +219,14 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     []
   );
 
-  const [skuCount, setSkuCount] = useState(initialConfig?.inventory.skuCount ?? 2500);
+  const [skuCount, setSkuCount] = useState(initialConfig?.inventory.skuCount ?? 1000);
   const [demandDistribution, setDemandDistribution] = useState(initialConfig?.inventory.demandDistribution ?? 0);
   const [productAffinity, setProductAffinity] = useState(initialConfig?.inventory.productAffinity ?? 0);
   const [storageFootprint, setStorageFootprint] = useState(initialConfig?.inventory.storageFootprint ?? 0);
   const [slottingBias, setSlottingBias] = useState(initialConfig?.placement.slottingBias ?? 0);
   const [categoryClustering, setCategoryClustering] = useState(initialConfig?.placement.categoryClustering ?? 0);
   const [inventory, setInventory] = useState<Item[]>(() => {
-    const initCount = initialConfig?.inventory.skuCount ?? 2500;
+    const initCount = initialConfig?.inventory.skuCount ?? 1000;
     const initDD = initialConfig?.inventory.demandDistribution ?? 0;
     const initPA = initialConfig?.inventory.productAffinity ?? 0;
     const initSF = initialConfig?.inventory.storageFootprint ?? 0;
@@ -366,9 +366,9 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               label="Grid Height"
               value={gridHeight}
               min={4}
-              max={40}
+              max={25}
               step={getHeightStep(gridHeight)}
-              description={`Vertical height of the storage area (4–40). Step ${getHeightStep(gridHeight)}.`}
+              description={`Vertical height of the storage area (4–25). Step ${getHeightStep(gridHeight)}.`}
               onChange={handleGridChange}
               onCommit={(v) => setDebouncedGridHeight(v)}
             />
@@ -376,9 +376,9 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               label="Rack Count"
               value={rackCount}
               min={5}
-              max={40}
+              max={25}
               step={getRackStep(rackCount)}
-              description={`Number of double-row racks (5–40). Step ${getRackStep(rackCount)}.`}
+              description={`Number of double-row racks (5–25). Step ${getRackStep(rackCount)}.`}
               onChange={handleRackChange}
               onCommit={(v) => setDebouncedRackCount(v)}
             />
@@ -406,13 +406,13 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               label="SKU Count"
               value={skuCount}
               min={500}
-              max={3000}
+              max={1000}
               step={1}
               display={skuCount.toLocaleString()}
               description={
                 effectiveSkuCount < skuCount
                   ? `Capped at ${effectiveSkuCount.toLocaleString()} to fit the layout (bins). Increase rack count to raise it.`
-                  : `Number of unique products to generate (max 3,000).`
+                  : `Number of unique products to generate (max 1,000).`
               }
               onChange={setSkuCount}
             />

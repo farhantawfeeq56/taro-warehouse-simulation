@@ -68,7 +68,7 @@ export const DEFAULT_LAYOUT_CONFIGURATION: LayoutConfiguration = {
 };
 
 export const DEFAULT_INVENTORY_GENERATION_CONFIGURATION: InventoryGenerationConfiguration = {
-  skuCount: 2000,
+  skuCount: 1000,
   demandDistribution: 0,
   productAffinity: 0,
   storageFootprint: 0,
