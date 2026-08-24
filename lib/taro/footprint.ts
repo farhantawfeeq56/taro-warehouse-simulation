@@ -37,6 +37,10 @@ export const FOOTPRINT_FMAX = 6;
  * end of the slider. This is the value of `p` at t = 1, so even at maximum
  * bulkiness a meaningful fraction of SKUs stay single-bin — modelling the
  * compact fast-mover core that real warehouses always retain.
+ *
+ * At the maximum slider this yields a catalogue whose total footprint fills
+ * most of a max-size warehouse (~95% of bins), leaving only the far shelves
+ * unstocked.
  */
 export const FOOTPRINT_PMIN = 0.4;
 
@@ -115,8 +119,8 @@ export interface FootprintGenerationConfig {
  *   • length === count
  *   • every footprint is an integer in [1, FMAX]
  *   • at footprint = 0   → every footprint is exactly 1 (all single-bin)
- *   • at footprint = 100 → heavy tail; mean ≈ 1/PMIN ≈ 2.5, max = FMAX
- *   • the slider moves the mean footprint smoothly between 1 and ~2.5
+ *   • at footprint = 100 → heavy tail; mean ≈ 1/PMIN ≈ 2.4, max = FMAX
+ *   • the slider moves the mean footprint smoothly between 1 and ~2.4
  */
 export function generateFootprints(config: FootprintGenerationConfig): number[] {
   const count = Math.max(0, Math.floor(config.count));
