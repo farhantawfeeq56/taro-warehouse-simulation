@@ -3,10 +3,9 @@
 /**
  * Variant C — SVG renderer experiment.
  *
- * Renders the warehouse as pure vector SVG inside the React Flow node. The
- * SVG is positioned at the logical size (width×CELL_SIZE × height×CELL_SIZE)
- * and React Flow's CSS transform scales it — SVG scales crisply at any zoom
- * because the browser re-vectors it rather than resampling a bitmap.
+ * Renders the warehouse as pure vector SVG. The SVG is positioned at the
+ * logical size (width×CELL_SIZE × height×CELL_SIZE) and the browser re-vectors
+ * it at any zoom for crisp scaling.
  *
  * Data parity with A/B: same `warehouse`, same `activeRoute`, same
  * `animationProgressRef`, same coordinates. Interaction parity: hover
@@ -19,7 +18,6 @@
  */
 
 import { useRef, useEffect, useState, useCallback, useMemo, memo, type MutableRefObject } from 'react';
-import { useReactFlow } from '@xyflow/react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
 import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
@@ -44,6 +42,12 @@ interface WarehouseSvgRendererProps {
   animationProgressRef: MutableRefObject<number>;
   zVisualizationMode: ZVisualizationMode;
   animationReplayId: number;
+  /**
+   * Current zoom / scale applied by the parent canvas (was supplied by React
+   * Flow's viewport). Used to map mouse coordinates back to logical cells.
+   * Defaults to 1 when not provided (unscaled).
+   */
+  zoom?: number;
 }
 
 interface TooltipState {
@@ -71,11 +75,11 @@ function WarehouseSvgRendererInner({
   animationProgressRef,
   zVisualizationMode,
   animationReplayId,
+  zoom = 1,
 }: WarehouseSvgRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rectRef = useRef<DOMRect | null>(null);
   const animationRef = useRef<number | null>(null);
-  const reactFlowInstance = useReactFlow();
 
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
   // True while the user holds the left button down with a drawing tool
@@ -104,7 +108,9 @@ function WarehouseSvgRendererInner({
   }, []);
 
   const getCellFromMouse = useCallback((e: React.MouseEvent) => {
-    const rfZoom = reactFlowInstance.getZoom();
+    // The warehouse canvas applies a CSS scale transform to this subtree;
+    // divide the on-screen offset by the current zoom to recover logical px.
+    const rfZoom = zoom;
     const rect = rectRef.current;
     if (!rect) return null;
     const x = (e.clientX - rect.left) / rfZoom;
@@ -115,7 +121,7 @@ function WarehouseSvgRendererInner({
       return { x: cellX, y: cellY };
     }
     return null;
-  }, [warehouse.width, warehouse.height, reactFlowInstance]);
+  }, [warehouse.width, warehouse.height, zoom]);
 
   const applyTool = useCallback((cellX: number, cellY: number) => {
     const newGrid = [...warehouse.grid];

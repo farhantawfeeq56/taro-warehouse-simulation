@@ -24,10 +24,9 @@ import {
 } from '@/lib/taro/demo-generator';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
-import { WarehouseFlow } from './warehouse-flow';
+import { WarehouseCanvas } from './warehouse-canvas';
 import { WorkbenchDock } from './workbench-dock';
 import { WorkspacePanel } from './workspace-panel';
-import { Toolbar } from './toolbar';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
@@ -194,92 +193,12 @@ export function TaroApp(_props: TaroAppProps) {
     }
   }, []);
 
-  const handleDuplicateWarehouse = useCallback(async (sourceWarehouseId: string) => {
-    const source = workspaceWarehousesRef.current.find(
-      (w) => w.id === sourceWarehouseId,
-    );
-    if (!source) return;
-
-    // In-memory duplicate — deep copy the layout (grid is an array of cell
-    // objects; React Flow / the corrector treat these as immutable, so a
-    // fresh array + fresh cell objects keep the copies fully independent).
-    const sourceWh = source.warehouse;
-    const newId = crypto.randomUUID();
-    const copy: Warehouse = {
-      ...sourceWh,
-      grid: sourceWh.grid.map((row) =>
-        row.map((cell) => ({ ...cell, locations: cell.locations.map((l) => ({ ...l })) })),
-      ),
-      shelves: sourceWh.shelves.map((s) => ({ ...s })),
-      locations: sourceWh.locations.map((l) => ({ ...l })),
-      workerStart: sourceWh.workerStart ? { ...sourceWh.workerStart } : null,
-    };
-    const base = source.name.replace(/ \(copy( \d+)?\)$/, '');
-    const existingCopies = workspaceWarehousesRef.current.filter((w) =>
-      w.name.startsWith(base + ' (copy'),
-    );
-    const newEntry: WorkspaceWarehouse = {
-      id: newId,
-      name:
-        existingCopies.length === 0
-          ? `${base} (copy)`
-          : `${base} (copy ${existingCopies.length + 1})`,
-      position: null, // new duplicates start at auto-layout
-      warehouse: copy,
-      configuration: source.configuration,
-    };
-    setWorkspaceWarehouses((prev) => [...prev, newEntry]);
-
-    // Auto-select the new duplicate
-    setActiveWarehouseId(newId);
-
-    // If the source was the active warehouse, adopt its orders
-    const sourceOrders = ordersRef.current;
-    if (sourceWarehouseId === activeWarehouseIdRef.current && sourceOrders.length > 0) {
-      // Hidden corrector — reconcile the duplicate's warehouse + orders so the
-      // newly-active warehouse never carries stale/invalid order lines.
-      const corrected = reconcile(copy, sourceOrders);
-      setOrders(corrected.orders);
-    }
-
-    setSimulationResults(null);
-    setSimulationBlockState(null);
-    setIsSimulating(false);
-    setActiveStrategy(null);
-    setExecutionPlanStrategy(null);
-    setValidationContext(null);
-    setValidationResult(null);
-    setShowValidationModal(false);
-    setHighlightedMissingSkuIds(null);
-    resetAnimationState();
-  }, [resetAnimationState]);
-
   // ── Workspace: Rename ────────────────────────────────────────────────────
 
   const handleRenameWarehouse = useCallback(async (warehouseId: string, name: string) => {
     // Optimistically update local state
     setWorkspaceWarehouses((prev) =>
       prev.map((ww) => (ww.id === warehouseId ? { ...ww, name } : ww)),
-    );
-  }, []);
-
-  // ── Workspace: Delete ────────────────────────────────────────────────────
-
-  const handleDeleteWarehouse = useCallback(async (warehouseId: string) => {
-    // Single-warehouse app — there is never more than one warehouse, so
-    // deletion is disabled entirely (kept only to preserve the callback
-    // contract used by the workspace panel).
-    return;
-  }, []);
-
-  // ── Workspace: Position ──────────────────────────────────────────────────
-
-  const handlePersistPosition = useCallback(async (warehouseId: string, x: number, y: number) => {
-    // Update local state immediately — session-only, nothing to persist.
-    setWorkspaceWarehouses((prev) =>
-      prev.map((ww) =>
-        ww.id === warehouseId ? { ...ww, position: { x, y } } : ww,
-      ),
     );
   }, []);
 
@@ -785,34 +704,21 @@ export function TaroApp(_props: TaroAppProps) {
           </div>
         ) : (
         <div className="flex-1 flex flex-col overflow-hidden gap-0 relative">
-          {/* Canvas — React Flow workspace */}
-          <WarehouseFlow
+          {/* Canvas — single-warehouse workspace (plain DOM + SVG, no React Flow) */}
+          <WarehouseCanvas
             workspaceWarehouses={workspaceWarehouses}
             activeWarehouseId={activeWarehouseId}
             onSelectWarehouse={handleSelectWarehouse}
             onWarehouseChange={handleWarehouseChangePersisted}
-            onDuplicateWarehouse={handleDuplicateWarehouse}
             onRenameWarehouse={handleRenameWarehouse}
-            onDeleteWarehouse={handleDeleteWarehouse}
             onOpenLayoutConfig={handleOpenLayoutConfig}
-            duplicatingWarehouseId={null}
-            deletingWarehouseId={null}
             renamingWarehouseId={renamingWarehouseId}
-            onPersistPosition={handlePersistPosition}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
             animationProgressRef={animationProgressRef}
             zVisualizationMode={zVisualizationMode}
             animationReplayId={animationReplayId}
           />
-
-          {/* Floating controls row — bottom centre */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
-            <Toolbar
-              selectedTool={selectedTool}
-              onToolChange={setSelectedTool}
-            />
-          </div>
         </div>
         )}
 
