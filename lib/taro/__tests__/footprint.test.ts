@@ -30,19 +30,19 @@ describe('footprint generation (storage footprint)', () => {
 
   it('at footprint = 100 (Bulky), the mean footprint is roughly 1/PMIN', () => {
     // Mean of a capped geometric with success prob p is ~1/p (capped at FMAX,
-    // so slightly below for very small p). PMIN = 0.55 -> mean ~1.8.
+    // so slightly below for very small p). PMIN = 0.4 -> mean ~2.4.
     const out = generateFootprints({ count: 2000, footprint: 100 });
     const mean = out.reduce((a, b) => a + b, 0) / out.length;
-    expect(mean).toBeGreaterThan(1.5);
-    expect(mean).toBeLessThan(2.1);
+    expect(mean).toBeGreaterThan(2.0);
+    expect(mean).toBeLessThan(2.7);
   });
 
   it('at footprint = 100, some SKUs are still single-bin (compact core retained)', () => {
     const out = generateFootprints({ count: 1000, footprint: 100 });
     const single = out.filter((f) => f === 1).length;
-    // P(F=1) = p = PMIN = 0.55 -> ~55% single-bin. Allow a wide band.
-    expect(single).toBeGreaterThan(450);
-    expect(single).toBeLessThan(650);
+    // P(F=1) = p = PMIN = 0.4 -> ~40% single-bin. Allow a wide band.
+    expect(single).toBeGreaterThan(300);
+    expect(single).toBeLessThan(500);
   });
 
   it('at footprint = 100, some SKUs hit the cap (FMAX)', () => {
