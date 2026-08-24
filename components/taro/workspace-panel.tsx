@@ -15,14 +15,15 @@
  * Interactions:
  *   • Click the active section's icon again → close the panel.
  *   • Close via X, Escape, or clicking anywhere outside.
- *   • Warehouse rows: click to select, shift-click multi-select,
- *     double-click to rename.
+ *   • Warehouse rows: click to select, double-click to rename.
+ *
+ * The app supports a single warehouse, so there is no "Add Warehouse"
+ * button/action — the only warehouse is configured via the layout config.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import type { WorkspaceWarehouse } from '@/lib/taro/types';
 import {
-  Plus,
   Warehouse as WarehouseIcon,
   X,
 } from 'lucide-react';
@@ -35,9 +36,6 @@ interface WorkspacePanelProps {
   selectedWarehouseIds: Set<string>;
   onSelectWarehouse: (id: string, opts?: { additive?: boolean }) => void;
   onRenameWarehouse: (id: string, name: string) => void;
-
-  // Actions
-  onAddWarehouse: () => void;
 
   // Dock open state — controlled from TaroApp so only one dock is open at a time
   isOpen: boolean;
@@ -106,20 +104,6 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
 
   const isEditing = (id: string, type: Section) =>
     editing?.id === id && editing.type === type;
-
-  /* ── Add buttons ──────────────────────────────────────────────────── */
-
-  const AddWarehouseButton = () => (
-    <button
-      onClick={props.onAddWarehouse}
-      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium
-        text-foreground hover:bg-muted active:bg-muted/80 transition-colors
-        border border-dashed border-muted-foreground/30 hover:border-muted-foreground/50"
-    >
-      <Plus className="h-3.5 w-3.5" />
-      Add Warehouse
-    </button>
-  );
 
   /* ── Warehouse rows ───────────────────────────────────────────────── */
 
@@ -240,9 +224,6 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
             >
               <X className="h-3.5 w-3.5" />
             </button>
-          </div>
-          <div className="px-2 pt-2 shrink-0">
-            <AddWarehouseButton />
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto p-2">{warehouseList}</div>
         </div>

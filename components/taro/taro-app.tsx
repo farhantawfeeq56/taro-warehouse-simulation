@@ -130,18 +130,11 @@ export function TaroApp(_props: TaroAppProps) {
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showLayoutConfig, setShowLayoutConfig] = useState(false);
-  const [showNewWarehouseConfig, setShowNewWarehouseConfig] = useState(false);
   const [hasExistingWarehouse, setHasExistingWarehouse] = useState(false);
-  const hasExistingWarehouseRef = useRef(hasExistingWarehouse);
-  hasExistingWarehouseRef.current = hasExistingWarehouse;
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
   const [orderCount, setOrderCount] = useState(1000);
   const [avgOrderSize, setAvgOrderSize] = useState(5);
-
-  const handleNewWarehouse = useCallback(() => {
-    setShowNewWarehouseConfig(true);
-  }, []);
 
   /**
    * Unified warehouse selection handler used by both the canvas and the
@@ -273,49 +266,11 @@ export function TaroApp(_props: TaroAppProps) {
   // ── Workspace: Delete ────────────────────────────────────────────────────
 
   const handleDeleteWarehouse = useCallback(async (warehouseId: string) => {
-    // Guard: prevent deleting the last warehouse
-    if (workspaceWarehousesRef.current.length <= 1) {
-      alert('Cannot delete the last warehouse. Create another warehouse first.');
-      return;
-    }
-
-    // Remove from local state
-    const removedIndex = workspaceWarehousesRef.current.findIndex((w) => w.id === warehouseId);
-    const isActive = activeWarehouseIdRef.current === warehouseId;
-
-    setWorkspaceWarehouses((prev) => prev.filter((w) => w.id !== warehouseId));
-
-    // Remove the deleted warehouse from the multi-select set
-    setSelectedWarehouseIds((prev) => {
-      if (!prev.has(warehouseId)) return prev;
-      const next = new Set(prev);
-      next.delete(warehouseId);
-      return next;
-    });
-
-    // If the deleted warehouse was active, auto-select another
-    if (isActive) {
-      const remaining = workspaceWarehousesRef.current.filter((w) => w.id !== warehouseId);
-      if (remaining.length > 0) {
-        // Pick the one at the same index, or the last one
-        const nextIndex = Math.min(removedIndex, remaining.length - 1);
-        setActiveWarehouseId(remaining[nextIndex].id);
-      } else {
-        setActiveWarehouseId(null);
-      }
-    }
-
-    setSimulationResults(null);
-    setSimulationBlockState(null);
-    setIsSimulating(false);
-    setActiveStrategy(null);
-    setExecutionPlanStrategy(null);
-    setValidationContext(null);
-    setValidationResult(null);
-    setShowValidationModal(false);
-    setHighlightedMissingSkuIds(null);
-    resetAnimationState();
-  }, [resetAnimationState]);
+    // Single-warehouse app — there is never more than one warehouse, so
+    // deletion is disabled entirely (kept only to preserve the callback
+    // contract used by the workspace panel).
+    return;
+  }, []);
 
   // ── Workspace: Position ──────────────────────────────────────────────────
 
@@ -773,7 +728,6 @@ export function TaroApp(_props: TaroAppProps) {
               selectedWarehouseIds={selectedWarehouseIds}
               onSelectWarehouse={handleSelectWarehouse}
               onRenameWarehouse={handleRenameWarehouse}
-              onAddWarehouse={handleNewWarehouse}
               isOpen={openDockId === 'workspace'}
               onOpenChange={(open) => setDockOpen('workspace', open)}
             />
@@ -965,97 +919,6 @@ export function TaroApp(_props: TaroAppProps) {
             } finally {
               setIsGenerating(false);
               setShowLayoutConfig(false);
-            }
-          }}
-        />
-      )}
-
-      {showNewWarehouseConfig && activeProjectId && (
-        <LayoutConfigOverlay
-          onClose={() => {
-            setShowNewWarehouseConfig(false);
-          }}
-          canClose={true}
-          isGenerating={isGenerating}
-          onApply={async (config) => {
-            setIsGenerating(true);
-            try {
-              // Build the full WarehouseConfiguration from the overlay output
-              const configuration: WarehouseConfiguration = {
-                layout: {
-                  gridHeight: config.gridHeight,
-                  rackCount: config.rackCount,
-                  aisleWidth: config.aisleWidth,
-                  crossAisleCount: config.crossAisleCount,
-                },
-                inventory: {
-                  skuCount: config.inventory.length,
-                  demandDistribution: config.demandDistribution,
-                  productAffinity: config.productAffinity,
-                  storageFootprint: config.storageFootprint,
-                },
-                placement: {
-                  slottingBias: config.slottingBias,
-                  categoryClustering: config.categoryClustering,
-                },
-              };
-
-              // Session-only: generate entirely in the browser — no database.
-              const result = generateWarehouseSession(configuration, orderCount, avgOrderSize);
-
-              // Append new warehouse to the workspace (don't replace)
-              const newName = `Warehouse ${workspaceWarehousesRef.current.length + 1}`;
-              // Hidden corrector — orders may reference unplaced SKUs;
-              // reconcile against the new warehouse before commit.
-              const corrected = reconcile(result.warehouse, result.orders);
-              const newId = crypto.randomUUID();
-              setWorkspaceWarehouses((prev) => [
-                ...prev,
-                {
-                  id: newId,
-                  name: newName,
-                  position: null,
-                  warehouse: corrected.warehouse,
-                  configuration,
-                },
-              ]);
-              setActiveWarehouseId(newId);
-
-              // Use new warehouse's orders
-              setOrders(corrected.orders);
-              setHasExistingWarehouse(true);
-
-              if (result.quantityViolations.length > 0) {
-                console.warn('[Taro] Quantity invariant violations after placement:', result.quantityViolations);
-              }
-
-              const totalBinsWanted = config.inventory.reduce((sum, i) => sum + (i.storageFootprint ?? 1), 0);
-              if (result.unplacedSkus.length > 0) {
-                setSimulationBlockState({
-                  simulationState: 'NO_VALID_ITEMS',
-                  title: `${result.unplacedSkus.length} SKU${result.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
-                  description: `The warehouse layout has only ${result.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${result.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${result.unplacedSkus.join(', ')}.`,
-                });
-              } else {
-                setSimulationBlockState(null);
-              }
-
-              setSimulationResults(null);
-              setIsSimulating(false);
-              setActiveStrategy(null);
-              setAnimationProgress(0);
-              setExecutionPlanStrategy(null);
-              setValidationContext(null);
-              setValidationResult(null);
-              setShowValidationModal(false);
-              setHighlightedMissingSkuIds(null);
-              resetAnimationState();
-            } catch (err) {
-              console.error('Failed to generate warehouse:', err);
-              alert('Failed to generate warehouse. Please try again.');
-            } finally {
-              setIsGenerating(false);
-              setShowNewWarehouseConfig(false);
             }
           }}
         />

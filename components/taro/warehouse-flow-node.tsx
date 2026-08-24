@@ -7,17 +7,6 @@ import type { MutableRefObject } from 'react';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
 import { Copy, Trash2, Settings, Loader2, X } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 
 export type WarehouseNodeData = Record<string, unknown> & {
   warehouseId: string;
@@ -56,7 +45,7 @@ export type WarehouseNodeData = Record<string, unknown> & {
  *   handles viewport pan/zoom; the renderer stops handling drawing.
  *
  * Title bar shows the warehouse name (not a truncated UUID), supports inline
- * rename on double-click, and provides layout config, workers, duplicate + delete actions.
+ * rename on double-click, and provides layout config + delete actions.
  */
 function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
   const isHandTool = data.selectedTool === 'hand';
@@ -65,9 +54,6 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.warehouseName);
   const renameInputRef = useRef<HTMLInputElement>(null);
-
-  // Delete confirmation state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Config popover state
   const [configOpen, setConfigOpen] = useState(false);
@@ -107,11 +93,6 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
       renameInputRef.current?.select();
     });
   }, [data.warehouseName]);
-
-  const handleDeleteConfirm = useCallback(() => {
-    setDeleteDialogOpen(false);
-    data.onDelete?.(data.warehouseId);
-  }, [data]);
 
   return (
     <div
@@ -287,82 +268,24 @@ function WarehouseFlowNode({ data }: NodeProps<Node<WarehouseNodeData>>) {
             )}
           </div>
 
-          {/* Duplicate button */}
-          {data.isDuplicating ? (
-            <span className="p-1">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-            </span>
-          ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                data.onDuplicate?.(data.warehouseId);
-              }}
-              title="Duplicate this warehouse"
-              className="p-1 rounded hover:bg-muted transition-colors"
-              aria-label="Duplicate warehouse"
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
-          )}
+          {/* Duplicate button — single-warehouse app: duplication is disabled. */}
+          <span
+            title="Duplicate disabled — only one warehouse is supported"
+            className="p-1 rounded text-muted-foreground/30 cursor-not-allowed"
+            aria-label="Duplicate disabled"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </span>
 
-          {/* Delete button */}
-          {data.canDelete !== false ? (
-            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-              <AlertDialogTrigger asChild>
-                <button
-                  onClick={(e) => e.stopPropagation()}
-                  title="Delete this warehouse"
-                  className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Delete warehouse"
-                  disabled={data.isDeleting}
-                >
-                  {data.isDeleting ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-destructive" />
-                  ) : (
-                    <Trash2 className="h-3.5 w-3.5" />
-                  )}
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Warehouse</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete{' '}
-                    <span className="font-semibold">{data.warehouseName}</span>?
-                    This will permanently remove this warehouse and all its data.
-                    This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={data.isDeleting}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDeleteConfirm}
-                    disabled={data.isDeleting}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60"
-                  >
-                    {data.isDeleting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                        Deleting…
-                      </>
-                    ) : (
-                      'Delete'
-                    )}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : (
-            <button
-              disabled
-              title="Cannot delete the last warehouse"
-              className="p-1 rounded text-muted-foreground/30 cursor-not-allowed"
-              aria-label="Delete disabled"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
+          {/* Delete button — single-warehouse app: deletion is disabled. */}
+          <button
+            disabled
+            title="Cannot delete the only warehouse"
+            className="p-1 rounded text-muted-foreground/30 cursor-not-allowed"
+            aria-label="Delete disabled"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
 
           {data.isActive && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-primary ml-0.5">
