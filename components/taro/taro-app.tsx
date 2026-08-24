@@ -25,7 +25,7 @@ import {
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
-import { WorkbenchDock } from './workbench-dock';
+import { RightSidebarDock } from './right-sidebar-dock';
 import { WorkspacePanel } from './workspace-panel';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
@@ -104,7 +104,6 @@ export function TaroApp(_props: TaroAppProps) {
   // Demo orders generation
   const [isGeneratingOrders, setIsGeneratingOrders] = useState(false);
   // In-flight rename tracking
-  const [renamingWarehouseId, setRenamingWarehouseId] = useState<string | null>(null);
   // CSV import
   const [isImporting, setIsImporting] = useState(false);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
@@ -651,37 +650,42 @@ export function TaroApp(_props: TaroAppProps) {
               onOpenChange={(open) => setDockOpen('workspace', open)}
             />
           </div>
-          <div className="pointer-events-auto">
-            <WorkbenchDock
-              orders={orders}
-              onGenerateOrders={handleAddDemoOrders}
-              warehouse={warehouse ?? undefined}
-              orderCount={orderCount}
-              avgOrderSize={avgOrderSize}
-              onOrderCountChange={setOrderCount}
-              onAvgOrderSizeChange={setAvgOrderSize}
-              simulationResults={simulationResults}
-              readiness={readiness}
-              isSimulating={isSimulating}
-              activeStrategy={activeStrategy}
-              onStrategySelect={handleStrategySelect}
-              animationProgress={animationProgress}
-              workerCount={workerCount}
-              onWorkerCountChange={setWorkerCount}
-              executionPlan={executionPlan}
-              validationContext={validationContext}
-              blockState={simulationBlockState}
-              onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
-              onSimulate={handleSimulateClick}
-              onAddShelves={() => setSelectedTool('shelf')}
-              onSetWorkerStart={() => setSelectedTool('worker')}
-              onZVisualizationChange={setZVisualizationMode}
-              isGeneratingOrders={isGeneratingOrders}
-              isOpen={openDockId === 'workbench'}
-              onOpenChange={(open) => setDockOpen('workbench', open)}
-            />
-          </div>
         </div>
+
+        {/* Right dock rail + full-height right sidebar — Config + Simulation
+            travel together in one right sidebar. */}
+        <RightSidebarDock
+          orders={orders}
+          onGenerateOrders={handleAddDemoOrders}
+          warehouse={warehouse ?? undefined}
+          orderCount={orderCount}
+          avgOrderSize={avgOrderSize}
+          onOrderCountChange={setOrderCount}
+          onAvgOrderSizeChange={setAvgOrderSize}
+          simulationResults={simulationResults}
+          readiness={readiness}
+          isSimulating={isSimulating}
+          activeStrategy={activeStrategy}
+          onStrategySelect={handleStrategySelect}
+          animationProgress={animationProgress}
+          workerCount={workerCount}
+          onWorkerCountChange={setWorkerCount}
+          executionPlan={executionPlan}
+          validationContext={validationContext}
+          blockState={simulationBlockState}
+          onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
+          onSimulate={handleSimulateClick}
+          onAddShelves={() => setSelectedTool('shelf')}
+          onSetWorkerStart={() => setSelectedTool('worker')}
+          onZVisualizationChange={setZVisualizationMode}
+          isGeneratingOrders={isGeneratingOrders}
+          configuration={activeWarehouseConfig}
+          onEditConfig={() => {
+            if (activeWarehouseId) handleOpenLayoutConfig(activeWarehouseId);
+          }}
+          isOpen={openDockId === 'workbench'}
+          onOpenChange={(open) => setDockOpen('workbench', open)}
+        />
 
         {/*
          * Center — Canvas.
@@ -708,11 +712,7 @@ export function TaroApp(_props: TaroAppProps) {
           <WarehouseCanvas
             workspaceWarehouses={workspaceWarehouses}
             activeWarehouseId={activeWarehouseId}
-            onSelectWarehouse={handleSelectWarehouse}
             onWarehouseChange={handleWarehouseChangePersisted}
-            onRenameWarehouse={handleRenameWarehouse}
-            onOpenLayoutConfig={handleOpenLayoutConfig}
-            renamingWarehouseId={renamingWarehouseId}
             selectedTool={selectedTool}
             activeRoute={activeRoute}
             animationProgressRef={animationProgressRef}

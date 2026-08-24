@@ -584,10 +584,6 @@ function WarehouseSvgRendererInner({
           </div>
         </div>
       )}
-
-      <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded border border-border">
-        <span>SVG renderer · hover for tooltip, click for details</span>
-      </div>
     </div>
   );
 }
