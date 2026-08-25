@@ -26,7 +26,6 @@ import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
 import { RightSidebar } from './right-sidebar';
-import { LeftSidebar, LeftSidebarVariantToolbar, type LeftSidebarVariant } from './left-sidebar';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
@@ -99,8 +98,6 @@ export function TaroApp(_props: TaroAppProps) {
   // CSV import
   const [isImporting, setIsImporting] = useState(false);
   const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
-  // Left sidebar layout direction (vartest5) — 1–5.
-  const [leftSidebarVariant, setLeftSidebarVariant] = useState<LeftSidebarVariant>(2);
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -567,6 +564,7 @@ export function TaroApp(_props: TaroAppProps) {
 
   // Keyboard shortcuts: 'h' toggles hand/pan tool; 1–5 switches the left
   // sidebar layout direction (vartest5).
+  // Keyboard shortcut: 'h' toggles hand/pan tool.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const typing =
@@ -578,14 +576,6 @@ export function TaroApp(_props: TaroAppProps) {
       if (e.key === 'h' && !typing) {
         e.preventDefault();
         setSelectedTool((prev) => (prev === 'hand' ? 'select' : 'hand'));
-        return;
-      }
-
-      if (!typing) {
-        const n = Number(e.key);
-        if (n >= 1 && n <= 5) {
-          setLeftSidebarVariant(n as LeftSidebarVariant);
-        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -624,22 +614,6 @@ export function TaroApp(_props: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left dock stack — fixed column hugging the left edge:
-            tools + warehouse (vartest5 layout variants) */}
-        <LeftSidebar
-          variant={leftSidebarVariant}
-          warehouses={workspaceWarehouses}
-          activeWarehouseId={activeWarehouseId}
-          onSelectWarehouse={handleSelectWarehouse}
-          onRenameWarehouse={handleRenameWarehouse}
-          selectedTool={selectedTool}
-          onToolChange={setSelectedTool}
-        />
-        <LeftSidebarVariantToolbar
-          active={leftSidebarVariant}
-          onSelect={setLeftSidebarVariant}
-        />
-
         {/* Center — warehouse div + right sidebar div, side by side in a flex row. */}
         <div className="flex-1 flex overflow-hidden relative">
           {workspaceWarehouses.length === 0 ? (
@@ -669,7 +643,7 @@ export function TaroApp(_props: TaroAppProps) {
             </div>
           )}
 
-          {/* Right sidebar — in-flow div (config + simulation), pushes the canvas left. */}
+          {/* Right sidebar — in-flow div (tools + config + simulation), pushes the canvas left. */}
           <RightSidebar
             orders={orders}
             onGenerateOrders={handleAddDemoOrders}
@@ -699,6 +673,12 @@ export function TaroApp(_props: TaroAppProps) {
             onEditConfig={() => {
               if (activeWarehouseId) handleOpenLayoutConfig(activeWarehouseId);
             }}
+            selectedTool={selectedTool}
+            onToolChange={setSelectedTool}
+            warehouses={workspaceWarehouses}
+            activeWarehouseId={activeWarehouseId}
+            onSelectWarehouse={handleSelectWarehouse}
+            onRenameWarehouse={handleRenameWarehouse}
             open={isRightSidebarOpen}
             onOpenChange={setIsRightSidebarOpen}
           />
