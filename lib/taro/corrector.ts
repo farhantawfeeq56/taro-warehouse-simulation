@@ -9,7 +9,7 @@
 import type { Order, Warehouse } from './types';
 import { collectSkuIds } from './inventory';
 import { generateRandomOrders } from './demo-generator';
-import { isWalkable, findPath } from './pathfinding';
+import { isWalkable } from './pathfinding';
 import { buildCoordinateLocations } from './layout';
 import { getShelfLocationId } from './layout';
 
@@ -252,18 +252,78 @@ export function rebuildMetadata(warehouse: Warehouse): { warehouse: Warehouse; r
 
 // ── 11. Unreachable pick bins ──────────────────────────────────────────────
 
+const ADJ_OFFSETS = [[0, 1], [0, -1], [1, 0], [-1, 0]] as const;
+
 /**
- * Find every shelf bin that A* cannot reach from the worker start (fully
+ * Flood-fill reachability. Computes the set of (x,y) walkable cells reachable
+ * from the worker start in a single BFS pass over the grid. This is the exact
+ * equivalent of running `findPath` from the start to every walkable cell, but
+ * O(grid) instead of O(cells × A*). A walkable cell is any non-shelf cell
+ * (`isWalkable`); shelf cells are the walls. The returned set is used to judge
+ * each shelf's reachability by checking its orthogonal walkable neighbours.
+ */
+function computeReachableWalkableCells(warehouse: Warehouse): Set<string> {
+  const reachable = new Set<string>();
+  const start = warehouse.workerStart;
+  if (!start) return reachable;
+
+  const queue: Array<[number, number]> = [[start.x, start.y]];
+  reachable.add(`${start.x},${start.y}`);
+
+  let head = 0;
+  while (head < queue.length) {
+    const [cx, cy] = queue[head++];
+    for (const [dx, dy] of ADJ_OFFSETS) {
+      const nx = cx + dx;
+      const ny = cy + dy;
+      if (!isWalkable(warehouse, nx, ny)) continue;
+      const key = `${nx},${ny}`;
+      if (reachable.has(key)) continue;
+      reachable.add(key);
+      queue.push([nx, ny]);
+    }
+  }
+  return reachable;
+}
+
+/**
+ * A shelf cell is REACHABLE iff the worker can path to a walkable cell
+ * orthogonally adjacent to it. With a single flood-fill from the start we can
+ * answer this for every shelf in O(1) each: a shelf is reachable iff at least
+ * one of its adjacent walkable neighbours was flooded. (Pathing directly TO the
+ * shelf cell would incorrectly succeed for a fully enclosed shelf, so the
+ * adjacent-cell test is used, identical to the previous A* behaviour.)
+ */
+function isShelfReachableFromStart(
+  reachable: Set<string>,
+  warehouse: Warehouse,
+  x: number,
+  y: number,
+): boolean {
+  if (!warehouse.workerStart) return false;
+  for (const [dx, dy] of ADJ_OFFSETS) {
+    const nx = x + dx;
+    const ny = y + dy;
+    if (!isWalkable(warehouse, nx, ny)) continue;
+    if (reachable.has(`${nx},${ny}`)) return true;
+  }
+  return false;
+}
+
+/**
+ * Find every shelf bin that is unreachable from the worker start (fully
  * walled off by shelves). Bins on reachable shelves are left untouched.
  */
 export function findUnreachableBins(warehouse: Warehouse): StorageLocationLike[] {
   if (!warehouse.workerStart) return [];
+  const reachable = computeReachableWalkableCells(warehouse);
   const unreachable: StorageLocationLike[] = [];
   for (const row of warehouse.grid) {
     for (const cell of row) {
       if (cell.type !== 'shelf' || cell.locations.length === 0) continue;
-      const path = findPath(warehouse, warehouse.workerStart, { x: cell.x, y: cell.y });
-      if (path.length === 0) unreachable.push(...cell.locations);
+      if (!isShelfReachableFromStart(reachable, warehouse, cell.x, cell.y)) {
+        unreachable.push(...cell.locations);
+      }
     }
   }
   return unreachable;
@@ -283,24 +343,12 @@ export function fixUnreachableBins(
 
   const grid = warehouse.grid.map((row) => row.map((cell) => ({ ...cell, locations: [...cell.locations] })));
 
-  // A shelf cell is REACHABLE iff the worker can path to a walkable cell
-  // orthogonally adjacent to it. `findPath` resolves its endpoint to the
-  // nearest walkable cell, so pathing TO the shelf cell itself can
-  // incorrectly report success for a fully enclosed shelf (the resolved
-  // endpoint sits just outside the wall). Checking the adjacent walkable
-  // cells instead is exact.
-  const isShelfReachable = (x: number, y: number): boolean => {
-    if (!warehouse.workerStart) return false;
-    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]] as const) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (!isWalkable(warehouse, nx, ny)) continue;
-      if (findPath(warehouse, warehouse.workerStart, { x: nx, y: ny }).length > 0) {
-        return true;
-      }
-    }
-    return false;
-  };
+  // One flood-fill from the start answers reachability for every shelf in O(1)
+  // each (see computeReachableWalkableCells). A shelf is reachable iff one of
+  // its orthogonal walkable neighbours is flooded.
+  const reachable = computeReachableWalkableCells(warehouse);
+  const isShelfReachable = (x: number, y: number): boolean =>
+    isShelfReachableFromStart(reachable, warehouse, x, y);
 
   // Candidate destinations: reachable shelf cells with room.
   const reachableShelfCells: { x: number; y: number; count: number }[] = [];

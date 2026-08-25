@@ -62,7 +62,7 @@ describe('resolveOrderToLocations', () => {
       [
         makeCell(0, 0, 'shelf', [makeBin(0, 0, 1, 'SKU_A', 10)]),
         makeCell(1, 0, 'shelf', [makeBin(1, 0, 1, 'SKU_B', 5)]),
-        makeCell(0, 0, 'worker-start'),
+        makeCell(2, 0, 'worker-start'),
       ],
       3,
       1
