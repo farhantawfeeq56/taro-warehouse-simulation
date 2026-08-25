@@ -184,15 +184,20 @@ function WarehouseSvgRendererInner({
   }, [selectedTool, getCellFromMouse, applyTool]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    // Hand tool never shows hover info; select + drawing tools all do.
-    if (selectedTool === 'hand') return;
-
     // While dragging with a drawing tool, apply the tool to every cell the
     // cursor passes over (laying out / erasing a run of shelves), matching
     // the original canvas behavior.
     if (isDrawing) {
       const cell = getCellFromMouse(e);
       if (cell) applyTool(cell.x, cell.y);
+      setTooltip(prev => ({ ...prev, visible: false }));
+      return;
+    }
+
+    // Shelf hover info (SKU / item details) only shows in Select mode,
+    // never while a drawing tool (shelf/worker/erase) is active.
+    if (selectedTool !== 'select') {
+      setHoveredCell(null);
       setTooltip(prev => ({ ...prev, visible: false }));
       return;
     }
