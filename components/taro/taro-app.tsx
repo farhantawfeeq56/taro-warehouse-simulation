@@ -25,8 +25,8 @@ import {
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
-import { WorkbenchDock } from './workbench-dock';
-import { WorkspacePanel } from './workspace-panel';
+import { RightSidebar } from './right-sidebar';
+import { ToolsDock } from './tools-dock';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
@@ -54,17 +54,9 @@ export function TaroApp(_props: TaroAppProps) {
   );
   const [workspaceWarehouses, setWorkspaceWarehouses] = useState<WorkspaceWarehouse[]>([]);
   const [activeWarehouseId, setActiveWarehouseId] = useState<string | null>(null);
-  // Multi-select set for shift-click operations on canvas and workspace list.
-  const [selectedWarehouseIds, setSelectedWarehouseIds] = useState<Set<string>>(new Set());
 
-  // Which dock panel is open — only one at a time across all docks.
-  // 'workspace' | 'workbench' | null
-  const [openDockId, setOpenDockId] = useState<string | null>(null);
-
-  /** Set a dock open/closed explicitly; opening one closes any other. */
-  const setDockOpen = useCallback((id: string, open: boolean) => {
-    setOpenDockId(open ? id : null);
-  }, []);
+  // Right sidebar (config + simulation) open/closed.
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
 
   // Derived: the currently selected warehouse (drives all panels).
   const warehouse = useMemo(() => {
@@ -87,8 +79,6 @@ export function TaroApp(_props: TaroAppProps) {
   }, [activeWarehouseId, workspaceWarehouses]);
 
   // Stable refs so callbacks don't need to depend on changing arrays.
-  const workspaceWarehousesRef = useRef(workspaceWarehouses);
-  workspaceWarehousesRef.current = workspaceWarehouses;
   const activeWarehouseIdRef = useRef(activeWarehouseId);
   activeWarehouseIdRef.current = activeWarehouseId;
   const activeProjectIdRef = useRef(activeProjectId);
@@ -103,11 +93,9 @@ export function TaroApp(_props: TaroAppProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   // Demo orders generation
   const [isGeneratingOrders, setIsGeneratingOrders] = useState(false);
-  // In-flight rename tracking
-  const [renamingWarehouseId, setRenamingWarehouseId] = useState<string | null>(null);
   // CSV import
   const [isImporting, setIsImporting] = useState(false);
-  const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
+  const [selectedTool, setSelectedTool] = useState<ToolType>('select');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -135,48 +123,6 @@ export function TaroApp(_props: TaroAppProps) {
   const [orderCount, setOrderCount] = useState(1000);
   const [avgOrderSize, setAvgOrderSize] = useState(5);
 
-  /**
-   * Unified warehouse selection handler used by both the canvas and the
-   * workspace list. Without modifiers, replaces the selection and sets the
-   * warehouse as active. With shift, toggles the warehouse in the multi-select
-   * set and also sets it as active so the right-hand panel follows.
-   */
-  const handleSelectWarehouse = useCallback(
-    (warehouseId: string, opts?: { additive?: boolean }) => {
-      if (opts?.additive) {
-        setSelectedWarehouseIds((prev) => {
-          const next = new Set(prev);
-          if (next.has(warehouseId)) {
-            next.delete(warehouseId);
-          } else {
-            next.add(warehouseId);
-          }
-          return next;
-        });
-      } else {
-        setSelectedWarehouseIds(new Set([warehouseId]));
-      }
-      setActiveWarehouseId(warehouseId);
-
-      // Hidden corrector — the shared order set may reference SKUs missing
-      // from the newly-selected warehouse's catalog; reconcile before the
-      // readiness memo (which gates Simulate) reads them.
-      const ww = workspaceWarehousesRef.current.find((w) => w.id === warehouseId);
-      if (ww && ww.id !== activeWarehouseIdRef.current) {
-        const corrected = reconcile(ww.warehouse, ordersRef.current);
-        if (corrected.orders !== ordersRef.current) {
-          setOrders(corrected.orders);
-        }
-        if (corrected.warehouse !== ww.warehouse) {
-          setWorkspaceWarehouses((prev) =>
-            prev.map((w) => (w.id === warehouseId ? { ...w, warehouse: corrected.warehouse } : w)),
-          );
-        }
-      }
-    },
-    []
-  );
-
   const handleOpenLayoutConfig = useCallback((warehouseId: string) => {
     // First select the warehouse, then open the layout config
     setActiveWarehouseId(warehouseId);
@@ -191,15 +137,6 @@ export function TaroApp(_props: TaroAppProps) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
-  }, []);
-
-  // ── Workspace: Rename ────────────────────────────────────────────────────
-
-  const handleRenameWarehouse = useCallback(async (warehouseId: string, name: string) => {
-    // Optimistically update local state
-    setWorkspaceWarehouses((prev) =>
-      prev.map((ww) => (ww.id === warehouseId ? { ...ww, name } : ww)),
-    );
   }, []);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -586,17 +523,16 @@ export function TaroApp(_props: TaroAppProps) {
     replaySpeedRef.current = replaySpeed;
   }, [replaySpeed]);
 
-  // Keyboard shortcut: 'h' toggles hand/pan tool
+  // Keyboard shortcut: 'h' toggles hand/pan tool (hidden; no dock button).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === 'h' &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !(e.target instanceof HTMLInputElement) &&
-        !(e.target instanceof HTMLTextAreaElement) &&
-        !(e.target instanceof HTMLSelectElement)
-      ) {
+      const typing =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement;
+      if (e.metaKey || e.ctrlKey) return;
+
+      if (e.key === 'h' && !typing) {
         e.preventDefault();
         setSelectedTool((prev) => (prev === 'hand' ? 'select' : 'hand'));
       }
@@ -637,90 +573,76 @@ export function TaroApp(_props: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left dock stack — fixed column hugging the left edge:
-            warehouses, workbench */}
+        {/* Floating Tools dock — left edge, vertical, separate from the right sidebar. */}
         <div className="fixed left-0 top-0 z-40 flex flex-col items-start gap-2 p-2 pointer-events-none">
           <div className="pointer-events-auto">
-            <WorkspacePanel
-              warehouses={workspaceWarehouses}
-              activeWarehouseId={activeWarehouseId}
-              selectedWarehouseIds={selectedWarehouseIds}
-              onSelectWarehouse={handleSelectWarehouse}
-              onRenameWarehouse={handleRenameWarehouse}
-              isOpen={openDockId === 'workspace'}
-              onOpenChange={(open) => setDockOpen('workspace', open)}
-            />
-          </div>
-          <div className="pointer-events-auto">
-            <WorkbenchDock
-              orders={orders}
-              onGenerateOrders={handleAddDemoOrders}
-              warehouse={warehouse ?? undefined}
-              orderCount={orderCount}
-              avgOrderSize={avgOrderSize}
-              onOrderCountChange={setOrderCount}
-              onAvgOrderSizeChange={setAvgOrderSize}
-              simulationResults={simulationResults}
-              readiness={readiness}
-              isSimulating={isSimulating}
-              activeStrategy={activeStrategy}
-              onStrategySelect={handleStrategySelect}
-              animationProgress={animationProgress}
-              workerCount={workerCount}
-              onWorkerCountChange={setWorkerCount}
-              executionPlan={executionPlan}
-              validationContext={validationContext}
-              blockState={simulationBlockState}
-              onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
-              onSimulate={handleSimulateClick}
-              onAddShelves={() => setSelectedTool('shelf')}
-              onSetWorkerStart={() => setSelectedTool('worker')}
-              onZVisualizationChange={setZVisualizationMode}
-              isGeneratingOrders={isGeneratingOrders}
-              isOpen={openDockId === 'workbench'}
-              onOpenChange={(open) => setDockOpen('workbench', open)}
-            />
+            <ToolsDock selectedTool={selectedTool} onToolChange={setSelectedTool} />
           </div>
         </div>
 
-        {/*
-         * Center — Canvas.
-         *
-         * The React Flow workspace (warehouse nodes) is shown whenever the
-         * workspace has at least one node. The empty-state editor only appears
-         * when there are truly no warehouses at all (initial setup / loading
-         * fallback).
-         */}
-        {workspaceWarehouses.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center bg-muted/20">
-            <div className="text-center space-y-4">
-              <p className="text-muted-foreground">{isLoading ? 'Loading...' : 'No warehouse configured.'}</p>
-              {!isLoading && (
-                <Button onClick={() => setShowLayoutConfig(true)}>
-                  Configure Warehouse
-                </Button>
-              )}
+        {/* Center — warehouse div + right sidebar div, side by side in a flex row. */}
+        <div className="flex-1 flex overflow-hidden relative">
+          {workspaceWarehouses.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center bg-muted/20">
+              <div className="text-center space-y-4">
+                <p className="text-muted-foreground">{isLoading ? 'Loading...' : 'No warehouse configured.'}</p>
+                {!isLoading && (
+                  <Button onClick={() => setShowLayoutConfig(true)}>
+                    Configure Warehouse
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-        <div className="flex-1 flex flex-col overflow-hidden gap-0 relative">
-          {/* Canvas — single-warehouse workspace (plain DOM + SVG, no React Flow) */}
-          <WarehouseCanvas
-            workspaceWarehouses={workspaceWarehouses}
-            activeWarehouseId={activeWarehouseId}
-            onSelectWarehouse={handleSelectWarehouse}
-            onWarehouseChange={handleWarehouseChangePersisted}
-            onRenameWarehouse={handleRenameWarehouse}
-            onOpenLayoutConfig={handleOpenLayoutConfig}
-            renamingWarehouseId={renamingWarehouseId}
-            selectedTool={selectedTool}
-            activeRoute={activeRoute}
-            animationProgressRef={animationProgressRef}
-            zVisualizationMode={zVisualizationMode}
-            animationReplayId={animationReplayId}
+          ) : (
+            <div className="flex-1 flex flex-col overflow-hidden gap-0 relative min-w-0">
+              {/* Canvas — single-warehouse workspace (plain DOM + SVG, no React Flow) */}
+              <WarehouseCanvas
+                workspaceWarehouses={workspaceWarehouses}
+                activeWarehouseId={activeWarehouseId}
+                onWarehouseChange={handleWarehouseChangePersisted}
+                selectedTool={selectedTool}
+                activeRoute={activeRoute}
+                animationProgressRef={animationProgressRef}
+                zVisualizationMode={zVisualizationMode}
+                animationReplayId={animationReplayId}
+              />
+            </div>
+          )}
+
+          {/* Right sidebar — in-flow div (tools + config + simulation), pushes the canvas left. */}
+          <RightSidebar
+            orders={orders}
+            onGenerateOrders={handleAddDemoOrders}
+            warehouse={warehouse ?? undefined}
+            orderCount={orderCount}
+            avgOrderSize={avgOrderSize}
+            onOrderCountChange={setOrderCount}
+            onAvgOrderSizeChange={setAvgOrderSize}
+            simulationResults={simulationResults}
+            readiness={readiness}
+            isSimulating={isSimulating}
+            activeStrategy={activeStrategy}
+            onStrategySelect={handleStrategySelect}
+            animationProgress={animationProgress}
+            workerCount={workerCount}
+            onWorkerCountChange={setWorkerCount}
+            executionPlan={executionPlan}
+            validationContext={validationContext}
+            blockState={simulationBlockState}
+            onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
+            onSimulate={handleSimulateClick}
+            onAddShelves={() => setSelectedTool('shelf')}
+            onSetWorkerStart={() => setSelectedTool('worker')}
+            onZVisualizationChange={setZVisualizationMode}
+            isGeneratingOrders={isGeneratingOrders}
+            configuration={activeWarehouseConfig}
+            onEditConfig={() => {
+              if (activeWarehouseId) handleOpenLayoutConfig(activeWarehouseId);
+            }}
+            open={isRightSidebarOpen}
+            onOpenChange={setIsRightSidebarOpen}
           />
         </div>
-        )}
 
       </div>
 
