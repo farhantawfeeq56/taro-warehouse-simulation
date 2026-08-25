@@ -26,6 +26,7 @@ import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { WarehouseCanvas } from './warehouse-canvas';
 import { RightSidebar } from './right-sidebar';
+import { ToolsDock } from './tools-dock';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
@@ -78,8 +79,6 @@ export function TaroApp(_props: TaroAppProps) {
   }, [activeWarehouseId, workspaceWarehouses]);
 
   // Stable refs so callbacks don't need to depend on changing arrays.
-  const workspaceWarehousesRef = useRef(workspaceWarehouses);
-  workspaceWarehousesRef.current = workspaceWarehouses;
   const activeWarehouseIdRef = useRef(activeWarehouseId);
   activeWarehouseIdRef.current = activeWarehouseId;
   const activeProjectIdRef = useRef(activeProjectId);
@@ -94,10 +93,9 @@ export function TaroApp(_props: TaroAppProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   // Demo orders generation
   const [isGeneratingOrders, setIsGeneratingOrders] = useState(false);
-  // In-flight rename tracking
   // CSV import
   const [isImporting, setIsImporting] = useState(false);
-  const [selectedTool, setSelectedTool] = useState<ToolType>('shelf');
+  const [selectedTool, setSelectedTool] = useState<ToolType>('select');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -125,34 +123,6 @@ export function TaroApp(_props: TaroAppProps) {
   const [orderCount, setOrderCount] = useState(1000);
   const [avgOrderSize, setAvgOrderSize] = useState(5);
 
-  /**
-   * Unified warehouse selection handler — sets the warehouse as active so
-   * the right-hand panel follows. (The app supports one warehouse, but the
-   * handler allows switching if the workspace ever grows.)
-   */
-  const handleSelectWarehouse = useCallback(
-    (warehouseId: string) => {
-      setActiveWarehouseId(warehouseId);
-
-      // Hidden corrector — the shared order set may reference SKUs missing
-      // from the newly-selected warehouse's catalog; reconcile before the
-      // readiness memo (which gates Simulate) reads them.
-      const ww = workspaceWarehousesRef.current.find((w) => w.id === warehouseId);
-      if (ww && ww.id !== activeWarehouseIdRef.current) {
-        const corrected = reconcile(ww.warehouse, ordersRef.current);
-        if (corrected.orders !== ordersRef.current) {
-          setOrders(corrected.orders);
-        }
-        if (corrected.warehouse !== ww.warehouse) {
-          setWorkspaceWarehouses((prev) =>
-            prev.map((w) => (w.id === warehouseId ? { ...w, warehouse: corrected.warehouse } : w)),
-          );
-        }
-      }
-    },
-    []
-  );
-
   const handleOpenLayoutConfig = useCallback((warehouseId: string) => {
     // First select the warehouse, then open the layout config
     setActiveWarehouseId(warehouseId);
@@ -167,15 +137,6 @@ export function TaroApp(_props: TaroAppProps) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
-  }, []);
-
-  // ── Workspace: Rename ────────────────────────────────────────────────────
-
-  const handleRenameWarehouse = useCallback(async (warehouseId: string, name: string) => {
-    // Optimistically update local state
-    setWorkspaceWarehouses((prev) =>
-      prev.map((ww) => (ww.id === warehouseId ? { ...ww, name } : ww)),
-    );
   }, []);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -562,9 +523,7 @@ export function TaroApp(_props: TaroAppProps) {
     replaySpeedRef.current = replaySpeed;
   }, [replaySpeed]);
 
-  // Keyboard shortcuts: 'h' toggles hand/pan tool; 1–5 switches the left
-  // sidebar layout direction (vartest5).
-  // Keyboard shortcut: 'h' toggles hand/pan tool.
+  // Keyboard shortcut: 'h' toggles hand/pan tool (hidden; no dock button).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const typing =
@@ -614,6 +573,13 @@ export function TaroApp(_props: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Floating Tools dock — left edge, vertical, separate from the right sidebar. */}
+        <div className="fixed left-0 top-0 z-40 flex flex-col items-start gap-2 p-2 pointer-events-none">
+          <div className="pointer-events-auto">
+            <ToolsDock selectedTool={selectedTool} onToolChange={setSelectedTool} />
+          </div>
+        </div>
+
         {/* Center — warehouse div + right sidebar div, side by side in a flex row. */}
         <div className="flex-1 flex overflow-hidden relative">
           {workspaceWarehouses.length === 0 ? (
@@ -673,12 +639,6 @@ export function TaroApp(_props: TaroAppProps) {
             onEditConfig={() => {
               if (activeWarehouseId) handleOpenLayoutConfig(activeWarehouseId);
             }}
-            selectedTool={selectedTool}
-            onToolChange={setSelectedTool}
-            warehouses={workspaceWarehouses}
-            activeWarehouseId={activeWarehouseId}
-            onSelectWarehouse={handleSelectWarehouse}
-            onRenameWarehouse={handleRenameWarehouse}
             open={isRightSidebarOpen}
             onOpenChange={setIsRightSidebarOpen}
           />

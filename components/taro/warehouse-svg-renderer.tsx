@@ -184,7 +184,8 @@ function WarehouseSvgRendererInner({
   }, [selectedTool, getCellFromMouse, applyTool]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (selectedTool === 'hand' || selectedTool === 'select') return;
+    // Hand tool never shows hover info; select + drawing tools all do.
+    if (selectedTool === 'hand') return;
 
     // While dragging with a drawing tool, apply the tool to every cell the
     // cursor passes over (laying out / erasing a run of shelves), matching
