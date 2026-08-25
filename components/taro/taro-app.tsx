@@ -81,6 +81,8 @@ export function TaroApp(_props: TaroAppProps) {
   // Stable refs so callbacks don't need to depend on changing arrays.
   const activeWarehouseIdRef = useRef(activeWarehouseId);
   activeWarehouseIdRef.current = activeWarehouseId;
+  const workspaceWarehousesRef = useRef(workspaceWarehouses);
+  workspaceWarehousesRef.current = workspaceWarehouses;
   const activeProjectIdRef = useRef(activeProjectId);
   activeProjectIdRef.current = activeProjectId;
 
@@ -166,6 +168,10 @@ export function TaroApp(_props: TaroAppProps) {
   // memory for the session; the timer keeps the reconcile (hidden corrector)
   // debounce behaviour identical to the persisted flow.
   const saveLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Deferred reconcile timer for the Generate/Update transition — lets the
+  // canvas paint the raw warehouse before the (idempotent) hidden corrector
+  // runs off the main paint path.
+  const activeReconcileTimerRef = useRef<number | null>(null);
   const handleWarehouseChangePersisted = useCallback((
     whId: string,
     newWh: Warehouse,
@@ -697,23 +703,26 @@ export function TaroApp(_props: TaroAppProps) {
 
               // Update the workspace entry with new warehouse data and its own
               // configuration.
-              // Hidden corrector — orders may reference unplaced SKUs;
-              // reconcile both before commit so readiness stays clean.
-              const corrected = reconcile(result.warehouse, result.orders);
+              // Commit the RAW generated warehouse + orders FIRST so the canvas
+              // paints immediately (the renderer only needs the grid/shelves —
+              // reconciliation adds no visible cells). Reconcile is deferred a
+              // tick so the main thread isn't blocked on A* reachability before
+              // the first paint; the hidden corrector still lands before the
+              // readiness memo (which gates Simulate) is re-read.
               setWorkspaceWarehouses((prev) =>
                 prev.map((ww) =>
                   ww.id === activeWarehouseIdRef.current
                     ? {
                         ...ww,
                         id: warehouseId,
-                        warehouse: corrected.warehouse,
+                        warehouse: result.warehouse,
                         configuration,
                       }
                     : ww,
                 ),
               );
               setActiveWarehouseId(warehouseId);
-              setOrders(corrected.orders);
+              setOrders(result.orders);
               setHasExistingWarehouse(true);
 
               if (result.quantityViolations.length > 0) {
@@ -741,6 +750,33 @@ export function TaroApp(_props: TaroAppProps) {
               setShowValidationModal(false);
               setHighlightedMissingSkuIds(null);
               resetAnimationState();
+
+              // Deferred reconcile — after the canvas has painted the raw
+              // warehouse, run the hidden corrector (idempotent; fixes stray
+              // ids / unreachable bins) and commit the cleaned state. The
+              // readiness memo reads the final state, so Simulate stays gated
+              // correctly. The timer is keyed to the just-generated warehouseId
+              // so a later action can't clobber this fix.
+              const reconcileTimer = window.setTimeout(() => {
+                // Read the LATEST warehouse for this id (the user may have
+                // drawn on the canvas in the deferred gap) so reconciliation
+                // never clobbers manual edits — fall back to the generated
+                // result if the entry no longer exists.
+                const latest = workspaceWarehousesRef.current.find((w) => w.id === warehouseId)?.warehouse ?? result.warehouse;
+                const corrected = reconcile(
+                  latest,
+                  ordersRef.current,
+                );
+                setWorkspaceWarehouses((prev) =>
+                  prev.map((ww) =>
+                    ww.id === warehouseId
+                      ? { ...ww, warehouse: corrected.warehouse }
+                      : ww,
+                  ),
+                );
+                setOrders(corrected.orders);
+              }, 0);
+              activeReconcileTimerRef.current = reconcileTimer;
             } catch (err) {
               console.error('Failed to generate warehouse:', err);
               alert('Failed to generate warehouse. Please try again.');
