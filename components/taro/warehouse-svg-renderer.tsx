@@ -105,7 +105,7 @@ function WarehouseSvgRendererInner({
     updateRect();
     window.addEventListener('resize', updateRect);
     return () => window.removeEventListener('resize', updateRect);
-  }, []);
+  }, [zoom]);
 
   const getCellFromMouse = useCallback((e: React.MouseEvent) => {
     // The warehouse canvas applies a CSS scale transform to this subtree;
