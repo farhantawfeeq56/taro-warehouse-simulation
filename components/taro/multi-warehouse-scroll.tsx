@@ -33,6 +33,8 @@ import { cn } from '@/lib/utils';
 
 /** Padding (px) kept between the warehouse and the page edges when fitting. */
 const FIT_PADDING = 24;
+/** Approximate height (px) of the card's name/actions header bar. */
+const HEADER_H = 32;
 /**
  * Upper bound on how much a smaller warehouse may be upscaled to fill a page.
  * Vector SVG stays crisp at any scale; this just keeps a tiny warehouse from
@@ -138,10 +140,10 @@ function PageHeader({
   return (
     <div
       className={cn(
-        'absolute top-2 left-2 right-2 z-10 flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors pointer-events-none',
+        'shrink-0 flex items-center gap-2 px-3 py-1.5 border-b rounded-t-md transition-colors',
         isActive
-          ? 'bg-surface/90 backdrop-blur-sm border-border shadow-sm'
-          : 'bg-muted/40 border-transparent',
+          ? 'bg-surface border-border'
+          : 'bg-muted/40 border-border/60',
       )}
       onClick={(e) => e.stopPropagation()}
     >
@@ -157,7 +159,7 @@ function PageHeader({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => onCommitRename(draft.trim() || name)}
-          className="h-6 w-40 rounded border border-border bg-background px-2 text-xs font-medium outline-none focus:border-primary pointer-events-auto"
+          className="h-6 w-40 rounded border border-border bg-background px-2 text-xs font-medium outline-none focus:border-primary"
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
@@ -175,7 +177,7 @@ function PageHeader({
       <div className="flex-1" />
 
       {isActive && (
-        <div className="flex items-center gap-0.5 pointer-events-auto">
+        <div className="flex items-center gap-0.5">
           <ActionButton onClick={onAdd} title="Add a new warehouse" label="Add" icon={Plus} />
           <ActionButton onClick={onDuplicate} title="Duplicate this warehouse" label="Duplicate" icon={Copy} />
           {renaming ? (
@@ -297,7 +299,7 @@ export function MultiWarehouseScroll({
         const logicalH = warehouse.height * CELL_SIZE;
 
         const availW = Math.max(size.w - FIT_PADDING * 2, 1);
-        const availH = Math.max(size.h - FIT_PADDING * 2, 1);
+        const availH = Math.max(size.h - HEADER_H - FIT_PADDING * 2, 1);
         const fitScale =
           size.w > 0 && size.h > 0
             ? Math.min(Math.min(availW / logicalW, availH / logicalH), MAX_UPSCALE)
@@ -315,32 +317,31 @@ export function MultiWarehouseScroll({
               !isActive && 'opacity-90 transition-opacity',
             )}
           >
-            {/* Fit-to-page body: scale the warehouse to fit, centre it both ways. */}
+            {/* Fit-to-page body: scale the warehouse card to fit, centre it both ways. */}
             <div className="relative flex-1 min-h-0 overflow-hidden">
               <div className="absolute inset-0 flex items-center justify-center">
+                {/* Card — header bar above the warehouse renderer, scaled as one unit. */}
                 <div
-                  className="relative border border-border rounded-md shadow-sm bg-background"
-                  style={{
-                    width: logicalW,
-                    height: logicalH,
-                    transform: `scale(${fitScale})`,
-                  }}
+                  className="flex flex-col border border-border rounded-md shadow-sm bg-background overflow-hidden"
+                  style={{ transform: `scale(${fitScale})` }}
                 >
-                  {/* Name + actions overlay — floats on the warehouse itself. */}
-                  <PageHeader
-                    name={entry.name}
-                    isActive={isActive}
-                    renaming={renamingId === entry.id}
-                    onStartRename={() => setRenamingId(entry.id)}
-                    onCommitRename={(name) => {
-                      onRenameWarehouse(entry.id, name);
-                      setRenamingId(null);
-                    }}
-                    onCancelRename={() => setRenamingId(null)}
-                    onAdd={onAddWarehouse}
-                    onDuplicate={() => onDuplicateWarehouse(entry.id)}
-                    onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
-                  />
+                  {/* Name + actions bar — sits ABOVE the warehouse, never over shelves. */}
+                  <div style={{ width: logicalW }}>
+                    <PageHeader
+                      name={entry.name}
+                      isActive={isActive}
+                      renaming={renamingId === entry.id}
+                      onStartRename={() => setRenamingId(entry.id)}
+                      onCommitRename={(name) => {
+                        onRenameWarehouse(entry.id, name);
+                        setRenamingId(null);
+                      }}
+                      onCancelRename={() => setRenamingId(null)}
+                      onAdd={onAddWarehouse}
+                      onDuplicate={() => onDuplicateWarehouse(entry.id)}
+                      onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
+                    />
+                  </div>
                   <div className="relative" style={{ width: logicalW, height: logicalH }}>
                     <WarehouseSvgRenderer
                       warehouseId={entry.id}
