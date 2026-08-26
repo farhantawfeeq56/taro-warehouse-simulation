@@ -35,6 +35,7 @@ import { getMissingSkuIds, validateItems, type ItemsValidationResult } from '@/l
 import { evaluateReadiness } from '@/lib/taro/readiness';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
+import type { ExperimentRecommendation } from '@/lib/taro/experiment-recommendation';
 import { reconcile } from '@/lib/taro/corrector';
 import { generateWarehouseSession } from '@/lib/taro/warehouse-generator';
 
@@ -316,6 +317,66 @@ export function TaroApp(_props: TaroAppProps) {
     setCompareBaseWarehouseId(warehouseId);
     setCompareViewOpen(true);
   }, []);
+
+  // ── Workspace: Generate experiment warehouse ────────────────────────────
+  // The AI recommendation hands us a full WarehouseConfiguration. We run the
+  // same session pipeline as the normal New-Warehouse flow, append the result
+  // to the workspace, and jump back to the warehouse screen so the user sees
+  // the new experiment immediately.
+  const handleGenerateExperiment = useCallback(
+    async (constraintsRaw: string, recommendation: ExperimentRecommendation) => {
+      // Session-only: generate entirely in the browser — no database.
+      const result = generateWarehouseSession(
+        recommendation.configuration,
+        orderCount,
+        avgOrderSize,
+      );
+      const newId = crypto.randomUUID();
+      // Constraints (if any) go into the name so the experiment is identifiable.
+      const suffix = constraintsRaw
+        ? ` · ${constraintsRaw.trim().slice(0, 24)}`
+        : '';
+      const newName = `Experiment — ${recommendation.axis}${suffix}`;
+
+      // Hidden corrector — orders may reference unplaced SKUs; reconcile
+      // against the new warehouse before commit (same as New Warehouse).
+      const corrected = reconcile(result.warehouse, result.orders);
+
+      const newEntry: WorkspaceWarehouse = {
+        id: newId,
+        name: newName,
+        position: null,
+        warehouse: corrected.warehouse,
+        configuration: recommendation.configuration,
+      };
+
+      // APPEND + activate, then close the compare page so the user lands on
+      // the warehouse screen and sees the new experiment.
+      setWorkspaceWarehouses((prev) => [...prev, newEntry]);
+      setOrdersByWarehouse((prev) => ({ ...prev, [newId]: corrected.orders }));
+      setActiveWarehouseId(newId);
+      setOrders(corrected.orders);
+      setHasExistingWarehouse(true);
+
+      if (result.quantityViolations.length > 0) {
+        console.warn('[Taro] Quantity invariant violations after experiment placement:', result.quantityViolations);
+      }
+
+      // No simulation state of its own until the user runs one.
+      setSimByWarehouse((prev) => ({ ...prev, [newId]: { ...EMPTY_SIM } }));
+      setIsSimulating(false);
+      setValidationContext(null);
+      setValidationResult(null);
+      setShowValidationModal(false);
+      setHighlightedMissingSkuIds(null);
+      resetAnimationState();
+
+      // Leave the compare page — the warehouse screen shows the new experiment.
+      setCompareViewOpen(false);
+      setCompareBaseWarehouseId(null);
+    },
+    [orderCount, avgOrderSize, resetAnimationState],
+  );
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -773,6 +834,7 @@ export function TaroApp(_props: TaroAppProps) {
             setCompareViewOpen(false);
             setCompareBaseWarehouseId(null);
           }}
+          onGenerateExperiment={handleGenerateExperiment}
         />
       ) : (
       <div className="flex-1 flex overflow-hidden">
