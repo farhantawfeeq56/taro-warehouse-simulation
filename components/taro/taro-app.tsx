@@ -279,6 +279,20 @@ export function TaroApp(_props: TaroAppProps) {
     resetAnimationState();
   }, [resetAnimationState]);
 
+  // ── Workspace: Compare ────────────────────────────────────────────────
+  // Comparison needs at least two warehouses to be meaningful. With a single
+  // warehouse there is nothing to compare against, so we tell the user to add
+  // another one first instead of silently no-oping.
+  const handleCompareWarehouse = useCallback((warehouseId: string) => {
+    const total = workspaceWarehousesRef.current.length;
+    if (total < 2) {
+      alert('You need at least two warehouses to compare. Add another warehouse first.');
+      return;
+    }
+    // TODO(compare): open the comparison view with `warehouseId` as the base.
+    console.debug('[compare] base warehouse', warehouseId, 'of', total);
+  }, []);
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   /** Update the active warehouse's layout data (no persistence). */
@@ -744,6 +758,7 @@ export function TaroApp(_props: TaroAppProps) {
                 onDuplicateWarehouse={handleDuplicateWarehouse}
                 onRenameWarehouse={handleRenameWarehouse}
                 onDeleteWarehouse={handleDeleteWarehouse}
+                onCompareWarehouse={handleCompareWarehouse}
                 selectedTool={selectedTool}
                 activeRoute={activeRoute}
                 animationProgressRef={animationProgressRef}
