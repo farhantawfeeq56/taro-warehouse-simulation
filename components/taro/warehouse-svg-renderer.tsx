@@ -413,6 +413,63 @@ function WarehouseSvgRendererInner({
     return rects;
   }, [activeRoute, warehouse]);
 
+  // Pick stubs: a short line from the aisle (the last walkable cell the
+  // worker stands in front of a shelf) to the shelf itself, drawn for every
+  // pick. This shows where the worker actually stops to grab an item.
+  const pickStubs = (() => {
+    if (!activeRoute) return null;
+    const groups = activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0
+      ? activeRoute.workerRoutes.map(wr => ({ color: wr.color, picks: wr.picks }))
+      : [{ color: activeRoute.color, picks: [] }];
+
+    const stubs: React.ReactNode[] = [];
+    for (let gi = 0; gi < groups.length; gi++) {
+      const { color, picks } = groups[gi];
+      picks.forEach((pick, pi) => {
+        if (pick.x == null || pick.y == null) return;
+        const px = pick.x;
+        const py = pick.y;
+        const cx = px * CELL_SIZE + CELL_SIZE / 2;
+        const cy = py * CELL_SIZE + CELL_SIZE / 2;
+        const candidates = [
+          { x: px - 1, y: py },
+          { x: px + 1, y: py },
+          { x: px, y: py - 1 },
+          { x: px, y: py + 1 },
+        ];
+        let nearest: { x: number; y: number } | null = null;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (const c of candidates) {
+          const cell = warehouse.grid[c.y]?.[c.x];
+          if (!cell || cell.type === 'shelf' || cell.type === 'worker-start') continue;
+          const d = (c.x - px) * (c.x - px) + (c.y - py) * (c.y - py);
+          if (d < bestDist) {
+            bestDist = d;
+            nearest = c;
+          }
+        }
+        if (!nearest) return;
+        const nx = nearest.x * CELL_SIZE + CELL_SIZE / 2;
+        const ny = nearest.y * CELL_SIZE + CELL_SIZE / 2;
+        stubs.push(
+          <line
+            key={`pick-stub-${gi}-${pi}`}
+            x1={nx}
+            y1={ny}
+            x2={cx}
+            y2={cy}
+            stroke={color}
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeDasharray="3 3"
+            opacity={0.9}
+          />,
+        );
+      });
+    }
+    return stubs;
+  })();
+
   // Worker route polylines + animated dots.
   // NOTE: deliberately NOT memoized on [activeRoute, animationProgressRef] —
   // animationProgressRef is a stable ref object and its .current is read here,
@@ -486,6 +543,9 @@ function WarehouseSvgRendererInner({
 
         {/* Route heatmap */}
         {heatmapRects}
+
+        {/* Pick stubs: line from aisle to shelf for each pick */}
+        {pickStubs}
 
         {/* Route paths + worker dots */}
         {routePaths}
