@@ -46,6 +46,22 @@ interface TaroAppProps {
   initialProjectId?: string;
 }
 
+/** Per-warehouse simulation state — a sim belongs to the warehouse it ran on. */
+interface WarehouseSimState {
+  results: SimulationResults | null;
+  activeStrategy: StrategyType | null;
+  executionPlanStrategy: StrategyType | null;
+  blockState: SimulationBlockState | null;
+}
+
+/** Empty per-warehouse simulation state (no results, nothing selected). */
+const EMPTY_SIM: WarehouseSimState = {
+  results: null,
+  activeStrategy: null,
+  executionPlanStrategy: null,
+  blockState: null,
+};
+
 export function TaroApp(_props: TaroAppProps) {
   // Session-scoped id — every visit generates a brand-new warehouse. The
   // value is only used to name the entry and to key per-warehouse state;
@@ -119,22 +135,22 @@ export function TaroApp(_props: TaroAppProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [selectedTool, setSelectedTool] = useState<ToolType>('select');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
-  const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
+  // Simulation state is keyed by warehouse id — running on one warehouse
+  // never leaks routes/results onto another when you scroll.
+  const [simByWarehouse, setSimByWarehouse] = useState<Record<string, WarehouseSimState>>({});
   const [isSimulating, setIsSimulating] = useState(false);
-  const [activeStrategy, setActiveStrategy] = useState<StrategyType | null>(null);
   // Animation progress ref → read by the canvas at 60 fps without React re-renders.
   // Throttled state mirror for the SystemStatePanel progress bars (~10 fps).
   const animationProgressRef = useRef(0);
   const [animationProgress, setAnimationProgress] = useState(0);
   const animationProgressLastRenderedRef = useRef(0);
-  const [workerCount, setWorkerCount] = useState(1);
+  const [workerCount, setWorkerCount] = useState(5);
   const [warehouseProfile, setWarehouseProfile] = useState<WarehouseProfile>({ ...DEFAULT_WAREHOUSE_PROFILE });
   const [laborProfile, setLaborProfile] = useState<LaborProfile>({ ...DEFAULT_LABOR_PROFILE });
   const [replaySpeed, setReplaySpeed] = useState<1 | 5 | 10>(1);
   const animationRef = useRef<number | null>(null);
   const replaySpeedRef = useRef(replaySpeed);
   const csvInputRef = useRef<HTMLInputElement>(null);
-  const [executionPlanStrategy, setExecutionPlanStrategy] = useState<StrategyType | null>(null);
   const [validationContext, setValidationContext] = useState<SimulationValidationContext | null>(null);
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
@@ -152,7 +168,6 @@ export function TaroApp(_props: TaroAppProps) {
   const [compareViewOpen, setCompareViewOpen] = useState(false);
   const [compareBaseWarehouseId, setCompareBaseWarehouseId] = useState<string | null>(null);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
-  const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
   const [orderCount, setOrderCount] = useState(50);
   const [avgOrderSize, setAvgOrderSize] = useState(3);
 
@@ -225,13 +240,10 @@ export function TaroApp(_props: TaroAppProps) {
       }));
     }
 
-    // Auto-select the new duplicate (scroll view follows).
+    // Auto-select the new duplicate (scroll view follows). The duplicate
+    // starts with no simulation state of its own.
     setActiveWarehouseId(newId);
-    setSimulationResults(null);
-    setSimulationBlockState(null);
     setIsSimulating(false);
-    setActiveStrategy(null);
-    setExecutionPlanStrategy(null);
     setValidationContext(null);
     setValidationResult(null);
     setShowValidationModal(false);
@@ -274,11 +286,12 @@ export function TaroApp(_props: TaroAppProps) {
       }
     }
 
-    setSimulationResults(null);
-    setSimulationBlockState(null);
+    setSimByWarehouse(prev => {
+      const next = { ...prev };
+      delete next[warehouseId];
+      return next;
+    });
     setIsSimulating(false);
-    setActiveStrategy(null);
-    setExecutionPlanStrategy(null);
     setValidationContext(null);
     setValidationResult(null);
     setShowValidationModal(false);
@@ -315,11 +328,10 @@ export function TaroApp(_props: TaroAppProps) {
         ww.id === activeId ? { ...ww, warehouse: newWh } : ww,
       );
     });
-    setSimulationResults(null);
-    setSimulationBlockState(null);
+    // Edits invalidate this warehouse's simulation — clear only its own state.
+    const editingId = activeWarehouseIdRef.current;
+    if (editingId) setSimByWarehouse(prev => ({ ...prev, [editingId]: EMPTY_SIM }));
     setIsSimulating(false);
-    setActiveStrategy(null);
-    setExecutionPlanStrategy(null);
     setValidationContext(null);
     setValidationResult(null);
     setShowValidationModal(false);
@@ -344,11 +356,9 @@ export function TaroApp(_props: TaroAppProps) {
         ww.id === whId ? { ...ww, warehouse: newWh } : ww,
       ),
     );
-    setSimulationResults(null);
-    setSimulationBlockState(null);
+    // Edits invalidate this warehouse's simulation — clear only its own state.
+    setSimByWarehouse(prev => ({ ...prev, [whId]: EMPTY_SIM }));
     setIsSimulating(false);
-    setActiveStrategy(null);
-    setExecutionPlanStrategy(null);
     setValidationContext(null);
     setValidationResult(null);
     setShowValidationModal(false);
@@ -421,25 +431,33 @@ export function TaroApp(_props: TaroAppProps) {
   );
   const canSimulate = readiness.isReady;
 
+  // The active warehouse's OWN simulation state — never another warehouse's.
+  const activeSim = activeWarehouseId
+    ? simByWarehouse[activeWarehouseId] ?? EMPTY_SIM
+    : EMPTY_SIM;
+
   const activeRoute = useMemo((): StrategyResult | null => {
-    if (!simulationResults || !activeStrategy) return null;
-    return simulationResults.strategies.find(s => s.strategy === activeStrategy) || null;
-  }, [simulationResults, activeStrategy]);
+    if (!activeSim.results || !activeSim.activeStrategy) return null;
+    return activeSim.results.strategies.find(s => s.strategy === activeSim.activeStrategy) || null;
+  }, [activeSim]);
 
   const executionPlan = useMemo((): StrategyResult | null => {
-    if (!executionPlanStrategy || !simulationResults) return null;
-    return simulationResults.strategies.find(s => s.strategy === executionPlanStrategy) ?? null;
-  }, [executionPlanStrategy, simulationResults]);
+    if (!activeSim.executionPlanStrategy || !activeSim.results) return null;
+    return activeSim.results.strategies.find(s => s.strategy === activeSim.executionPlanStrategy) ?? null;
+  }, [activeSim]);
 
   const [animationReplayId, setAnimationReplayId] = useState(0);
 
-  const startStrategyAnimation = useCallback((strategy: StrategyType) => {
+  const startStrategyAnimation = useCallback((warehouseId: string, strategy: StrategyType) => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
 
-    setActiveStrategy(strategy);
+    setSimByWarehouse(prev => ({
+      ...prev,
+      [warehouseId]: { ...(prev[warehouseId] ?? EMPTY_SIM), activeStrategy: strategy },
+    }));
     setAnimationProgress(0);
     animationProgressRef.current = 0;
     animationProgressLastRenderedRef.current = 0;
@@ -485,15 +503,16 @@ export function TaroApp(_props: TaroAppProps) {
       if (!warehouse || !warehouse.workerStart || orders.length === 0) {
         return;
       }
+      // The simulation belongs to the warehouse that was active when clicked —
+      // results land in its own state even if the user scrolls away mid-run.
+      const targetId = activeWarehouseIdRef.current;
+      if (!targetId) return;
 
-      setSimulationResults(null);
-      setSimulationBlockState(null);
+      setSimByWarehouse(prev => ({ ...prev, [targetId]: EMPTY_SIM }));
       setIsSimulating(true);
-      setActiveStrategy(null);
       animationProgressRef.current = 0;
       animationProgressLastRenderedRef.current = 0;
       setAnimationProgress(0);
-      setExecutionPlanStrategy(null);
       setHighlightedMissingSkuIds(null);
       setValidationContext(null);
       setValidationResult(null);
@@ -508,21 +527,35 @@ export function TaroApp(_props: TaroAppProps) {
             laborProfile,
           });
 
-          setSimulationResults(results);
+          setSimByWarehouse(prev => ({
+            ...prev,
+            [targetId]: {
+              results,
+              activeStrategy: results.bestStrategy,
+              executionPlanStrategy: null,
+              blockState: null,
+            },
+          }));
           setIsSimulating(false);
           setValidationContext(null);
           setValidationResult(null);
-          startStrategyAnimation(results.bestStrategy);
+          startStrategyAnimation(targetId, results.bestStrategy);
         } catch (error) {
           console.error('Simulation failed:', error);
           setIsSimulating(false);
 
           if (error instanceof UnreachableLocationError) {
-            setSimulationBlockState({
-              simulationState: 'UNREACHABLE_LOCATIONS',
-              title: 'Unreachable Locations',
-              description: 'The warehouse layout blocks workers from reaching some pick locations. Please check the layout; workers might not be able to go through.',
-            });
+            setSimByWarehouse(prev => ({
+              ...prev,
+              [targetId]: {
+                ...(prev[targetId] ?? EMPTY_SIM),
+                blockState: {
+                  simulationState: 'UNREACHABLE_LOCATIONS',
+                  title: 'Unreachable Locations',
+                  description: 'The warehouse layout blocks workers from reaching some pick locations. Please check the layout; workers might not be able to go through.',
+                },
+              },
+            }));
           }
         }
       });
@@ -534,15 +567,11 @@ export function TaroApp(_props: TaroAppProps) {
     if (window.confirm('Are you sure you want to clear the entire warehouse layout and all orders? This cannot be undone.')) {
       updateActiveWarehouse(createEmptyWarehouse(30, 24));
       setOrders([]);
-      setSimulationResults(null);
       setIsSimulating(false);
-      setActiveStrategy(null);
-      setExecutionPlanStrategy(null);
       setValidationContext(null);
       setValidationResult(null);
       setShowValidationModal(false);
       setHighlightedMissingSkuIds(null);
-      setSimulationBlockState(null);
       resetAnimationState();
     }
   }, [updateActiveWarehouse, resetAnimationState]);
@@ -580,17 +609,15 @@ export function TaroApp(_props: TaroAppProps) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
       }
-      setSimulationResults(null);
-      setActiveStrategy(null);
+      const id = activeWarehouseIdRef.current;
+      if (id) setSimByWarehouse(prev => ({ ...prev, [id]: EMPTY_SIM }));
       animationProgressRef.current = 0;
       animationProgressLastRenderedRef.current = 0;
       setAnimationProgress(0);
-      setExecutionPlanStrategy(null);
       setIsSimulating(false);
       return;
     }
 
-    setSimulationBlockState(null);
     runSimulationFlow();
   }, [warehouse, orders, zVisualizationMode, runSimulationFlow]);
 
@@ -604,7 +631,8 @@ export function TaroApp(_props: TaroAppProps) {
   }, [validationContext]);
 
   const handleStrategySelect = useCallback((strategy: StrategyType) => {
-    startStrategyAnimation(strategy);
+    const id = activeWarehouseIdRef.current;
+    if (id) startStrategyAnimation(id, strategy);
   }, [startStrategyAnimation]);
 
   const handleImport = useCallback(() => {
@@ -624,12 +652,10 @@ export function TaroApp(_props: TaroAppProps) {
       const corrected = reconcile(importedWarehouse, []);
       updateActiveWarehouse(corrected.warehouse);
       setOrders([]);
-      setExecutionPlanStrategy(null);
       setValidationContext(null);
       setValidationResult(null);
       setShowValidationModal(false);
       setHighlightedMissingSkuIds(null);
-      setSimulationBlockState(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to parse CSV.';
       alert(`CSV import failed: ${message}`);
@@ -802,17 +828,17 @@ export function TaroApp(_props: TaroAppProps) {
             avgOrderSize={avgOrderSize}
             onOrderCountChange={setOrderCount}
             onAvgOrderSizeChange={setAvgOrderSize}
-            simulationResults={simulationResults}
+            simulationResults={activeSim.results}
             readiness={readiness}
             isSimulating={isSimulating}
-            activeStrategy={activeStrategy}
+            activeStrategy={activeSim.activeStrategy}
             onStrategySelect={handleStrategySelect}
             animationProgress={animationProgress}
             workerCount={workerCount}
             onWorkerCountChange={setWorkerCount}
             executionPlan={executionPlan}
             validationContext={validationContext}
-            blockState={simulationBlockState}
+            blockState={activeSim.blockState}
             onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
             onSimulate={handleSimulateClick}
             onZVisualizationChange={setZVisualizationMode}
@@ -909,21 +935,22 @@ export function TaroApp(_props: TaroAppProps) {
               }
 
               const totalBinsWanted = config.inventory.reduce((sum, i) => sum + (i.storageFootprint ?? 1), 0);
-              if (result.unplacedSkus.length > 0) {
-                setSimulationBlockState({
-                  simulationState: 'NO_VALID_ITEMS',
-                  title: `${result.unplacedSkus.length} SKU${result.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
-                  description: `The warehouse layout has only ${result.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${result.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${result.unplacedSkus.join(', ')}.`,
-                });
-              } else {
-                setSimulationBlockState(null);
-              }
+              setSimByWarehouse(prev => ({
+                ...prev,
+                [warehouseId]: {
+                  ...EMPTY_SIM,
+                  blockState: result.unplacedSkus.length > 0
+                    ? {
+                        simulationState: 'NO_VALID_ITEMS',
+                        title: `${result.unplacedSkus.length} SKU${result.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
+                        description: `The warehouse layout has only ${result.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${result.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${result.unplacedSkus.join(', ')}.`,
+                      }
+                    : null,
+                },
+              }));
 
-              setSimulationResults(null);
               setIsSimulating(false);
-              setActiveStrategy(null);
               setAnimationProgress(0);
-              setExecutionPlanStrategy(null);
               setValidationContext(null);
               setValidationResult(null);
               setShowValidationModal(false);
@@ -1030,21 +1057,22 @@ export function TaroApp(_props: TaroAppProps) {
               }
 
               const totalBinsWanted = config.inventory.reduce((sum, i) => sum + (i.storageFootprint ?? 1), 0);
-              if (result.unplacedSkus.length > 0) {
-                setSimulationBlockState({
-                  simulationState: 'NO_VALID_ITEMS',
-                  title: `${result.unplacedSkus.length} SKU${result.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
-                  description: `The warehouse layout has only ${result.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${result.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${result.unplacedSkus.join(', ')}.`,
-                });
-              } else {
-                setSimulationBlockState(null);
-              }
+              setSimByWarehouse(prev => ({
+                ...prev,
+                [newId]: {
+                  ...EMPTY_SIM,
+                  blockState: result.unplacedSkus.length > 0
+                    ? {
+                        simulationState: 'NO_VALID_ITEMS',
+                        title: `${result.unplacedSkus.length} SKU${result.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
+                        description: `The warehouse layout has only ${result.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${result.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${result.unplacedSkus.join(', ')}.`,
+                      }
+                    : null,
+                },
+              }));
 
-              setSimulationResults(null);
               setIsSimulating(false);
-              setActiveStrategy(null);
               setAnimationProgress(0);
-              setExecutionPlanStrategy(null);
               setValidationContext(null);
               setValidationResult(null);
               setShowValidationModal(false);
