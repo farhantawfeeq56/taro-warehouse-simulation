@@ -39,8 +39,6 @@ const FIT_PADDING = 24;
  * ballooning absurdly large inside a huge viewport.
  */
 const MAX_UPSCALE = 1.5;
-/** Height (px) of each page's title/actions header. */
-const HEADER_H = 40;
 /** How far a section must be inside the viewport before we call it "visible". */
 const VISIBILITY_MARGIN = 40;
 
@@ -138,11 +136,14 @@ function PageHeader({
   }, [renaming, draft]);
 
   return (
-    <header
+    <div
       className={cn(
-        'h-10 shrink-0 flex items-center gap-2 px-3 border-b transition-colors',
-        isActive ? 'bg-surface' : 'bg-muted/30',
+        'absolute top-2 left-2 right-2 z-10 flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors pointer-events-none',
+        isActive
+          ? 'bg-surface/90 backdrop-blur-sm border-border shadow-sm'
+          : 'bg-muted/40 border-transparent',
       )}
+      onClick={(e) => e.stopPropagation()}
     >
       <span
         className={cn(
@@ -156,7 +157,7 @@ function PageHeader({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => onCommitRename(draft.trim() || name)}
-          className="h-6 w-40 rounded border border-border bg-background px-2 text-xs font-medium outline-none focus:border-primary"
+          className="h-6 w-40 rounded border border-border bg-background px-2 text-xs font-medium outline-none focus:border-primary pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
@@ -174,10 +175,7 @@ function PageHeader({
       <div className="flex-1" />
 
       {isActive && (
-        <div
-          className="flex items-center gap-0.5"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="flex items-center gap-0.5 pointer-events-auto">
           <ActionButton onClick={onAdd} title="Add a new warehouse" label="Add" icon={Plus} />
           <ActionButton onClick={onDuplicate} title="Duplicate this warehouse" label="Duplicate" icon={Copy} />
           {renaming ? (
@@ -199,7 +197,7 @@ function PageHeader({
           )}
         </div>
       )}
-    </header>
+    </div>
   );
 }
 
@@ -299,7 +297,7 @@ export function MultiWarehouseScroll({
         const logicalH = warehouse.height * CELL_SIZE;
 
         const availW = Math.max(size.w - FIT_PADDING * 2, 1);
-        const availH = Math.max(size.h - HEADER_H - FIT_PADDING * 2, 1);
+        const availH = Math.max(size.h - FIT_PADDING * 2, 1);
         const fitScale =
           size.w > 0 && size.h > 0
             ? Math.min(Math.min(availW / logicalW, availH / logicalH), MAX_UPSCALE)
@@ -317,21 +315,6 @@ export function MultiWarehouseScroll({
               !isActive && 'opacity-90 transition-opacity',
             )}
           >
-            <PageHeader
-              name={entry.name}
-              isActive={isActive}
-              renaming={renamingId === entry.id}
-              onStartRename={() => setRenamingId(entry.id)}
-              onCommitRename={(name) => {
-                onRenameWarehouse(entry.id, name);
-                setRenamingId(null);
-              }}
-              onCancelRename={() => setRenamingId(null)}
-              onAdd={onAddWarehouse}
-              onDuplicate={() => onDuplicateWarehouse(entry.id)}
-              onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
-            />
-
             {/* Fit-to-page body: scale the warehouse to fit, centre it both ways. */}
             <div className="relative flex-1 min-h-0 overflow-hidden">
               <div className="absolute inset-0 flex items-center justify-center">
@@ -343,7 +326,22 @@ export function MultiWarehouseScroll({
                     transform: `scale(${fitScale})`,
                   }}
                 >
-                <div className="relative" style={{ width: logicalW, height: logicalH }}>
+                  {/* Name + actions overlay — floats on the warehouse itself. */}
+                  <PageHeader
+                    name={entry.name}
+                    isActive={isActive}
+                    renaming={renamingId === entry.id}
+                    onStartRename={() => setRenamingId(entry.id)}
+                    onCommitRename={(name) => {
+                      onRenameWarehouse(entry.id, name);
+                      setRenamingId(null);
+                    }}
+                    onCancelRename={() => setRenamingId(null)}
+                    onAdd={onAddWarehouse}
+                    onDuplicate={() => onDuplicateWarehouse(entry.id)}
+                    onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
+                  />
+                  <div className="relative" style={{ width: logicalW, height: logicalH }}>
                     <WarehouseSvgRenderer
                       warehouseId={entry.id}
                       warehouse={warehouse}
