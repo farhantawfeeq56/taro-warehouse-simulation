@@ -19,6 +19,11 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { ArrowLeft, GitCompareArrows, Loader2, Play, X } from 'lucide-react';
+import { ExperimentRecommendationCard } from './experiment-recommendation-card';
+import {
+  toWarehouseInsight,
+  type ExperimentRecommendation,
+} from '@/lib/taro/experiment-recommendation';
 import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine';
 import { reconcile } from '@/lib/taro/corrector';
 import type {
@@ -47,6 +52,14 @@ interface CompareViewProps {
   laborProfile: LaborProfile;
   /** Called when the user leaves the compare page. */
   onExit: () => void;
+  /**
+   * Generates a new experiment warehouse (via the existing session pipeline)
+   * and adds it to the workspace. Resolves when the warehouse is committed.
+   */
+  onGenerateExperiment: (
+    constraintsRaw: string,
+    recommendation: ExperimentRecommendation,
+  ) => Promise<void>;
 }
 
 /** Strategy label + short description for the table rows. */
@@ -105,6 +118,7 @@ export function CompareView({
   warehouseProfile,
   laborProfile,
   onExit,
+  onGenerateExperiment,
 }: CompareViewProps) {
   const baseEntry = useMemo(
     () => warehouses.find((w) => w.id === baseWarehouseId) ?? null,
@@ -175,6 +189,24 @@ export function CompareView({
   }, [baseEntry, selectedIds, warehouses, ordersByWarehouse, workerCount, warehouseProfile, laborProfile]);
 
   const allSelected = others.length > 0 && selectedIds.length === others.length;
+
+  // ── AI experiment insights ─────────────────────────────────────────────
+  // Reduce every warehouse's results + config into the flat shape the
+  // heuristic engine consumes. Recomputed whenever a run lands.
+  const insights = useMemo(() => {
+    return Object.values(resultsByWarehouse)
+      .map((whRes) => {
+        const entry = warehouses.find((w) => w.id === whRes.id);
+        if (!entry) return null;
+        return toWarehouseInsight(
+          entry.id,
+          entry.name,
+          entry.configuration ?? null,
+          whRes.results,
+        );
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+  }, [resultsByWarehouse, warehouses]);
 
   // ── Table assembly ──────────────────────────────────────────────────────
   // Each row is a single metric for a single strategy. Columns are warehouses
@@ -492,6 +524,14 @@ export function CompareView({
                 </table>
               </div>
             </section>
+          )}
+          {/* AI experiment suggestion — the mock-AI block. */}
+          {table && table.hasResults && (
+            <ExperimentRecommendationCard
+              insights={insights}
+              isRunning={isRunning}
+              onGenerate={onGenerateExperiment}
+            />
           )}
         </div>
       </div>
