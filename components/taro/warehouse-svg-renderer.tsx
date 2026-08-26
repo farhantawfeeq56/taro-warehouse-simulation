@@ -105,7 +105,7 @@ function WarehouseSvgRendererInner({
     updateRect();
     window.addEventListener('resize', updateRect);
     return () => window.removeEventListener('resize', updateRect);
-  }, []);
+  }, [zoom]);
 
   const getCellFromMouse = useCallback((e: React.MouseEvent) => {
     // The warehouse canvas applies a CSS scale transform to this subtree;
@@ -214,8 +214,13 @@ function WarehouseSvgRendererInner({
         }
         const container = containerRef.current;
         const cRect = container?.getBoundingClientRect();
-        const tipX = cRect ? e.clientX - cRect.left : e.clientX;
-        const tipY = cRect ? e.clientY - cRect.top - 10 : e.clientY - 10;
+        // The container is CSS-transformed (scaled) by the canvas to fit;
+        // getBoundingClientRect gives screen-space px, so divide by zoom to
+        // recover local CSS px for positioning the tooltip inside the
+        // (unscaled in layout) container.
+        const rfZoom = zoom || 1;
+        const tipX = cRect ? (e.clientX - cRect.left) / rfZoom : e.clientX / rfZoom;
+        const tipY = cRect ? (e.clientY - cRect.top - 10) / rfZoom : (e.clientY - 10) / rfZoom;
         setTooltip({ visible: true, x: tipX, y: tipY, cellX: cell.x, cellY: cell.y, locations: filteredLocations });
       } else {
         setTooltip(prev => ({ ...prev, visible: false }));
