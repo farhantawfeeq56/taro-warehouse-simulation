@@ -166,13 +166,13 @@ export function SimulationPanel({
                   <Slider
                     value={[orderCount]}
                     onValueChange={([value]) => onOrderCountChange(value)}
-                    min={100}
-                    max={2000}
-                    step={100}
+                    min={25}
+                    max={100}
+                    step={25}
                   />
                   <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>25</span>
                     <span>100</span>
-                    <span>2,000</span>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -184,12 +184,12 @@ export function SimulationPanel({
                     value={[avgOrderSize]}
                     onValueChange={([value]) => onAvgOrderSizeChange(value)}
                     min={1}
-                    max={20}
+                    max={10}
                     step={1}
                   />
                   <div className="flex justify-between text-[10px] text-muted-foreground">
                     <span>1</span>
-                    <span>20</span>
+                    <span>10</span>
                   </div>
                 </div>
                 {/* Generate — lives inside the settings popover, applies then closes */}
