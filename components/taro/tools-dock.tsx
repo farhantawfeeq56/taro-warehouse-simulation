@@ -13,6 +13,7 @@
  */
 
 import { cn } from '@/lib/utils';
+import { PressDepth } from '@/components/interior/press-depth';
 import type { ToolType } from '@/lib/taro/types';
 import { MousePointer, Grid3X3, User, Eraser } from 'lucide-react';
 
@@ -39,20 +40,21 @@ export function ToolsDock({ selectedTool, onToolChange }: ToolsDockProps) {
   return (
     <div className="flex flex-col items-center gap-1 px-1.5 py-1.5 bg-background/95 backdrop-blur-sm border border-border rounded-xl shadow-lg">
       {tools.map(({ type, label, icon: Icon }) => (
-        <button
+        <PressDepth
           key={type}
+          depth={2}
+          tilt={0}
           onClick={() => onToolChange(type)}
-          title={label}
+          aria-label={label}
           className={cn(
-            'h-8 w-8 rounded-lg transition-all flex items-center justify-center',
+            'h-8 w-8 !rounded-lg transition-all flex items-center justify-center',
             selectedTool === type
               ? `${toolColors[type].textClass} shadow-sm`
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80'
+              : 'bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground'
           )}
-          style={selectedTool === type ? { backgroundColor: toolColors[type].bg } : undefined}
         >
-          <Icon className="h-4 w-4" />
-        </button>
+          <Icon className={cn('h-4 w-4', selectedTool === type ? toolColors[type].textClass : '')} />
+        </PressDepth>
       ))}
     </div>
   );

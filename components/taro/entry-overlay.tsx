@@ -2,6 +2,7 @@
 
 import { Wand2, Upload, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PressDepth } from '@/components/interior/press-depth';
 
 interface EntryOverlayProps {
   onTryDemo: () => void;
@@ -30,36 +31,37 @@ export function EntryOverlay({ onTryDemo, onImport, onBuildManually, onDownloadT
       <div className="space-y-3">
 
         {/* PRIMARY */}
-        <Button
+        <PressDepth
+          depth={2}
+          tilt={4}
           onClick={onImport}
-          size="lg"
-          className="w-full h-14 text-base justify-start gap-3"
+          className="w-full h-14 text-base justify-start gap-3 bg-primary text-primary-foreground border-transparent"
         >
           <Upload className="h-5 w-5" />
           <span>Import your warehouse</span>
-        </Button>
+        </PressDepth>
 
         {/* SECONDARY */}
-        <Button
+        <PressDepth
+          depth={2}
+          tilt={4}
           onClick={onBuildManually}
-          variant="secondary"
-          size="lg"
-          className="w-full h-14 text-base justify-start gap-3"
+          className="w-full h-14 text-base justify-start gap-3 bg-muted text-foreground border-border-default"
         >
           <Pencil className="h-5 w-5" />
           <span>Create manually</span>
-        </Button>
+        </PressDepth>
 
         {/* TERTIARY */}
-        <Button
+        <PressDepth
+          depth={2}
+          tilt={4}
           onClick={onTryDemo}
-          variant="ghost"
-          size="lg"
-          className="w-full h-14 text-base justify-start gap-3"
+          className="w-full h-14 text-base justify-start gap-3 bg-transparent text-foreground border-transparent"
         >
           <Wand2 className="h-5 w-5" />
           <span>Explore sample warehouse</span>
-        </Button>
+        </PressDepth>
 
       </div>
 

@@ -29,9 +29,11 @@ import type { SimulationReadiness } from '@/lib/taro/readiness';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { ValueFlash } from '@/components/interior/value-flash';
+import { LoadingButton } from '@/components/interior/loading-button';
+import { ProgressBar } from '@/components/interior/progress-bar';
 import {
   Activity,
   CheckCircle2,
@@ -42,7 +44,6 @@ import {
   BarChart3,
   Loader2,
   RotateCcw,
-  Shuffle,
   SlidersHorizontal,
 } from 'lucide-react';
 import {
@@ -193,47 +194,36 @@ export function SimulationPanel({
                   </div>
                 </div>
                 {/* Generate — lives inside the settings popover, applies then closes */}
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setSettingsOpen(false);
-                    onGenerateOrders();
-                  }}
+                <LoadingButton
+                  onAction={onGenerateOrders}
                   disabled={!warehouse || isGeneratingOrders}
-                  className="w-full h-8 text-xs"
-                  title="Generate orders with these settings"
+                  pendingLabel="Generating…"
+                  successLabel="Generated"
+                  className="w-full h-8 text-xs justify-center"
                 >
-                  {isGeneratingOrders ? (
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  ) : (
-                    <Shuffle className="h-3 w-3 mr-1" />
-                  )}
-                  {isGeneratingOrders ? 'Generating…' : 'Generate Orders'}
-                </Button>
+                  Generate Orders
+                </LoadingButton>
               </div>
             </PopoverContent>
           </Popover>
-          <Button
-            size="sm"
-            onClick={onSimulate}
+          <LoadingButton
+            onAction={onSimulate ?? (() => {})}
             disabled={!readiness?.isReady || isSimulating || orders.length === 0}
-            className="flex-1 h-8 text-xs"
-            title="Run simulation"
+            pendingLabel="Simulating…"
+            successLabel="Done"
+            className="flex-1 h-8 text-xs justify-center"
           >
-            {isSimulating ? (
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            ) : (
-              <PlayCircle className="h-3 w-3 mr-1" />
-            )}
-            {isSimulating ? 'Simulating…' : 'Simulate'}
-          </Button>
+            Simulate
+          </LoadingButton>
         </div>
 
         {/* Workers — moved here from the individual warehouse nodes */}
         <div className="space-y-1 pt-2 mt-2 border-t border-border">
           <div className="flex items-center justify-between">
             <label className="text-xs text-muted-foreground">Workers</label>
-            <span className="text-xs font-medium text-foreground font-sans">{workerCount}</span>
+            <span className="text-xs font-medium text-foreground font-sans">
+              <ValueFlash value={workerCount} label="Workers" />
+            </span>
           </div>
           <Slider
             value={[workerCount]}
@@ -294,7 +284,15 @@ export function SimulationPanel({
                 <span className="text-muted-foreground">Readiness Progress</span>
                 <span className="text-foreground">{readiness?.completedSteps} / {readiness?.totalSteps}</span>
               </div>
-              <Progress value={readiness ? (readiness.completedSteps / readiness.totalSteps) * 100 : 0} className="h-2" />
+              <ProgressBar
+                value={
+                  readiness
+                    ? (readiness.completedSteps / readiness.totalSteps) * 100
+                    : 0
+                }
+                label="Readiness"
+                pendingLabel="Loading"
+              />
             </div>
 
             {/* Checklist */}
