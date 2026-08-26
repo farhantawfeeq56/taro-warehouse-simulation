@@ -210,6 +210,11 @@ function simulateSingleStrategy(
         // duplication with the previous segment's last vertex).
         fullRoute.push(...pathSegment.slice(1));
 
+        // Append the shelf cell itself so the route line visibly meets the
+        // shelf where the worker picks. (findPath only returns walkable
+        // cells, so it stops in the aisle in front of the shelf.)
+        fullRoute.push({ x: target.x, y: target.y });
+
         // Record the pick event
         allPicks.push({
           locationKey: target.locationKey,
@@ -447,6 +452,11 @@ function simulateBatchStrategy(
         // Append to the full route (skip the first vertex to avoid
         // duplication with the previous segment's last vertex).
         fullRoute.push(...pathSegment.slice(1));
+
+        // Append the shelf cell itself so the route line visibly meets the
+        // shelf where the worker picks. (findPath only returns walkable
+        // cells, so it stops in the aisle in front of the shelf.)
+        fullRoute.push({ x: target.x, y: target.y });
 
         // Record the pick event
         allPicks.push({
@@ -777,6 +787,11 @@ function simulateZoneStrategy(
 
       // Append to the full route (skip first vertex to avoid duplication)
       fullRoute.push(...pathSegment.slice(1));
+
+      // Append the shelf cell itself so the route line visibly meets the
+      // shelf where the worker picks. (findPath only returns walkable
+      // cells, so it stops in the aisle in front of the shelf.)
+      fullRoute.push({ x: target.x, y: target.y });
 
       // Record the pick event
       allPicks.push({
