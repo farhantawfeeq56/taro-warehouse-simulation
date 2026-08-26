@@ -210,10 +210,11 @@ function simulateSingleStrategy(
         // duplication with the previous segment's last vertex).
         fullRoute.push(...pathSegment.slice(1));
 
-        // Append the shelf cell itself so the route line visibly meets the
-        // shelf where the worker picks. (findPath only returns walkable
-        // cells, so it stops in the aisle in front of the shelf.)
+        // Spur into the shelf and back out to the same aisle cell so the
+        // line meets the shelf cleanly and the next departure is orthogonal.
+        const aislePoint = pathSegment[pathSegment.length - 1];
         fullRoute.push({ x: target.x, y: target.y });
+        fullRoute.push(aislePoint);
 
         // Record the pick event
         allPicks.push({
@@ -232,7 +233,7 @@ function simulateSingleStrategy(
           sku: target.sku,
         });
 
-        currentPos = { x: target.x, y: target.y };
+        currentPos = aislePoint;
         picksMadeInOrder++;
       }
 
@@ -453,10 +454,11 @@ function simulateBatchStrategy(
         // duplication with the previous segment's last vertex).
         fullRoute.push(...pathSegment.slice(1));
 
-        // Append the shelf cell itself so the route line visibly meets the
-        // shelf where the worker picks. (findPath only returns walkable
-        // cells, so it stops in the aisle in front of the shelf.)
+        // Spur into the shelf and back out to the same aisle cell so the
+        // line meets the shelf cleanly and the next departure is orthogonal.
+        const aislePoint = pathSegment[pathSegment.length - 1];
         fullRoute.push({ x: target.x, y: target.y });
+        fullRoute.push(aislePoint);
 
         // Record the pick event
         allPicks.push({
@@ -480,7 +482,7 @@ function simulateBatchStrategy(
           reachableOrderIds.add(oid);
         }
 
-        currentPos = { x: target.x, y: target.y };
+        currentPos = aislePoint;
       }
 
       // Count completed / skipped orders for this batch:
@@ -788,10 +790,11 @@ function simulateZoneStrategy(
       // Append to the full route (skip first vertex to avoid duplication)
       fullRoute.push(...pathSegment.slice(1));
 
-      // Append the shelf cell itself so the route line visibly meets the
-      // shelf where the worker picks. (findPath only returns walkable
-      // cells, so it stops in the aisle in front of the shelf.)
+      // Spur into the shelf and back out to the same aisle cell so the
+      // line meets the shelf cleanly and the next departure is orthogonal.
+      const aislePoint = pathSegment[pathSegment.length - 1];
       fullRoute.push({ x: target.x, y: target.y });
+      fullRoute.push(aislePoint);
 
       // Record the pick event
       allPicks.push({
@@ -815,7 +818,7 @@ function simulateZoneStrategy(
         });
       }
 
-      currentPos = { x: target.x, y: target.y };
+      currentPos = aislePoint;
     }
 
     // ── 6. Return to worker start ──────────────────────────────────────

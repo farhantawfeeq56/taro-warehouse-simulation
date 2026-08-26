@@ -299,4 +299,31 @@ describe('simulation', () => {
     expect(results.validationContext).toBeDefined();
     expect(results.validationContext?.missingItems).toBe(1);
   });
+
+  it('emits only 4-directional (non-diagonal) steps in every route', () => {
+    const warehouse = buildWarehouse(12, 8, [
+      [2, 2, [bin(2, 2, 1, 'SKU_A')]],
+      [8, 2, [bin(8, 2, 1, 'SKU_B')]],
+      [3, 6, [bin(3, 6, 1, 'SKU_C')]],
+      [9, 6, [bin(9, 6, 1, 'SKU_D')]],
+    ]);
+    const orders: Order[] = [
+      { id: 'o1', items: [{ skuId: 'SKU_A' }, { skuId: 'SKU_B' }], assignedWorkerId: null },
+      { id: 'o2', items: [{ skuId: 'SKU_C' }, { skuId: 'SKU_D' }], assignedWorkerId: null },
+    ];
+
+    const results = runSimulation(warehouse, orders, 2);
+    for (const strategy of results.strategies) {
+      for (const wr of strategy.workerRoutes) {
+        for (let i = 1; i < wr.route.length; i++) {
+          const dx = Math.abs(wr.route[i].x - wr.route[i - 1].x);
+          const dy = Math.abs(wr.route[i].y - wr.route[i - 1].y);
+          expect(
+            dx + dy === 1,
+            `strategy ${strategy.strategy} worker ${wr.workerId} has diagonal step at index ${i}: ${JSON.stringify(wr.route[i - 1])} -> ${JSON.stringify(wr.route[i])}`
+          ).toBe(true);
+        }
+      }
+    }
+  });
 });
