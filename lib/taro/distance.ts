@@ -3,20 +3,19 @@ export interface Point2D {
   y: number;
 }
 
-export const SQRT2 = Math.sqrt(2);
+// 4-directional (Manhattan) distance helpers.
+// All legal moves are orthogonal, so every step costs exactly 1.
 
+/** Manhattan distance — admissible heuristic for 4-directional A*. */
 export function calculateOctileDistance(a: Point2D, b: Point2D): number {
   const dx = Math.abs(a.x - b.x);
   const dy = Math.abs(a.y - b.y);
-  return Math.max(dx, dy) + (SQRT2 - 1) * Math.min(dx, dy);
+  return dx + dy;
 }
 
+/** Cost of a single grid step. Always 1 for orthogonal movement. */
 export function calculateStepEdgeCost(a: Point2D, b: Point2D): number {
   const dx = Math.abs(a.x - b.x);
   const dy = Math.abs(a.y - b.y);
-
-  if (dx === 1 && dy === 1) return SQRT2;
-  if (dx + dy === 1) return 1;
-
-  return calculateOctileDistance(a, b);
+  return dx + dy;
 }

@@ -2,7 +2,7 @@
 
 import type { Warehouse, Neighbor, NeighborGraph } from './types';
 import { PriorityQueue } from './priority-queue';
-import { calculateOctileDistance, calculateStepEdgeCost, SQRT2 } from './distance';
+import { calculateOctileDistance, calculateStepEdgeCost } from './distance';
 
 interface OpenNode {
   x: number;
@@ -14,18 +14,15 @@ interface NeighborGraphCacheEntry {
   graph: NeighborGraph;
 }
 
+// 4-directional movement: only orthogonal (N/S/E/W) offsets. Diagonals are
+// intentionally excluded, so paths are composed of straight axis-aligned
+// steps. This also yields a smaller neighbor graph (≤4 edges/cell), which is
+// computationally cheaper to search than 8-directional.
 const ORTHOGONAL_OFFSETS = [
   { dx: 0, dy: -1 },
   { dx: 0, dy: 1 },
   { dx: -1, dy: 0 },
   { dx: 1, dy: 0 },
-] as const;
-
-const DIAGONAL_OFFSETS = [
-  { dx: -1, dy: -1 },
-  { dx: 1, dy: -1 },
-  { dx: -1, dy: 1 },
-  { dx: 1, dy: 1 },
 ] as const;
 
 const neighborGraphCache = new WeakMap<Warehouse, NeighborGraphCacheEntry>();
@@ -74,20 +71,6 @@ function buildNeighborGraph(warehouse: Warehouse): NeighborGraph {
 
         if (isWalkable(warehouse, nx, ny)) {
           list.push({ x: nx, y: ny, edgeCost: 1 });
-        }
-      }
-
-      for (const offset of DIAGONAL_OFFSETS) {
-        const nx = x + offset.dx;
-        const ny = y + offset.dy;
-
-        if (!isWalkable(warehouse, nx, ny)) continue;
-
-        const adjacentHorizontalWalkable = isWalkable(warehouse, x + offset.dx, y);
-        const adjacentVerticalWalkable = isWalkable(warehouse, x, y + offset.dy);
-
-        if (adjacentHorizontalWalkable && adjacentVerticalWalkable) {
-          list.push({ x: nx, y: ny, edgeCost: SQRT2 });
         }
       }
 
