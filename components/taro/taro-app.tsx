@@ -17,6 +17,7 @@ import type {
   WorkspaceWarehouse,
 } from '@/lib/taro/types';
 import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine';
+import { Plus } from 'lucide-react';
 import {
   generateRandomOrders,
   createEmptyWarehouse,
@@ -24,9 +25,8 @@ import {
 } from '@/lib/taro/demo-generator';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
-import { WarehouseCanvas } from './warehouse-canvas';
+import { MultiWarehouseScroll } from './multi-warehouse-scroll';
 import { RightSidebar } from './right-sidebar';
-import { ToolsDock } from './tools-dock';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
@@ -86,9 +86,28 @@ export function TaroApp(_props: TaroAppProps) {
   const activeProjectIdRef = useRef(activeProjectId);
   activeProjectIdRef.current = activeProjectId;
 
+  // ── Per-warehouse orders ────────────────────────────────────────────────
+  // Each warehouse owns its own generated order set. The active warehouse's
+  // orders are mirrored into `orders` below (single source of truth for all
+  // the existing panels), and the map keeps every warehouse independent so
+  // switching warehouses restores its own orders.
+  const [ordersByWarehouse, setOrdersByWarehouse] = useState<Record<string, Order[]>>({});
   const [orders, setOrders] = useState<Order[]>([]);
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
+  const ordersByWarehouseRef = useRef(ordersByWarehouse);
+  ordersByWarehouseRef.current = ordersByWarehouse;
+
+  // Keep `orders` in sync with the active warehouse's own order set.
+  useEffect(() => {
+    if (!activeWarehouseId) return;
+    const map = ordersByWarehouseRef.current;
+    if (activeWarehouseId in map) {
+      setOrders(map[activeWarehouseId]);
+    } else if (Object.keys(map).length > 0) {
+      setOrders([]);
+    }
+  }, [activeWarehouseId]);
 
   const [isLoading, setIsLoading] = useState(true);
   // Warehouse generation — shown in LayoutConfigOverlay Apply button
@@ -119,6 +138,11 @@ export function TaroApp(_props: TaroAppProps) {
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showLayoutConfig, setShowLayoutConfig] = useState(false);
+  // When true, the LayoutConfigOverlay is in "add new warehouse" mode (the
+  // existing single overlay is the edit-existing mode). Two overlays must stay
+  // separate: edit-mode's onApply overwrites the active warehouse, whereas
+  // add-mode must APPEND a brand-new warehouse.
+  const [showNewWarehouseConfig, setShowNewWarehouseConfig] = useState(false);
   const [hasExistingWarehouse, setHasExistingWarehouse] = useState(false);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
@@ -131,6 +155,10 @@ export function TaroApp(_props: TaroAppProps) {
     setShowLayoutConfig(true);
   }, []);
 
+  // ── Workspace: Add ─────────────────────────────────────────────────────
+  // Adds a blank skeleton warehouse and opens the layout config overlay so
+  // the user immediately shapes it. The new warehouse becomes active (and the
+  // scroll view auto-scrolls to it).
   const resetAnimationState = useCallback(() => {
     setAnimationProgress(0);
     animationProgressRef.current = 0;
@@ -140,6 +168,116 @@ export function TaroApp(_props: TaroAppProps) {
       animationRef.current = null;
     }
   }, []);
+
+  const handleAddWarehouse = useCallback(() => {
+    // Don't append anything here — the new-warehouse overlay owns creation.
+    // Only open the overlay; onApply appends the brand-new warehouse.
+    setShowNewWarehouseConfig(true);
+  }, []);
+
+  // ── Workspace: Duplicate ───────────────────────────────────────────────
+  const handleDuplicateWarehouse = useCallback((sourceWarehouseId: string) => {
+    const source = workspaceWarehousesRef.current.find((w) => w.id === sourceWarehouseId);
+    if (!source) return;
+
+    // In-memory duplicate — deep copy the layout (grid is an array of cell
+    // objects; the corrector treats these as immutable, so a fresh array +
+    // fresh cell objects keep the copies fully independent).
+    const sourceWh = source.warehouse;
+    const newId = crypto.randomUUID();
+    const copy: Warehouse = {
+      ...sourceWh,
+      grid: sourceWh.grid.map((row) =>
+        row.map((cell) => ({ ...cell, locations: cell.locations.map((l) => ({ ...l })) })),
+      ),
+      shelves: sourceWh.shelves.map((s) => ({ ...s })),
+      locations: sourceWh.locations.map((l) => ({ ...l })),
+      workerStart: sourceWh.workerStart ? { ...sourceWh.workerStart } : null,
+    };
+    const base = source.name.replace(/ \(copy( \d+)?\)$/, '');
+    const existingCopies = workspaceWarehousesRef.current.filter((w) =>
+      w.name.startsWith(base + ' (copy'),
+    );
+    const newEntry: WorkspaceWarehouse = {
+      id: newId,
+      name:
+        existingCopies.length === 0
+          ? `${base} (copy)`
+          : `${base} (copy ${existingCopies.length + 1})`,
+      position: null,
+      warehouse: copy,
+      configuration: source.configuration,
+    };
+    setWorkspaceWarehouses((prev) => [...prev, newEntry]);
+
+    // The duplicate inherits the source's orders so it's immediately ready.
+    if (sourceWarehouseId in ordersByWarehouseRef.current) {
+      setOrdersByWarehouse((prev) => ({
+        ...prev,
+        [newId]: ordersByWarehouseRef.current[sourceWarehouseId],
+      }));
+    }
+
+    // Auto-select the new duplicate (scroll view follows).
+    setActiveWarehouseId(newId);
+    setSimulationResults(null);
+    setSimulationBlockState(null);
+    setIsSimulating(false);
+    setActiveStrategy(null);
+    setExecutionPlanStrategy(null);
+    setValidationContext(null);
+    setValidationResult(null);
+    setShowValidationModal(false);
+    setHighlightedMissingSkuIds(null);
+    resetAnimationState();
+  }, [resetAnimationState]);
+
+  // ── Workspace: Rename ──────────────────────────────────────────────────
+  const handleRenameWarehouse = useCallback((warehouseId: string, name: string) => {
+    setWorkspaceWarehouses((prev) =>
+      prev.map((ww) => (ww.id === warehouseId ? { ...ww, name } : ww)),
+    );
+  }, []);
+
+  // ── Workspace: Delete ──────────────────────────────────────────────────
+  const handleDeleteWarehouse = useCallback((warehouseId: string) => {
+    if (workspaceWarehousesRef.current.length <= 1) {
+      alert('Cannot delete the last warehouse. Create another warehouse first.');
+      return;
+    }
+
+    const removedIndex = workspaceWarehousesRef.current.findIndex((w) => w.id === warehouseId);
+    const isActive = activeWarehouseIdRef.current === warehouseId;
+
+    setWorkspaceWarehouses((prev) => prev.filter((w) => w.id !== warehouseId));
+    setOrdersByWarehouse((prev) => {
+      const next = { ...prev };
+      delete next[warehouseId];
+      return next;
+    });
+
+    if (isActive) {
+      const remaining = workspaceWarehousesRef.current.filter((w) => w.id !== warehouseId);
+      if (remaining.length > 0) {
+        // Pick the one at the same index, or the last one.
+        const nextIndex = Math.min(removedIndex, remaining.length - 1);
+        setActiveWarehouseId(remaining[nextIndex].id);
+      } else {
+        setActiveWarehouseId(null);
+      }
+    }
+
+    setSimulationResults(null);
+    setSimulationBlockState(null);
+    setIsSimulating(false);
+    setActiveStrategy(null);
+    setExecutionPlanStrategy(null);
+    setValidationContext(null);
+    setValidationResult(null);
+    setShowValidationModal(false);
+    setHighlightedMissingSkuIds(null);
+    resetAnimationState();
+  }, [resetAnimationState]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -200,6 +338,8 @@ export function TaroApp(_props: TaroAppProps) {
       const isActive = whId === activeWarehouseIdRef.current;
       if (isActive && corrected.orders !== ordersRef.current) {
         setOrders(corrected.orders);
+        // Keep per-warehouse orders in sync too.
+        setOrdersByWarehouse((prev) => ({ ...prev, [whId]: corrected.orders }));
       }
       if (corrected.warehouse !== newWh || !isActive) {
         setWorkspaceWarehouses((prev) =>
@@ -484,12 +624,21 @@ export function TaroApp(_props: TaroAppProps) {
       // couldn't slot; reconcile before committing so readiness stays clean.
       const corrected = reconcile(warehouse, newOrders);
       setOrders(corrected.orders);
+      // Store per-warehouse so each warehouse keeps its own order set.
+      setOrdersByWarehouse((prev) => ({
+        ...prev,
+        [activeWarehouseIdRef.current ?? '']: corrected.orders,
+      }));
     } catch (err) {
       console.error('Failed to generate orders:', err);
       // Fallback: generate client-side
       const fallbackOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
       const corrected = reconcile(warehouse, fallbackOrders);
       setOrders(corrected.orders);
+      setOrdersByWarehouse((prev) => ({
+        ...prev,
+        [activeWarehouseIdRef.current ?? '']: corrected.orders,
+      }));
     } finally {
       setIsGeneratingOrders(false);
     }
@@ -516,6 +665,7 @@ export function TaroApp(_props: TaroAppProps) {
     if (!cancelled) {
       setWorkspaceWarehouses([skeletonEntry]);
       setActiveWarehouseId(skeletonId);
+      setOrdersByWarehouse({ [skeletonId]: [] });
       setHasExistingWarehouse(false);
       setShowLayoutConfig(true);
       setIsLoading(false);
@@ -528,24 +678,6 @@ export function TaroApp(_props: TaroAppProps) {
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
   }, [replaySpeed]);
-
-  // Keyboard shortcut: 'h' toggles hand/pan tool (hidden; no dock button).
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const typing =
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement;
-      if (e.metaKey || e.ctrlKey) return;
-
-      if (e.key === 'h' && !typing) {
-        e.preventDefault();
-        setSelectedTool((prev) => (prev === 'hand' ? 'select' : 'hand'));
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -579,13 +711,6 @@ export function TaroApp(_props: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Floating Tools dock — left edge, vertical, separate from the right sidebar. */}
-        <div className="fixed left-0 top-0 z-40 flex flex-col items-start gap-2 p-2 pointer-events-none">
-          <div className="pointer-events-auto">
-            <ToolsDock selectedTool={selectedTool} onToolChange={setSelectedTool} />
-          </div>
-        </div>
-
         {/* Center — warehouse div + right sidebar div, side by side in a flex row. */}
         <div className="flex-1 flex overflow-hidden relative">
           {workspaceWarehouses.length === 0 ? (
@@ -601,11 +726,24 @@ export function TaroApp(_props: TaroAppProps) {
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden gap-0 relative min-w-0">
-              {/* Canvas — single-warehouse workspace (plain DOM + SVG, no React Flow) */}
-              <WarehouseCanvas
-                workspaceWarehouses={workspaceWarehouses}
+              {/* Floating Add-Warehouse button — bottom left, always available. */}
+              <div className="absolute bottom-4 left-4 z-40">
+                <Button onClick={handleAddWarehouse} className="h-8 gap-1.5 text-xs shadow-lg">
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Warehouse
+                </Button>
+              </div>
+              {/* Multi-warehouse canvas — page-per-warehouse vertical scroll
+                  (only one warehouse visible at a time). */}
+              <MultiWarehouseScroll
+                warehouses={workspaceWarehouses}
                 activeWarehouseId={activeWarehouseId}
+                onActiveChange={setActiveWarehouseId}
                 onWarehouseChange={handleWarehouseChangePersisted}
+                onAddWarehouse={handleAddWarehouse}
+                onDuplicateWarehouse={handleDuplicateWarehouse}
+                onRenameWarehouse={handleRenameWarehouse}
+                onDeleteWarehouse={handleDeleteWarehouse}
                 selectedTool={selectedTool}
                 activeRoute={activeRoute}
                 animationProgressRef={animationProgressRef}
@@ -637,8 +775,6 @@ export function TaroApp(_props: TaroAppProps) {
             blockState={simulationBlockState}
             onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
             onSimulate={handleSimulateClick}
-            onAddShelves={() => setSelectedTool('shelf')}
-            onSetWorkerStart={() => setSelectedTool('worker')}
             onZVisualizationChange={setZVisualizationMode}
             isGeneratingOrders={isGeneratingOrders}
             configuration={activeWarehouseConfig}
@@ -723,6 +859,8 @@ export function TaroApp(_props: TaroAppProps) {
               );
               setActiveWarehouseId(warehouseId);
               setOrders(result.orders);
+              // Keep per-warehouse orders in sync so switching restores them.
+              setOrdersByWarehouse((prev) => ({ ...prev, [warehouseId]: result.orders }));
               setHasExistingWarehouse(true);
 
               if (result.quantityViolations.length > 0) {
@@ -775,6 +913,11 @@ export function TaroApp(_props: TaroAppProps) {
                   ),
                 );
                 setOrders(corrected.orders);
+                // Keep per-warehouse orders in sync too.
+                setOrdersByWarehouse((prev) => ({
+                  ...prev,
+                  [warehouseId]: corrected.orders,
+                }));
               }, 0);
               activeReconcileTimerRef.current = reconcileTimer;
             } catch (err) {
@@ -783,6 +926,95 @@ export function TaroApp(_props: TaroAppProps) {
             } finally {
               setIsGenerating(false);
               setShowLayoutConfig(false);
+            }
+          }}
+        />
+      )}
+
+      {/* New-warehouse overlay — APPENDS a brand-new warehouse (never overwrites). */}
+      {showNewWarehouseConfig && activeProjectId && (
+        <LayoutConfigOverlay
+          onClose={() => setShowNewWarehouseConfig(false)}
+          canClose
+          isGenerating={isGenerating}
+          onApply={async (config) => {
+            setIsGenerating(true);
+            try {
+              const configuration: WarehouseConfiguration = {
+                layout: {
+                  gridHeight: config.gridHeight,
+                  rackCount: config.rackCount,
+                  aisleWidth: config.aisleWidth,
+                  crossAisleCount: config.crossAisleCount,
+                },
+                inventory: {
+                  skuCount: config.inventory.length,
+                  demandDistribution: config.demandDistribution,
+                  productAffinity: config.productAffinity,
+                  storageFootprint: config.storageFootprint,
+                },
+                placement: {
+                  slottingBias: config.slottingBias,
+                  categoryClustering: config.categoryClustering,
+                },
+              };
+
+              // Session-only: generate entirely in the browser — no database.
+              const result = generateWarehouseSession(configuration, orderCount, avgOrderSize);
+              const newId = crypto.randomUUID();
+              const newName = `Warehouse ${workspaceWarehousesRef.current.length + 1}`;
+
+              // Hidden corrector — orders may reference unplaced SKUs;
+              // reconcile against the new warehouse before commit.
+              const corrected = reconcile(result.warehouse, result.orders);
+
+              // APPEND the new warehouse (don't replace/update anything).
+              setWorkspaceWarehouses((prev) => [
+                ...prev,
+                {
+                  id: newId,
+                  name: newName,
+                  position: null,
+                  warehouse: corrected.warehouse,
+                  configuration,
+                },
+              ]);
+              setOrdersByWarehouse((prev) => ({ ...prev, [newId]: corrected.orders }));
+              setActiveWarehouseId(newId);
+              setOrders(corrected.orders);
+              setHasExistingWarehouse(true);
+
+              if (result.quantityViolations.length > 0) {
+                console.warn('[Taro] Quantity invariant violations after placement:', result.quantityViolations);
+              }
+
+              const totalBinsWanted = config.inventory.reduce((sum, i) => sum + (i.storageFootprint ?? 1), 0);
+              if (result.unplacedSkus.length > 0) {
+                setSimulationBlockState({
+                  simulationState: 'NO_VALID_ITEMS',
+                  title: `${result.unplacedSkus.length} SKU${result.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
+                  description: `The warehouse layout has only ${result.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${result.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${result.unplacedSkus.join(', ')}.`,
+                });
+              } else {
+                setSimulationBlockState(null);
+              }
+
+              setSimulationResults(null);
+              setIsSimulating(false);
+              setActiveStrategy(null);
+              setAnimationProgress(0);
+              setExecutionPlanStrategy(null);
+              setValidationContext(null);
+              setValidationResult(null);
+              setShowValidationModal(false);
+              setHighlightedMissingSkuIds(null);
+              resetAnimationState();
+            } catch (err) {
+              console.error('Failed to generate warehouse:', err);
+              alert('Failed to generate warehouse. Please try again.');
+            } finally {
+              setIsGenerating(false);
+              setShowNewWarehouseConfig(false);
             }
           }}
         />

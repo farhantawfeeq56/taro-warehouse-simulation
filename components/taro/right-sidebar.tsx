@@ -69,8 +69,6 @@ export interface RightSidebarProps {
   blockState?: SimulationBlockState | null;
   onViewUnresolvableItems?: (itemIds: string[]) => void;
   onSimulate?: () => void;
-  onAddShelves?: () => void;
-  onSetWorkerStart?: () => void;
   onZVisualizationChange?: (mode: ZVisualizationMode) => void;
 
   // Config
@@ -156,8 +154,6 @@ export function RightSidebar({ open, onOpenChange, ...props }: RightSidebarProps
               blockState={props.blockState}
               onViewUnresolvableItems={props.onViewUnresolvableItems}
               onSimulate={props.onSimulate}
-              onAddShelves={props.onAddShelves}
-              onSetWorkerStart={props.onSetWorkerStart}
               onZVisualizationChange={props.onZVisualizationChange}
             />
           </div>
