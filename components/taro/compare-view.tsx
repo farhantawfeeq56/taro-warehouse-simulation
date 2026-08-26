@@ -186,9 +186,11 @@ export function CompareView({
     strategy: StrategyType;
     /** Format a numeric metric. Absent on label-only rows (best strategy). */
     format?: (n: number) => string;
-    pick: (r: StrategyResult) => number;
+    pick?: (r: StrategyResult) => number;
     /** True for the summary label row (shows a badge, not a number). */
     labelRow?: boolean;
+    /** Group-header rows span the full width and split the table by strategy. */
+    groupHeader?: boolean;
   };
   const table = useMemo(() => {
     if (!baseEntry) return null;
@@ -223,11 +225,18 @@ export function CompareView({
     ];
 
     for (const [strategy, meta] of Object.entries(STRATEGY_META) as [StrategyType, { label: string; description: string }][]) {
+      // Group header row so the table reads as sections, not one long list.
+      rows.push({
+        key: `group-${strategy}`,
+        groupHeader: true,
+        label: meta.label,
+        description: meta.description,
+        strategy,
+      });
       for (const m of metricDefs) {
         rows.push({
           key: `${strategy}-${m.key}`,
           label: m.label,
-          description: meta.label,
           strategy,
           pick: m.pick,
           format: m.format,
@@ -407,7 +416,26 @@ export function CompareView({
                     </tr>
                   </thead>
                   <tbody>
-                    {table.rows.map((row) => (
+                    {table.rows.map((row) =>
+                      row.groupHeader ? (
+                        <tr key={row.key} className="border-b border-border bg-muted/50">
+                          <td
+                            colSpan={table.colResults.length + 1}
+                            className="px-3 py-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
+                                {row.label}
+                              </span>
+                              {row.description && (
+                                <span className="text-[11px] text-muted-foreground">
+                                  {row.description}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
                       <tr key={row.key} className="border-b border-border/60 last:border-0 hover:bg-muted/30">
                         <td className="px-3 py-2 align-middle whitespace-nowrap">
                           <div className="flex flex-col">
@@ -451,14 +479,15 @@ export function CompareView({
                               {metricCell(
                                 i === 0 ? undefined : table.colResults[0]?.byStrategy[row.strategy],
                                 sr,
-                                row.pick,
+                                row.pick!,
                                 row.format!,
                               )}
                             </td>
                           );
                         })}
                       </tr>
-                    ))}
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>
