@@ -24,7 +24,7 @@ import {
 } from '../lib/taro/constants';
 import { assertWarehouseInvariants } from '../lib/taro/inventory';
 import { findPath, calculatePathDistance, getNeighborGraph } from '../lib/taro/pathfinding';
-import { calculateOctileDistance } from '../lib/taro/distance';
+import { calculateManhattanDistance } from '../lib/taro/distance';
 import { resolveOrderToLocations } from '../lib/taro/order-location-resolver';
 
 export class UnreachableLocationError extends Error {
@@ -82,7 +82,7 @@ function nearestNeighborOrder(
     let bestDist = Infinity;
 
     for (const idx of remaining) {
-      const dist = calculateOctileDistance(current, points[idx]);
+      const dist = calculateManhattanDistance(current, points[idx]);
       if (dist < bestDist) {
         bestDist = dist;
         bestIdx = idx;

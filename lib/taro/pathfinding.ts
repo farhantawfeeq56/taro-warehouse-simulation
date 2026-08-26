@@ -2,7 +2,7 @@
 
 import type { Warehouse, Neighbor, NeighborGraph } from './types';
 import { PriorityQueue } from './priority-queue';
-import { calculateOctileDistance, calculateStepEdgeCost } from './distance';
+import { calculateManhattanDistance, calculateStepEdgeCost } from './distance';
 
 interface OpenNode {
   x: number;
@@ -123,7 +123,7 @@ export function findPath(
       x: actualStart.x,
       y: actualStart.y,
     },
-    calculateOctileDistance(actualStart, actualEnd)
+    calculateManhattanDistance(actualStart, actualEnd)
   );
 
   while (!openSet.isEmpty) {
@@ -159,7 +159,7 @@ export function findPath(
         cameFrom.set(neighborKey, currentKey);
         gScore.set(neighborKey, tentativeGScore);
 
-        const heuristic = calculateOctileDistance(neighbor, actualEnd);
+        const heuristic = calculateManhattanDistance(neighbor, actualEnd);
         const fScore = tentativeGScore + heuristic;
 
         openSet.enqueue(
@@ -204,7 +204,7 @@ function findNearestWalkable(
       if (!isWalkable(warehouse, x, y)) continue;
 
       const candidate = { x, y };
-      const distance = calculateOctileDistance(candidate, pos);
+      const distance = calculateManhattanDistance(candidate, pos);
 
       if (distance < bestDistance) {
         bestDistance = distance;
