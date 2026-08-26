@@ -27,7 +27,6 @@ import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { MultiWarehouseScroll } from './multi-warehouse-scroll';
 import { RightSidebar } from './right-sidebar';
-import { ToolsDock } from './tools-dock';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
 import { Button } from '@/components/ui/button';
@@ -680,24 +679,6 @@ export function TaroApp(_props: TaroAppProps) {
     replaySpeedRef.current = replaySpeed;
   }, [replaySpeed]);
 
-  // Keyboard shortcut: 'h' toggles hand/pan tool (hidden; no dock button).
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const typing =
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement;
-      if (e.metaKey || e.ctrlKey) return;
-
-      if (e.key === 'h' && !typing) {
-        e.preventDefault();
-        setSelectedTool((prev) => (prev === 'hand' ? 'select' : 'hand'));
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   useEffect(() => {
     return () => {
       if (animationRef.current) {
@@ -730,13 +711,6 @@ export function TaroApp(_props: TaroAppProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Floating Tools dock — left edge, vertical, separate from the right sidebar. */}
-        <div className="fixed left-0 top-0 z-40 flex flex-col items-start gap-2 p-2 pointer-events-none">
-          <div className="pointer-events-auto">
-            <ToolsDock selectedTool={selectedTool} onToolChange={setSelectedTool} />
-          </div>
-        </div>
-
         {/* Center — warehouse div + right sidebar div, side by side in a flex row. */}
         <div className="flex-1 flex overflow-hidden relative">
           {workspaceWarehouses.length === 0 ? (
@@ -801,8 +775,6 @@ export function TaroApp(_props: TaroAppProps) {
             blockState={simulationBlockState}
             onViewUnresolvableItems={(itemIds) => setHighlightedMissingSkuIds(new Set(itemIds))}
             onSimulate={handleSimulateClick}
-            onAddShelves={() => setSelectedTool('shelf')}
-            onSetWorkerStart={() => setSelectedTool('worker')}
             onZVisualizationChange={setZVisualizationMode}
             isGeneratingOrders={isGeneratingOrders}
             configuration={activeWarehouseConfig}

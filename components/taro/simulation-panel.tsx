@@ -50,7 +50,6 @@ import {
   EmptyHeader,
   EmptyTitle,
   EmptyDescription,
-  EmptyContent,
   EmptyMedia,
 } from '@/components/ui/empty';
 
@@ -78,8 +77,6 @@ interface SimulationPanelProps {
   blockState?: SimulationBlockState | null;
   onViewUnresolvableItems?: (itemIds: string[]) => void;
   onSimulate?: () => void;
-  onAddShelves?: () => void;
-  onSetWorkerStart?: () => void;
   onZVisualizationChange?: (mode: ZVisualizationMode) => void;
   warehouse?: Warehouse;
 
@@ -108,8 +105,6 @@ export function SimulationPanel({
   blockState,
   onViewUnresolvableItems,
   onSimulate,
-  onAddShelves,
-  onSetWorkerStart,
   onZVisualizationChange,
   warehouse,
   embedded = false,
@@ -286,11 +281,6 @@ export function SimulationPanel({
                   {blockState.description}
                 </EmptyDescription>
               </EmptyHeader>
-              <EmptyContent>
-                <Button onClick={onAddShelves} className="w-full" variant="outline">
-                  Check Layout
-                </Button>
-              </EmptyContent>
             </Empty>
           </div>
         )}
