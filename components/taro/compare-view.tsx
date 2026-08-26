@@ -351,6 +351,18 @@ export function CompareView({
             )}
           </section>
 
+          {isRunning && (
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-foreground">Running simulations…</span>
+                <span className="text-xs text-muted-foreground">
+                  Simulating {1 + selectedIds.length} warehouse{1 + selectedIds.length > 1 ? 's' : ''} across all picking strategies.
+                </span>
+              </div>
+            </div>
+          )}
+
           {runError && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {runError}
