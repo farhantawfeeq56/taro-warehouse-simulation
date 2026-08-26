@@ -84,15 +84,14 @@ describe('pathfinding', () => {
       expect(path).toEqual([{ x: 5, y: 5 }]);
     });
 
-    it('uses diagonal-optimal path on open grid from (0,0) to (5,5)', () => {
+    it('uses orthogonal path on open grid from (0,0) to (5,5)', () => {
       const warehouse = createEmptyWarehouse(8, 8);
       const path = findPath(warehouse, { x: 0, y: 0 }, { x: 5, y: 5 });
 
-      expect(path).toHaveLength(6);
-      expect(calculatePathDistance(path)).toBeCloseTo(5 * Math.sqrt(2), 5);
+      expect(calculatePathDistance(path)).toBe(10);
       const { diagonalSteps, orthogonalSteps } = countStepTypes(path);
-      expect(diagonalSteps).toBe(5);
-      expect(orthogonalSteps).toBe(0);
+      expect(diagonalSteps).toBe(0);
+      expect(orthogonalSteps).toBe(10);
     });
 
     it('prevents illegal corner-cutting diagonals when adjacent orthogonals are blocked', () => {
@@ -104,10 +103,10 @@ describe('pathfinding', () => {
 
       expect(path.length).toBeGreaterThan(0);
       expect(path[1]).not.toEqual({ x: 2, y: 2 });
-      expect(calculatePathDistance(path)).toBeGreaterThan(Math.sqrt(2));
+      expect(calculatePathDistance(path)).toBeGreaterThan(1);
     });
 
-    it('uses diagonals in open space without orthogonal staircase artifacts', () => {
+    it('produces only orthogonal steps in open space without diagonal artifacts', () => {
       const warehouse = createEmptyWarehouse(8, 8);
       const start = { x: 0, y: 0 };
       const end = { x: 5, y: 3 };
@@ -115,9 +114,9 @@ describe('pathfinding', () => {
       const path = findPath(warehouse, start, end);
       const { diagonalSteps, orthogonalSteps } = countStepTypes(path);
 
-      expect(diagonalSteps).toBe(3);
-      expect(orthogonalSteps).toBe(2);
-      expect(calculatePathDistance(path)).toBeCloseTo(3 * Math.sqrt(2) + 2, 5);
+      expect(diagonalSteps).toBe(0);
+      expect(orthogonalSteps).toBe(calculatePathDistance(path));
+      expect(calculatePathDistance(path)).toBe(8);
     });
   });
 
@@ -138,7 +137,8 @@ describe('pathfinding', () => {
         { x: 3, y: 2 },
       ];
 
-      expect(calculatePathDistance(path)).toBeCloseTo(2 * Math.sqrt(2) + 1, 5);
+      // Each step (orthogonal or diagonal-as-two-orthogonal) costs 1.
+      expect(calculatePathDistance(path)).toBeCloseTo(5, 5);
     });
   });
 

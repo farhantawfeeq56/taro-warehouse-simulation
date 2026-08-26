@@ -24,7 +24,7 @@ import {
 } from '../lib/taro/constants';
 import { assertWarehouseInvariants } from '../lib/taro/inventory';
 import { findPath, calculatePathDistance, getNeighborGraph } from '../lib/taro/pathfinding';
-import { calculateOctileDistance } from '../lib/taro/distance';
+import { calculateManhattanDistance } from '../lib/taro/distance';
 import { resolveOrderToLocations } from '../lib/taro/order-location-resolver';
 
 export class UnreachableLocationError extends Error {
@@ -82,7 +82,7 @@ function nearestNeighborOrder(
     let bestDist = Infinity;
 
     for (const idx of remaining) {
-      const dist = calculateOctileDistance(current, points[idx]);
+      const dist = calculateManhattanDistance(current, points[idx]);
       if (dist < bestDist) {
         bestDist = dist;
         bestIdx = idx;
@@ -210,6 +210,12 @@ function simulateSingleStrategy(
         // duplication with the previous segment's last vertex).
         fullRoute.push(...pathSegment.slice(1));
 
+        // Spur into the shelf and back out to the same aisle cell so the
+        // line meets the shelf cleanly and the next departure is orthogonal.
+        const aislePoint = pathSegment[pathSegment.length - 1];
+        fullRoute.push({ x: target.x, y: target.y });
+        fullRoute.push(aislePoint);
+
         // Record the pick event
         allPicks.push({
           locationKey: target.locationKey,
@@ -227,7 +233,7 @@ function simulateSingleStrategy(
           sku: target.sku,
         });
 
-        currentPos = { x: target.x, y: target.y };
+        currentPos = aislePoint;
         picksMadeInOrder++;
       }
 
@@ -448,6 +454,12 @@ function simulateBatchStrategy(
         // duplication with the previous segment's last vertex).
         fullRoute.push(...pathSegment.slice(1));
 
+        // Spur into the shelf and back out to the same aisle cell so the
+        // line meets the shelf cleanly and the next departure is orthogonal.
+        const aislePoint = pathSegment[pathSegment.length - 1];
+        fullRoute.push({ x: target.x, y: target.y });
+        fullRoute.push(aislePoint);
+
         // Record the pick event
         allPicks.push({
           locationKey: target.locationKey,
@@ -470,7 +482,7 @@ function simulateBatchStrategy(
           reachableOrderIds.add(oid);
         }
 
-        currentPos = { x: target.x, y: target.y };
+        currentPos = aislePoint;
       }
 
       // Count completed / skipped orders for this batch:
@@ -778,6 +790,12 @@ function simulateZoneStrategy(
       // Append to the full route (skip first vertex to avoid duplication)
       fullRoute.push(...pathSegment.slice(1));
 
+      // Spur into the shelf and back out to the same aisle cell so the
+      // line meets the shelf cleanly and the next departure is orthogonal.
+      const aislePoint = pathSegment[pathSegment.length - 1];
+      fullRoute.push({ x: target.x, y: target.y });
+      fullRoute.push(aislePoint);
+
       // Record the pick event
       allPicks.push({
         locationKey: target.locationKey,
@@ -800,7 +818,7 @@ function simulateZoneStrategy(
         });
       }
 
-      currentPos = { x: target.x, y: target.y };
+      currentPos = aislePoint;
     }
 
     // ── 6. Return to worker start ──────────────────────────────────────
