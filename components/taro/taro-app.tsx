@@ -17,6 +17,7 @@ import type {
   WorkspaceWarehouse,
 } from '@/lib/taro/types';
 import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine';
+import { Plus } from 'lucide-react';
 import {
   generateRandomOrders,
   createEmptyWarehouse,
@@ -24,7 +25,7 @@ import {
 } from '@/lib/taro/demo-generator';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
-import { WarehouseCanvas } from './warehouse-canvas';
+import { MultiWarehouseScroll } from './multi-warehouse-scroll';
 import { RightSidebar } from './right-sidebar';
 import { ToolsDock } from './tools-dock';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
@@ -86,9 +87,28 @@ export function TaroApp(_props: TaroAppProps) {
   const activeProjectIdRef = useRef(activeProjectId);
   activeProjectIdRef.current = activeProjectId;
 
+  // ── Per-warehouse orders ────────────────────────────────────────────────
+  // Each warehouse owns its own generated order set. The active warehouse's
+  // orders are mirrored into `orders` below (single source of truth for all
+  // the existing panels), and the map keeps every warehouse independent so
+  // switching warehouses restores its own orders.
+  const [ordersByWarehouse, setOrdersByWarehouse] = useState<Record<string, Order[]>>({});
   const [orders, setOrders] = useState<Order[]>([]);
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
+  const ordersByWarehouseRef = useRef(ordersByWarehouse);
+  ordersByWarehouseRef.current = ordersByWarehouse;
+
+  // Keep `orders` in sync with the active warehouse's own order set.
+  useEffect(() => {
+    if (!activeWarehouseId) return;
+    const map = ordersByWarehouseRef.current;
+    if (activeWarehouseId in map) {
+      setOrders(map[activeWarehouseId]);
+    } else if (Object.keys(map).length > 0) {
+      setOrders([]);
+    }
+  }, [activeWarehouseId]);
 
   const [isLoading, setIsLoading] = useState(true);
   // Warehouse generation — shown in LayoutConfigOverlay Apply button
@@ -131,6 +151,10 @@ export function TaroApp(_props: TaroAppProps) {
     setShowLayoutConfig(true);
   }, []);
 
+  // ── Workspace: Add ─────────────────────────────────────────────────────
+  // Adds a blank skeleton warehouse and opens the layout config overlay so
+  // the user immediately shapes it. The new warehouse becomes active (and the
+  // scroll view auto-scrolls to it).
   const resetAnimationState = useCallback(() => {
     setAnimationProgress(0);
     animationProgressRef.current = 0;
@@ -140,6 +164,126 @@ export function TaroApp(_props: TaroAppProps) {
       animationRef.current = null;
     }
   }, []);
+
+  const handleAddWarehouse = useCallback(() => {
+    const skeleton = generateSkeletonWarehouse();
+    const newId = crypto.randomUUID();
+    const name = `Warehouse ${workspaceWarehousesRef.current.length + 1}`;
+    const entry: WorkspaceWarehouse = {
+      id: newId,
+      name,
+      position: null,
+      warehouse: skeleton,
+    };
+    setWorkspaceWarehouses((prev) => [...prev, entry]);
+    setActiveWarehouseId(newId);
+    setHasExistingWarehouse(true);
+    setShowLayoutConfig(true);
+  }, []);
+
+  // ── Workspace: Duplicate ───────────────────────────────────────────────
+  const handleDuplicateWarehouse = useCallback((sourceWarehouseId: string) => {
+    const source = workspaceWarehousesRef.current.find((w) => w.id === sourceWarehouseId);
+    if (!source) return;
+
+    // In-memory duplicate — deep copy the layout (grid is an array of cell
+    // objects; the corrector treats these as immutable, so a fresh array +
+    // fresh cell objects keep the copies fully independent).
+    const sourceWh = source.warehouse;
+    const newId = crypto.randomUUID();
+    const copy: Warehouse = {
+      ...sourceWh,
+      grid: sourceWh.grid.map((row) =>
+        row.map((cell) => ({ ...cell, locations: cell.locations.map((l) => ({ ...l })) })),
+      ),
+      shelves: sourceWh.shelves.map((s) => ({ ...s })),
+      locations: sourceWh.locations.map((l) => ({ ...l })),
+      workerStart: sourceWh.workerStart ? { ...sourceWh.workerStart } : null,
+    };
+    const base = source.name.replace(/ \(copy( \d+)?\)$/, '');
+    const existingCopies = workspaceWarehousesRef.current.filter((w) =>
+      w.name.startsWith(base + ' (copy'),
+    );
+    const newEntry: WorkspaceWarehouse = {
+      id: newId,
+      name:
+        existingCopies.length === 0
+          ? `${base} (copy)`
+          : `${base} (copy ${existingCopies.length + 1})`,
+      position: null,
+      warehouse: copy,
+      configuration: source.configuration,
+    };
+    setWorkspaceWarehouses((prev) => [...prev, newEntry]);
+
+    // The duplicate inherits the source's orders so it's immediately ready.
+    if (sourceWarehouseId in ordersByWarehouseRef.current) {
+      setOrdersByWarehouse((prev) => ({
+        ...prev,
+        [newId]: ordersByWarehouseRef.current[sourceWarehouseId],
+      }));
+    }
+
+    // Auto-select the new duplicate (scroll view follows).
+    setActiveWarehouseId(newId);
+    setSimulationResults(null);
+    setSimulationBlockState(null);
+    setIsSimulating(false);
+    setActiveStrategy(null);
+    setExecutionPlanStrategy(null);
+    setValidationContext(null);
+    setValidationResult(null);
+    setShowValidationModal(false);
+    setHighlightedMissingSkuIds(null);
+    resetAnimationState();
+  }, [resetAnimationState]);
+
+  // ── Workspace: Rename ──────────────────────────────────────────────────
+  const handleRenameWarehouse = useCallback((warehouseId: string, name: string) => {
+    setWorkspaceWarehouses((prev) =>
+      prev.map((ww) => (ww.id === warehouseId ? { ...ww, name } : ww)),
+    );
+  }, []);
+
+  // ── Workspace: Delete ──────────────────────────────────────────────────
+  const handleDeleteWarehouse = useCallback((warehouseId: string) => {
+    if (workspaceWarehousesRef.current.length <= 1) {
+      alert('Cannot delete the last warehouse. Create another warehouse first.');
+      return;
+    }
+
+    const removedIndex = workspaceWarehousesRef.current.findIndex((w) => w.id === warehouseId);
+    const isActive = activeWarehouseIdRef.current === warehouseId;
+
+    setWorkspaceWarehouses((prev) => prev.filter((w) => w.id !== warehouseId));
+    setOrdersByWarehouse((prev) => {
+      const next = { ...prev };
+      delete next[warehouseId];
+      return next;
+    });
+
+    if (isActive) {
+      const remaining = workspaceWarehousesRef.current.filter((w) => w.id !== warehouseId);
+      if (remaining.length > 0) {
+        // Pick the one at the same index, or the last one.
+        const nextIndex = Math.min(removedIndex, remaining.length - 1);
+        setActiveWarehouseId(remaining[nextIndex].id);
+      } else {
+        setActiveWarehouseId(null);
+      }
+    }
+
+    setSimulationResults(null);
+    setSimulationBlockState(null);
+    setIsSimulating(false);
+    setActiveStrategy(null);
+    setExecutionPlanStrategy(null);
+    setValidationContext(null);
+    setValidationResult(null);
+    setShowValidationModal(false);
+    setHighlightedMissingSkuIds(null);
+    resetAnimationState();
+  }, [resetAnimationState]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -200,6 +344,8 @@ export function TaroApp(_props: TaroAppProps) {
       const isActive = whId === activeWarehouseIdRef.current;
       if (isActive && corrected.orders !== ordersRef.current) {
         setOrders(corrected.orders);
+        // Keep per-warehouse orders in sync too.
+        setOrdersByWarehouse((prev) => ({ ...prev, [whId]: corrected.orders }));
       }
       if (corrected.warehouse !== newWh || !isActive) {
         setWorkspaceWarehouses((prev) =>
@@ -484,12 +630,21 @@ export function TaroApp(_props: TaroAppProps) {
       // couldn't slot; reconcile before committing so readiness stays clean.
       const corrected = reconcile(warehouse, newOrders);
       setOrders(corrected.orders);
+      // Store per-warehouse so each warehouse keeps its own order set.
+      setOrdersByWarehouse((prev) => ({
+        ...prev,
+        [activeWarehouseIdRef.current ?? '']: corrected.orders,
+      }));
     } catch (err) {
       console.error('Failed to generate orders:', err);
       // Fallback: generate client-side
       const fallbackOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
       const corrected = reconcile(warehouse, fallbackOrders);
       setOrders(corrected.orders);
+      setOrdersByWarehouse((prev) => ({
+        ...prev,
+        [activeWarehouseIdRef.current ?? '']: corrected.orders,
+      }));
     } finally {
       setIsGeneratingOrders(false);
     }
@@ -516,6 +671,7 @@ export function TaroApp(_props: TaroAppProps) {
     if (!cancelled) {
       setWorkspaceWarehouses([skeletonEntry]);
       setActiveWarehouseId(skeletonId);
+      setOrdersByWarehouse({ [skeletonId]: [] });
       setHasExistingWarehouse(false);
       setShowLayoutConfig(true);
       setIsLoading(false);
@@ -601,11 +757,24 @@ export function TaroApp(_props: TaroAppProps) {
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden gap-0 relative min-w-0">
-              {/* Canvas — single-warehouse workspace (plain DOM + SVG, no React Flow) */}
-              <WarehouseCanvas
-                workspaceWarehouses={workspaceWarehouses}
+              {/* Floating Add-Warehouse button — bottom left, always available. */}
+              <div className="absolute bottom-4 left-4 z-40">
+                <Button onClick={handleAddWarehouse} className="h-8 gap-1.5 text-xs shadow-lg">
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Warehouse
+                </Button>
+              </div>
+              {/* Multi-warehouse canvas — page-per-warehouse vertical scroll
+                  (only one warehouse visible at a time). */}
+              <MultiWarehouseScroll
+                warehouses={workspaceWarehouses}
                 activeWarehouseId={activeWarehouseId}
+                onActiveChange={setActiveWarehouseId}
                 onWarehouseChange={handleWarehouseChangePersisted}
+                onAddWarehouse={handleAddWarehouse}
+                onDuplicateWarehouse={handleDuplicateWarehouse}
+                onRenameWarehouse={handleRenameWarehouse}
+                onDeleteWarehouse={handleDeleteWarehouse}
                 selectedTool={selectedTool}
                 activeRoute={activeRoute}
                 animationProgressRef={animationProgressRef}
@@ -723,6 +892,8 @@ export function TaroApp(_props: TaroAppProps) {
               );
               setActiveWarehouseId(warehouseId);
               setOrders(result.orders);
+              // Keep per-warehouse orders in sync so switching restores them.
+              setOrdersByWarehouse((prev) => ({ ...prev, [warehouseId]: result.orders }));
               setHasExistingWarehouse(true);
 
               if (result.quantityViolations.length > 0) {
@@ -775,6 +946,11 @@ export function TaroApp(_props: TaroAppProps) {
                   ),
                 );
                 setOrders(corrected.orders);
+                // Keep per-warehouse orders in sync too.
+                setOrdersByWarehouse((prev) => ({
+                  ...prev,
+                  [warehouseId]: corrected.orders,
+                }));
               }, 0);
               activeReconcileTimerRef.current = reconcileTimer;
             } catch (err) {
