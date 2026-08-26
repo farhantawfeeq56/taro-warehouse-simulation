@@ -222,6 +222,15 @@ export function MultiWarehouseScroll({
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   // Which warehouse is currently being renamed inline (local UI state).
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  // Mirror of the active id so `determineActive` can be a stable callback that
+  // does NOT re-run/re-attach its listeners on every active change (that
+  // cascades into an infinite update loop: active change → effect re-run →
+  // immediate re-detect → scroll fight → active change …).
+  const activeWarehouseIdRef = useRef(activeWarehouseId);
+  activeWarehouseIdRef.current = activeWarehouseId;
+  // True while a programmatic auto-scroll (Add/Duplicate) is settling; during
+  // that window we ignore scroll fires to avoid flip-flopping between pages.
+  const settlingRef = useRef(false);
 
   // Container size — drives the fit-to-page scale (all pages share dimensions).
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -238,13 +247,19 @@ export function MultiWarehouseScroll({
   /**
    * Active-page detection: the page whose vertical centre is closest to the
    * scroll container's centre becomes active. Runs on scroll + resize.
+   *
+   * Reads the active id from a ref so this callback is referentially stable
+   * (deps: warehouses, onActiveChange) — the listener effect never re-attaches
+   * on active changes and never fires the immediate re-detect that would chain
+   * into an infinite update loop.
    */
   const determineActive = useCallback(() => {
+    if (settlingRef.current) return;
     const cont = scrollRef.current;
     if (!cont) return;
     const cRect = cont.getBoundingClientRect();
     const cCenter = cRect.top + cRect.height / 2;
-    let bestId = activeWarehouseId;
+    let bestId = activeWarehouseIdRef.current;
     let bestDist = Infinity;
     for (const w of warehouses) {
       const el = sectionRefs.current[w.id];
@@ -256,15 +271,17 @@ export function MultiWarehouseScroll({
         bestId = w.id;
       }
     }
-    if (bestId && bestId !== activeWarehouseId) onActiveChange(bestId);
-  }, [warehouses, activeWarehouseId, onActiveChange]);
+    if (bestId && bestId !== activeWarehouseIdRef.current) onActiveChange(bestId);
+  }, [warehouses, onActiveChange]);
 
   useEffect(() => {
     const cont = scrollRef.current;
     if (!cont) return;
+    // Settle once on mount (no scroll fires yet).
+    settlingRef.current = false;
+    determineActive();
     cont.addEventListener('scroll', determineActive, { passive: true });
     window.addEventListener('resize', determineActive);
-    determineActive();
     return () => {
       cont.removeEventListener('scroll', determineActive);
       window.removeEventListener('resize', determineActive);
@@ -272,8 +289,9 @@ export function MultiWarehouseScroll({
   }, [determineActive]);
 
   // Auto-scroll to a newly-activated page ONLY when it's not already in view
-  // (e.g. add / duplicate). Manual scrolling already places the active page in
-  // view, so it won't trigger.
+  // (e.g. add / duplicate). While the smooth scroll settles, suppress scroll-
+  // driven activation so it can't ping-pong between adjacent pages and throw
+  // React's maximum-update-depth error.
   useEffect(() => {
     if (!activeWarehouseId) return;
     const el = sectionRefs.current[activeWarehouseId];
@@ -285,7 +303,13 @@ export function MultiWarehouseScroll({
       eRect.top >= cRect.top + VISIBILITY_MARGIN &&
       eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
     if (!inside) {
+      settlingRef.current = true;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Release the guard once the smooth scroll should have settled.
+      const t = window.setTimeout(() => {
+        settlingRef.current = false;
+      }, 600);
+      return () => window.clearTimeout(t);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWarehouseId]);
