@@ -139,6 +139,11 @@ export function TaroApp(_props: TaroAppProps) {
   const [validationResult, setValidationResult] = useState<ItemsValidationResult | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showLayoutConfig, setShowLayoutConfig] = useState(false);
+  // When true, the LayoutConfigOverlay is in "add new warehouse" mode (the
+  // existing single overlay is the edit-existing mode). Two overlays must stay
+  // separate: edit-mode's onApply overwrites the active warehouse, whereas
+  // add-mode must APPEND a brand-new warehouse.
+  const [showNewWarehouseConfig, setShowNewWarehouseConfig] = useState(false);
   const [hasExistingWarehouse, setHasExistingWarehouse] = useState(false);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
@@ -166,19 +171,9 @@ export function TaroApp(_props: TaroAppProps) {
   }, []);
 
   const handleAddWarehouse = useCallback(() => {
-    const skeleton = generateSkeletonWarehouse();
-    const newId = crypto.randomUUID();
-    const name = `Warehouse ${workspaceWarehousesRef.current.length + 1}`;
-    const entry: WorkspaceWarehouse = {
-      id: newId,
-      name,
-      position: null,
-      warehouse: skeleton,
-    };
-    setWorkspaceWarehouses((prev) => [...prev, entry]);
-    setActiveWarehouseId(newId);
-    setHasExistingWarehouse(true);
-    setShowLayoutConfig(true);
+    // Don't append anything here — the new-warehouse overlay owns creation.
+    // Only open the overlay; onApply appends the brand-new warehouse.
+    setShowNewWarehouseConfig(true);
   }, []);
 
   // ── Workspace: Duplicate ───────────────────────────────────────────────
@@ -959,6 +954,95 @@ export function TaroApp(_props: TaroAppProps) {
             } finally {
               setIsGenerating(false);
               setShowLayoutConfig(false);
+            }
+          }}
+        />
+      )}
+
+      {/* New-warehouse overlay — APPENDS a brand-new warehouse (never overwrites). */}
+      {showNewWarehouseConfig && activeProjectId && (
+        <LayoutConfigOverlay
+          onClose={() => setShowNewWarehouseConfig(false)}
+          canClose
+          isGenerating={isGenerating}
+          onApply={async (config) => {
+            setIsGenerating(true);
+            try {
+              const configuration: WarehouseConfiguration = {
+                layout: {
+                  gridHeight: config.gridHeight,
+                  rackCount: config.rackCount,
+                  aisleWidth: config.aisleWidth,
+                  crossAisleCount: config.crossAisleCount,
+                },
+                inventory: {
+                  skuCount: config.inventory.length,
+                  demandDistribution: config.demandDistribution,
+                  productAffinity: config.productAffinity,
+                  storageFootprint: config.storageFootprint,
+                },
+                placement: {
+                  slottingBias: config.slottingBias,
+                  categoryClustering: config.categoryClustering,
+                },
+              };
+
+              // Session-only: generate entirely in the browser — no database.
+              const result = generateWarehouseSession(configuration, orderCount, avgOrderSize);
+              const newId = crypto.randomUUID();
+              const newName = `Warehouse ${workspaceWarehousesRef.current.length + 1}`;
+
+              // Hidden corrector — orders may reference unplaced SKUs;
+              // reconcile against the new warehouse before commit.
+              const corrected = reconcile(result.warehouse, result.orders);
+
+              // APPEND the new warehouse (don't replace/update anything).
+              setWorkspaceWarehouses((prev) => [
+                ...prev,
+                {
+                  id: newId,
+                  name: newName,
+                  position: null,
+                  warehouse: corrected.warehouse,
+                  configuration,
+                },
+              ]);
+              setOrdersByWarehouse((prev) => ({ ...prev, [newId]: corrected.orders }));
+              setActiveWarehouseId(newId);
+              setOrders(corrected.orders);
+              setHasExistingWarehouse(true);
+
+              if (result.quantityViolations.length > 0) {
+                console.warn('[Taro] Quantity invariant violations after placement:', result.quantityViolations);
+              }
+
+              const totalBinsWanted = config.inventory.reduce((sum, i) => sum + (i.storageFootprint ?? 1), 0);
+              if (result.unplacedSkus.length > 0) {
+                setSimulationBlockState({
+                  simulationState: 'NO_VALID_ITEMS',
+                  title: `${result.unplacedSkus.length} SKU${result.unplacedSkus.length === 1 ? '' : 's'} could not be placed`,
+                  description: `The warehouse layout has only ${result.binCount} storage bins but the generated inventory requires ${totalBinsWanted} (placed ${result.placedBinCount}). Increase the rack count or reduce the SKU count / storage footprint so every SKU can be slotted. Unplaced: ${result.unplacedSkus.join(', ')}.`,
+                });
+              } else {
+                setSimulationBlockState(null);
+              }
+
+              setSimulationResults(null);
+              setIsSimulating(false);
+              setActiveStrategy(null);
+              setAnimationProgress(0);
+              setExecutionPlanStrategy(null);
+              setValidationContext(null);
+              setValidationResult(null);
+              setShowValidationModal(false);
+              setHighlightedMissingSkuIds(null);
+              resetAnimationState();
+            } catch (err) {
+              console.error('Failed to generate warehouse:', err);
+              alert('Failed to generate warehouse. Please try again.');
+            } finally {
+              setIsGenerating(false);
+              setShowNewWarehouseConfig(false);
             }
           }}
         />
