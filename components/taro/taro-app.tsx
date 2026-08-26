@@ -153,8 +153,8 @@ export function TaroApp(_props: TaroAppProps) {
   const [compareBaseWarehouseId, setCompareBaseWarehouseId] = useState<string | null>(null);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
-  const [orderCount, setOrderCount] = useState(1000);
-  const [avgOrderSize, setAvgOrderSize] = useState(5);
+  const [orderCount, setOrderCount] = useState(50);
+  const [avgOrderSize, setAvgOrderSize] = useState(3);
 
   const handleOpenLayoutConfig = useCallback((warehouseId: string) => {
     // First select the warehouse, then open the layout config
