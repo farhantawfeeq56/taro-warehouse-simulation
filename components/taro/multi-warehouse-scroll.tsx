@@ -28,7 +28,7 @@ import type {
 import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
-import { Plus, Copy, Pencil, Trash2, Sparkles } from 'lucide-react';
+import { Plus, Copy, Pencil, Trash2, GitCompareArrows, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /** Padding (px) kept between the warehouse and the page edges when fitting. */
@@ -53,6 +53,7 @@ interface MultiWarehouseScrollProps {
   onDuplicateWarehouse: (warehouseId: string) => void;
   onRenameWarehouse: (warehouseId: string, name: string) => void;
   onDeleteWarehouse?: (warehouseId: string) => void;
+  onCompareWarehouse: (warehouseId: string) => void;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
   animationProgressRef: MutableRefObject<number>;
@@ -66,12 +67,14 @@ function ActionButton({
   label,
   icon: Icon,
   danger = false,
+  showLabel = false,
 }: {
   onClick: () => void;
   title: string;
   label: string;
   icon: typeof Plus;
   danger?: boolean;
+  showLabel?: boolean;
 }) {
   return (
     <button
@@ -82,14 +85,15 @@ function ActionButton({
       }}
       title={title}
       className={cn(
-        'flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium transition-colors',
+        'flex h-6 items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-colors',
+        showLabel ? 'px-2' : 'w-6 px-0',
         danger
           ? 'text-destructive hover:bg-destructive/10'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
-      <Icon className="h-3 w-3" />
-      <span>{label}</span>
+      <Icon className="h-3 w-3 shrink-0" />
+      {showLabel && <span className="whitespace-nowrap">{label}</span>}
     </button>
   );
 }
@@ -104,6 +108,7 @@ function PageHeader({
   onAdd,
   onDuplicate,
   onDelete,
+  onCompare,
 }: {
   name: string;
   isActive: boolean;
@@ -114,6 +119,7 @@ function PageHeader({
   onAdd: () => void;
   onDuplicate: () => void;
   onDelete?: () => void;
+  onCompare: () => void;
 }) {
   const [draft, setDraft] = useState(name);
 
@@ -197,6 +203,7 @@ function PageHeader({
           {onDelete && (
             <ActionButton onClick={onDelete} title="Delete this warehouse" label="Delete" icon={Trash2} danger />
           )}
+          <ActionButton onClick={onCompare} title="Compare this warehouse with others" label="Compare" icon={GitCompareArrows} showLabel />
         </div>
       )}
     </div>
@@ -212,6 +219,7 @@ export function MultiWarehouseScroll({
   onDuplicateWarehouse,
   onRenameWarehouse,
   onDeleteWarehouse,
+  onCompareWarehouse,
   selectedTool,
   activeRoute,
   animationProgressRef,
@@ -364,6 +372,7 @@ export function MultiWarehouseScroll({
                       onAdd={onAddWarehouse}
                       onDuplicate={() => onDuplicateWarehouse(entry.id)}
                       onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
+                      onCompare={() => onCompareWarehouse(entry.id)}
                     />
                   </div>
                   <div className="relative" style={{ width: logicalW, height: logicalH }}>

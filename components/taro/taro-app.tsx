@@ -26,6 +26,7 @@ import {
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
 import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { MultiWarehouseScroll } from './multi-warehouse-scroll';
+import { CompareView } from './compare-view';
 import { RightSidebar } from './right-sidebar';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
@@ -144,6 +145,12 @@ export function TaroApp(_props: TaroAppProps) {
   // add-mode must APPEND a brand-new warehouse.
   const [showNewWarehouseConfig, setShowNewWarehouseConfig] = useState(false);
   const [hasExistingWarehouse, setHasExistingWarehouse] = useState(false);
+  // ── Comparison view (in-app route) ─────────────────────────────────────
+  // `compareViewOpen` swaps the main canvas for a dedicated comparison page.
+  // `compareBaseWarehouseId` is the warehouse the user clicked "Compare" on;
+  // it becomes the fixed base column of the comparison table.
+  const [compareViewOpen, setCompareViewOpen] = useState(false);
+  const [compareBaseWarehouseId, setCompareBaseWarehouseId] = useState<string | null>(null);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [simulationBlockState, setSimulationBlockState] = useState<SimulationBlockState | null>(null);
   const [orderCount, setOrderCount] = useState(1000);
@@ -278,6 +285,24 @@ export function TaroApp(_props: TaroAppProps) {
     setHighlightedMissingSkuIds(null);
     resetAnimationState();
   }, [resetAnimationState]);
+
+  // ── Workspace: Compare ────────────────────────────────────────────────
+  // Comparison needs at least two warehouses to be meaningful. With a single
+  // warehouse there is nothing to compare against, so we tell the user to add
+  // another one first instead of silently no-oping.
+  const handleCompareWarehouse = useCallback((warehouseId: string) => {
+    const total = workspaceWarehousesRef.current.length;
+    if (total < 2) {
+      alert('You need at least two warehouses to compare. Add another warehouse first.');
+      return;
+    }
+    // Jump to the comparison page with this warehouse pre-selected as the
+    // base. The rest of the workspace state (warehouses, orders) stays in
+    // TaroApp memory — the compare view is an in-app route, not a Next
+    // navigation, so nothing is lost.
+    setCompareBaseWarehouseId(warehouseId);
+    setCompareViewOpen(true);
+  }, []);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -710,6 +735,20 @@ export function TaroApp(_props: TaroAppProps) {
       {/* DB error banner */}
 
       {/* Main Content */}
+      {compareViewOpen ? (
+        <CompareView
+          warehouses={workspaceWarehouses}
+          ordersByWarehouse={ordersByWarehouse}
+          baseWarehouseId={compareBaseWarehouseId}
+          workerCount={workerCount}
+          warehouseProfile={warehouseProfile}
+          laborProfile={laborProfile}
+          onExit={() => {
+            setCompareViewOpen(false);
+            setCompareBaseWarehouseId(null);
+          }}
+        />
+      ) : (
       <div className="flex-1 flex overflow-hidden">
         {/* Center — warehouse div + right sidebar div, side by side in a flex row. */}
         <div className="flex-1 flex overflow-hidden relative">
@@ -744,6 +783,7 @@ export function TaroApp(_props: TaroAppProps) {
                 onDuplicateWarehouse={handleDuplicateWarehouse}
                 onRenameWarehouse={handleRenameWarehouse}
                 onDeleteWarehouse={handleDeleteWarehouse}
+                onCompareWarehouse={handleCompareWarehouse}
                 selectedTool={selectedTool}
                 activeRoute={activeRoute}
                 animationProgressRef={animationProgressRef}
@@ -787,6 +827,7 @@ export function TaroApp(_props: TaroAppProps) {
         </div>
 
       </div>
+      )}
 
       {/* Validation Modal */}
       {validationContext && (
