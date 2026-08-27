@@ -140,13 +140,13 @@ function PlainSlider({
         className="layout-variant-range"
       />
       {(low || high) && (
-        <div className="flex justify-between text-[10px] text-text-muted">
+        <div className="flex justify-between text-[10px] text-text-secondary">
           <span>{low}</span>
           <span>{high}</span>
         </div>
       )}
       {description && (
-        <p className="text-[11px] text-text-muted leading-snug">{description}</p>
+        <p className="text-[11px] text-text-secondary leading-snug">{description}</p>
       )}
     </div>
   );

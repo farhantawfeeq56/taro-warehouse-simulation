@@ -297,7 +297,7 @@ export function SimulationPanel({
 
             {/* Checklist */}
             <div className="space-y-3">
-              <h4 className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">
+              <h4 className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
                 Requirements Checklist
               </h4>
               <div className="space-y-2">
@@ -434,7 +434,7 @@ export function SimulationPanel({
                             <span className="font-sans text-muted-foreground">{completedPicks} / {totalPicks} picks</span>
                           </div>
                           {isIdle && (
-                            <div className="text-[10px] text-muted-foreground/60 italic leading-tight">
+                            <div className="text-[10px] text-muted-foreground/80 italic leading-tight">
                               {worker.zone}
                             </div>
                           )}

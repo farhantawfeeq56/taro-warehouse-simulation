@@ -223,6 +223,16 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Text selection — accent background with a readable foreground. */
+  ::selection {
+    background-color: var(--accent);
+    color: var(--accent-soft);
+  }
+  ::-moz-selection {
+    background-color: var(--accent);
+    color: var(--accent-soft);
+  }
 }
 
 /* ────────────────────────────────────────────────────────────────────────

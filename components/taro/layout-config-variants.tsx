@@ -71,16 +71,16 @@ const STATS: Stat[] = [
 function StatCard({ s }: { s: Stat }) {
   return (
     <div className="rounded-lg border border-border-default bg-surface px-3 py-2">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{s.title}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-text-secondary">{s.title}</p>
       <ul className="mt-1 space-y-0.5">
         {s.rows.map((r) => (
           <li key={r.label} className="flex items-baseline gap-1.5 text-[11px]">
             <span className="font-semibold text-text-primary">{r.label}</span>
-            {r.value && <span className="text-text-muted">{r.value}</span>}
+            {r.value && <span className="text-text-secondary">{r.value}</span>}
           </li>
         ))}
       </ul>
-      {s.note && <p className="text-[10px] text-text-muted mt-1">{s.note}</p>}
+      {s.note && <p className="text-[10px] text-text-secondary mt-1">{s.note}</p>}
     </div>
   );
 }

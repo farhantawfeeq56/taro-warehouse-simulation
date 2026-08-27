@@ -66,13 +66,13 @@ export function TabBar({
                 className={cn(
                   base,
                   'flex items-center justify-center gap-1.5 rounded-lg py-1.5',
-                  isActive ? 'bg-accent-soft text-accent' : 'text-text-muted hover:bg-muted hover:text-text-primary'
+                  isActive ? 'bg-accent-soft text-accent' : 'text-text-secondary hover:bg-muted hover:text-text-primary'
                 )}
               >
                 <span
                   className={cn(
                     'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
-                    isActive ? 'bg-accent text-accent-soft' : 'bg-muted text-text-muted'
+                    isActive ? 'bg-accent text-accent-soft' : 'bg-muted text-text-secondary'
                   )}
                 >
                   {i + 1}
@@ -116,7 +116,7 @@ export function TabBar({
               <span className={cn('text-[11px] font-bold truncate', isActive ? 'text-text-primary' : 'text-text-secondary')}>
                 {c.title}
               </span>
-              {isActive && <span className="text-[9px] text-text-muted truncate">{c.subtitle}</span>}
+              {isActive && <span className="text-[9px] text-text-secondary truncate">{c.subtitle}</span>}
             </button>
           );
         })}
@@ -139,7 +139,7 @@ export function TabBar({
               className={cn(
                 base,
                 'flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5',
-                isActive ? 'bg-surface shadow-sm text-text-primary' : 'text-text-muted hover:text-text-primary'
+                isActive ? 'bg-surface shadow-sm text-text-primary' : 'text-text-secondary hover:text-text-primary'
               )}
             >
               <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent' : '')} />
@@ -166,7 +166,7 @@ export function TabBar({
               className={cn(
                 base,
                 'relative flex items-center justify-center gap-1.5 px-2.5 pb-2 pt-1',
-                isActive ? 'text-accent' : 'text-text-muted hover:text-text-primary'
+                isActive ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
               )}
             >
               <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -196,7 +196,7 @@ export function TabBar({
               'flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 transition-all duration-200',
               isActive
                 ? 'border-accent bg-accent text-accent-soft shadow-sm'
-                : 'border-border-default bg-surface text-text-muted hover:border-accent/40 hover:text-text-primary'
+                : 'border-border-default bg-surface text-text-secondary hover:border-accent/40 hover:text-text-primary'
             )}
           >
             <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -226,7 +226,7 @@ export function TabVariantToolbar({
           title={`Tab direction ${v}`}
           className={cn(
             'flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[11px] font-semibold transition-colors',
-            active === v ? 'bg-accent text-accent-soft' : 'text-text-muted hover:bg-muted hover:text-text-primary'
+            active === v ? 'bg-accent text-accent-soft' : 'text-text-secondary hover:bg-muted hover:text-text-primary'
           )}
         >
           {v}
