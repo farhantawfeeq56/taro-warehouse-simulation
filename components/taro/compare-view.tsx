@@ -37,6 +37,7 @@ import type {
   WorkspaceWarehouse,
 } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/interior/loading-button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -374,19 +375,15 @@ export function CompareView({
                     />
                     Select all
                   </label>
-                  <Button
-                    onClick={handleRun}
+                  <LoadingButton
+                    onAction={handleRun}
                     disabled={isRunning || selectedIds.length === 0}
-                    size="sm"
+                    pendingLabel="Running…"
+                    successLabel="Done"
                     className="gap-1.5"
                   >
-                    {isRunning ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Play className="h-3.5 w-3.5" />
-                    )}
-                    {isRunning ? 'Running…' : 'Run Comparison'}
-                  </Button>
+                    Run Comparison
+                  </LoadingButton>
                 </div>
               </>
             )}

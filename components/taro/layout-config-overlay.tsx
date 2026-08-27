@@ -19,8 +19,10 @@
  */
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { X, Layout, Loader2, Warehouse, Package, Boxes } from 'lucide-react';
+import { X, Layout, Warehouse, Package, Boxes } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tabs } from '@/components/interior/tabs';
+import { LoadingButton } from '@/components/interior/loading-button';
 import type { Item } from '@/lib/taro/types';
 import type { ShelfPlacementPreview } from '@/lib/taro/inventory-placement';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
@@ -138,13 +140,13 @@ function PlainSlider({
         className="layout-variant-range"
       />
       {(low || high) && (
-        <div className="flex justify-between text-[10px] text-text-muted">
+        <div className="flex justify-between text-[10px] text-text-secondary">
           <span>{low}</span>
           <span>{high}</span>
         </div>
       )}
       {description && (
-        <p className="text-[11px] text-text-muted leading-snug">{description}</p>
+        <p className="text-[11px] text-text-secondary leading-snug">{description}</p>
       )}
     </div>
   );
@@ -517,7 +519,13 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
         {/* Left sidebar — tabs, one active at a time, button docked in footer */}
         <aside className="w-[340px] shrink-0 border-r bg-card flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
-            <TabBar cards={cards} active={activeTab} onSelect={(id) => setActiveTab(id as CardId)} variant={1} />
+            <Tabs
+              items={cards.map((c) => ({ value: c.id, label: c.title }))}
+              value={activeTab}
+              onValueChange={(id) => setActiveTab(id as CardId)}
+              label="Configuration sections"
+              className="shadow-none"
+            />
 
             <div className="rounded-xl border border-border-default bg-surface p-3 space-y-4">
               {renderCardBody(activeTab)}
@@ -526,18 +534,15 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
 
           {/* Docked footer — button sits inside a bordered window, not floating */}
           <footer className="shrink-0 border-t border-border-default bg-card px-3 py-2.5">
-            <Button className="w-full" onClick={handleApply} disabled={isGenerating}>
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  {isEditing ? 'Updating…' : 'Generating…'}
-                </>
-              ) : isEditing ? (
-                'Update Warehouse'
-              ) : (
-                'Generate Warehouse'
-              )}
-            </Button>
+            <LoadingButton
+              onAction={handleApply}
+              disabled={isGenerating}
+              pendingLabel={isEditing ? 'Updating…' : 'Generating…'}
+              successLabel="Saved"
+              className="w-full justify-center"
+            >
+              {isEditing ? 'Update Warehouse' : 'Generate Warehouse'}
+            </LoadingButton>
           </footer>
         </aside>
 

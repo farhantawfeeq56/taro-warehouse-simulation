@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SkeletonSwap } from '@/components/interior/skeleton-swap';
 import { Input } from '@/components/ui/input';
 import {
   Dialog,
@@ -208,14 +209,15 @@ export function ProjectDashboard() {
 
         {/* ── Loading ────────────────────────────────────────────────────── */}
         {isLoading && (
-          <div className="flex items-center justify-center py-24">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground font-['Instrument_Sans',system-ui,sans-serif]">
-                Loading projects...
-              </p>
+          <SkeletonSwap ready={!isLoading} delay={0} minVisible={250} lines={6} label="Projects">
+            <div className="flex items-center justify-center py-24">
+              <div className="flex flex-col items-center gap-3">
+                <p className="text-sm text-muted-foreground font-['Instrument_Sans',system-ui,sans-serif]">
+                  Loading projects...
+                </p>
+              </div>
             </div>
-          </div>
+          </SkeletonSwap>
         )}
 
         {/* ── Error ──────────────────────────────────────────────────────── */}

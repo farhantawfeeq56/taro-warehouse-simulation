@@ -14,7 +14,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { FlaskConical, Loader2, Sparkles, Wand2, X } from 'lucide-react';
+import { FlaskConical, Sparkles, X } from 'lucide-react';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import {
   generateExperiment,
@@ -22,6 +22,7 @@ import {
   type WarehouseInsight,
 } from '@/lib/taro/experiment-recommendation';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/interior/loading-button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -154,15 +155,13 @@ export function ExperimentRecommendationCard({
             {/* Constraint step (inline) OR the generate button. */}
             {!showConstraintStep && !generatedName && (
               <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => setShowConstraintStep(true)}
+                <LoadingButton
+                  onAction={() => setShowConstraintStep(true)}
                   disabled={isGenerating}
                   className="gap-1.5"
                 >
-                  <Wand2 className="h-3.5 w-3.5" />
                   Generate experiment
-                </Button>
+                </LoadingButton>
               </div>
             )}
 
@@ -192,19 +191,15 @@ export function ExperimentRecommendationCard({
                   className="text-xs"
                 />
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => handleGenerate(constraintsRaw.trim())}
+                  <LoadingButton
+                    onAction={() => handleGenerate(constraintsRaw.trim())}
                     disabled={isGenerating}
+                    pendingLabel="Generating…"
+                    successLabel="Generated"
                     className="gap-1.5"
                   >
-                    {isGenerating ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Wand2 className="h-3.5 w-3.5" />
-                    )}
-                    {isGenerating ? 'Generating…' : 'Generate'}
-                  </Button>
+                    Generate
+                  </LoadingButton>
                   <Button
                     size="sm"
                     variant="outline"

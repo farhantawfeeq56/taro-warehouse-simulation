@@ -30,6 +30,7 @@ import { CompareView } from './compare-view';
 import { RightSidebar } from './right-sidebar';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
+import { SkeletonSwap } from '@/components/interior/skeleton-swap';
 import { Button } from '@/components/ui/button';
 import { getMissingSkuIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
 import { evaluateReadiness } from '@/lib/taro/readiness';
@@ -812,10 +813,11 @@ export function TaroApp(_props: TaroAppProps) {
       {/* Loading state */}
       {isLoading && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="text-sm text-muted-foreground">Loading workspace...</p>
-          </div>
+          <SkeletonSwap ready={!isLoading} delay={0} minVisible={250} lines={4} label="Workspace">
+            <div className="flex flex-col items-center gap-4">
+              <p className="text-sm text-muted-foreground">Loading workspace...</p>
+            </div>
+          </SkeletonSwap>
         </div>
       )}
 
