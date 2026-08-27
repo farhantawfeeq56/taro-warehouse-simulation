@@ -221,14 +221,14 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     []
   );
 
-  const [skuCount, setSkuCount] = useState(initialConfig?.inventory.skuCount ?? 1000);
+  const [skuCount, setSkuCount] = useState(initialConfig?.inventory.skuCount ?? 750);
   const [demandDistribution, setDemandDistribution] = useState(initialConfig?.inventory.demandDistribution ?? 0);
   const [productAffinity, setProductAffinity] = useState(initialConfig?.inventory.productAffinity ?? 0);
   const [storageFootprint, setStorageFootprint] = useState(initialConfig?.inventory.storageFootprint ?? 0);
   const [slottingBias, setSlottingBias] = useState(initialConfig?.placement.slottingBias ?? 0);
   const [categoryClustering, setCategoryClustering] = useState(initialConfig?.placement.categoryClustering ?? 0);
   const [inventory, setInventory] = useState<Item[]>(() => {
-    const initCount = initialConfig?.inventory.skuCount ?? 1000;
+    const initCount = initialConfig?.inventory.skuCount ?? 750;
     const initDD = initialConfig?.inventory.demandDistribution ?? 0;
     const initPA = initialConfig?.inventory.productAffinity ?? 0;
     const initSF = initialConfig?.inventory.storageFootprint ?? 0;
