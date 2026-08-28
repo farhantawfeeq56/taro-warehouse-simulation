@@ -212,25 +212,25 @@ export function LoadingButton({
     {
       key: "idle",
       text: children,
-      tone: "text-stone-700 dark:text-stone-200",
+      tone: "text-primary",
       icon: null,
     },
     {
       key: "pending",
       text: pendingLabel,
-      tone: "text-stone-500 dark:text-stone-400",
+      tone: "text-muted-foreground",
       icon: <Spinner still={reduced === true || status !== "pending"} />,
     },
     {
       key: "success",
       text: successLabel,
-      tone: "text-emerald-600 dark:text-emerald-400",
+      tone: "text-positive",
       icon: <CheckMark />,
     },
     {
       key: "error",
       text: errorLabel,
-      tone: "text-red-600 dark:text-red-400",
+      tone: "text-error",
       icon: <AlertMark />,
     },
   ];
@@ -252,7 +252,7 @@ export function LoadingButton({
           }
           run();
         }}
-        className={`relative inline-flex h-9 select-none items-center justify-center rounded-[9px] border border-stone-200 bg-white px-3.5 text-[13px] font-medium text-stone-700 shadow-[inset_0_1.5px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.08)] outline-none transition-[border-color,box-shadow,background-color] duration-150 hover:bg-stone-50 focus-visible:border-[var(--ring)] focus-visible:shadow-[0_1px_2px_rgba(28,25,23,0.08),0_10px_20px_-14px_rgba(69,104,255,0.6)] disabled:opacity-50 dark:border-white/[0.16] dark:bg-[#252522] dark:text-stone-200 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_1px_2px_rgba(0,0,0,0.4)] dark:hover:bg-[#2A2A27] dark:focus-visible:border-[var(--ring)] dark:focus-visible:shadow-[0_10px_20px_-14px_rgba(147,176,255,0.5)] ${className}`}
+        className={`relative inline-flex h-9 select-none items-center justify-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-primary shadow-sm outline-none transition-[border-color,box-shadow,background-color] duration-150 hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:opacity-50 ${className}`}
         style={{ borderRadius: 9, touchAction: "manipulation" }}
       >
         <span aria-hidden className="relative grid place-items-center">

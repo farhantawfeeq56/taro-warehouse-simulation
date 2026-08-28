@@ -21,7 +21,7 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { X, Layout, Warehouse, Package, Boxes } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs } from '@/components/interior/tabs';
+import { Tabs } from '@/components/ui/tabs';
 import { LoadingButton } from '@/components/interior/loading-button';
 import type { Item } from '@/lib/taro/types';
 import type { ShelfPlacementPreview } from '@/lib/taro/inventory-placement';

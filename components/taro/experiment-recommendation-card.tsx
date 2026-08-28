@@ -40,10 +40,10 @@ interface ExperimentRecommendationCardProps {
 
 const AXIS_META: Record<string, { label: string; tone: string }> = {
   capacity: { label: 'More capacity', tone: 'border-primary/40 bg-primary/5 text-primary' },
-  throughput: { label: 'Denser storage', tone: 'border-sky-400/40 bg-sky-500/5 text-sky-600' },
-  density: { label: 'Denser layout', tone: 'border-violet-400/40 bg-violet-500/5 text-violet-600' },
-  'inventory-fit': { label: 'Better fit', tone: 'border-emerald-400/40 bg-emerald-500/5 text-emerald-600' },
-  placement: { label: 'Smarter slotting', tone: 'border-amber-400/40 bg-amber-500/5 text-amber-600' },
+  throughput: { label: 'Denser storage', tone: 'border-info/40 bg-info/10 text-info' },
+  density: { label: 'Denser layout', tone: 'border-info/40 bg-info/10 text-info' },
+  'inventory-fit': { label: 'Better fit', tone: 'border-positive/40 bg-positive/10 text-positive' },
+  placement: { label: 'Smarter slotting', tone: 'border-warning/40 bg-warning/10 text-warning' },
 };
 
 export function ExperimentRecommendationCard({
@@ -137,9 +137,9 @@ export function ExperimentRecommendationCard({
             </div>
 
             {/* The experiment disclaimer — always present, non-negotiable. */}
-            <div className="flex items-start gap-2 rounded-md border border-amber-300/40 bg-amber-50 px-3 py-2 dark:border-amber-500/30 dark:bg-amber-500/10">
-              <FlaskConical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-              <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">
+            <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning-soft/60 px-3 py-2">
+              <FlaskConical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+              <p className="text-[11px] leading-relaxed text-warning">
                 <span className="font-semibold">This is just an experiment.</span> It is not a
                 guarantee — the AI is hypothesizing what might improve things based on your
                 current warehouses. Add it, run the comparison again, and judge by the numbers.

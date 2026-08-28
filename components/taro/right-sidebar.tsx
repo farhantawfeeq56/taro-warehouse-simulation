@@ -28,7 +28,7 @@ import {
   PanelRightOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Tabs } from '@/components/interior/tabs';
+import { Tabs } from '@/components/ui/tabs';
 import type {
   Warehouse,
   StrategyType,
@@ -194,7 +194,7 @@ export function RightSidebar({ open, onOpenChange, ...props }: RightSidebarProps
   }
 
   return (
-    <div className="h-full flex w-80 flex-col overflow-hidden border-l border-border-default bg-[#F4F4F2] shrink-0">
+    <div className="h-full flex w-80 flex-col overflow-hidden border-l border-border-default bg-secondary shrink-0">
       {renderBody()}
     </div>
   );
