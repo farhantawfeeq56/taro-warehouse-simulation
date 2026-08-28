@@ -46,14 +46,14 @@ export function ProgressBar({
       <div className="flex items-baseline justify-between gap-3">
         <span
           id={labelId}
-          className="truncate text-[13px] font-medium text-stone-700 dark:text-stone-200"
+          className="truncate text-sm font-medium text-primary"
         >
           {label}
         </span>
 
         <span
           aria-hidden
-          className="grid shrink-0 justify-items-end text-stone-500 dark:text-stone-400"
+          className="grid shrink-0 justify-items-end text-muted-foreground"
         >
           <motion.span
             className="col-start-1 row-start-1 whitespace-nowrap text-[12px] font-medium leading-5"
@@ -81,12 +81,12 @@ export function ProgressBar({
         aria-valuemin={0}
         aria-valuemax={max}
         {...measured}
-        className="mt-2 rounded-[4px] bg-stone-200/60 p-[2px] shadow-[inset_0_1px_2px_rgba(28,25,23,0.1),inset_0_0_0_1px_rgba(28,25,23,0.06)] dark:bg-[#1D1D1A] dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.45)]"
+        className="mt-2 rounded-md bg-muted p-[2px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]"
       >
-        <div className="relative h-[8px] overflow-hidden rounded-[2px]">
+        <div className="relative h-2 overflow-hidden rounded-sm">
           <motion.span
             aria-hidden
-            className="absolute inset-0 block origin-left rounded-[2px] bg-[var(--ring)] shadow-[inset_0_1px_0_rgba(255,255,255,0.35),inset_0_-1px_0_rgba(28,25,23,0.2)] dark:bg-[var(--ring)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),inset_0_-1px_0_rgba(0,0,0,0.25)]"
+            className="absolute inset-0 block origin-left rounded-sm bg-ring"
             initial={false}
             animate={{ scaleX: indeterminate ? 0 : fraction }}
             transition={reduced ? INSTANT : FILL}
@@ -95,7 +95,7 @@ export function ProgressBar({
           {indeterminate && !reduced ? (
             <motion.span
               aria-hidden
-              className="absolute inset-y-0 left-0 block w-2/5 rounded-[2px] bg-[var(--ring)] shadow-[inset_0_1px_0_rgba(255,255,255,0.35),inset_0_-1px_0_rgba(28,25,23,0.2)] dark:bg-[var(--ring)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),inset_0_-1px_0_rgba(0,0,0,0.25)]"
+              className="absolute inset-y-0 left-0 block w-2/5 rounded-sm bg-ring"
               initial={{ x: "-100%", opacity: 0 }}
               animate={{ x: "250%", opacity: 1 }}
               exit={{ opacity: 0 }}

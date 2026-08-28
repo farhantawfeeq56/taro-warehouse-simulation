@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { cn } from "@/lib/utils";
 
 const INDICATOR = { type: "spring", stiffness: 620, damping: 42, mass: 0.35 } as const;
 
@@ -216,13 +217,16 @@ export function Tabs({
 
   return (
     <div
-      className={`w-full overflow-hidden rounded-[12px] border border-stone-200 bg-white shadow-[0_1px_2px_rgba(28,25,23,0.06),0_4px_10px_-8px_rgba(28,25,23,0.45)] dark:border-white/[0.16] dark:bg-[#1D1D1A] dark:shadow-[0_1px_6px_rgba(0,0,0,0.45)] ${className}`}
+      className={cn(
+        "w-full overflow-hidden rounded-lg border border-border bg-card shadow-sm",
+        className,
+      )}
     >
       <div
         {...tabs.tabListProps}
         ref={rowRef}
         aria-label={label}
-        className="relative flex w-full gap-1 border-b border-stone-200 bg-stone-50 px-1 pt-1 dark:border-white/[0.16] dark:bg-[#1D1D1A]"
+        className="relative flex w-full gap-1 border-b border-border bg-muted px-1 pt-1"
       >
         <motion.span
           layout
@@ -236,7 +240,7 @@ export function Tabs({
             width: plateau.width,
             opacity: plateau.ready ? 1 : 0,
           }}
-          className="absolute bottom-[-1px] top-1 bg-white dark:bg-[#1D1D1A]"
+          className="absolute bottom-[-1px] top-1 bg-card"
           transition={reduced ? { duration: 0 } : INDICATOR}
         >
           <motion.span
@@ -244,7 +248,7 @@ export function Tabs({
             aria-hidden
             style={{ borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
             transition={reduced ? { duration: 0 } : INDICATOR}
-            className="absolute inset-0 border border-b-0 border-stone-200 dark:border-white/[0.16]"
+            className="absolute inset-0 border border-b-0 border-border"
           />
         </motion.span>
 
@@ -257,13 +261,16 @@ export function Tabs({
               ref={(node) => {
                 tabRefs.current[index] = node;
               }}
-              className={`relative flex h-8 shrink-0 items-center justify-center rounded-t-[8px] px-3.5 text-[12.5px] outline-none transition-colors duration-150 after:pointer-events-none after:absolute after:inset-0 after:rounded-t-[8px] after:content-[''] focus-visible:after:shadow-[inset_0_0_0_1px_var(--ring)] dark:focus-visible:after:shadow-[inset_0_0_0_1px_var(--ring)] ${
+              className={cn(
+                "relative flex h-8 shrink-0 items-center justify-center rounded-t-md px-3.5 text-[12.5px] outline-none transition-colors duration-150",
+                "after:pointer-events-none after:absolute after:inset-0 after:rounded-t-md after:content-['']",
+                "focus-visible:after:shadow-[inset_0_0_0_1px_var(--ring)]",
                 item.disabled
-                  ? "cursor-default text-stone-400 dark:text-stone-500"
+                  ? "cursor-default text-muted-foreground/50"
                   : selected
-                    ? "text-stone-800 dark:text-stone-100"
-                    : "text-stone-500 hover:bg-stone-200/50 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-white/[0.05] dark:hover:text-stone-200"
-              }`}
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground/80",
+              )}
             >
               <span className="relative grid place-items-center leading-[1.4]">
                 <span aria-hidden className="invisible col-start-1 row-start-1 font-medium">
@@ -288,7 +295,11 @@ export function Tabs({
           initial={reduced ? false : { opacity: 0, x: tabs.direction * 12 }}
           animate={{ opacity: 1, x: 0 }}
           transition={reduced ? { duration: 0 } : PANEL}
-          className={`rounded-[11px] text-[13.5px] leading-relaxed text-stone-700 outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ring)] dark:text-stone-200 dark:focus-visible:shadow-[inset_0_0_0_1px_var(--ring)] ${panelClassName}`}
+          className={cn(
+            "rounded-md text-sm leading-relaxed text-foreground outline-none",
+            "focus-visible:shadow-[inset_0_0_0_1px_var(--ring)]",
+            panelClassName,
+          )}
         >
           {renderPanel(tabs.value)}
         </motion.div>
