@@ -353,8 +353,11 @@ export function MultiWarehouseScroll({
             <div className="relative flex-1 min-h-0 overflow-hidden">
               <div className="absolute inset-0 flex items-center justify-center">
                 {/* Card — header bar above the warehouse renderer, scaled as one unit. */}
+                {/* shrink-0: the card is a flex item; without it flex shrinks the card
+                    below its content width while the header keeps its full logicalW,
+                    so the action buttons overflow the card's clip and get hidden. */}
                 <div
-                  className="flex flex-col border border-border rounded-md shadow-sm bg-background overflow-hidden"
+                  className="flex flex-col shrink-0 border border-border rounded-md shadow-sm bg-background overflow-hidden"
                   style={{ transform: `scale(${fitScale})` }}
                 >
                   {/* Name + actions bar — sits ABOVE the warehouse, never over shelves. */}
