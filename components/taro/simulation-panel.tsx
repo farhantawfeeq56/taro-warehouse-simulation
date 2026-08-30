@@ -225,22 +225,20 @@ export function SimulationPanel({
         </div>
       ) : results ? (
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold text-foreground">Results</h2>
-            </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => onFlowStepChange?.('setup')}
               title="Back to Setup"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5" />
                 <path d="m12 19-7-7 7-7" />
               </svg>
             </button>
+            <BarChart3 className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Results</h2>
           </div>
           <div className="space-y-1.5">
             {sortedStrategies.map((strategy) => {
