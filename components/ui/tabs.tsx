@@ -237,16 +237,9 @@ export function Tabs({
             width: plateau.width,
             opacity: plateau.ready ? 1 : 0,
           }}
-          className="absolute bottom-1 top-1 bg-card shadow-sm"
+          className="absolute bottom-1 top-1 bg-accent shadow-sm"
           transition={reduced ? { duration: 0 } : INDICATOR}
-        >
-          <motion.span
-            layout
-            aria-hidden
-            transition={reduced ? { duration: 0 } : INDICATOR}
-            className="absolute inset-0 rounded-md border border-border"
-          />
-        </motion.span>
+        />
 
         {items.map((item, index) => {
           const selected = item.value === tabs.value;
@@ -258,13 +251,13 @@ export function Tabs({
                 tabRefs.current[index] = node;
               }}
               className={cn(
-                "relative z-10 flex h-7 flex-1 min-w-0 shrink items-center justify-center rounded-md px-3 text-[12.5px] outline-none transition-colors duration-150",
+                "relative z-10 flex h-8 flex-1 min-w-0 shrink items-center justify-center rounded-md px-3 text-[12.5px] outline-none transition-all duration-150",
                 "after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:content-['']",
                 "focus-visible:after:shadow-[inset_0_0_0_1px_var(--ring)]",
                 item.disabled
                   ? "cursor-default text-muted-foreground/50"
                   : selected
-                    ? "text-foreground"
+                    ? "bg-accent font-medium text-accent-soft shadow-sm"
                     : "text-muted-foreground hover:bg-muted/70 hover:text-foreground/80",
               )}
             >

@@ -539,6 +539,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               disabled={isGenerating}
               pendingLabel={isEditing ? 'Updating…' : 'Generating…'}
               successLabel="Saved"
+              tone="primary"
               className="w-full justify-center"
             >
               {isEditing ? 'Update Warehouse' : 'Generate Warehouse'}
