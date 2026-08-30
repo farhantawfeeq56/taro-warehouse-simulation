@@ -89,9 +89,7 @@ interface SimulationPanelProps {
   flowStep?: 'setup' | 'simulation';
   /** Called when the user clicks Simulate in the setup step (advances flow). */
   onFlowAdvance?: () => void;
-  /** vartest5: flow-presentation variant (1 stepper · 2 progress · 3 continuous · 4 chips · 5 tabs). */
-  flowVariant?: 1 | 2 | 3 | 4 | 5;
-  /** vartest5: explicitly set the flow step (used by the tabs variant). */
+  /** Breadcrumb navigation — jump to a flow step directly. */
   onFlowStepChange?: (step: 'setup' | 'simulation') => void;
 }
 
@@ -121,7 +119,6 @@ export function SimulationPanel({
   embedded = false,
   flowStep = 'setup',
   onFlowAdvance,
-  flowVariant = 1,
   onFlowStepChange,
 }: SimulationPanelProps) {
   const strategies = results?.strategies ?? [];
@@ -462,125 +459,35 @@ export function SimulationPanel({
     </LoadingButton>
   );
 
-  // Variant chrome — flow navigation (all non-tab approaches)
+  // Flow chrome — breadcrumb navigation (Setup › Simulation), clickable.
   const renderFlowChrome = () => {
     const stepOrder = [
-      { id: 'setup', label: 'Orders' },
+      { id: 'setup', label: 'Setup' },
       { id: 'simulation', label: 'Simulation' },
     ] as const;
-    switch (flowVariant) {
-      case 1: // Stepper — numbered circles joined by a rail, active step filled
-        return (
-          <div className="p-3 pb-0 shrink-0">
-            <div className="flex items-center gap-2">
-              {stepOrder.map((s, i) => {
-                const isActive = flowStep === s.id;
-                const isDone = flowStep === 'simulation' && i === 0;
-                return (
-                  <div key={s.id} className="flex flex-1 items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onFlowStepChange?.(s.id)}
-                      className="flex items-center gap-1.5 rounded-full py-1 text-[11px] font-medium transition-colors"
-                    >
-                      <span
-                        className={cn(
-                          'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
-                          isActive
-                            ? 'bg-primary text-primary-foreground'
-                            : isDone
-                              ? 'bg-positive-soft text-positive'
-                              : 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        {isDone ? '✓' : i + 1}
-                      </span>
-                      <span className={cn(isActive || isDone ? 'text-foreground' : 'text-muted-foreground')}>
-                        {s.label}
-                      </span>
-                    </button>
-                    {i === 0 && (
-                      <div className={cn('h-0.5 flex-1 rounded-full', isDone ? 'bg-positive/50' : 'bg-border')} />
-                    )}
-                  </div>
-                );
-              })}
+    return (
+      <div className="p-3 pb-0 shrink-0">
+        <div className="flex items-center gap-1 text-xs">
+          {stepOrder.map((s, i) => (
+            <div key={s.id} className="flex items-center gap-1">
+              {i > 0 && <span className="text-muted-foreground/50">›</span>}
+              <button
+                type="button"
+                onClick={() => onFlowStepChange?.(s.id)}
+                className={cn(
+                  'rounded px-1.5 py-0.5 font-medium transition-colors',
+                  flowStep === s.id
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {s.label}
+              </button>
             </div>
-          </div>
-        );
-      case 2: // Progress — labeled bar, fills as you advance
-        return (
-          <div className="p-3 pb-0 shrink-0">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-              <span className={cn(flowStep === 'setup' && 'font-semibold text-foreground')}>1 · Orders</span>
-              <span className={cn(flowStep === 'simulation' && 'font-semibold text-foreground')}>2 · Simulation</span>
-            </div>
-            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary rounded-full transition-all duration-300"
-                style={{ width: flowStep === 'setup' ? '50%' : '100%' }}
-              />
-            </div>
-          </div>
-        );
-      case 3: // Breadcrumb — Orders › Simulation, clickable segments
-        return (
-          <div className="p-3 pb-0 shrink-0">
-            <div className="flex items-center gap-1 text-xs">
-              {stepOrder.map((s, i) => (
-                <div key={s.id} className="flex items-center gap-1">
-                  {i > 0 && <span className="text-muted-foreground/50">›</span>}
-                  <button
-                    type="button"
-                    onClick={() => onFlowStepChange?.(s.id)}
-                    className={cn(
-                      'rounded px-1.5 py-0.5 font-medium transition-colors',
-                      flowStep === s.id
-                        ? 'bg-muted text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      case 4: // Chips — clickable pill chips (winner, refined with checkmark on done)
-        return (
-          <div className="p-3 pb-0 shrink-0">
-            <div className="flex gap-1">
-              {stepOrder.map((s, i) => {
-                const isActive = flowStep === s.id;
-                const isDone = flowStep === 'simulation' && i === 0;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => onFlowStepChange?.(s.id)}
-                    className={cn(
-                      'flex flex-1 items-center justify-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition-colors',
-                      isActive
-                        ? 'border-accent bg-accent text-accent-soft'
-                        : isDone
-                          ? 'border-positive/50 bg-positive-soft text-positive'
-                          : 'border-border-default bg-surface text-text-secondary hover:border-accent/40'
-                    )}
-                  >
-                    {isDone && <span className="text-[10px]">✓</span>}
-                    {s.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      case 5: // Wizard — prev/next buttons at the bottom of each step
-        return null;
-      default:
-        return null;
-    }
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -591,24 +498,11 @@ export function SimulationPanel({
           {ordersWorkersBlock}
           <div className="flex-1" />
           <div className="p-3 border-t border-border shrink-0">
-            {flowVariant === 5 ? (
-              // Wizard — Next button advances to the simulation step
-              <Button
-                onClick={onFlowAdvance ?? onSimulate}
-                disabled={!readiness?.isReady || isSimulating || orders.length === 0}
-                className="w-full h-9 text-sm"
-              >
-                {isSimulating ? 'Simulating…' : 'Next: Run Simulation'}
-              </Button>
-            ) : (
-              <>
-                {simulateButton}
-                {!readiness?.isReady && (
-                  <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
-                    Complete the requirements to enable Simulate
-                  </p>
-                )}
-              </>
+            {simulateButton}
+            {!readiness?.isReady && (
+              <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
+                Complete the requirements to enable Simulate
+              </p>
             )}
           </div>
         </>
@@ -616,15 +510,9 @@ export function SimulationPanel({
         <>
           {simBody}
           <div className="p-3 border-t border-border shrink-0">
-            {flowVariant === 5 ? (
-              <Button onClick={onFlowAdvance} className="w-full h-8 text-xs" variant="outline">
-                ← Back to Orders
-              </Button>
-            ) : (
-              <Button onClick={onFlowAdvance} className="w-full h-8 text-xs" variant="ghost">
-                Back to Setup
-              </Button>
-            )}
+            <Button onClick={onFlowAdvance} className="w-full h-8 text-xs" variant="ghost">
+              Back to Setup
+            </Button>
           </div>
         </>
       )}
