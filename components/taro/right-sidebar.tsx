@@ -20,8 +20,9 @@
  * of icons that expand the panel.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Tabs } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import type {
   Warehouse,
   StrategyType,
@@ -85,6 +86,19 @@ export function RightSidebar(props: RightSidebarProps) {
   const advance = () => setSimFlowStep('simulation');
   const goBack = () => setSimFlowStep('setup');
 
+  // vartest5: flow-presentation variant (1 stepper · 2 progress · 3 continuous · 4 chips · 5 tabs)
+  const [flowVariant, setFlowVariant] = useState<1 | 2 | 3 | 4 | 5>(1);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      const n = Number(e.key);
+      if (n >= 1 && n <= 5) setFlowVariant(n as 1 | 2 | 3 | 4 | 5);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const renderBody = () => (
     <>
       {/* Header — tab switcher (Config | Simulation). */}
@@ -138,9 +152,11 @@ export function RightSidebar(props: RightSidebarProps) {
               onSimulate={props.onSimulate}
               onZVisualizationChange={props.onZVisualizationChange}
               flowStep={simFlowStepEffective}
+              flowVariant={flowVariant}
               onFlowAdvance={
                 simFlowStepEffective === 'setup' ? advance : goBack
               }
+              onFlowStepChange={(step) => setSimFlowStep(step)}
             />
           </div>
         )}
@@ -149,8 +165,31 @@ export function RightSidebar(props: RightSidebarProps) {
   );
 
   return (
-    <div className="h-full flex w-80 flex-col overflow-hidden border-l border-border-default bg-secondary shrink-0">
+    <div className="relative h-full flex w-80 flex-col overflow-hidden border-l border-border-default bg-secondary shrink-0">
       {renderBody()}
+
+      {/* vartest5: floating segmented toolbar — switches flow-presentation variant (keys 1–5). */}
+      <div className="pointer-events-none absolute bottom-3 right-3 z-[120] flex items-center gap-1.5">
+        <span className="rounded bg-surface/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shadow-sm">
+          Flow 1–5
+        </span>
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border-default bg-surface px-1 py-0.5 shadow-lg">
+          {[1, 2, 3, 4, 5].map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setFlowVariant(v as 1 | 2 | 3 | 4 | 5)}
+              title={`Flow variant ${v}`}
+              className={cn(
+                'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold transition-colors',
+                flowVariant === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
