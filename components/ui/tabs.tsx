@@ -237,7 +237,7 @@ export function Tabs({
             width: plateau.width,
             opacity: plateau.ready ? 1 : 0,
           }}
-          className="absolute bottom-1 top-1 bg-accent shadow-sm"
+          className="absolute bottom-1 top-1 bg-card shadow-sm"
           transition={reduced ? { duration: 0 } : INDICATOR}
         />
 
@@ -257,7 +257,7 @@ export function Tabs({
                 item.disabled
                   ? "cursor-default text-muted-foreground/50"
                   : selected
-                    ? "bg-accent font-medium text-accent-soft shadow-sm"
+                    ? "bg-card font-medium text-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-muted/70 hover:text-foreground/80",
               )}
             >
