@@ -28,7 +28,7 @@ import type {
 import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
-import { Plus, Copy, Pencil, Trash2, GitCompareArrows, Sparkles } from 'lucide-react';
+import { Plus, Copy, Pencil, Trash2, GitCompareArrows } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /** Padding (px) kept between the warehouse and the page edges when fitting. */
@@ -178,7 +178,6 @@ function PageHeader({
             isActive ? 'text-foreground' : 'text-muted-foreground',
           )}
         >
-          <Sparkles className="h-3 w-3 shrink-0 text-primary/70" />
           {name}
         </h3>
       )}

@@ -17,7 +17,6 @@ import type {
   WorkspaceWarehouse,
 } from '@/lib/taro/types';
 import { runSimulation, UnreachableLocationError } from '@/core/simulationEngine';
-import { Plus } from 'lucide-react';
 import {
   generateRandomOrders,
   createEmptyWarehouse,
@@ -73,9 +72,6 @@ export function TaroApp(_props: TaroAppProps) {
   );
   const [workspaceWarehouses, setWorkspaceWarehouses] = useState<WorkspaceWarehouse[]>([]);
   const [activeWarehouseId, setActiveWarehouseId] = useState<string | null>(null);
-
-  // Right sidebar (config + simulation) open/closed.
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
 
   // Derived: the currently selected warehouse (drives all panels).
   const warehouse = useMemo(() => {
@@ -855,13 +851,6 @@ export function TaroApp(_props: TaroAppProps) {
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden gap-0 relative min-w-0">
-              {/* Floating Add-Warehouse button — bottom left, always available. */}
-              <div className="absolute bottom-4 left-4 z-40">
-                <Button onClick={handleAddWarehouse} className="h-8 gap-1.5 text-xs shadow-lg">
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Warehouse
-                </Button>
-              </div>
               {/* Multi-warehouse canvas — page-per-warehouse vertical scroll
                   (only one warehouse visible at a time). */}
               <MultiWarehouseScroll
@@ -911,8 +900,6 @@ export function TaroApp(_props: TaroAppProps) {
             onEditConfig={() => {
               if (activeWarehouseId) handleOpenLayoutConfig(activeWarehouseId);
             }}
-            open={isRightSidebarOpen}
-            onOpenChange={setIsRightSidebarOpen}
           />
         </div>
 

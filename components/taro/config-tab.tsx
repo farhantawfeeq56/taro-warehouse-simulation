@@ -3,17 +3,18 @@
 /**
  * Config tab — read-only view of the saved warehouse configuration.
  *
- * vartest5: the three option groups (Geometry / Inventory / Placement) are
- * rendered as tabs instead of stacked sections, with five tab-navigation
- * visual directions switched by a floating segmented toolbar (bottom-right,
- * keys 1–5).
+ * Renders the three option groups (Geometry / Inventory / Placement) stacked
+ * vertically inside the right sidebar.
  */
 
-import { useEffect, useState } from 'react';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { Button } from '@/components/ui/button';
 import { Settings, Edit3, Grid3X3, Boxes, TrendingUp, Sparkles, Layers } from 'lucide-react';
-import { TabBar, TabVariantToolbar, type TabVariant } from './section-tabs';
+
+interface ConfigTabProps {
+  configuration: WarehouseConfiguration | null;
+  onEdit: () => void;
+}
 
 interface ConfigTabProps {
   configuration: WarehouseConfiguration | null;
@@ -60,12 +61,6 @@ function SectionTitle({ icon, children }: { icon: React.ReactNode; children: Rea
 }
 
 type ConfigTabId = 'geometry' | 'inventory' | 'placement';
-
-const TABS: { id: ConfigTabId; title: string; icon: typeof Grid3X3; subtitle: string }[] = [
-  { id: 'geometry', title: 'Geometry', icon: Grid3X3, subtitle: 'Racks, aisles & thoroughfares' },
-  { id: 'inventory', title: 'Inventory', icon: Boxes, subtitle: 'Catalogue, demand & affinity' },
-  { id: 'placement', title: 'Placement', icon: TrendingUp, subtitle: 'Slotting & zoning' },
-];
 
 function TabBody({
   id,
@@ -150,22 +145,7 @@ function TabBody({
   );
 }
 
-export function ConfigTab({ configuration, onEdit, stacked = false }: ConfigTabProps) {
-  const [activeTab, setActiveTab] = useState<ConfigTabId>('geometry');
-  const [tabVariant, setTabVariant] = useState<TabVariant>(1);
-
-  // Keys 1–5 switch the tab-navigation direction (ignored while typing).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      const n = Number(e.key);
-      if (n >= 1 && n <= 5) setTabVariant(n as TabVariant);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
+export function ConfigTab({ configuration, onEdit }: ConfigTabProps) {
   return (
     <div className="relative flex flex-col h-full gap-3 overflow-y-auto p-3">
       <div className="flex items-center justify-between shrink-0">
@@ -173,39 +153,18 @@ export function ConfigTab({ configuration, onEdit, stacked = false }: ConfigTabP
           <Settings className="h-4 w-4 text-primary" />
           <h2 className="text-sm font-semibold text-foreground">Layout Configuration</h2>
         </div>
-        <Button size="sm" variant="outline" onClick={onEdit} className="h-7 text-xs">
+        <Button size="sm" variant="outline" onClick={onEdit} className="h-7 text-xs hover:bg-muted hover:text-foreground">
           <Edit3 className="h-3 w-3 mr-1.5" />
           Edit
         </Button>
       </div>
 
       {configuration ? (
-        stacked ? (
-          <>
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
-              <TabBody id="geometry" configuration={configuration} />
-              <TabBody id="inventory" configuration={configuration} />
-              <TabBody id="placement" configuration={configuration} />
-            </div>
-          </>
-        ) : (
-          <>
-          <div className="shrink-0">
-            <TabBar
-              cards={TABS}
-              active={activeTab}
-              onSelect={(id) => setActiveTab(id as ConfigTabId)}
-              variant={tabVariant}
-            />
-          </div>
-
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <TabBody id={activeTab} configuration={configuration} />
-          </div>
-
-          <TabVariantToolbar active={tabVariant} onSelect={setTabVariant} />
-          </>
-        )
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
+          <TabBody id="geometry" configuration={configuration} />
+          <TabBody id="inventory" configuration={configuration} />
+          <TabBody id="placement" configuration={configuration} />
+        </div>
       ) : (
         <div className="flex flex-col items-center justify-center text-center py-10 gap-3">
           <Settings className="h-8 w-8 text-muted-foreground/40" />
@@ -215,7 +174,7 @@ export function ConfigTab({ configuration, onEdit, stacked = false }: ConfigTabP
               This warehouse was created manually. Generate one to track its configuration.
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={onEdit} className="h-8 text-xs">
+          <Button size="sm" variant="outline" onClick={onEdit} className="h-8 text-xs hover:bg-muted hover:text-foreground">
             <Edit3 className="h-3.5 w-3.5 mr-1.5" />
             Configure Warehouse
           </Button>
