@@ -44,26 +44,6 @@ const MAX_UPSCALE = 1.5;
 /** How far a section must be inside the viewport before we call it "visible". */
 const VISIBILITY_MARGIN = 40;
 
-/** How the full-size warehouse controls are placed relative to the card. */
-type ControlPlacement = 'inside' | 'above' | 'below' | 'bottom-right' | 'top-right';
-
-/**
- * vartest5: control-placement variants (segmented control bottom-right,
- * keyboard 1–5 switches between them).
- */
-const PLACEMENT_VARIANTS: {
-  key: string;
-  label: string;
-  placement: ControlPlacement;
-  className: string;
-}[] = [
-  { key: '1', label: 'Inside', placement: 'inside', className: '' },
-  { key: '2', label: 'Above', placement: 'above', className: 'top-3 left-1/2 -translate-x-1/2' },
-  { key: '3', label: 'Below', placement: 'below', className: 'bottom-3 left-1/2 -translate-x-1/2' },
-  { key: '4', label: 'Top-right', placement: 'top-right', className: 'top-3 right-3' },
-  { key: '5', label: 'Bottom-right', placement: 'bottom-right', className: 'bottom-3 right-3' },
-];
-
 interface MultiWarehouseScrollProps {
   warehouses: WorkspaceWarehouse[];
   activeWarehouseId: string | null;
@@ -129,7 +109,6 @@ function PageHeader({
   onDuplicate,
   onDelete,
   onCompare,
-  detached = false,
 }: {
   name: string;
   isActive: boolean;
@@ -141,8 +120,6 @@ function PageHeader({
   onDuplicate: () => void;
   onDelete?: () => void;
   onCompare: () => void;
-  /** vartest5: render as a standalone floating bar (no card frame) for v2/v4. */
-  detached?: boolean;
 }) {
   const [draft, setDraft] = useState(name);
 
@@ -173,8 +150,9 @@ function PageHeader({
         isActive
           ? 'bg-surface border-border'
           : 'bg-muted/40 border-border/60',
-        // vartest5 v3: transparent when detached so it doesn't fight the page bg
-        detached && 'border-b-0 bg-transparent',
+        // Bottom-bar form: no bottom border, transparent bg (the wrapper
+        // provides the bar's surface).
+        'border-b-0 bg-transparent',
       )}
       onClick={(e) => e.stopPropagation()}
     >
@@ -265,20 +243,6 @@ export function MultiWarehouseScroll({
   // that window we ignore scroll fires to avoid flip-flopping between pages.
   const settlingRef = useRef(false);
 
-  // vartest5: which control-placement variant is active (1–5).
-  const [placementVariant, setPlacementVariant] = useState<number>(0);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const n = Number(e.key);
-      if (n >= 1 && n <= PLACEMENT_VARIANTS.length) {
-        setPlacementVariant(n - 1);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-  const activePlacement = PLACEMENT_VARIANTS[placementVariant];
-
   // Container size — drives the fit-to-page scale (all pages share dimensions).
   const [size, setSize] = useState({ w: 0, h: 0 });
   useEffect(() => {
@@ -362,8 +326,7 @@ export function MultiWarehouseScroll({
   }, [activeWarehouseId]);
 
   return (
-    <div className="relative h-full w-full">
-      <div ref={scrollRef} className="h-full w-full overflow-y-auto bg-muted/20 relative">
+    <div ref={scrollRef} className="h-full w-full overflow-y-auto bg-muted/20 relative">
       {warehouses.map((entry) => {
         const isActive = entry.id === activeWarehouseId;
         const warehouse = entry.warehouse;
@@ -389,39 +352,10 @@ export function MultiWarehouseScroll({
               !isActive && 'opacity-90 transition-opacity',
             )}
           >
-            {/* vartest5: full-size controls are detached from the scaled card and
-                positioned per variant; the card itself renders the warehouse only. */}
+            {/* Fit-to-page body: scale the warehouse card to fit, centre it both ways. */}
             <div className="relative flex-1 min-h-0 overflow-hidden">
-              {/* Full-size controls — always at natural size (never scaled). */}
-              {isActive && activePlacement.placement !== 'inside' && (
-                <div
-                  className={cn(
-                    'absolute z-30 flex items-center gap-2 rounded-lg border border-border bg-surface px-2 py-1.5 shadow-md',
-                    activePlacement.className,
-                  )}
-                >
-                  <PageHeader
-                    name={entry.name}
-                    isActive={isActive}
-                    renaming={renamingId === entry.id}
-                    onStartRename={() => setRenamingId(entry.id)}
-                    onCommitRename={(name) => {
-                      onRenameWarehouse(entry.id, name);
-                      setRenamingId(null);
-                    }}
-                    onCancelRename={() => setRenamingId(null)}
-                    onAdd={onAddWarehouse}
-                    onDuplicate={() => onDuplicateWarehouse(entry.id)}
-                    onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
-                    onCompare={() => onCompareWarehouse(entry.id)}
-                    detached
-                  />
-                </div>
-              )}
-
-              {/* Fit-to-page body: scale the warehouse card to fit, centre it both ways. */}
               <div className="absolute inset-0 flex items-center justify-center">
-                {/* Card — header bar above the warehouse renderer, scaled as one unit. */}
+                {/* Card — the warehouse renderer, scaled as one unit. */}
                 {/* shrink-0: the card is a flex item; without it flex shrinks the card
                     below its content width while the header keeps its full logicalW,
                     so the action buttons overflow the card's clip and get hidden. */}
@@ -429,27 +363,6 @@ export function MultiWarehouseScroll({
                   className="flex flex-col shrink-0 border border-border rounded-md shadow-sm bg-background overflow-hidden"
                   style={{ transform: `scale(${fitScale})` }}
                 >
-                  {/* Name + actions bar — sits ABOVE the warehouse, never over shelves.
-                      vartest5 v1: still inside the scaled card (baseline). */}
-                  {activePlacement.placement === 'inside' && (
-                    <div style={{ width: logicalW }}>
-                      <PageHeader
-                        name={entry.name}
-                        isActive={isActive}
-                        renaming={renamingId === entry.id}
-                        onStartRename={() => setRenamingId(entry.id)}
-                        onCommitRename={(name) => {
-                          onRenameWarehouse(entry.id, name);
-                          setRenamingId(null);
-                        }}
-                        onCancelRename={() => setRenamingId(null)}
-                        onAdd={onAddWarehouse}
-                        onDuplicate={() => onDuplicateWarehouse(entry.id)}
-                        onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
-                        onCompare={() => onCompareWarehouse(entry.id)}
-                      />
-                    </div>
-                  )}
                   <div className="relative" style={{ width: logicalW, height: logicalH }}>
                     <WarehouseSvgRenderer
                       warehouseId={entry.id}
@@ -466,35 +379,31 @@ export function MultiWarehouseScroll({
                 </div>
               </div>
             </div>
+
+            {/* Full-size warehouse controls — below the card, never scaled,
+                never overlapping the warehouse. Only on the active page. */}
+            {isActive && (
+              <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border bg-surface px-2 py-1.5">
+                <PageHeader
+                  name={entry.name}
+                  isActive={isActive}
+                  renaming={renamingId === entry.id}
+                  onStartRename={() => setRenamingId(entry.id)}
+                  onCommitRename={(name) => {
+                    onRenameWarehouse(entry.id, name);
+                    setRenamingId(null);
+                  }}
+                  onCancelRename={() => setRenamingId(null)}
+                  onAdd={onAddWarehouse}
+                  onDuplicate={() => onDuplicateWarehouse(entry.id)}
+                  onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
+                  onCompare={() => onCompareWarehouse(entry.id)}
+                />
+              </div>
+            )}
           </section>
         );
       })}
-
-      {/* vartest5: floating segmented control (bottom-right) + keyboard hint. */}
-      {/* Sits OUTSIDE the scroller (in the relative wrapper) so it stays pinned. */}
-      </div>
-      <div className="pointer-events-none absolute bottom-4 right-4 z-50 flex items-center gap-2">
-        <span className="hidden text-[10px] text-muted-foreground md:block">
-          Keys 1–{PLACEMENT_VARIANTS.length}
-        </span>
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shadow-md">
-          {PLACEMENT_VARIANTS.map((v, i) => (
-            <button
-              key={v.key}
-              type="button"
-              onClick={() => setPlacementVariant(i)}
-              className={cn(
-                'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
-                i === placementVariant
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              {v.key} · {v.label}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
