@@ -170,7 +170,7 @@ function PageHeader({
       ) : (
         <h3
           className={cn(
-            'flex items-center gap-1.5 text-xs font-semibold truncate',
+            'flex min-w-0 items-center gap-1.5 text-xs font-semibold truncate',
             isActive ? 'text-foreground' : 'text-muted-foreground',
           )}
         >
@@ -181,7 +181,7 @@ function PageHeader({
       <div className="flex-1" />
 
       {isActive && (
-        <div className="flex items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           <ActionButton onClick={onAdd} title="Add a new warehouse" label="Add" icon={Plus} />
           <ActionButton onClick={onDuplicate} title="Duplicate this warehouse" label="Duplicate" icon={Copy} />
           {renaming ? (
@@ -352,8 +352,8 @@ export function MultiWarehouseScroll({
               {/* Full-size warehouse controls — floating pill at the bottom,
                   never scaled, never occupying layout space. Active page only. */}
               {isActive && (
-                <div className="absolute bottom-3 left-1/2 z-30 -translate-x-1/2">
-                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 shadow-md">
+                <div className="absolute bottom-3 left-1/2 z-30 max-w-[calc(100%-24px)] -translate-x-1/2">
+                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 shadow-md max-w-full">
                     <PageHeader
                       name={entry.name}
                       isActive={isActive}
