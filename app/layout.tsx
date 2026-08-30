@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Instrument_Sans } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { AgentationToolbar } from '@/components/agentation'
 import './globals.css'
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${instrumentSans.variable} font-sans antialiased`}>
         {children}
+        <AgentationToolbar />
         <Analytics />
       </body>
     </html>
