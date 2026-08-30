@@ -426,7 +426,11 @@ export function SimulationPanel({
               <div className="flex justify-between text-[10px] text-muted-foreground"><span>1</span><span>10</span></div>
             </div>
             <LoadingButton
-              onAction={onGenerateOrders}
+              onAction={() => {
+                onGenerateOrders();
+                // Close the settings popover once generation kicks off.
+                setSettingsOpen(false);
+              }}
               disabled={!warehouse || isGeneratingOrders}
               pendingLabel="Generating…"
               successLabel="Generated"
@@ -520,7 +524,6 @@ export function SimulationPanel({
               disabled={isSimulating || orders.length === 0}
               pendingLabel="Simulating…"
               successLabel="Done"
-              tone="primary"
               className="w-full h-8 text-xs justify-center"
             >
               Simulate Again
