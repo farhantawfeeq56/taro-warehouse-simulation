@@ -154,6 +154,8 @@ export function RightSidebar(props: RightSidebarProps) {
                 simFlowStepEffective === 'setup' ? advance : goBack
               }
               onFlowStepChange={jumpTo}
+              configuration={props.configuration ?? null}
+              onEditConfig={props.onEditConfig ?? (() => {})}
             />
           </div>
         )}

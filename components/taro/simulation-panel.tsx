@@ -26,6 +26,7 @@ import type {
   SimulationBlockState,
 } from '@/lib/taro/types';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
+import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -90,6 +91,10 @@ interface SimulationPanelProps {
   onFlowAdvance?: () => void;
   /** Breadcrumb navigation — jump to a flow step directly. */
   onFlowStepChange?: (step: 'setup' | 'simulation') => void;
+  /** Warehouse generation configuration (shown as summary copy in setup). */
+  configuration?: WarehouseConfiguration | null;
+  /** Opens the layout config editor. */
+  onEditConfig?: () => void;
 }
 
 export function SimulationPanel({
@@ -119,6 +124,8 @@ export function SimulationPanel({
   flowStep = 'setup',
   onFlowAdvance,
   onFlowStepChange,
+  configuration,
+  onEditConfig,
 }: SimulationPanelProps) {
   const strategies = results?.strategies ?? [];
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -452,16 +459,47 @@ export function SimulationPanel({
     </div>
   );
 
-  const simulateButton = (
-    <LoadingButton
-      onAction={onFlowAdvance ?? onSimulate ?? (() => {})}
-      disabled={simulateDisabled}
-      pendingLabel="Simulating…"
-      successLabel="Done"
-      className="w-full h-9 text-sm justify-center"
-    >
-      {simulateLabel}
-    </LoadingButton>
+  // Warehouse config summary copy (the 'copy' that used to live in the
+  // right sidebar's Config tab), shown in the setup flow below Workers.
+  const configCopyBlock = (
+    <div className="p-3 shrink-0">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-sm font-semibold text-foreground">Configuration</h2>
+        <Button size="sm" variant="outline" onClick={onEditConfig} className="h-7 text-xs hover:bg-muted hover:text-foreground">
+          Edit
+        </Button>
+      </div>
+      {configuration ? (
+        <div className="border border-border rounded-lg p-3 bg-muted/20 space-y-1.5">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Grid Height</span>
+            <span className="font-sans font-semibold">{configuration.layout.gridHeight}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Rack Count</span>
+            <span className="font-sans font-semibold">{configuration.layout.rackCount}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Aisle Width</span>
+            <span className="font-sans font-semibold">1</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Cross Aisles</span>
+            <span className="font-sans font-semibold">{configuration.layout.crossAisleCount}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">SKU Count</span>
+            <span className="font-sans font-semibold">{configuration.inventory.skuCount.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Workers</span>
+            <span className="font-sans font-semibold">{workerCount}</span>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">No configuration saved.</p>
+      )}
+    </div>
   );
 
   // Flow chrome — none (breadcrumbs removed; setup is reached via the arrow
@@ -473,15 +511,27 @@ export function SimulationPanel({
       {renderFlowChrome()}
       {flowStep === 'setup' ? (
         <>
-          {ordersWorkersBlock}
-          <div className="flex-1" />
-          <div className="p-3 border-t border-border shrink-0">
-            {simulateButton}
-            {!readiness?.isReady && (
-              <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
-                Complete the requirements to enable Simulate
-              </p>
-            )}
+          {/* Scrollable setup content — orders, workers, config copy,
+              then the accent Simulate button inline at the end. */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {ordersWorkersBlock}
+            {configCopyBlock}
+            <div className="p-3 pt-0 shrink-0">
+              <LoadingButton
+                onAction={onFlowAdvance ?? onSimulate ?? (() => {})}
+                disabled={simulateDisabled}
+                pendingLabel="Simulating…"
+                successLabel="Done"
+                className="w-full h-9 text-sm justify-center"
+              >
+                {simulateLabel}
+              </LoadingButton>
+              {!readiness?.isReady && (
+                <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
+                  Complete the requirements to enable Simulate
+                </p>
+              )}
+            </div>
           </div>
         </>
       ) : (
