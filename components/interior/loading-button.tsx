@@ -175,6 +175,8 @@ export type LoadingButtonProps = {
   disabled?: boolean;
   onError?: (error: unknown) => void;
   className?: string;
+  /** "primary" renders the button as the main CTA (accent fill). */
+  tone?: "default" | "primary";
 };
 
 export function LoadingButton({
@@ -187,6 +189,7 @@ export function LoadingButton({
   disabled = false,
   onError,
   className = "",
+  tone = "default",
 }: LoadingButtonProps) {
   const reduced = useReducedMotion();
 
@@ -212,7 +215,7 @@ export function LoadingButton({
     {
       key: "idle",
       text: children,
-      tone: "text-primary",
+      tone: tone === "primary" ? "text-primary-foreground" : "text-primary",
       icon: null,
     },
     {
@@ -252,7 +255,11 @@ export function LoadingButton({
           }
           run();
         }}
-        className={`relative inline-flex h-9 select-none items-center justify-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-primary shadow-sm outline-none transition-[border-color,box-shadow,background-color] duration-150 hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:opacity-50 ${className}`}
+        className={`relative inline-flex h-9 select-none items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm outline-none transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:opacity-50 ${
+          tone === "primary"
+            ? "border-transparent bg-primary text-primary-foreground hover:bg-primary/90"
+            : "border-border bg-surface text-primary hover:bg-secondary"
+        } ${className}`}
         style={{ borderRadius: 9, touchAction: "manipulation" }}
       >
         <span aria-hidden className="relative grid place-items-center">

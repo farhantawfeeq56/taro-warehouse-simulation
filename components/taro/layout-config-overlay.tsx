@@ -518,13 +518,12 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left sidebar — tabs, one active at a time, button docked in footer */}
         <aside className="w-[340px] shrink-0 border-r bg-card flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0" style={{ scrollbarGutter: 'stable' }}>
             <Tabs
               items={cards.map((c) => ({ value: c.id, label: c.title }))}
               value={activeTab}
               onValueChange={(id) => setActiveTab(id as CardId)}
               label="Configuration sections"
-              className="shadow-none"
             />
 
             <div className="rounded-xl border border-border-default bg-surface p-3 space-y-4">
@@ -539,6 +538,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               disabled={isGenerating}
               pendingLabel={isEditing ? 'Updating…' : 'Generating…'}
               successLabel="Saved"
+              tone="primary"
               className="w-full justify-center"
             >
               {isEditing ? 'Update Warehouse' : 'Generate Warehouse'}
