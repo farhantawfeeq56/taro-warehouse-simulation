@@ -3,13 +3,16 @@
 import { Agentation } from 'agentation';
 
 /**
- * Dev-only visual feedback toolbar (bottom-right). Click an element to
- * annotate it and copy structured output (selectors, paths, classes) that
- * helps AI coding agents locate the exact code.
+ * Visual feedback toolbar (bottom-right) — click an element to annotate it
+ * and copy structured selectors/paths for AI coding agents.
  *
- * Only rendered when NODE_ENV === 'development' so it never ships to prod.
+ * `enabled` is computed in the server layout from Vercel env, so this stays
+ * out of production:
+ *   • Vercel Preview deployment → true
+ *   • Local dev (npm run dev)    → true
+ *   • Vercel Production / prod build → false
  */
-export function AgentationToolbar() {
-  if (process.env.NODE_ENV !== 'development') return null;
+export function AgentationToolbar({ enabled }: { enabled?: boolean }) {
+  if (!enabled) return null;
   return <Agentation />;
 }
