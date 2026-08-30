@@ -524,7 +524,6 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               value={activeTab}
               onValueChange={(id) => setActiveTab(id as CardId)}
               label="Configuration sections"
-              className="shadow-none"
             />
 
             <div className="rounded-xl border border-border-default bg-surface p-3 space-y-4">

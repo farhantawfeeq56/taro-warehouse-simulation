@@ -96,7 +96,6 @@ export function RightSidebar({ open, onOpenChange, ...props }: RightSidebarProps
           value={section}
           onValueChange={(v) => setSection(v as Section)}
           label="Sidebar section"
-          className="border-0 shadow-none"
         />
         <button
           onClick={() => onOpenChange(false)}

@@ -218,7 +218,7 @@ export function Tabs({
   return (
     <div
       className={cn(
-        "w-full rounded-lg border border-border bg-card shadow-sm",
+        "w-full rounded-lg border border-border-default bg-muted/40 p-1",
         className,
       )}
     >
@@ -226,7 +226,7 @@ export function Tabs({
         {...tabs.tabListProps}
         ref={rowRef}
         aria-label={label}
-        className="relative flex w-full gap-0.5 border-0 bg-muted p-1"
+        className="relative flex w-full gap-0.5"
       >
         <motion.span
           layout
@@ -237,7 +237,7 @@ export function Tabs({
             width: plateau.width,
             opacity: plateau.ready ? 1 : 0,
           }}
-          className="absolute bottom-1 top-1 bg-card shadow-sm"
+          className="absolute bottom-0 top-0 bg-surface shadow-sm"
           transition={reduced ? { duration: 0 } : INDICATOR}
         />
 
@@ -251,14 +251,14 @@ export function Tabs({
                 tabRefs.current[index] = node;
               }}
               className={cn(
-                "relative z-10 flex h-8 flex-1 min-w-0 shrink items-center justify-center rounded-md px-3 text-[12.5px] outline-none transition-all duration-150",
+                "relative z-10 flex h-8 flex-1 min-w-0 shrink items-center justify-center rounded-md px-3 text-[12.5px] outline-none transition-colors duration-150",
                 "after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:content-['']",
                 "focus-visible:after:shadow-[inset_0_0_0_1px_var(--ring)]",
                 item.disabled
                   ? "cursor-default text-muted-foreground/50"
                   : selected
-                    ? "bg-card font-medium text-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground/80",
+                    ? "font-medium text-text-primary"
+                    : "text-text-secondary hover:text-text-primary",
               )}
             >
               <span className="relative grid place-items-center leading-[1.4]">
