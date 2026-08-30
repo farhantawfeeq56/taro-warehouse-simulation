@@ -26,7 +26,6 @@ import type {
   SimulationBlockState,
 } from '@/lib/taro/types';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
-import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -91,10 +90,6 @@ interface SimulationPanelProps {
   onFlowAdvance?: () => void;
   /** Breadcrumb navigation — jump to a flow step directly. */
   onFlowStepChange?: (step: 'setup' | 'simulation') => void;
-  /** Warehouse generation configuration (shown as summary copy in setup). */
-  configuration?: WarehouseConfiguration | null;
-  /** Opens the layout config editor. */
-  onEditConfig?: () => void;
 }
 
 export function SimulationPanel({
@@ -124,8 +119,6 @@ export function SimulationPanel({
   flowStep = 'setup',
   onFlowAdvance,
   onFlowStepChange,
-  configuration,
-  onEditConfig,
 }: SimulationPanelProps) {
   const strategies = results?.strategies ?? [];
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -145,11 +138,9 @@ export function SimulationPanel({
   // ── vartest5: 5 flow-presentation variants ────────────────────────────
   // 1 Stepper · 2 Progress · 3 Continuous · 4 Chips · 5 Tabs
   const ready = readiness?.isReady && orders.length > 0 && !isSimulating;
-  const simulateLabel = isSimulating
-    ? 'Simulating…'
-    : results
-      ? 'Simulate Again'
-      : 'Simulate';
+  // Setup step always reads 'Simulate'; the results step uses its own
+  // 'Simulate Again' button.
+  const simulateLabel = isSimulating ? 'Simulating…' : 'Simulate';
   const simulateDisabled = !readiness?.isReady || isSimulating || orders.length === 0;
   const simBody = (
     <div className="flex-1 min-h-0 overflow-y-auto">
@@ -459,46 +450,31 @@ export function SimulationPanel({
     </div>
   );
 
-  // Warehouse config summary copy (the 'copy' that used to live in the
-  // right sidebar's Config tab), shown in the setup flow below Workers.
-  const configCopyBlock = (
+  // Setup status summary — confirms orders are generated and workers are
+  // configured, right above the accent Simulate button.
+  const setupSummaryBlock = (
     <div className="p-3 shrink-0">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-semibold text-foreground">Configuration</h2>
-        <Button size="sm" variant="outline" onClick={onEditConfig} className="h-7 text-xs hover:bg-muted hover:text-foreground">
-          Edit
-        </Button>
-      </div>
-      {configuration ? (
-        <div className="border border-border rounded-lg p-3 bg-muted/20 space-y-1.5">
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Grid Height</span>
-            <span className="font-sans font-semibold">{configuration.layout.gridHeight}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Rack Count</span>
-            <span className="font-sans font-semibold">{configuration.layout.rackCount}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Aisle Width</span>
-            <span className="font-sans font-semibold">1</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Cross Aisles</span>
-            <span className="font-sans font-semibold">{configuration.layout.crossAisleCount}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">SKU Count</span>
-            <span className="font-sans font-semibold">{configuration.inventory.skuCount.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Workers</span>
-            <span className="font-sans font-semibold">{workerCount}</span>
+      <div className="border border-border rounded-lg p-3 bg-muted/20 space-y-2">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-positive" />
+          <div className="text-xs">
+            <span className="font-semibold text-foreground">
+              {orders.length >= 1000
+                ? `${(orders.length / 1000).toFixed(orders.length % 1000 === 0 ? 0 : 1)}k`
+                : orders.length.toLocaleString()}{' '}
+              orders generated
+            </span>
           </div>
         </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">No configuration saved.</p>
-      )}
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-positive" />
+          <div className="text-xs">
+            <span className="font-semibold text-foreground">
+              {workerCount} worker{workerCount === 1 ? '' : 's'} configured
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 
@@ -511,17 +487,18 @@ export function SimulationPanel({
       {renderFlowChrome()}
       {flowStep === 'setup' ? (
         <>
-          {/* Scrollable setup content — orders, workers, config copy,
-              then the accent Simulate button inline at the end. */}
+          {/* Scrollable setup content — orders, workers, setup status
+              summary, then the accent Simulate button inline at the end. */}
           <div className="flex-1 min-h-0 overflow-y-auto">
             {ordersWorkersBlock}
-            {configCopyBlock}
+            {setupSummaryBlock}
             <div className="p-3 pt-0 shrink-0">
               <LoadingButton
                 onAction={onFlowAdvance ?? onSimulate ?? (() => {})}
                 disabled={simulateDisabled}
                 pendingLabel="Simulating…"
                 successLabel="Done"
+                tone="primary"
                 className="w-full h-9 text-sm justify-center"
               >
                 {simulateLabel}
@@ -543,6 +520,7 @@ export function SimulationPanel({
               disabled={isSimulating || orders.length === 0}
               pendingLabel="Simulating…"
               successLabel="Done"
+              tone="primary"
               className="w-full h-8 text-xs justify-center"
             >
               Simulate Again
