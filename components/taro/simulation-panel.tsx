@@ -35,10 +35,8 @@ import { ValueFlash } from '@/components/interior/value-flash';
 import { LoadingButton } from '@/components/interior/loading-button';
 import { ProgressBar } from '@/components/interior/progress-bar';
 import {
-  Activity,
   CheckCircle2,
   Circle,
-  ClipboardList,
   MapPinOff,
   PlayCircle,
   BarChart3,
@@ -83,6 +81,14 @@ interface SimulationPanelProps {
 
   /** When true, renders without the outer width/border wrapper so it can be embedded in a tab. */
   embedded?: boolean;
+  /**
+   * Flow step: 'setup' shows Orders + Workers config ending in the Simulate
+   * button; 'simulation' shows the readiness/results view. The Simulate
+   * button in setup advances the flow to 'simulation'.
+   */
+  flowStep?: 'setup' | 'simulation';
+  /** Called when the user clicks Simulate in the setup step (advances flow). */
+  onFlowAdvance?: () => void;
 }
 
 export function SimulationPanel({
@@ -109,6 +115,8 @@ export function SimulationPanel({
   onZVisualizationChange,
   warehouse,
   embedded = false,
+  flowStep = 'setup',
+  onFlowAdvance,
 }: SimulationPanelProps) {
   const strategies = results?.strategies ?? [];
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -127,120 +135,133 @@ export function SimulationPanel({
 
   return (
     <div className={wrapperClass}>
-      {/* ═══ Orders header — compact meta + hidden generation sliders ═══ */}
-      <div className="p-3 border-b border-border shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-foreground">Orders</h2>
-          <span className="text-xs text-muted-foreground font-sans">
-            {orders.length >= 1000
-              ? `${(orders.length / 1000).toFixed(orders.length % 1000 === 0 ? 0 : 1)}k`
-              : orders.length.toLocaleString()}{' '}
-            orders generated
-          </span>
-        </div>
+      {flowStep === 'setup' ? (
+        <>
+          {/* ═══ Step 1 — Orders + Workers config ═══ */}
+          <div className="p-3 shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-foreground">Orders</h2>
+              <span className="text-xs text-muted-foreground font-sans">
+                {orders.length >= 1000
+                  ? `${(orders.length / 1000).toFixed(orders.length % 1000 === 0 ? 0 : 1)}k`
+                  : orders.length.toLocaleString()}{' '}
+                orders generated
+              </span>
+            </div>
 
-        {/* Edit Orders — opens the generation settings popover */}
-        <div className="flex gap-1.5">
-          <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!warehouse}
-                className="flex-1 h-8 text-xs"
-                title="Edit order generation settings"
-              >
-                <SlidersHorizontal className="h-3 w-3 mr-1" />
-                Edit Orders
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-4" align="end" side="bottom">
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-foreground">Order Generation Settings</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-muted-foreground">Order Count</label>
-                    <span className="text-xs font-medium text-foreground font-sans">
-                      {orderCount.toLocaleString()} orders
-                    </span>
-                  </div>
-                  <Slider
-                    value={[orderCount]}
-                    onValueChange={([value]) => onOrderCountChange(value)}
-                    min={25}
-                    max={100}
-                    step={25}
-                  />
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>25</span>
-                    <span>100</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-muted-foreground">Average Order Size</label>
-                    <span className="text-xs font-medium text-foreground font-sans">{avgOrderSize} SKUs</span>
-                  </div>
-                  <Slider
-                    value={[avgOrderSize]}
-                    onValueChange={([value]) => onAvgOrderSizeChange(value)}
-                    min={1}
-                    max={10}
-                    step={1}
-                  />
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>1</span>
-                    <span>10</span>
-                  </div>
-                </div>
-                {/* Generate — lives inside the settings popover, applies then closes */}
-                <LoadingButton
-                  onAction={onGenerateOrders}
-                  disabled={!warehouse || isGeneratingOrders}
-                  pendingLabel="Generating…"
-                  successLabel="Generated"
-                  className="w-full h-8 text-xs justify-center"
+            {/* Edit Orders — opens the generation settings popover */}
+            <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!warehouse}
+                  className="w-full h-8 text-xs"
+                  title="Edit order generation settings"
                 >
-                  Generate Orders
-                </LoadingButton>
+                  <SlidersHorizontal className="h-3 w-3 mr-1" />
+                  Edit Orders
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-4" align="end" side="bottom">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-foreground">Order Generation Settings</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-muted-foreground">Order Count</label>
+                      <span className="text-xs font-medium text-foreground font-sans">
+                        {orderCount.toLocaleString()} orders
+                      </span>
+                    </div>
+                    <Slider
+                      value={[orderCount]}
+                      onValueChange={([value]) => onOrderCountChange(value)}
+                      min={25}
+                      max={100}
+                      step={25}
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>25</span>
+                      <span>100</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-muted-foreground">Average Order Size</label>
+                      <span className="text-xs font-medium text-foreground font-sans">{avgOrderSize} SKUs</span>
+                    </div>
+                    <Slider
+                      value={[avgOrderSize]}
+                      onValueChange={([value]) => onAvgOrderSizeChange(value)}
+                      min={1}
+                      max={10}
+                      step={1}
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>1</span>
+                      <span>10</span>
+                    </div>
+                  </div>
+                  {/* Generate — lives inside the settings popover, applies then closes */}
+                  <LoadingButton
+                    onAction={onGenerateOrders}
+                    disabled={!warehouse || isGeneratingOrders}
+                    pendingLabel="Generating…"
+                    successLabel="Generated"
+                    className="w-full h-8 text-xs justify-center"
+                  >
+                    Generate Orders
+                  </LoadingButton>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Workers — part of the setup flow */}
+            <div className="space-y-1 pt-3 mt-3 border-t border-border">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-muted-foreground">Workers</label>
+                <span className="text-xs font-medium text-foreground font-sans">
+                  <ValueFlash value={workerCount} label="Workers" />
+                </span>
               </div>
-            </PopoverContent>
-          </Popover>
-          <LoadingButton
-            onAction={onSimulate ?? (() => {})}
-            disabled={!readiness?.isReady || isSimulating || orders.length === 0}
-            pendingLabel="Simulating…"
-            successLabel="Done"
-            className="flex-1 h-8 text-xs justify-center"
-          >
-            Simulate
-          </LoadingButton>
-        </div>
-
-        {/* Workers — moved here from the individual warehouse nodes */}
-        <div className="space-y-1 pt-2 mt-2 border-t border-border">
-          <div className="flex items-center justify-between">
-            <label className="text-xs text-muted-foreground">Workers</label>
-            <span className="text-xs font-medium text-foreground font-sans">
-              <ValueFlash value={workerCount} label="Workers" />
-            </span>
+              <Slider
+                value={[workerCount]}
+                onValueChange={([value]) => onWorkerCountChange(value)}
+                min={1}
+                max={10}
+                step={1}
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>1</span>
+                <span>10</span>
+              </div>
+            </div>
           </div>
-          <Slider
-            value={[workerCount]}
-            onValueChange={([value]) => onWorkerCountChange(value)}
-            min={1}
-            max={10}
-            step={1}
-          />
-          <div className="flex justify-between text-[10px] text-muted-foreground">
-            <span>1</span>
-            <span>10</span>
-          </div>
-        </div>
-      </div>
 
-      {/* ═══ Simulation body ═══ */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="flex-1" />
+
+          {/* Simulate — the flow's next step, pinned at the end */}
+          <div className="p-3 border-t border-border shrink-0">
+            <LoadingButton
+              onAction={onFlowAdvance ?? onSimulate ?? (() => {})}
+              disabled={!readiness?.isReady || isSimulating || orders.length === 0}
+              pendingLabel="Simulating…"
+              successLabel="Done"
+              className="w-full h-9 text-sm justify-center"
+            >
+              Simulate
+            </LoadingButton>
+            {!readiness?.isReady && (
+              <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
+                Complete the requirements to enable Simulate
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* ═══ Step 2 — Simulation body ═══ */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
         {/* 1. Loading State */}
         {isSimulating && (
           <div className="flex-1 flex items-center justify-center p-6">
@@ -532,7 +553,20 @@ export function SimulationPanel({
             </Button>
           </div>
         )}
-      </div>
+          </div>
+
+          {/* Back to setup — return to the orders/workers flow */}
+          <div className="p-3 border-t border-border shrink-0">
+            <Button
+              onClick={onFlowAdvance}
+              className="w-full h-8 text-xs"
+              variant="ghost"
+            >
+              Back to Setup
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

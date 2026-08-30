@@ -76,6 +76,14 @@ export interface RightSidebarProps {
  */
 export function RightSidebar(props: RightSidebarProps) {
   const [section, setSection] = useState<Section>('simulation');
+  // Two-step flow inside the Simulation tab: setup (orders+workers) →
+  // simulation (results). Simulate advances; Back to Setup returns.
+  const [simFlowStep, setSimFlowStep] = useState<'setup' | 'simulation'>('setup');
+  // Once results exist, jump straight to the simulation step.
+  const simFlowStepEffective: 'setup' | 'simulation' =
+    props.simulationResults || props.isSimulating ? 'simulation' : simFlowStep;
+  const advance = () => setSimFlowStep('simulation');
+  const goBack = () => setSimFlowStep('setup');
 
   const renderBody = () => (
     <>
@@ -129,6 +137,10 @@ export function RightSidebar(props: RightSidebarProps) {
               onViewUnresolvableItems={props.onViewUnresolvableItems}
               onSimulate={props.onSimulate}
               onZVisualizationChange={props.onZVisualizationChange}
+              flowStep={simFlowStepEffective}
+              onFlowAdvance={
+                simFlowStepEffective === 'setup' ? advance : goBack
+              }
             />
           </div>
         )}
