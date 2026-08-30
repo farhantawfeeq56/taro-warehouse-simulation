@@ -218,7 +218,7 @@ export function Tabs({
   return (
     <div
       className={cn(
-        "w-full overflow-hidden rounded-lg border border-border bg-card shadow-sm",
+        "w-full rounded-lg border border-border bg-card shadow-sm",
         className,
       )}
     >
@@ -226,29 +226,25 @@ export function Tabs({
         {...tabs.tabListProps}
         ref={rowRef}
         aria-label={label}
-        className="relative flex w-full gap-1 border-b border-border bg-muted px-1 pt-1"
+        className="relative flex w-full gap-0.5 border-0 bg-muted p-1"
       >
         <motion.span
           layout
           aria-hidden
           style={{
-            borderTopLeftRadius: 8,
-            borderTopRightRadius: 8,
-            borderBottomLeftRadius: 0,
-            borderBottomRightRadius: 0,
+            borderRadius: 6,
             left: plateau.x,
             width: plateau.width,
             opacity: plateau.ready ? 1 : 0,
           }}
-          className="absolute bottom-[-1px] top-1 bg-card"
+          className="absolute bottom-1 top-1 bg-card shadow-sm"
           transition={reduced ? { duration: 0 } : INDICATOR}
         >
           <motion.span
             layout
             aria-hidden
-            style={{ borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
             transition={reduced ? { duration: 0 } : INDICATOR}
-            className="absolute inset-0 border border-b-0 border-border"
+            className="absolute inset-0 rounded-md border border-border"
           />
         </motion.span>
 
@@ -262,8 +258,8 @@ export function Tabs({
                 tabRefs.current[index] = node;
               }}
               className={cn(
-                "relative flex h-8 shrink-0 items-center justify-center rounded-t-md px-3.5 text-[12.5px] outline-none transition-colors duration-150",
-                "after:pointer-events-none after:absolute after:inset-0 after:rounded-t-md after:content-['']",
+                "relative z-10 flex h-7 flex-1 min-w-0 shrink items-center justify-center rounded-md px-3 text-[12.5px] outline-none transition-colors duration-150",
+                "after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:content-['']",
                 "focus-visible:after:shadow-[inset_0_0_0_1px_var(--ring)]",
                 item.disabled
                   ? "cursor-default text-muted-foreground/50"
