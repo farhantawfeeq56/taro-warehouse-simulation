@@ -230,9 +230,17 @@ export function SimulationPanel({
               <BarChart3 className="h-4 w-4 text-primary" />
               <h2 className="text-sm font-semibold text-foreground">Results</h2>
             </div>
-            <Badge variant="outline" className="text-[10px] uppercase font-bold text-info border-info-soft bg-info-soft/60">
-              Results
-            </Badge>
+            <button
+              type="button"
+              onClick={() => onFlowStepChange?.('setup')}
+              title="Back to Setup"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5" />
+                <path d="m12 19-7-7 7-7" />
+              </svg>
+            </button>
           </div>
           <div className="space-y-1.5">
             {sortedStrategies.map((strategy) => {
@@ -458,49 +466,9 @@ export function SimulationPanel({
     </LoadingButton>
   );
 
-  // Flow chrome — breadcrumb navigation (Setup › Simulation), clickable.
-  const renderFlowChrome = () => {
-    const stepOrder = [
-      { id: 'setup', label: 'Setup' },
-      { id: 'simulation', label: 'Simulation' },
-    ] as const;
-    return (
-      <div className="p-3 pb-0 shrink-0">
-        <div className="flex items-center gap-1 text-xs">
-          {stepOrder.map((s, i) => (
-            <div key={s.id} className="flex items-center gap-1">
-              {i === 0 && (
-                <button
-                  type="button"
-                  onClick={() => onFlowStepChange?.(s.id)}
-                  className="flex items-center rounded px-1 py-0.5 text-muted-foreground transition-colors hover:text-foreground"
-                  title="Back to Setup"
-                >
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 12H5" />
-                    <path d="m12 19-7-7 7-7" />
-                  </svg>
-                </button>
-              )}
-              {i > 0 && <span className="text-muted-foreground/50">›</span>}
-              <button
-                type="button"
-                onClick={() => onFlowStepChange?.(s.id)}
-                className={cn(
-                  'rounded px-1.5 py-0.5 font-medium transition-colors',
-                  flowStep === s.id
-                    ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {s.label}
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
+  // Flow chrome — none (breadcrumbs removed; setup is reached via the arrow
+  // next to the Results header or the Simulate Again button).
+  const renderFlowChrome = () => null;
 
   return (
     <div className={wrapperClass}>
@@ -522,9 +490,15 @@ export function SimulationPanel({
         <>
           {simBody}
           <div className="p-3 border-t border-border shrink-0">
-            <Button onClick={onFlowAdvance} className="w-full h-8 text-xs" variant="ghost">
-              Back to Setup
-            </Button>
+            <LoadingButton
+              onAction={onSimulate ?? (() => {})}
+              disabled={isSimulating || orders.length === 0}
+              pendingLabel="Simulating…"
+              successLabel="Done"
+              className="w-full h-8 text-xs justify-center"
+            >
+              Simulate Again
+            </LoadingButton>
           </div>
         </>
       )}
