@@ -146,13 +146,9 @@ function PageHeader({
   return (
     <div
       className={cn(
-        'shrink-0 flex items-center gap-2 px-3 py-1.5 border-b rounded-t-md transition-colors',
-        isActive
-          ? 'bg-surface border-border'
-          : 'bg-muted/40 border-border/60',
-        // Bottom-bar form: no bottom border, transparent bg (the wrapper
-        // provides the bar's surface).
-        'border-b-0 bg-transparent',
+        'shrink-0 flex items-center gap-2 transition-colors',
+        // Floating-pill form: no borders/bg (the pill wrapper provides both).
+        isActive ? 'text-foreground' : 'text-muted-foreground',
       )}
       onClick={(e) => e.stopPropagation()}
     >
@@ -353,6 +349,30 @@ export function MultiWarehouseScroll({
           >
             {/* Fit-to-page body: scale the warehouse card to fit, centre it both ways. */}
             <div className="relative flex-1 min-h-0 overflow-hidden">
+              {/* Full-size warehouse controls — floating pill at the bottom,
+                  never scaled, never occupying layout space. Active page only. */}
+              {isActive && (
+                <div className="absolute bottom-3 left-1/2 z-30 -translate-x-1/2">
+                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 shadow-md">
+                    <PageHeader
+                      name={entry.name}
+                      isActive={isActive}
+                      renaming={renamingId === entry.id}
+                      onStartRename={() => setRenamingId(entry.id)}
+                      onCommitRename={(name) => {
+                        onRenameWarehouse(entry.id, name);
+                        setRenamingId(null);
+                      }}
+                      onCancelRename={() => setRenamingId(null)}
+                      onAdd={onAddWarehouse}
+                      onDuplicate={() => onDuplicateWarehouse(entry.id)}
+                      onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
+                      onCompare={() => onCompareWarehouse(entry.id)}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="absolute inset-0 flex items-center justify-center">
                 {/* Card — the warehouse renderer, scaled as one unit. */}
                 {/* shrink-0: the card is a flex item; without it flex shrinks the card
@@ -378,28 +398,6 @@ export function MultiWarehouseScroll({
                 </div>
               </div>
             </div>
-
-            {/* Full-size warehouse controls — below the card, never scaled,
-                never overlapping the warehouse. Only on the active page. */}
-            {isActive && (
-              <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border bg-surface px-2 py-1.5">
-                <PageHeader
-                  name={entry.name}
-                  isActive={isActive}
-                  renaming={renamingId === entry.id}
-                  onStartRename={() => setRenamingId(entry.id)}
-                  onCommitRename={(name) => {
-                    onRenameWarehouse(entry.id, name);
-                    setRenamingId(null);
-                  }}
-                  onCancelRename={() => setRenamingId(null)}
-                  onAdd={onAddWarehouse}
-                  onDuplicate={() => onDuplicateWarehouse(entry.id)}
-                  onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
-                  onCompare={() => onCompareWarehouse(entry.id)}
-                />
-              </div>
-            )}
           </section>
         );
       })}
