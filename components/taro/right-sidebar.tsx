@@ -79,9 +79,11 @@ export function RightSidebar(props: RightSidebarProps) {
   // Two-step flow inside the Simulation tab: setup (orders+workers) →
   // simulation (results). Simulate advances AND runs the simulation.
   const [simFlowStep, setSimFlowStep] = useState<'setup' | 'simulation'>('setup');
-  // Once results exist, jump straight to the simulation step.
+  // Auto-jump to simulation when a run starts (results/isSimulating).
+  // BUT respect an explicit user navigation back to setup (simFlowStep set
+  // to 'setup' manually) even when results exist.
   const simFlowStepEffective: 'setup' | 'simulation' =
-    props.simulationResults || props.isSimulating ? 'simulation' : simFlowStep;
+    simFlowStep === 'setup' ? 'setup' : props.simulationResults || props.isSimulating ? 'simulation' : simFlowStep;
   const advance = () => {
     setSimFlowStep('simulation');
     props.onSimulate?.();
