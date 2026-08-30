@@ -28,7 +28,7 @@ import type {
 import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
-import { Plus, Copy, Pencil, Trash2, GitCompareArrows } from 'lucide-react';
+import { Plus, Copy, TextCursorInput, Trash2, GitCompareArrows } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /** Padding (px) kept between the warehouse and the page edges when fitting. */
@@ -196,7 +196,7 @@ function PageHeader({
               Cancel
             </button>
           ) : (
-            <ActionButton onClick={onStartRename} title="Rename this warehouse" label="Rename" icon={Pencil} />
+            <ActionButton onClick={onStartRename} title="Rename this warehouse" label="Rename" icon={TextCursorInput} />
           )}
           {onDelete && (
             <ActionButton onClick={onDelete} title="Delete this warehouse" label="Delete" icon={Trash2} danger />

@@ -87,7 +87,13 @@ export function RightSidebar(props: RightSidebarProps) {
     props.onSimulate?.();
   };
   const goBack = () => setSimFlowStep('setup');
-
+  // Breadcrumb navigation — always honors the click (Setup is always reachable).
+  const jumpTo = (step: 'setup' | 'simulation') => {
+    setSimFlowStep(step);
+    if (step === 'simulation' && !props.simulationResults && !props.isSimulating) {
+      props.onSimulate?.();
+    }
+  };
 
   const renderBody = () => (
     <>
@@ -101,7 +107,7 @@ export function RightSidebar(props: RightSidebarProps) {
           value={section}
           onValueChange={(v) => setSection(v as Section)}
           label="Sidebar section"
-          className="max-w-[200px] rounded-md p-0.5 [&_button]:h-6 [&_button]:text-[11px] [&_button]:px-2"
+          className="max-w-[200px] !rounded-md border-0 bg-transparent p-0.5 [&_button]:h-6 [&_button]:text-[11px] [&_button]:px-2"
         />
       </div>
 
@@ -145,7 +151,7 @@ export function RightSidebar(props: RightSidebarProps) {
               onFlowAdvance={
                 simFlowStepEffective === 'setup' ? advance : goBack
               }
-              onFlowStepChange={(step) => setSimFlowStep(step)}
+              onFlowStepChange={jumpTo}
             />
           </div>
         )}

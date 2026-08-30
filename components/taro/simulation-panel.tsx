@@ -41,7 +41,6 @@ import {
   PlayCircle,
   BarChart3,
   Loader2,
-  RotateCcw,
   SlidersHorizontal,
 } from 'lucide-react';
 import {
@@ -139,7 +138,11 @@ export function SimulationPanel({
   // ── vartest5: 5 flow-presentation variants ────────────────────────────
   // 1 Stepper · 2 Progress · 3 Continuous · 4 Chips · 5 Tabs
   const ready = readiness?.isReady && orders.length > 0 && !isSimulating;
-  const simulateLabel = isSimulating ? 'Simulating…' : 'Simulate';
+  const simulateLabel = isSimulating
+    ? 'Simulating…'
+    : results
+      ? 'Simulate Again'
+      : 'Simulate';
   const simulateDisabled = !readiness?.isReady || isSimulating || orders.length === 0;
   const simBody = (
     <div className="flex-1 min-h-0 overflow-y-auto">
@@ -376,10 +379,6 @@ export function SimulationPanel({
               </div>
             </div>
           )}
-          <Button onClick={onSimulate} className="w-full h-8 text-xs" variant="outline">
-            <RotateCcw className="h-3 w-3 mr-1.5" />
-            Simulate Again
-          </Button>
         </div>
       ) : null}
     </div>
@@ -470,6 +469,19 @@ export function SimulationPanel({
         <div className="flex items-center gap-1 text-xs">
           {stepOrder.map((s, i) => (
             <div key={s.id} className="flex items-center gap-1">
+              {i === 0 && (
+                <button
+                  type="button"
+                  onClick={() => onFlowStepChange?.(s.id)}
+                  className="flex items-center rounded px-1 py-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                  title="Back to Setup"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 12H5" />
+                    <path d="m12 19-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
               {i > 0 && <span className="text-muted-foreground/50">›</span>}
               <button
                 type="button"
