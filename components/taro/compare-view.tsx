@@ -268,8 +268,8 @@ export function CompareView({
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-background">
-      {/* Header — back button + title. */}
-      <div className="shrink-0 flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
+      {/* Header — back button + title. Same bg as the screen; only the table differs. */}
+      <div className="shrink-0 flex items-center gap-3 border-b border-border px-4 py-3">
         <Button variant="ghost" size="icon-sm" onClick={onExit} title="Back to workspace">
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -289,8 +289,9 @@ export function CompareView({
       {scrollBody(
         <div className="space-y-6">
           {hasResults && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-hidden rounded-xl border border-border bg-surface">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
                     <th className="h-11 px-3 text-left align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
@@ -363,6 +364,7 @@ export function CompareView({
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
