@@ -31,7 +31,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { ValueFlash } from '@/components/interior/value-flash';
 import { LoadingButton } from '@/components/interior/loading-button';
 import { ProgressBar } from '@/components/interior/progress-bar';
 import {
@@ -444,9 +443,7 @@ export function SimulationPanel({
       <div className="space-y-1 pt-3 mt-3 border-t border-border">
         <div className="flex items-center justify-between">
           <label className="text-xs text-muted-foreground">Workers</label>
-          <span className="text-xs font-medium text-foreground font-sans">
-            <ValueFlash value={workerCount} label="Workers" />
-          </span>
+          <span className="text-xs font-medium text-foreground font-sans">{workerCount}</span>
         </div>
         <Slider value={[workerCount]} onValueChange={([value]) => onWorkerCountChange(value)} min={1} max={10} step={1} />
         <div className="flex justify-between text-[10px] text-muted-foreground"><span>1</span><span>10</span></div>

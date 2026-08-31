@@ -11,6 +11,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { GitCompareArrows, AlertTriangle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export type CompareGateState =
   | {
@@ -35,21 +36,26 @@ export function CompareGateModal({ state, onClose, onAddWarehouse }: CompareGate
     <AlertDialog open={!!state} onOpenChange={onClose}>
       <AlertDialogContent className="max-w-lg">
         <AlertDialogHeader>
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 mt-0.5">
+          <div className="flex items-start gap-4">
+            <div
+              className={cn(
+                'flex size-10 shrink-0 items-center justify-center rounded-xl',
+                state?.mode === 'duplicates' ? 'bg-warning-soft text-warning' : 'bg-accent-soft text-accent',
+              )}
+            >
               {state?.mode === 'duplicates'
-                ? <AlertTriangle className="h-5 w-5 text-warning" />
-                : <GitCompareArrows className="h-5 w-5 text-warning" />}
+                ? <AlertTriangle className="size-5" />
+                : <GitCompareArrows className="size-5" />}
             </div>
             <div className="flex-1">
-              <AlertDialogTitle className="text-lg">
+              <AlertDialogTitle className="text-base">
                 {state?.mode === 'duplicates' ? 'Identical warehouses' : 'Nothing to compare'}
               </AlertDialogTitle>
             </div>
           </div>
         </AlertDialogHeader>
 
-        <AlertDialogDescription className="space-y-3 text-sm">
+        <AlertDialogDescription className="space-y-3 text-sm leading-relaxed">
           {state?.mode === 'single' ? (
             <p>
               You have only one warehouse — <span className="font-medium text-foreground">{state.warehouseName}</span>.

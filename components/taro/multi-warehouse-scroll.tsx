@@ -29,6 +29,7 @@ import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
 import { Plus, Copy, TextCursorInput, Trash2, GitCompareArrows } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 /** Padding (px) kept between the warehouse and the page edges when fitting. */
@@ -79,26 +80,30 @@ function ActionButton({
   showLabel?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      title={title}
-      className={cn(
-        'flex h-6 items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-colors',
-        showLabel ? 'px-2' : 'w-6 px-0',
-        danger
-          ? 'text-destructive hover:bg-destructive/10'
-          : accent
-            ? 'bg-accent text-white hover:bg-accent-hover'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-      )}
-    >
-      <Icon className="h-3 w-3 shrink-0" />
-      {showLabel && <span className="whitespace-nowrap">{label}</span>}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+          className={cn(
+            'flex h-6 items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-colors',
+            showLabel ? 'px-2' : 'w-6 px-0',
+            danger
+              ? 'text-destructive'
+              : accent
+                ? 'bg-accent text-white hover:bg-accent-hover'
+                : 'text-muted-foreground',
+          )}
+        >
+          <Icon className="h-3 w-3 shrink-0" />
+          {showLabel && <span className="whitespace-nowrap">{label}</span>}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{title}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -205,7 +210,7 @@ function PageHeader({
           {onDelete && (
             <ActionButton onClick={onDelete} title="Delete this warehouse" label="Delete" icon={Trash2} danger />
           )}
-          <ActionButton onClick={onCompare} title="Compare this warehouse with others" label="Compare" icon={GitCompareArrows} accent showLabel />
+          <ActionButton onClick={onCompare} title="Compare all warehouses" label="Compare" icon={GitCompareArrows} accent showLabel />
         </div>
       )}
     </div>
@@ -304,23 +309,29 @@ export function MultiWarehouseScroll({
   // React's maximum-update-depth error.
   useEffect(() => {
     if (!activeWarehouseId) return;
-    const el = sectionRefs.current[activeWarehouseId];
-    const cont = scrollRef.current;
-    if (!el || !cont) return;
-    const cRect = cont.getBoundingClientRect();
-    const eRect = el.getBoundingClientRect();
-    const inside =
-      eRect.top >= cRect.top + VISIBILITY_MARGIN &&
-      eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
-    if (!inside) {
-      settlingRef.current = true;
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Release the guard once the smooth scroll should have settled.
-      const t = window.setTimeout(() => {
-        settlingRef.current = false;
-      }, 600);
-      return () => window.clearTimeout(t);
-    }
+    // Defer to the next frame so the just-appended section's ref + layout
+    // are settled before measuring (otherwise the new page at the bottom of
+    // the list is measured before it exists and the scroll never happens).
+    const raf = requestAnimationFrame(() => {
+      const el = sectionRefs.current[activeWarehouseId];
+      const cont = scrollRef.current;
+      if (!el || !cont) return;
+      const cRect = cont.getBoundingClientRect();
+      const eRect = el.getBoundingClientRect();
+      const inside =
+        eRect.top >= cRect.top + VISIBILITY_MARGIN &&
+        eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
+      if (!inside) {
+        settlingRef.current = true;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Release the guard once the smooth scroll should have settled.
+        const t = window.setTimeout(() => {
+          settlingRef.current = false;
+        }, 600);
+        return () => window.clearTimeout(t);
+      }
+    });
+    return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWarehouseId]);
 
