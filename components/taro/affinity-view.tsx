@@ -73,7 +73,7 @@ export function AffinityGrid({
   return (
     <div className="relative w-max">
       <div
-        className="grid gap-px border border-border bg-border shadow-inner p-px rounded-sm"
+        className="grid gap-px border border-border bg-border p-px rounded-sm"
         style={{
           gridTemplateColumns: `repeat(${fullWidth}, ${cellSize}px)`,
           width: 'max-content',

@@ -470,7 +470,7 @@ function WarehouseSvgRendererInner({
       {/* Hover Tooltip */}
       {tooltip.visible && (
         <div
-          className="absolute z-50 pointer-events-none bg-foreground text-background rounded-md px-3 py-2 text-xs shadow-lg"
+          className="absolute z-50 pointer-events-none bg-foreground text-background rounded-md px-3 py-2 text-xs"
           style={{ left: tooltip.x, top: tooltip.y, transform: 'translate(-50%, -100%)' }}
         >
           <div className="font-semibold mb-1">Shelf ({tooltip.cellX}, {tooltip.cellY})</div>

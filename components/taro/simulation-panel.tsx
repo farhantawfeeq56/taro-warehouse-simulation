@@ -249,7 +249,7 @@ export function SimulationPanel({
                   onClick={() => onStrategySelect(strategy.strategy)}
                   className={cn(
                     'w-full text-left border rounded p-2 transition-all',
-                    isSelected ? 'border-border-strong bg-accent-subtle shadow-sm' : 'border-border bg-card hover:border-muted-foreground/50',
+                    isSelected ? 'border-border-strong bg-accent-subtle' : 'border-border bg-card hover:border-muted-foreground/50',
                     isBaseline && 'opacity-70'
                   )}
                 >
