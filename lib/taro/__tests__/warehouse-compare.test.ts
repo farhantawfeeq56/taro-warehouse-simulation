@@ -1,27 +1,37 @@
 import { describe, it, expect } from 'vitest';
 import { warehousesAreIdentical, findDuplicateGroups } from '../warehouse-compare';
-import type { WorkspaceWarehouse, Warehouse } from '../types';
+import type { WorkspaceWarehouse, Warehouse, Cell, StorageLocation } from '../types';
+
+function loc(sku: string, x: number, y: number): StorageLocation {
+  return { id: `l-${sku}-${x}-${y}`, locationId: `loc-${x}-${y}`, x, y, z: 1, sku, quantity: 5 };
+}
 
 function makeWarehouse(width: number, height: number, skus: string[]): Warehouse {
-  const grid = Array.from({ length: height }, (_, y) =>
+  const grid: Cell[][] = Array.from({ length: height }, (_, y) =>
     Array.from({ length: width }, (_, x) => ({
-      type: 'floor' as const,
+      type: 'empty' as const,
       x,
       y,
-      locations: [] as { sku: string; z: number; quantity: number }[],
+      locations: [] as StorageLocation[],
     })),
   );
-  const locations: { sku: string; z: number; quantity: number; x: number; y: number }[] = [];
+  const locations: StorageLocation[] = [];
   skus.forEach((sku, i) => {
     const x = i % width;
     const y = Math.floor(i / width);
     if (y < height) {
-      grid[y][x].type = 'shelf';
-      grid[y][x].locations = [{ sku, z: 1, quantity: 5 }];
-      locations.push({ sku, z: 1, quantity: 5, x, y });
+      grid[y][x] = { type: 'shelf', x, y, locations: [loc(sku, x, y)] };
+      locations.push(loc(sku, x, y));
     }
   });
-  return { width, height, grid, shelves: locations.map(l => ({ x: l.x, y: l.y })), locations, workerStart: null };
+  return {
+    width,
+    height,
+    grid,
+    shelves: locations.map(l => ({ x: l.x, y: l.y })),
+    locations: locations.map(l => ({ id: `wl-${l.x}-${l.y}`, x: l.x, y: l.y, type: 'shelf' as const, binIds: [l.id] })),
+    workerStart: null,
+  };
 }
 
 function ws(id: string, name: string, wh: Warehouse): WorkspaceWarehouse {

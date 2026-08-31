@@ -70,7 +70,6 @@ function WarehouseSvgRendererInner({
   zoom = 1,
 }: WarehouseSvgRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const rectRef = useRef<DOMRect | null>(null);
   const animationRef = useRef<number | null>(null);
 
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
@@ -89,21 +88,18 @@ function WarehouseSvgRendererInner({
   const logicalW = useMemo(() => warehouse.width * CELL_SIZE, [warehouse.width]);
   const logicalH = useMemo(() => warehouse.height * CELL_SIZE, [warehouse.height]);
 
-  useEffect(() => {
-    const updateRect = () => {
-      if (containerRef.current) rectRef.current = containerRef.current.getBoundingClientRect();
-    };
-    updateRect();
-    window.addEventListener('resize', updateRect);
-    return () => window.removeEventListener('resize', updateRect);
-  }, [zoom]);
-
   const getCellFromMouse = useCallback((e: React.MouseEvent) => {
+    // Read the rect LIVE from the container: getBoundingClientRect() is
+    // viewport-relative, so a rect cached at mount is wrong after scrolling
+    // to another warehouse (warehouse 2+ sits off-screen on mount, so its
+    // cached rect was captured at a stale scroll offset → cell math lands
+    // out of bounds → no hover/tooltip).
+    const container = containerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
     // The warehouse canvas applies a CSS scale transform to this subtree;
     // divide the on-screen offset by the current zoom to recover logical px.
-    const rfZoom = zoom;
-    const rect = rectRef.current;
-    if (!rect) return null;
+    const rfZoom = zoom || 1;
     const x = (e.clientX - rect.left) / rfZoom;
     const y = (e.clientY - rect.top) / rfZoom;
     const cellX = Math.floor(x / CELL_SIZE);
