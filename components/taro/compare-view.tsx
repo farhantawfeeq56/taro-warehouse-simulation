@@ -9,9 +9,10 @@
  *      AUTOMATICALLY runs the simulation for EVERY warehouse (no selection,
  *      no Run button — all warehouses compete).
  *   2. The page shows the ranked results as a transposed TABLE: warehouses
- *      as columns (X axis, ranked by best-strategy efficiency, #1 marked
- *      with a trophy), metrics including efficiency as rows (Y axis), with
- *      deltas vs the base warehouse.
+ *      as columns (X axis, ranked by lowest Total Distance, #1 marked
+ *      with a trophy), metrics as rows (Y axis), with deltas vs the base
+ *      warehouse. Efficiency is intentionally NOT shown — the comparison
+ *      ranks purely on travel distance.
  *
  * Below the rankings, AiSuggestion is a quiet nudge: a small line offering a
  * recommended AI experiment that expands downward on click.
@@ -90,7 +91,10 @@ const METRIC_DEFS = [
 type MetricDef = (typeof METRIC_DEFS)[number];
 
 function bestOf(byStrategy: Record<StrategyType, StrategyResult>): StrategyResult | undefined {
-  return Object.values(byStrategy).filter(Boolean).sort((a, b) => b.efficiency - a.efficiency)[0];
+  // Best = LOWEST total distance (comparison ranks by travel distance).
+  return Object.values(byStrategy)
+    .filter(Boolean)
+    .sort((a, b) => a.totalDistance - b.totalDistance)[0];
 }
 
 function WhName({ name, isBase }: { name: string; isBase?: boolean }) {
@@ -220,12 +224,10 @@ export function CompareView({
 
   const cols = columns?.colResults.filter((c): c is NonNullable<typeof c> => c !== null) ?? [];
   const baseByStrategy = cols.find((c) => c.entry.id === baseEntry.id)?.byStrategy;
-  // Base's best strategy result — the reference for every delta chip.
-  const baseBest = baseByStrategy ? bestOf(baseByStrategy) : undefined;
 
-  const rankEff = cols
-    .map((col) => ({ col, eff: bestOf(col.byStrategy)?.efficiency ?? 0 }))
-    .sort((a, b) => b.eff - a.eff);
+  const rankDist = cols
+    .map((col) => ({ col, dist: bestOf(col.byStrategy)?.totalDistance ?? Infinity }))
+    .sort((a, b) => a.dist - b.dist);
   const hasResults = !!columns?.hasResults;
 
   // ── Status (shared) ─────────────────────────────────────────────────────
@@ -294,7 +296,7 @@ export function CompareView({
                     <th className="h-11 px-3 text-left align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                       Metric
                     </th>
-                    {rankEff.map(({ col, eff }, rank) => (
+                    {rankDist.map(({ col, dist }, rank) => (
                       <th
                         key={col.entry.id}
                         className={cn(
@@ -310,32 +312,32 @@ export function CompareView({
                           )}
                           <span className="text-sm font-semibold text-foreground">{col.entry.name}</span>
                         </span>
-                        <div className="mt-0.5 text-[10px] text-muted-foreground">{fmtNumber(eff)}% eff</div>
+                        <div className="mt-0.5 text-[10px] text-muted-foreground">{fmtNumber(dist)} m</div>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Efficiency row — first, so the ranked metric tops the table. */}
+                  {/* Total Distance row — first, so the ranked metric tops the table. */}
                   <tr className="border-b border-border/60">
                     <td className="px-3 py-3 align-middle whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Efficiency
+                      Total Distance
                     </td>
-                    {rankEff.map(({ eff }, rank) => (
+                    {rankDist.map(({ dist }, rank) => (
                       <td
                         key={rank}
                         className={cn('px-3 py-3 align-middle whitespace-nowrap', rank === 0 && 'bg-primary/5')}
                       >
-                        <span className="text-sm font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
+                        <span className="text-sm font-bold tabular-nums text-foreground">{fmtNumber(dist)} m</span>
                       </td>
                     ))}
                   </tr>
-                  {METRIC_DEFS.filter((m) => m.key !== 'eff').map((m) => (
+                  {METRIC_DEFS.filter((m) => m.key !== 'eff' && m.key !== 'dist').map((m) => (
                     <tr key={m.key} className="border-b border-border/60 last:border-0">
                       <td className="px-3 py-3 align-middle whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                         {m.label}
                       </td>
-                      {rankEff.map(({ col }, rank) => {
+                      {rankDist.map(({ col }, rank) => {
                         const best = bestOf(col.byStrategy)!;
                         const isBase = col.entry.id === baseEntry.id;
                         const b = isBase ? undefined : baseByStrategy?.[best.strategy];
