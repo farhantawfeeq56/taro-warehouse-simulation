@@ -56,6 +56,6 @@ describe('warehouse-compare', () => {
     const b = makeWarehouse(3, 3, ['A']);
     const c = makeWarehouse(3, 3, ['B']);
     const groups = findDuplicateGroups([ws('1', 'one', a), ws('2', 'two', b), ws('3', 'three', c)]);
-    expect(groups).toEqual([{ names: ['one', 'two'] }]);
+    expect(groups).toEqual([[{ id: '1', name: 'one' }, { id: '2', name: 'two' }]]);
   });
 });

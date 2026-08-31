@@ -22,16 +22,18 @@ export type CompareGateState =
   | {
       /** Duplicate warehouses — identical layouts, comparison is meaningless. */
       mode: 'duplicates';
-      groups: { names: string[] }[];
+      groups: { id: string; name: string }[][];
     };
 
 interface CompareGateModalProps {
   state: CompareGateState | null;
   onClose: () => void;
   onAddWarehouse: () => void;
+  /** Navigate to a warehouse (closes the modal, scrolls to it). */
+  onNavigate: (id: string) => void;
 }
 
-export function CompareGateModal({ state, onClose, onAddWarehouse }: CompareGateModalProps) {
+export function CompareGateModal({ state, onClose, onAddWarehouse, onNavigate }: CompareGateModalProps) {
   return (
     <AlertDialog open={!!state} onOpenChange={onClose}>
       <AlertDialogContent className="max-w-lg">
@@ -65,14 +67,34 @@ export function CompareGateModal({ state, onClose, onAddWarehouse }: CompareGate
           ) : state && (
             <>
               <p>These warehouses are identical — comparing them would show no differences:</p>
-              <ul className="list-disc pl-5 space-y-1">
+              <ul className="space-y-1.5">
                 {state.groups.map((g, i) => (
-                  <li key={i}>{g.names.join(' and ')}</li>
+                  <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {g.map((w, j) => (
+                      <span key={w.id} className="flex items-center gap-2">
+                        <span className="font-medium text-foreground">{w.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => onNavigate(w.id)}
+                          className="text-primary underline underline-offset-2 hover:text-primary/80"
+                        >
+                          Go to warehouse
+                        </button>
+                        {j < g.length - 1 && <span className="text-muted-foreground">and</span>}
+                      </span>
+                    ))}
+                  </li>
                 ))}
               </ul>
-              <p className="font-medium text-foreground">
-                Change the layout of one of them (or its inventory) to make the comparison meaningful.
-              </p>
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">How to make them different</p>
+                <ol className="list-decimal pl-4 space-y-0.5">
+                  <li>Go to one of the warehouses above.</li>
+                  <li>In the right sidebar, open the <span className="font-medium text-foreground">Config</span> tab.</li>
+                  <li>Click <span className="font-medium text-foreground">Edit</span> to change its layout (aisles, racks) or inventory, then apply.</li>
+                  <li>Come back and Compare again.</li>
+                </ol>
+              </div>
             </>
           )}
         </AlertDialogDescription>

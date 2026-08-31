@@ -26,23 +26,24 @@ export function warehousesAreIdentical(a: WorkspaceWarehouse, b: WorkspaceWareho
 }
 
 /**
- * Group warehouses by identical layout. Returns groups of 2+ names that are
- * duplicates of each other (i.e. meaningful to warn about).
+ * Group warehouses by identical layout. Returns groups of 2+ entries that are
+ * duplicates of each other (i.e. meaningful to warn about), carrying both id
+ * (for navigation) and name (for display).
  */
-export function findDuplicateGroups(warehouses: WorkspaceWarehouse[]): { names: string[] }[] {
-  const groups: { names: string[] }[] = [];
+export function findDuplicateGroups(warehouses: WorkspaceWarehouse[]): { id: string; name: string }[][] {
+  const groups: { id: string; name: string }[][] = [];
   const visited = new Set<number>();
   for (let i = 0; i < warehouses.length; i++) {
     if (visited.has(i)) continue;
-    const names = [warehouses[i].name];
+    const group = [{ id: warehouses[i].id, name: warehouses[i].name }];
     for (let j = i + 1; j < warehouses.length; j++) {
       if (visited.has(j)) continue;
       if (warehousesAreIdentical(warehouses[i], warehouses[j])) {
-        names.push(warehouses[j].name);
+        group.push({ id: warehouses[j].id, name: warehouses[j].name });
         visited.add(j);
       }
     }
-    if (names.length >= 2) groups.push({ names });
+    if (group.length >= 2) groups.push(group);
   }
   return groups;
 }

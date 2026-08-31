@@ -294,7 +294,7 @@ export function CompareView({
                 <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="h-11 px-3 text-left align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                    <th className="h-11 px-3 text-left align-middle text-[10px] font-bold uppercase tracking-wider text-muted whitespace-nowrap">
                       Metric
                     </th>
                     {rankDist.map(({ col, dist }, rank) => (
@@ -305,15 +305,18 @@ export function CompareView({
                           rank === 0 && 'bg-primary/5',
                         )}
                       >
-                        <span className="flex items-center gap-1.5">
-                          {rank === 0 && (
-                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                              <Trophy className="h-3 w-3" />
-                            </span>
-                          )}
+                        <span className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+                              rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                            )}
+                          >
+                            {rank === 0 ? <Trophy className="size-3" /> : rank + 1}
+                          </span>
                           <span className="text-sm font-semibold text-foreground">{col.entry.name}</span>
                         </span>
-                        <div className="mt-0.5 text-[10px] text-muted-foreground">{fmtNumber(dist)} m</div>
+                        <div className="mt-1 text-[10px] text-muted tabular-nums">{fmtNumber(dist)} m</div>
                       </th>
                     ))}
                   </tr>
@@ -321,7 +324,7 @@ export function CompareView({
                 <tbody>
                   {/* Total Distance row — first, so the ranked metric tops the table. */}
                   <tr className="border-b border-border/60">
-                    <td className="px-3 py-3 align-middle whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-muted">
                       Total Distance
                     </td>
                     {rankDist.map(({ dist }, rank) => (
@@ -335,7 +338,7 @@ export function CompareView({
                   </tr>
                   {METRIC_DEFS.filter((m) => m.key !== 'eff' && m.key !== 'dist').map((m) => (
                     <tr key={m.key} className="border-b border-border/60 last:border-0">
-                      <td className="px-3 py-3 align-middle whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-muted">
                         {m.label}
                       </td>
                       {rankDist.map(({ col }, rank) => {

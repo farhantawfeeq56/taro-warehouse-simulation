@@ -936,6 +936,10 @@ export function TaroApp(_props: TaroAppProps) {
           setCompareGate(null);
           handleAddWarehouse();
         }}
+        onNavigate={(id) => {
+          setCompareGate(null);
+          setActiveWarehouseId(id);
+        }}
       />
 
       {showLayoutConfig && activeProjectId && (
