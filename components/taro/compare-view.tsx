@@ -18,14 +18,13 @@
  * warehouses are RANKED by best-strategy efficiency with score bars, then the
  * best strategy's metrics per warehouse with delta vs the base warehouse.
  *
- * vartest5 (this round): the AI experiment suggestion card has 5 presentation
- * variants, switched by the floating segmented control in the bottom-right
- * corner (keys 1–5).
+ * The AI experiment suggestion card uses the Hero presentation (vartest5
+ * round 2, variant 1).
  *
  * All state lives in TaroApp memory, so leaving the page loses nothing.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -183,19 +182,7 @@ export function CompareView({
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
-  // vartest5: AI-recommendation variant (1 hero · 2 verdict · 3 tabs · 4 table · 5 side-by-side)
-  const [variant, setVariant] = useState<1 | 2 | 3 | 4 | 5>(1);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      const n = Number(e.key);
-      if (n >= 1 && n <= 5) setVariant(n as 1 | 2 | 3 | 4 | 5);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
+  // vartest5: AI-recommendation presentation (locked in: Hero, variant 1)
   const toggleWarehouse = useCallback((id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
@@ -468,14 +455,12 @@ export function CompareView({
             </section>
           )}
 
-          {/* AI experiment suggestion — vartest5: presentation variant switches inside the card. */}
+          {/* AI experiment suggestion. */}
           {columns && columns.hasResults && (
             <ExperimentRecommendationCard
               insights={insights}
               isRunning={isRunning}
               onGenerate={onGenerateExperiment}
-              variant={variant}
-              onVariantChange={setVariant}
             />
           )}
         </div>
