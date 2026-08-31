@@ -12,13 +12,22 @@
  *      compare against the base.
  *   3. "Run Comparison" runs `runSimulation` on the base + every selected
  *      warehouse — silently, with no user-visible simulation UI — and shows
- *      a table with each warehouse's key metrics per strategy.
+ *      each warehouse's key metrics per strategy.
+ *
+ * vartest5: the results block (was a plain table) is now presented in 5
+ * visual variants, switched by the floating segmented control in the
+ * bottom-right corner (keys 1–5):
+ *   1 Timeline — strategies as phases on a vertical rail, metric chips per warehouse
+ *   2 Cards    — one card per warehouse with all 3 strategies inside
+ *   3 Split    — one block per warehouse, 3 strategy columns side by side
+ *   4 Scored   — warehouses ranked by best efficiency with score bars
+ *   5 Classic  — the original comparison table
  *
  * All state lives in TaroApp memory, so leaving the page loses nothing.
  */
 
-import { useCallback, useMemo, useState } from 'react';
-import { ArrowLeft, GitCompareArrows, Loader2, Play, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, GitCompareArrows, Layers, Loader2, Map, Trophy, UserRound, X } from 'lucide-react';
 import { ExperimentRecommendationCard } from './experiment-recommendation-card';
 import {
   toWarehouseInsight,
@@ -31,7 +40,6 @@ import type {
   SimulationResults,
   StrategyResult,
   StrategyType,
-  Warehouse,
   WarehouseProfile,
   LaborProfile,
   WorkspaceWarehouse,
@@ -70,6 +78,8 @@ const STRATEGY_META: Record<StrategyType, { label: string; description: string }
   zone: { label: 'Zone Picking', description: 'Workers own zones' },
 };
 
+const STRATEGY_ICONS = { single: UserRound, batch: Layers, zone: Map } as const;
+
 interface WarehouseResult {
   id: string;
   name: string;
@@ -80,35 +90,70 @@ interface WarehouseResult {
 const fmtNumber = (n: number, digits = 1) =>
   n.toLocaleString(undefined, { maximumFractionDigits: digits });
 
-function metricCell(
-  base: StrategyResult | undefined,
-  current: StrategyResult,
-  pick: (r: StrategyResult) => number,
-  format: (n: number) => string,
-) {
-  if (!base) {
-    return <span>{format(pick(current))}</span>;
-  }
-  const b = pick(base);
+const METRIC_DEFS = [
+  { key: 'time', label: 'Est. Time', pick: (r: StrategyResult) => r.estimatedTime, format: (n: number) => `${fmtNumber(n)} min` },
+  { key: 'dist', label: 'Total Distance', pick: (r: StrategyResult) => r.totalDistance, format: (n: number) => `${fmtNumber(n)} m` },
+  { key: 'eff', label: 'Efficiency', pick: (r: StrategyResult) => r.efficiency, format: (n: number) => `${fmtNumber(n)}%` },
+  { key: 'util', label: 'Worker Util.', pick: (r: StrategyResult) => r.workerUtilization, format: (n: number) => `${fmtNumber(n)}%` },
+  { key: 'cost', label: 'Cost / Order', pick: (r: StrategyResult) => r.costPerOrder, format: (n: number) => `$${fmtNumber(n, 2)}` },
+  { key: 'orders', label: 'Orders Done', pick: (r: StrategyResult) => r.ordersCompleted, format: (n: number) => `${fmtNumber(n, 0)}` },
+];
+
+type MetricDef = (typeof METRIC_DEFS)[number];
+
+/** Delta value vs a base warehouse, with ▲/▼ % tag (same rule as the table). */
+function DeltaChip({
+  label,
+  base,
+  current,
+  pick,
+  format,
+}: {
+  label: string;
+  base?: StrategyResult;
+  current: StrategyResult;
+  pick: (r: StrategyResult) => number;
+  format: (n: number) => string;
+}) {
+  const b = base ? pick(base) : undefined;
   const c = pick(current);
-  const diff = c - b;
-  const pct = b !== 0 ? (diff / Math.abs(b)) * 100 : 0;
+  const diff = b !== undefined ? c - b : 0;
+  const pct = b ? (diff / Math.abs(b)) * 100 : 0;
   return (
-    <span className="inline-flex items-center gap-1">
-      {format(c)}
-      {Math.abs(diff) > 1e-9 && (
-        <span
-          className={cn(
-            'text-[10px] font-medium',
-            diff < 0 ? 'text-positive' : 'text-destructive',
-          )}
-        >
-          {diff < 0 ? '▼' : '▲'}
-          {fmtNumber(Math.abs(pct), 0)}%
-        </span>
+    <div className="rounded-lg border border-border bg-background px-2.5 py-1.5">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="flex items-baseline gap-1">
+        <span className="text-sm font-semibold tabular-nums text-foreground">{format(c)}</span>
+        {b !== undefined && Math.abs(diff) > 1e-9 && (
+          <span className={cn('text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
+            {diff < 0 ? '▼' : '▲'}
+            {fmtNumber(Math.abs(pct), 0)}%
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function bestOf(byStrategy: Record<StrategyType, StrategyResult>): StrategyResult | undefined {
+  return Object.values(byStrategy).filter(Boolean).sort((a, b) => b.efficiency - a.efficiency)[0];
+}
+
+function WhName({ name, isBase }: { name: string; isBase?: boolean }) {
+  return (
+    <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+      {isBase && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+      {name}
+      {isBase && (
+        <Badge variant="outline" className="text-[10px] text-muted-foreground">base</Badge>
       )}
     </span>
   );
+}
+
+function BestBadge({ byStrategy }: { byStrategy: Record<StrategyType, StrategyResult> }) {
+  const best = bestOf(byStrategy);
+  return best ? <Badge variant="secondary">{STRATEGY_META[best.strategy].label}</Badge> : <Badge variant="secondary">—</Badge>;
 }
 
 export function CompareView({
@@ -135,6 +180,19 @@ export function CompareView({
   const [resultsByWarehouse, setResultsByWarehouse] = useState<Record<string, WarehouseResult>>({});
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+
+  // vartest5: results-presentation variant (1 timeline · 2 cards · 3 split · 4 scored · 5 classic)
+  const [variant, setVariant] = useState<1 | 2 | 3 | 4 | 5>(1);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      const n = Number(e.key);
+      if (n >= 1 && n <= 5) setVariant(n as 1 | 2 | 3 | 4 | 5);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const toggleWarehouse = useCallback((id: string) => {
     setSelectedIds((prev) =>
@@ -209,29 +267,15 @@ export function CompareView({
       .filter((x): x is NonNullable<typeof x> => x !== null);
   }, [resultsByWarehouse, warehouses]);
 
-  // ── Table assembly ──────────────────────────────────────────────────────
-  // Each row is a single metric for a single strategy. Columns are warehouses
-  // (base first). This makes the mapping of values → columns unambiguous.
-  type TableRow = {
-    key: string;
-    label: string;
-    description?: string;
-    strategy: StrategyType;
-    /** Format a numeric metric. Absent on label-only rows (best strategy). */
-    format?: (n: number) => string;
-    pick?: (r: StrategyResult) => number;
-    /** True for the summary label row (shows a badge, not a number). */
-    labelRow?: boolean;
-    /** Group-header rows span the full width and split the table by strategy. */
-    groupHeader?: boolean;
-  };
-  const table = useMemo(() => {
+  // ── Comparison assembly ────────────────────────────────────────────────
+  // Columns are warehouses (base first). Each column holds its per-strategy
+  // results, indexed by strategy type.
+  const columns = useMemo(() => {
     if (!baseEntry) return null;
     const columnWarehouses = [baseEntry.id, ...selectedIds]
       .map((id) => warehouses.find((w) => w.id === id))
       .filter(Boolean) as WorkspaceWarehouse[];
 
-    // Results for the columns, in order, with strategies indexed by type.
     const colResults = columnWarehouses.map((w) => {
       const whRes = resultsByWarehouse[w.id];
       if (!whRes) return null;
@@ -240,53 +284,7 @@ export function CompareView({
       ) as Record<StrategyType, StrategyResult>;
       return { entry: w, byStrategy };
     });
-    const hasResults = colResults.some((c) => c !== null);
-
-    const rows: TableRow[] = [];
-    const metricDefs: {
-      key: string;
-      label: string;
-      pick: (r: StrategyResult) => number;
-      format: (n: number) => string;
-    }[] = [
-      { key: 'time', label: 'Est. Time', pick: (r) => r.estimatedTime, format: (n) => `${fmtNumber(n)} min` },
-      { key: 'dist', label: 'Total Distance', pick: (r) => r.totalDistance, format: (n) => `${fmtNumber(n)} m` },
-      { key: 'eff', label: 'Efficiency', pick: (r) => r.efficiency, format: (n) => `${fmtNumber(n)}%` },
-      { key: 'util', label: 'Worker Util.', pick: (r) => r.workerUtilization, format: (n) => `${fmtNumber(n)}%` },
-      { key: 'cost', label: 'Cost / Order', pick: (r) => r.costPerOrder, format: (n) => `$${fmtNumber(n, 2)}` },
-      { key: 'orders', label: 'Orders Done', pick: (r) => r.ordersCompleted, format: (n) => `${fmtNumber(n, 0)}` },
-    ];
-
-    for (const [strategy, meta] of Object.entries(STRATEGY_META) as [StrategyType, { label: string; description: string }][]) {
-      // Group header row so the table reads as sections, not one long list.
-      rows.push({
-        key: `group-${strategy}`,
-        groupHeader: true,
-        label: meta.label,
-        description: meta.description,
-        strategy,
-      });
-      for (const m of metricDefs) {
-        rows.push({
-          key: `${strategy}-${m.key}`,
-          label: m.label,
-          strategy,
-          pick: m.pick,
-          format: m.format,
-        });
-      }
-    }
-    // Summary row: each warehouse's best strategy.
-    rows.push({
-      key: 'best-strategy',
-      label: 'Best Strategy',
-      description: 'Highest-efficiency strategy per warehouse',
-      strategy: 'single' as StrategyType,
-      pick: (r) => r.efficiency,
-      labelRow: true,
-    });
-
-    return { rows, colResults, hasResults };
+    return { colResults, hasResults: colResults.some((c) => c !== null) };
   }, [baseEntry, selectedIds, resultsByWarehouse, warehouses]);
 
   if (!baseEntry) {
@@ -303,20 +301,30 @@ export function CompareView({
     );
   }
 
+  const cols = columns?.colResults.filter((c): c is NonNullable<typeof c> => c !== null) ?? [];
+  const strategies = Object.entries(STRATEGY_META) as [StrategyType, { label: string; description: string }][];
+  const baseByStrategy = cols[0]?.byStrategy;
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-background">
       {/* Header — back button + title. */}
-      <div className="shrink-0 flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
-        <Button variant="ghost" size="icon-sm" onClick={onExit} title="Back to workspace">
+      <div className="shrink-0 flex items-center gap-3 border-b border-primary/20 bg-primary px-4 py-3">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onExit}
+          title="Back to workspace"
+          className="text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex items-center gap-2">
-          <GitCompareArrows className="h-5 w-5 text-primary" />
-          <h1 className="text-base font-semibold text-foreground">Compare Warehouses</h1>
+          <GitCompareArrows className="h-5 w-5 text-primary-foreground/80" />
+          <h1 className="text-base font-semibold text-primary-foreground">Compare Warehouses</h1>
         </div>
         <div className="flex-1" />
-        <Badge variant="secondary" className="text-muted-foreground">
-          {table?.colResults.length} warehouse{table?.colResults.length && table.colResults.length > 1 ? 's' : ''} in comparison
+        <Badge className="border-transparent bg-primary-foreground/15 text-primary-foreground">
+          {cols.length} warehouse{cols.length !== 1 ? 's' : ''} in comparison
         </Badge>
       </div>
 
@@ -380,6 +388,7 @@ export function CompareView({
                     disabled={isRunning || selectedIds.length === 0}
                     pendingLabel="Running…"
                     successLabel="Done"
+                    tone="primary"
                     className="gap-1.5"
                   >
                     Run Comparison
@@ -407,129 +416,285 @@ export function CompareView({
             </div>
           )}
 
-          {/* Results table. */}
-          {table && table.hasResults && (
+          {/* Results — vartest5: one of 5 presentations. */}
+          {columns && columns.hasResults && (
             <section className="rounded-lg border border-border bg-surface overflow-hidden">
               <div className="border-b border-border px-4 py-3">
                 <h2 className="text-sm font-semibold text-foreground">Simulation comparison</h2>
                 <p className="text-xs text-muted-foreground">
-                  Each warehouse runs the same strategy set on its own orders. Delta vs the base warehouse is shown in the table.
+                  Each warehouse runs the same strategy set on its own orders. Delta vs the base warehouse is shown where relevant.
                 </p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/40">
-                      <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">
-                        Metric
-                      </th>
-                      {table.colResults.map((c, i) => (
-                        <th
-                          key={c?.entry.id ?? `col-${i}`}
-                          className={cn(
-                            'h-10 px-3 text-left align-middle font-medium whitespace-nowrap',
-                            i === 0 ? 'text-primary' : 'text-foreground',
-                          )}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            {i === 0 && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
-                            {c?.entry.name}
-                            {i === 0 && (
-                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                                base
-                              </Badge>
-                            )}
+              <div className="p-4 space-y-4">
+                {variant === 1 && (
+                  <div className="relative pl-8">
+                    <span className="absolute left-[11px] top-3 bottom-3 w-px bg-border" />
+                    {strategies.map(([strategy, meta]) => {
+                      const Icon = STRATEGY_ICONS[strategy];
+                      return (
+                        <div key={strategy} className="relative pb-5 last:pb-0">
+                          <span className="absolute -left-8 top-0 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface shadow-sm">
+                            <Icon className="h-3.5 w-3.5 text-primary" />
                           </span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {table.rows.map((row) =>
-                      row.groupHeader ? (
-                        <tr key={row.key} className="border-b border-border bg-muted/50">
-                          <td
-                            colSpan={table.colResults.length + 1}
-                            className="px-3 py-2"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
-                                {row.label}
-                              </span>
-                              {row.description && (
-                                <span className="text-[11px] text-muted-foreground">
-                                  {row.description}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                      <tr key={row.key} className="border-b border-border/60 last:border-0 hover:bg-muted/30">
-                        <td className="px-3 py-2 align-middle whitespace-nowrap">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-foreground">{row.label}</span>
-                            {row.description && (
-                              <span className="text-[10px] text-muted-foreground">{row.description}</span>
-                            )}
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-sm font-semibold text-foreground">{meta.label}</span>
+                            <span className="text-[11px] text-muted-foreground">{meta.description}</span>
                           </div>
-                        </td>
-                        {table.colResults.map((c, i) => {
-                          // Column without results (not yet run / no data).
-                          if (!c) {
-                            return (
-                              <td key={`empty-${i}`} className="px-3 py-2 text-muted-foreground">
-                                —
-                              </td>
-                            );
-                          }
-                          const sr = c.byStrategy[row.strategy];
-                          if (!sr) {
-                            return (
-                              <td key={c.entry.id} className="px-3 py-2 text-muted-foreground">
-                                —
-                              </td>
-                            );
-                          }
-                          if (row.labelRow) {
-                            const best = Object.values(c.byStrategy)
-                              .filter(Boolean)
-                              .sort((a, b) => b.efficiency - a.efficiency)[0];
-                            return (
-                              <td key={c.entry.id} className="px-3 py-2 whitespace-nowrap">
-                                <Badge variant="secondary">
-                                  {best ? STRATEGY_META[best.strategy].label : '—'}
-                                </Badge>
-                              </td>
-                            );
-                          }
+                          <div className="mt-2 space-y-2">
+                            {cols.map((col) => {
+                              const sr = col.byStrategy[strategy];
+                              if (!sr) return null;
+                              return (
+                                <div key={col.entry.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-2">
+                                  <span className="w-36 shrink-0 truncate text-xs font-medium text-foreground">{col.entry.name}</span>
+                                  {METRIC_DEFS.map((m) => (
+                                    <DeltaChip
+                                      key={m.key}
+                                      label={m.label}
+                                      base={baseByStrategy?.[strategy]}
+                                      current={sr}
+                                      pick={m.pick}
+                                      format={m.format}
+                                    />
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {variant === 2 && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {cols.map((col, i) => (
+                      <div
+                        key={col.entry.id}
+                        className={cn(
+                          'rounded-xl border bg-surface p-4 space-y-3',
+                          i === 0 && 'border-primary/60 ring-1 ring-primary/20',
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <WhName name={col.entry.name} isBase={i === 0} />
+                          <BestBadge byStrategy={col.byStrategy} />
+                        </div>
+                        {strategies.map(([strategy, meta]) => {
+                          const sr = col.byStrategy[strategy];
+                          if (!sr) return null;
+                          const Icon = STRATEGY_ICONS[strategy];
                           return (
-                            <td key={c.entry.id} className="px-3 py-2 whitespace-nowrap">
-                              {metricCell(
-                                i === 0 ? undefined : table.colResults[0]?.byStrategy[row.strategy],
-                                sr,
-                                row.pick!,
-                                row.format!,
-                              )}
-                            </td>
+                            <div key={strategy} className="space-y-1.5">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                <Icon className="h-3 w-3 text-primary" />
+                                {meta.label}
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                                {METRIC_DEFS.map((m) => (
+                                  <DeltaChip key={m.key} label={m.label} base={i === 0 ? undefined : baseByStrategy?.[strategy]} current={sr} pick={m.pick} format={m.format} />
+                                ))}
+                              </div>
+                            </div>
                           );
                         })}
-                      </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {variant === 3 && (
+                  <div className="space-y-4">
+                    {cols.map((col, i) => (
+                      <div key={col.entry.id} className="overflow-hidden rounded-xl border border-border">
+                        <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
+                          <WhName name={col.entry.name} isBase={i === 0} />
+                          <BestBadge byStrategy={col.byStrategy} />
+                        </div>
+                        <div className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
+                          {strategies.map(([strategy, meta]) => {
+                            const sr = col.byStrategy[strategy];
+                            if (!sr) return null;
+                            const Icon = STRATEGY_ICONS[strategy];
+                            return (
+                              <div key={strategy} className="p-3 space-y-2">
+                                <div className="flex items-center gap-1.5">
+                                  <Icon className="h-3.5 w-3.5 text-primary" />
+                                  <span className="text-xs font-semibold text-foreground">{meta.label}</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  {METRIC_DEFS.map((m) => (
+                                    <DeltaChip key={m.key} label={m.label} base={i === 0 ? undefined : baseByStrategy?.[strategy]} current={sr} pick={m.pick} format={m.format} />
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {variant === 4 && (
+                  <div className="space-y-3">
+                    {cols
+                      .map((col) => ({ col, best: bestOf(col.byStrategy) }))
+                      .filter((x): x is { col: NonNullable<typeof cols[number]>; best: StrategyResult } => !!x.best)
+                      .sort((a, b) => b.best.efficiency - a.best.efficiency)
+                      .map(({ col, best }, rank) => {
+                        const topEff = Math.max(...cols.map((c) => bestOf(c.byStrategy)?.efficiency ?? 0)) || 1;
+                        return (
+                          <div key={col.entry.id} className="rounded-xl border border-border bg-surface p-4">
+                            <div className="flex items-center gap-3">
+                              <span className={cn(
+                                'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                                rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                              )}>
+                                {rank === 0 ? <Trophy className="h-3.5 w-3.5" /> : rank + 1}
+                              </span>
+                              <WhName name={col.entry.name} isBase={col.entry.id === baseEntry.id} />
+                              <div className="ml-auto text-right">
+                                <span className="text-lg font-bold tabular-nums text-foreground">{fmtNumber(best.efficiency)}%</span>
+                                <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">eff.</span>
+                                <div className="mt-0.5 h-1.5 w-32 overflow-hidden rounded-full bg-muted">
+                                  <div className="h-full rounded-full bg-primary" style={{ width: `${(best.efficiency / topEff) * 100}%` }} />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-6">
+                              {METRIC_DEFS.map((m) => (
+                                <DeltaChip
+                                  key={m.key}
+                                  label={m.label}
+                                  base={col.entry.id === baseEntry.id ? undefined : baseByStrategy?.[best.strategy]}
+                                  current={best}
+                                  pick={m.pick}
+                                  format={m.format}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+
+                {variant === 5 && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/40">
+                          <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">
+                            Metric
+                          </th>
+                          {cols.map((col, i) => (
+                            <th
+                              key={col.entry.id}
+                              className={cn(
+                                'h-10 px-3 text-left align-middle font-medium whitespace-nowrap',
+                                i === 0 ? 'text-primary' : 'text-foreground',
+                              )}
+                            >
+                              <WhName name={col.entry.name} isBase={i === 0} />
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {strategies.map(([strategy, meta]) => (
+                          <tr key={strategy} className="border-b border-border bg-muted/50">
+                            <td colSpan={cols.length + 1} className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
+                                  {meta.label}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground">{meta.description}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {strategies.flatMap(([strategy]) =>
+                          METRIC_DEFS.map((m) => (
+                            <tr key={`${strategy}-${m.key}`} className="border-b border-border/60 last:border-0 hover:bg-muted/30">
+                              <td className="px-3 py-2 align-middle whitespace-nowrap font-medium text-foreground">{m.label}</td>
+                              {cols.map((col, i) => {
+                                const sr = col.byStrategy[strategy];
+                                if (!sr) {
+                                  return <td key={col.entry.id} className="px-3 py-2 text-muted-foreground">—</td>;
+                                }
+                                const b = i === 0 ? undefined : baseByStrategy?.[strategy];
+                                const baseVal = b ? m.pick(b) : undefined;
+                                const cur = m.pick(sr);
+                                const diff = baseVal !== undefined ? cur - baseVal : 0;
+                                const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
+                                return (
+                                  <td key={col.entry.id} className="px-3 py-2 whitespace-nowrap tabular-nums">
+                                    {m.format(cur)}
+                                    {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
+                                      <span className={cn('ml-1 text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
+                                        {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          )),
+                        )}
+                        <tr className="border-t border-border bg-muted/20">
+                          <td className="px-3 py-2 align-middle whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-foreground">Best Strategy</span>
+                              <span className="text-[10px] text-muted-foreground">Highest-efficiency strategy per warehouse</span>
+                            </div>
+                          </td>
+                          {cols.map((col) => (
+                            <td key={col.entry.id} className="px-3 py-2 whitespace-nowrap">
+                              <BestBadge byStrategy={col.byStrategy} />
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </section>
           )}
+
           {/* AI experiment suggestion — the mock-AI block. */}
-          {table && table.hasResults && (
+          {columns && columns.hasResults && (
             <ExperimentRecommendationCard
               insights={insights}
               isRunning={isRunning}
               onGenerate={onGenerateExperiment}
             />
           )}
+        </div>
+      </div>
+
+      {/* vartest5: floating segmented toolbar — switches results variant (keys 1–5). */}
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[120] flex items-center gap-1.5">
+        <span className="rounded bg-surface/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shadow-sm">
+          Results 1–5
+        </span>
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 py-0.5 shadow-lg">
+          {[1, 2, 3, 4, 5].map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setVariant(v as 1 | 2 | 3 | 4 | 5)}
+              title={`Results variant ${v}`}
+              className={cn(
+                'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold transition-colors',
+                variant === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {v}
+            </button>
+          ))}
         </div>
       </div>
     </div>
