@@ -317,39 +317,6 @@ function WarehouseSvgRendererInner({
     return bays;
   }, [warehouse]);
 
-  // Route heatmap
-  const heatmapRects = useMemo(() => {
-    if (!activeRoute) return null;
-    const heatmap: number[][] = Array(warehouse.height)
-      .fill(null)
-      .map(() => Array(warehouse.width).fill(0));
-    const routeGroups = activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0
-      ? activeRoute.workerRoutes.map(workerRoute => workerRoute.route)
-      : [activeRoute.route];
-    for (const route of routeGroups) {
-      for (const pos of route) {
-        const rx = Math.round(pos.x);
-        const ry = Math.round(pos.y);
-        if (ry >= 0 && ry < warehouse.height && rx >= 0 && rx < warehouse.width) heatmap[ry][rx]++;
-      }
-    }
-    const maxHeat = Math.max(0, ...heatmap.flat());
-    if (maxHeat <= 0) return null;
-    const rects: React.ReactNode[] = [];
-    for (let y = 0; y < warehouse.height; y++) {
-      for (let x = 0; x < warehouse.width; x++) {
-        const heat = heatmap[y][x];
-        if (heat <= 0) continue;
-        const intensity = heat / maxHeat;
-        const alpha = 0.12 + intensity * 0.43;
-        rects.push(
-          <rect key={`h-${x}-${y}`} x={x * CELL_SIZE + 1} y={y * CELL_SIZE + 1} width={CELL_SIZE - 2} height={CELL_SIZE - 2} fill={`rgba(239, 68, 68, ${alpha.toFixed(3)})`} />,
-        );
-      }
-    }
-    return rects;
-  }, [activeRoute, warehouse]);
-
   // Worker route polylines + animated dots.
   // NOTE: deliberately NOT memoized on [activeRoute, animationProgressRef] —
   // animationProgressRef is a stable ref object and its .current is read here,
@@ -420,10 +387,7 @@ function WarehouseSvgRendererInner({
         {/* Paper bays */}
         {shelfBays}
 
-        {/* Route heatmap */}
-        {heatmapRects}
-
-        {/* Route paths + worker dots */}
+        {/* Worker route polylines + animated dots */}
         {routePaths}
 
         {/* Hover highlight */}
