@@ -4,22 +4,29 @@
  * CompareView — a dedicated "special page" (in-app route) for comparing
  * warehouse simulations side by side.
  *
- * Flow:
- *   1. The user clicked "Compare" on a warehouse in the workspace. That
- *      warehouse is passed in as `baseWarehouseId` and is pre-selected as the
- *      fixed base column of the comparison.
- *   2. A multi-select lets the user pick one or MORE other warehouses to
- *      compare against the base.
- *   3. "Run Comparison" runs `runSimulation` on the base + every selected
- *      warehouse — silently, with no user-visible simulation UI — and shows
- *      a table with each warehouse's key metrics per strategy.
+ * Flow (locked in):
+ *   1. The user clicked "Compare" on a warehouse. Entering this page
+ *      AUTOMATICALLY runs the simulation for EVERY warehouse (no selection,
+ *      no Run button — all warehouses compete).
+ *   2. The page shows the ranked results as a transposed TABLE: warehouses
+ *      as columns (X axis, ranked by best-strategy efficiency, #1 marked
+ *      with a trophy), metrics including efficiency as rows (Y axis), with
+ *      deltas vs the base warehouse.
+ *
+ * Below the rankings, AiSuggestion is a quiet nudge: a small line offering a
+ * recommended AI experiment that expands downward on click.
  *
  * All state lives in TaroApp memory, so leaving the page loses nothing.
  */
 
-import { useCallback, useMemo, useState } from 'react';
-import { ArrowLeft, GitCompareArrows, Loader2, Play, X } from 'lucide-react';
-import { ExperimentRecommendationCard } from './experiment-recommendation-card';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  GitCompareArrows,
+  Loader2,
+  Trophy,
+} from 'lucide-react';
+import { AiSuggestion } from './experiment-recommendation-card';
 import {
   toWarehouseInsight,
   type ExperimentRecommendation,
@@ -31,13 +38,11 @@ import type {
   SimulationResults,
   StrategyResult,
   StrategyType,
-  Warehouse,
   WarehouseProfile,
   LaborProfile,
   WorkspaceWarehouse,
 } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
-import { LoadingButton } from '@/components/interior/loading-button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -63,13 +68,6 @@ interface CompareViewProps {
   ) => Promise<void>;
 }
 
-/** Strategy label + short description for the table rows. */
-const STRATEGY_META: Record<StrategyType, { label: string; description: string }> = {
-  single: { label: 'Single Order', description: 'One worker, one order at a time' },
-  batch: { label: 'Batch Picking', description: 'Group orders into batches' },
-  zone: { label: 'Zone Picking', description: 'Workers own zones' },
-};
-
 interface WarehouseResult {
   id: string;
   name: string;
@@ -80,32 +78,28 @@ interface WarehouseResult {
 const fmtNumber = (n: number, digits = 1) =>
   n.toLocaleString(undefined, { maximumFractionDigits: digits });
 
-function metricCell(
-  base: StrategyResult | undefined,
-  current: StrategyResult,
-  pick: (r: StrategyResult) => number,
-  format: (n: number) => string,
-) {
-  if (!base) {
-    return <span>{format(pick(current))}</span>;
-  }
-  const b = pick(base);
-  const c = pick(current);
-  const diff = c - b;
-  const pct = b !== 0 ? (diff / Math.abs(b)) * 100 : 0;
+const METRIC_DEFS = [
+  { key: 'time', label: 'Est. Time', pick: (r: StrategyResult) => r.estimatedTime, format: (n: number) => `${fmtNumber(n)} min` },
+  { key: 'dist', label: 'Total Distance', pick: (r: StrategyResult) => r.totalDistance, format: (n: number) => `${fmtNumber(n)} m` },
+  { key: 'eff', label: 'Efficiency', pick: (r: StrategyResult) => r.efficiency, format: (n: number) => `${fmtNumber(n)}%` },
+  { key: 'util', label: 'Worker Util.', pick: (r: StrategyResult) => r.workerUtilization, format: (n: number) => `${fmtNumber(n)}%` },
+  { key: 'cost', label: 'Cost / Order', pick: (r: StrategyResult) => r.costPerOrder, format: (n: number) => `$${fmtNumber(n, 2)}` },
+  { key: 'orders', label: 'Orders Done', pick: (r: StrategyResult) => r.ordersCompleted, format: (n: number) => `${fmtNumber(n, 0)}` },
+];
+
+type MetricDef = (typeof METRIC_DEFS)[number];
+
+function bestOf(byStrategy: Record<StrategyType, StrategyResult>): StrategyResult | undefined {
+  return Object.values(byStrategy).filter(Boolean).sort((a, b) => b.efficiency - a.efficiency)[0];
+}
+
+function WhName({ name, isBase }: { name: string; isBase?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-1">
-      {format(c)}
-      {Math.abs(diff) > 1e-9 && (
-        <span
-          className={cn(
-            'text-[10px] font-medium',
-            diff < 0 ? 'text-positive' : 'text-destructive',
-          )}
-        >
-          {diff < 0 ? '▼' : '▲'}
-          {fmtNumber(Math.abs(pct), 0)}%
-        </span>
+    <span className={cn('flex items-center gap-1.5 text-sm font-semibold text-foreground')}>
+      {isBase && <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />}
+      {name}
+      {isBase && (
+        <Badge variant="outline" className="text-[10px] text-muted-foreground">base</Badge>
       )}
     </span>
   );
@@ -125,38 +119,18 @@ export function CompareView({
     () => warehouses.find((w) => w.id === baseWarehouseId) ?? null,
     [warehouses, baseWarehouseId],
   );
-  const others = useMemo(
-    () => warehouses.filter((w) => w.id !== baseWarehouseId),
-    [warehouses, baseWarehouseId],
-  );
 
-  // Multi-select of other warehouses to compare against the base.
-  const [selectedIds, setSelectedIds] = useState<string[]>(() => others.map((w) => w.id));
   const [resultsByWarehouse, setResultsByWarehouse] = useState<Record<string, WarehouseResult>>({});
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
-  const toggleWarehouse = useCallback((id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }, []);
-
-  const toggleAll = useCallback((checked: boolean) => {
-    setSelectedIds(checked ? others.map((w) => w.id) : []);
-  }, [others]);
-
+  // ── Auto-run all warehouses on entry ────────────────────────────────────
   const handleRun = useCallback(() => {
-    if (!baseEntry) return;
-    // The selected set INCLUDES the base — we always run the base too so the
-    // table has a reference column.
-    const ids = [baseEntry.id, ...selectedIds];
+    if (!baseEntry || warehouses.length === 0) return;
+    const ids = warehouses.map((w) => w.id);
     setIsRunning(true);
     setRunError(null);
 
-    // Run synchronously (same engine the main app uses) but off the paint
-    // path so the page stays responsive. Simulations here are "silent": no
-    // animation, no right-sidebar UI — just results.
     requestAnimationFrame(() => {
       try {
         const next: Record<string, WarehouseResult> = {};
@@ -187,13 +161,20 @@ export function CompareView({
         setIsRunning(false);
       }
     });
-  }, [baseEntry, selectedIds, warehouses, ordersByWarehouse, workerCount, warehouseProfile, laborProfile]);
+  }, [baseEntry, warehouses, ordersByWarehouse, workerCount, warehouseProfile, laborProfile]);
 
-  const allSelected = others.length > 0 && selectedIds.length === others.length;
+  // Debounced auto-run on entry (and when warehouses change).
+  const runRef = useRef(handleRun);
+  useEffect(() => {
+    runRef.current = handleRun;
+  }, [handleRun]);
+  useEffect(() => {
+    if (!baseEntry) return;
+    const t = setTimeout(() => runRef.current(), 250);
+    return () => clearTimeout(t);
+  }, [baseEntry?.id, warehouses]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── AI experiment insights ─────────────────────────────────────────────
-  // Reduce every warehouse's results + config into the flat shape the
-  // heuristic engine consumes. Recomputed whenever a run lands.
   const insights = useMemo(() => {
     return Object.values(resultsByWarehouse)
       .map((whRes) => {
@@ -209,30 +190,10 @@ export function CompareView({
       .filter((x): x is NonNullable<typeof x> => x !== null);
   }, [resultsByWarehouse, warehouses]);
 
-  // ── Table assembly ──────────────────────────────────────────────────────
-  // Each row is a single metric for a single strategy. Columns are warehouses
-  // (base first). This makes the mapping of values → columns unambiguous.
-  type TableRow = {
-    key: string;
-    label: string;
-    description?: string;
-    strategy: StrategyType;
-    /** Format a numeric metric. Absent on label-only rows (best strategy). */
-    format?: (n: number) => string;
-    pick?: (r: StrategyResult) => number;
-    /** True for the summary label row (shows a badge, not a number). */
-    labelRow?: boolean;
-    /** Group-header rows span the full width and split the table by strategy. */
-    groupHeader?: boolean;
-  };
-  const table = useMemo(() => {
+  // ── Comparison assembly ────────────────────────────────────────────────
+  const columns = useMemo(() => {
     if (!baseEntry) return null;
-    const columnWarehouses = [baseEntry.id, ...selectedIds]
-      .map((id) => warehouses.find((w) => w.id === id))
-      .filter(Boolean) as WorkspaceWarehouse[];
-
-    // Results for the columns, in order, with strategies indexed by type.
-    const colResults = columnWarehouses.map((w) => {
+    const colResults = warehouses.map((w) => {
       const whRes = resultsByWarehouse[w.id];
       if (!whRes) return null;
       const byStrategy = Object.fromEntries(
@@ -240,54 +201,8 @@ export function CompareView({
       ) as Record<StrategyType, StrategyResult>;
       return { entry: w, byStrategy };
     });
-    const hasResults = colResults.some((c) => c !== null);
-
-    const rows: TableRow[] = [];
-    const metricDefs: {
-      key: string;
-      label: string;
-      pick: (r: StrategyResult) => number;
-      format: (n: number) => string;
-    }[] = [
-      { key: 'time', label: 'Est. Time', pick: (r) => r.estimatedTime, format: (n) => `${fmtNumber(n)} min` },
-      { key: 'dist', label: 'Total Distance', pick: (r) => r.totalDistance, format: (n) => `${fmtNumber(n)} m` },
-      { key: 'eff', label: 'Efficiency', pick: (r) => r.efficiency, format: (n) => `${fmtNumber(n)}%` },
-      { key: 'util', label: 'Worker Util.', pick: (r) => r.workerUtilization, format: (n) => `${fmtNumber(n)}%` },
-      { key: 'cost', label: 'Cost / Order', pick: (r) => r.costPerOrder, format: (n) => `$${fmtNumber(n, 2)}` },
-      { key: 'orders', label: 'Orders Done', pick: (r) => r.ordersCompleted, format: (n) => `${fmtNumber(n, 0)}` },
-    ];
-
-    for (const [strategy, meta] of Object.entries(STRATEGY_META) as [StrategyType, { label: string; description: string }][]) {
-      // Group header row so the table reads as sections, not one long list.
-      rows.push({
-        key: `group-${strategy}`,
-        groupHeader: true,
-        label: meta.label,
-        description: meta.description,
-        strategy,
-      });
-      for (const m of metricDefs) {
-        rows.push({
-          key: `${strategy}-${m.key}`,
-          label: m.label,
-          strategy,
-          pick: m.pick,
-          format: m.format,
-        });
-      }
-    }
-    // Summary row: each warehouse's best strategy.
-    rows.push({
-      key: 'best-strategy',
-      label: 'Best Strategy',
-      description: 'Highest-efficiency strategy per warehouse',
-      strategy: 'single' as StrategyType,
-      pick: (r) => r.efficiency,
-      labelRow: true,
-    });
-
-    return { rows, colResults, hasResults };
-  }, [baseEntry, selectedIds, resultsByWarehouse, warehouses]);
+    return { colResults, hasResults: colResults.some((c) => c !== null) };
+  }, [baseEntry, warehouses, resultsByWarehouse]);
 
   if (!baseEntry) {
     return (
@@ -303,6 +218,52 @@ export function CompareView({
     );
   }
 
+  const cols = columns?.colResults.filter((c): c is NonNullable<typeof c> => c !== null) ?? [];
+  const baseByStrategy = cols.find((c) => c.entry.id === baseEntry.id)?.byStrategy;
+  // Base's best strategy result — the reference for every delta chip.
+  const baseBest = baseByStrategy ? bestOf(baseByStrategy) : undefined;
+
+  const rankEff = cols
+    .map((col) => ({ col, eff: bestOf(col.byStrategy)?.efficiency ?? 0 }))
+    .sort((a, b) => b.eff - a.eff);
+  const hasResults = !!columns?.hasResults;
+
+  // ── Status (shared) ─────────────────────────────────────────────────────
+  const statusBlock = (
+    <>
+      {isRunning && (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-foreground">Running simulations…</span>
+            <span className="text-xs text-muted-foreground">
+              Simulating {warehouses.length} warehouse{warehouses.length !== 1 ? 's' : ''} across all picking strategies.
+            </span>
+          </div>
+        </div>
+      )}
+      {runError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {runError}
+        </div>
+      )}
+    </>
+  );
+
+  const aiSuggestion = hasResults ? (
+    <AiSuggestion
+      insights={insights}
+      isRunning={isRunning}
+      onGenerate={onGenerateExperiment}
+    />
+  ) : null;
+
+  const scrollBody = (children: React.ReactNode) => (
+    <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="mx-auto max-w-5xl px-6 py-6">{children}</div>
+    </div>
+  );
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-background">
       {/* Header — back button + title. */}
@@ -311,227 +272,102 @@ export function CompareView({
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex items-center gap-2">
-          <GitCompareArrows className="h-5 w-5 text-primary" />
+          <GitCompareArrows className="h-5 w-5 text-muted-foreground" />
           <h1 className="text-base font-semibold text-foreground">Compare Warehouses</h1>
         </div>
         <div className="flex-1" />
         <Badge variant="secondary" className="text-muted-foreground">
-          {table?.colResults.length} warehouse{table?.colResults.length && table.colResults.length > 1 ? 's' : ''} in comparison
+          {cols.length} warehouse{cols.length !== 1 ? 's' : ''} · {baseEntry.name} is base
         </Badge>
       </div>
 
-      {/* Body. */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-6 py-6 space-y-6">
-          {/* Base + selection card. */}
-          <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              Base warehouse
-            </div>
-            <div className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2">
-              <span className="text-sm font-semibold text-foreground">{baseEntry.name}</span>
-              <Badge variant="outline" className="text-muted-foreground">base</Badge>
-            </div>
+      {statusBlock && <div className="mx-auto w-full max-w-5xl px-6 pt-4">{statusBlock}</div>}
 
-            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              Compare against
-            </div>
-            {others.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No other warehouses available. Add another warehouse first.
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {others.map((w) => {
-                    const active = selectedIds.includes(w.id);
-                    return (
-                      <button
-                        key={w.id}
-                        type="button"
-                        onClick={() => toggleWarehouse(w.id)}
+      {/* Rankings — transposed table: warehouses as columns, metrics as rows. */}
+      {scrollBody(
+        <div className="space-y-6">
+          {hasResults && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="h-11 px-3 text-left align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                      Metric
+                    </th>
+                    {rankEff.map(({ col, eff }, rank) => (
+                      <th
+                        key={col.entry.id}
                         className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                          active
-                            ? 'border-primary bg-primary/10 text-foreground'
-                            : 'border-border bg-background text-muted-foreground hover:bg-muted',
+                          'h-11 px-3 text-left align-middle whitespace-nowrap',
+                          rank === 0 && 'bg-primary/5',
                         )}
                       >
-                        {w.name}
-                        {active && <X className="h-3 w-3 text-primary" />}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={(e) => toggleAll(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-border accent-primary"
-                    />
-                    Select all
-                  </label>
-                  <LoadingButton
-                    onAction={handleRun}
-                    disabled={isRunning || selectedIds.length === 0}
-                    pendingLabel="Running…"
-                    successLabel="Done"
-                    className="gap-1.5"
-                  >
-                    Run Comparison
-                  </LoadingButton>
-                </div>
-              </>
-            )}
-          </section>
-
-          {isRunning && (
-            <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3">
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">Running simulations…</span>
-                <span className="text-xs text-muted-foreground">
-                  Simulating {1 + selectedIds.length} warehouse{1 + selectedIds.length > 1 ? 's' : ''} across all picking strategies.
-                </span>
-              </div>
-            </div>
-          )}
-
-          {runError && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {runError}
-            </div>
-          )}
-
-          {/* Results table. */}
-          {table && table.hasResults && (
-            <section className="rounded-lg border border-border bg-surface overflow-hidden">
-              <div className="border-b border-border px-4 py-3">
-                <h2 className="text-sm font-semibold text-foreground">Simulation comparison</h2>
-                <p className="text-xs text-muted-foreground">
-                  Each warehouse runs the same strategy set on its own orders. Delta vs the base warehouse is shown in the table.
-                </p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/40">
-                      <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">
-                        Metric
-                      </th>
-                      {table.colResults.map((c, i) => (
-                        <th
-                          key={c?.entry.id ?? `col-${i}`}
-                          className={cn(
-                            'h-10 px-3 text-left align-middle font-medium whitespace-nowrap',
-                            i === 0 ? 'text-primary' : 'text-foreground',
+                        <span className="flex items-center gap-1.5">
+                          {rank === 0 && (
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                              <Trophy className="h-3 w-3" />
+                            </span>
                           )}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            {i === 0 && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
-                            {c?.entry.name}
-                            {i === 0 && (
-                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                                base
-                              </Badge>
-                            )}
-                          </span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {table.rows.map((row) =>
-                      row.groupHeader ? (
-                        <tr key={row.key} className="border-b border-border bg-muted/50">
+                          <span className="text-sm font-semibold text-foreground">{col.entry.name}</span>
+                        </span>
+                        <div className="mt-0.5 text-[10px] text-muted-foreground">{fmtNumber(eff)}% eff</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Efficiency row — first, so the ranked metric tops the table. */}
+                  <tr className="border-b border-border/60">
+                    <td className="px-3 py-3 align-middle whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Efficiency
+                    </td>
+                    {rankEff.map(({ eff }, rank) => (
+                      <td
+                        key={rank}
+                        className={cn('px-3 py-3 align-middle whitespace-nowrap', rank === 0 && 'bg-primary/5')}
+                      >
+                        <span className="text-sm font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
+                      </td>
+                    ))}
+                  </tr>
+                  {METRIC_DEFS.filter((m) => m.key !== 'eff').map((m) => (
+                    <tr key={m.key} className="border-b border-border/60 last:border-0">
+                      <td className="px-3 py-3 align-middle whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {m.label}
+                      </td>
+                      {rankEff.map(({ col }, rank) => {
+                        const best = bestOf(col.byStrategy)!;
+                        const isBase = col.entry.id === baseEntry.id;
+                        const b = isBase ? undefined : baseByStrategy?.[best.strategy];
+                        const baseVal = b ? m.pick(b) : undefined;
+                        const cur = m.pick(best);
+                        const diff = baseVal !== undefined ? cur - baseVal : 0;
+                        const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
+                        return (
                           <td
-                            colSpan={table.colResults.length + 1}
-                            className="px-3 py-2"
+                            key={col.entry.id}
+                            className={cn('px-3 py-3 align-middle whitespace-nowrap tabular-nums', rank === 0 && 'bg-primary/5')}
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
-                                {row.label}
+                            <span className="font-medium text-foreground">{m.format(cur)}</span>
+                            {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
+                              <span className={cn('ml-1 text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
+                                {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
                               </span>
-                              {row.description && (
-                                <span className="text-[11px] text-muted-foreground">
-                                  {row.description}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                      <tr key={row.key} className="border-b border-border/60 last:border-0 hover:bg-muted/30">
-                        <td className="px-3 py-2 align-middle whitespace-nowrap">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-foreground">{row.label}</span>
-                            {row.description && (
-                              <span className="text-[10px] text-muted-foreground">{row.description}</span>
                             )}
-                          </div>
-                        </td>
-                        {table.colResults.map((c, i) => {
-                          // Column without results (not yet run / no data).
-                          if (!c) {
-                            return (
-                              <td key={`empty-${i}`} className="px-3 py-2 text-muted-foreground">
-                                —
-                              </td>
-                            );
-                          }
-                          const sr = c.byStrategy[row.strategy];
-                          if (!sr) {
-                            return (
-                              <td key={c.entry.id} className="px-3 py-2 text-muted-foreground">
-                                —
-                              </td>
-                            );
-                          }
-                          if (row.labelRow) {
-                            const best = Object.values(c.byStrategy)
-                              .filter(Boolean)
-                              .sort((a, b) => b.efficiency - a.efficiency)[0];
-                            return (
-                              <td key={c.entry.id} className="px-3 py-2 whitespace-nowrap">
-                                <Badge variant="secondary">
-                                  {best ? STRATEGY_META[best.strategy].label : '—'}
-                                </Badge>
-                              </td>
-                            );
-                          }
-                          return (
-                            <td key={c.entry.id} className="px-3 py-2 whitespace-nowrap">
-                              {metricCell(
-                                i === 0 ? undefined : table.colResults[0]?.byStrategy[row.strategy],
-                                sr,
-                                row.pick!,
-                                row.format!,
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-          {/* AI experiment suggestion — the mock-AI block. */}
-          {table && table.hasResults && (
-            <ExperimentRecommendationCard
-              insights={insights}
-              isRunning={isRunning}
-              onGenerate={onGenerateExperiment}
-            />
-          )}
-        </div>
-      </div>
+
+          {/* AI suggestion — a quiet nudge below the rankings, expands downward. */}
+          {aiSuggestion}
+        </div>,
+      )}
     </div>
   );
 }
