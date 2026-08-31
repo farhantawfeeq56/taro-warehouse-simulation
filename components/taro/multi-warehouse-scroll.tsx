@@ -316,29 +316,32 @@ export function MultiWarehouseScroll({
   useEffect(() => {
     if (!activeWarehouseId) return;
     let settleTimer: number | undefined;
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const el = sectionRefs.current[activeWarehouseId];
-        const cont = scrollRef.current;
-        if (!el || !cont) return;
-        const cRect = cont.getBoundingClientRect();
-        const eRect = el.getBoundingClientRect();
-        const inside =
-          eRect.top >= cRect.top + VISIBILITY_MARGIN &&
-          eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
-        if (!inside) {
-          settlingRef.current = true;
-          const top = el.offsetTop;
-          cont.scrollTo({ top, behavior: 'smooth' });
-          settleTimer = window.setTimeout(() => {
-            settlingRef.current = false;
-          }, 700);
-        }
-      });
-    });
+    let retryTimer: number | undefined;
+    const attemptScroll = () => {
+      const el = sectionRefs.current[activeWarehouseId];
+      const cont = scrollRef.current;
+      if (!el || !cont) return;
+      const cRect = cont.getBoundingClientRect();
+      const eRect = el.getBoundingClientRect();
+      const inside =
+        eRect.top >= cRect.top + VISIBILITY_MARGIN &&
+        eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
+      if (inside) return;
+      settlingRef.current = true;
+      const top = eRect.top - cRect.top + cont.scrollTop;
+      cont.scrollTo({ top, behavior: 'smooth' });
+      settleTimer = window.setTimeout(() => {
+        settlingRef.current = false;
+      }, 700);
+    };
+    // First attempt after the commit; retry once after 200ms in case a
+    // full-screen overlay (Add flow) was still closing and shifted layout.
+    const raf = requestAnimationFrame(() => requestAnimationFrame(attemptScroll));
+    retryTimer = window.setTimeout(attemptScroll, 200);
     return () => {
       cancelAnimationFrame(raf);
       if (settleTimer !== undefined) window.clearTimeout(settleTimer);
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWarehouseId]);
