@@ -224,6 +224,27 @@
     @apply bg-background text-foreground;
   }
 
+  /* Pointer affordance — every clickable control shows a hand cursor. */
+  button:not(:disabled),
+  [role='button']:not(:disabled),
+  a:not([disabled]),
+  label,
+  input[type='range'],
+  input[type='checkbox'],
+  input[type='radio'],
+  summary {
+    cursor: pointer;
+  }
+  input:not([type='range']):not([type='checkbox']):not([type='radio']),
+  textarea,
+  select,
+  [contenteditable='true'] {
+    cursor: text;
+  }
+  *:disabled {
+    cursor: not-allowed;
+  }
+
   /* Text selection — accent background with a readable foreground. */
   ::selection {
     background-color: var(--accent);
