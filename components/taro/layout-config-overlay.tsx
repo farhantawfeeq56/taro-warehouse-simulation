@@ -525,13 +525,13 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               label="Configuration sections"
             />
 
-            <div className="rounded-xl border border-border-default bg-surface p-3 space-y-4">
+            <div className="rounded-xl border border-border bg-surface p-3 space-y-4">
               {renderCardBody(activeTab)}
             </div>
           </div>
 
           {/* Docked footer — button sits inside a bordered window, not floating */}
-          <footer className="shrink-0 border-t border-border-default bg-card px-3 py-2.5">
+          <footer className="shrink-0 border-t border-border bg-card px-3 py-2.5">
             <LoadingButton
               onAction={handleApply}
               disabled={isGenerating}

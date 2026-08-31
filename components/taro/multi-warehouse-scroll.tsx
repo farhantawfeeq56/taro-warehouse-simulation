@@ -29,6 +29,7 @@ import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
 import { Plus, Copy, TextCursorInput, Trash2, GitCompareArrows } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 /** Padding (px) kept between the warehouse and the page edges when fitting. */
@@ -67,6 +68,8 @@ function ActionButton({
   label,
   icon: Icon,
   danger = false,
+  accent = false,
+  disabled = false,
   showLabel = false,
 }: {
   onClick: () => void;
@@ -74,27 +77,37 @@ function ActionButton({
   label: string;
   icon: typeof Plus;
   danger?: boolean;
+  accent?: boolean;
+  disabled?: boolean;
   showLabel?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      title={title}
-      className={cn(
-        'flex h-6 items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-colors',
-        showLabel ? 'px-2' : 'w-6 px-0',
-        danger
-          ? 'text-destructive hover:bg-destructive/10'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-      )}
-    >
-      <Icon className="h-3 w-3 shrink-0" />
-      {showLabel && <span className="whitespace-nowrap">{label}</span>}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+          className={cn(
+            'flex h-6 items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-colors',
+            showLabel ? 'px-2' : 'w-6 px-0',
+            disabled
+              ? 'cursor-not-allowed opacity-60'
+              : danger
+                ? 'text-destructive'
+                : accent
+                  ? 'bg-accent text-white hover:bg-accent-hover'
+                  : 'text-muted-foreground',
+          )}
+        >
+          <Icon className="h-3 w-3 shrink-0" />
+          {showLabel && <span className="whitespace-nowrap">{label}</span>}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{title}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -109,6 +122,7 @@ function PageHeader({
   onDuplicate,
   onDelete,
   onCompare,
+  canCompare = true,
 }: {
   name: string;
   isActive: boolean;
@@ -120,6 +134,7 @@ function PageHeader({
   onDuplicate: () => void;
   onDelete?: () => void;
   onCompare: () => void;
+  canCompare?: boolean;
 }) {
   const [draft, setDraft] = useState(name);
 
@@ -201,7 +216,7 @@ function PageHeader({
           {onDelete && (
             <ActionButton onClick={onDelete} title="Delete this warehouse" label="Delete" icon={Trash2} danger />
           )}
-          <ActionButton onClick={onCompare} title="Compare this warehouse with others" label="Compare" icon={GitCompareArrows} showLabel />
+          <ActionButton onClick={onCompare} title="Compare all warehouses" label="Compare" icon={GitCompareArrows} accent disabled={!canCompare} showLabel />
         </div>
       )}
     </div>
@@ -280,12 +295,21 @@ export function MultiWarehouseScroll({
     if (bestId && bestId !== activeWarehouseIdRef.current) onActiveChange(bestId);
   }, [warehouses, onActiveChange]);
 
+  const didInitRef = useRef(false);
+
   useEffect(() => {
     const cont = scrollRef.current;
     if (!cont) return;
-    // Settle once on mount (no scroll fires yet).
-    settlingRef.current = false;
-    determineActive();
+    // Activate the closest page ONCE on first mount (the parent usually sets
+    // an active id itself; this is only a fallback). It must NOT run again on
+    // warehouses change: at that point the scroll hasn't moved yet, so the
+    // closest page is still the OLD one, and the call would override the
+    // programmatic activation of a freshly added/duplicated warehouse and
+    // cancel the auto-scroll to it.
+    if (!didInitRef.current) {
+      didInitRef.current = true;
+      determineActive();
+    }
     cont.addEventListener('scroll', determineActive, { passive: true });
     window.addEventListener('resize', determineActive);
     return () => {
@@ -300,23 +324,30 @@ export function MultiWarehouseScroll({
   // React's maximum-update-depth error.
   useEffect(() => {
     if (!activeWarehouseId) return;
-    const el = sectionRefs.current[activeWarehouseId];
-    const cont = scrollRef.current;
-    if (!el || !cont) return;
-    const cRect = cont.getBoundingClientRect();
-    const eRect = el.getBoundingClientRect();
-    const inside =
-      eRect.top >= cRect.top + VISIBILITY_MARGIN &&
-      eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
-    if (!inside) {
-      settlingRef.current = true;
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Release the guard once the smooth scroll should have settled.
-      const t = window.setTimeout(() => {
-        settlingRef.current = false;
-      }, 600);
-      return () => window.clearTimeout(t);
-    }
+    let settleTimer: number | undefined;
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = sectionRefs.current[activeWarehouseId];
+        const cont = scrollRef.current;
+        if (!el || !cont) return;
+        const cRect = cont.getBoundingClientRect();
+        const eRect = el.getBoundingClientRect();
+        const inside =
+          eRect.top >= cRect.top + VISIBILITY_MARGIN &&
+          eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
+        if (inside) return;
+        settlingRef.current = true;
+        const top = eRect.top - cRect.top + cont.scrollTop;
+        cont.scrollTo({ top, behavior: 'smooth' });
+        settleTimer = window.setTimeout(() => {
+          settlingRef.current = false;
+        }, 700);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWarehouseId]);
 
@@ -353,7 +384,7 @@ export function MultiWarehouseScroll({
                   never scaled, never occupying layout space. Active page only. */}
               {isActive && (
                 <div className="absolute bottom-3 left-1/2 z-30 max-w-[calc(100%-24px)] -translate-x-1/2">
-                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 shadow-md max-w-full">
+                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 max-w-full">
                     <PageHeader
                       name={entry.name}
                       isActive={isActive}
@@ -368,6 +399,7 @@ export function MultiWarehouseScroll({
                       onDuplicate={() => onDuplicateWarehouse(entry.id)}
                       onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
                       onCompare={() => onCompareWarehouse(entry.id)}
+                      canCompare={warehouses.length > 1}
                     />
                   </div>
                 </div>
@@ -379,7 +411,7 @@ export function MultiWarehouseScroll({
                     below its content width while the header keeps its full logicalW,
                     so the action buttons overflow the card's clip and get hidden. */}
                 <div
-                  className="flex flex-col shrink-0 border border-border rounded-md shadow-sm bg-background overflow-hidden"
+                  className="flex flex-col shrink-0 border border-border rounded-md overflow-hidden"
                   style={{ transform: `scale(${fitScale})` }}
                 >
                   <div className="relative" style={{ width: logicalW, height: logicalH }}>

@@ -255,7 +255,7 @@ export function LoadingButton({
           }
           run();
         }}
-        className={`relative inline-flex h-9 select-none items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm outline-none transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:opacity-50 ${
+        className={`relative inline-flex h-9 select-none items-center justify-center rounded-md border px-4 text-sm font-medium outline-none transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:opacity-50 ${
           tone === "primary"
             ? "border-transparent bg-primary text-primary-foreground hover:bg-primary/90"
             : "border-border bg-surface text-primary hover:bg-secondary"

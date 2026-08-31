@@ -29,6 +29,8 @@ import { CompareView } from './compare-view';
 import { RightSidebar } from './right-sidebar';
 import { LayoutConfigOverlay, type LayoutConfig } from './layout-config-overlay';
 import { ValidationModal } from './validation-modal';
+import { CompareGateModal, type CompareGateState } from './compare-gate-modal';
+import { findDuplicateGroups } from '@/lib/taro/warehouse-compare';
 import { SkeletonSwap } from '@/components/interior/skeleton-swap';
 import { Button } from '@/components/ui/button';
 import { getMissingSkuIds, validateItems, type ItemsValidationResult } from '@/lib/taro/order-validation';
@@ -298,13 +300,19 @@ export function TaroApp(_props: TaroAppProps) {
   }, [resetAnimationState]);
 
   // ── Workspace: Compare ────────────────────────────────────────────────
-  // Comparison needs at least two warehouses to be meaningful. With a single
-  // warehouse there is nothing to compare against, so we tell the user to add
-  // another one first instead of silently no-oping.
+  // Comparison needs at least two DIFFERENT warehouses to be meaningful.
+  // Single warehouse → gate modal offers Add / Back. Duplicate layouts →
+  // gate modal names them and tells the user to change one.
+  const [compareGate, setCompareGate] = useState<CompareGateState | null>(null);
   const handleCompareWarehouse = useCallback((warehouseId: string) => {
-    const total = workspaceWarehousesRef.current.length;
-    if (total < 2) {
-      alert('You need at least two warehouses to compare. Add another warehouse first.');
+    const all = workspaceWarehousesRef.current;
+    if (all.length < 2) {
+      setCompareGate({ mode: 'single', warehouseName: all[0]?.name ?? '' });
+      return;
+    }
+    const dupGroups = findDuplicateGroups(all);
+    if (dupGroups.length > 0) {
+      setCompareGate({ mode: 'duplicates', groups: dupGroups });
       return;
     }
     // Jump to the comparison page with this warehouse pre-selected as the
@@ -829,6 +837,10 @@ export function TaroApp(_props: TaroAppProps) {
           warehouseProfile={warehouseProfile}
           laborProfile={laborProfile}
           onExit={() => {
+            // Return to the warehouse the user clicked Compare on (the base).
+            if (compareBaseWarehouseId) {
+              setActiveWarehouseId(compareBaseWarehouseId);
+            }
             setCompareViewOpen(false);
             setCompareBaseWarehouseId(null);
           }}
@@ -915,6 +927,20 @@ export function TaroApp(_props: TaroAppProps) {
           onFixItems={handleFixItems}
         />
       )}
+
+      {/* Compare gate — single warehouse or duplicate layouts. */}
+      <CompareGateModal
+        state={compareGate}
+        onClose={() => setCompareGate(null)}
+        onAddWarehouse={() => {
+          setCompareGate(null);
+          handleAddWarehouse();
+        }}
+        onNavigate={(id) => {
+          setCompareGate(null);
+          setActiveWarehouseId(id);
+        }}
+      />
 
       {showLayoutConfig && activeProjectId && (
         <LayoutConfigOverlay

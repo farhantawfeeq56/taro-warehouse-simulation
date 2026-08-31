@@ -70,7 +70,6 @@ function WarehouseSvgRendererInner({
   zoom = 1,
 }: WarehouseSvgRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const rectRef = useRef<DOMRect | null>(null);
   const animationRef = useRef<number | null>(null);
 
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
@@ -89,21 +88,18 @@ function WarehouseSvgRendererInner({
   const logicalW = useMemo(() => warehouse.width * CELL_SIZE, [warehouse.width]);
   const logicalH = useMemo(() => warehouse.height * CELL_SIZE, [warehouse.height]);
 
-  useEffect(() => {
-    const updateRect = () => {
-      if (containerRef.current) rectRef.current = containerRef.current.getBoundingClientRect();
-    };
-    updateRect();
-    window.addEventListener('resize', updateRect);
-    return () => window.removeEventListener('resize', updateRect);
-  }, [zoom]);
-
   const getCellFromMouse = useCallback((e: React.MouseEvent) => {
+    // Read the rect LIVE from the container: getBoundingClientRect() is
+    // viewport-relative, so a rect cached at mount is wrong after scrolling
+    // to another warehouse (warehouse 2+ sits off-screen on mount, so its
+    // cached rect was captured at a stale scroll offset → cell math lands
+    // out of bounds → no hover/tooltip).
+    const container = containerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
     // The warehouse canvas applies a CSS scale transform to this subtree;
     // divide the on-screen offset by the current zoom to recover logical px.
-    const rfZoom = zoom;
-    const rect = rectRef.current;
-    if (!rect) return null;
+    const rfZoom = zoom || 1;
     const x = (e.clientX - rect.left) / rfZoom;
     const y = (e.clientY - rect.top) / rfZoom;
     const cellX = Math.floor(x / CELL_SIZE);
@@ -286,7 +282,7 @@ function WarehouseSvgRendererInner({
       const cell = warehouse.grid[shelf.y][shelf.x];
       const slots: (string | null)[] = [null, null, null, null];
       cell.locations.slice(0, 4).forEach((loc, i) => {
-        slots[i] = PAPER_TILES[i % PAPER_TILES.length] ?? '#3b82f6';
+        slots[i] = PAPER_TILES[i % PAPER_TILES.length] ?? PAPER.dark;
       });
 
       const padX = w * 0.08;
@@ -316,39 +312,6 @@ function WarehouseSvgRendererInner({
     }
     return bays;
   }, [warehouse]);
-
-  // Route heatmap
-  const heatmapRects = useMemo(() => {
-    if (!activeRoute) return null;
-    const heatmap: number[][] = Array(warehouse.height)
-      .fill(null)
-      .map(() => Array(warehouse.width).fill(0));
-    const routeGroups = activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0
-      ? activeRoute.workerRoutes.map(workerRoute => workerRoute.route)
-      : [activeRoute.route];
-    for (const route of routeGroups) {
-      for (const pos of route) {
-        const rx = Math.round(pos.x);
-        const ry = Math.round(pos.y);
-        if (ry >= 0 && ry < warehouse.height && rx >= 0 && rx < warehouse.width) heatmap[ry][rx]++;
-      }
-    }
-    const maxHeat = Math.max(0, ...heatmap.flat());
-    if (maxHeat <= 0) return null;
-    const rects: React.ReactNode[] = [];
-    for (let y = 0; y < warehouse.height; y++) {
-      for (let x = 0; x < warehouse.width; x++) {
-        const heat = heatmap[y][x];
-        if (heat <= 0) continue;
-        const intensity = heat / maxHeat;
-        const alpha = 0.12 + intensity * 0.43;
-        rects.push(
-          <rect key={`h-${x}-${y}`} x={x * CELL_SIZE + 1} y={y * CELL_SIZE + 1} width={CELL_SIZE - 2} height={CELL_SIZE - 2} fill={`rgba(239, 68, 68, ${alpha.toFixed(3)})`} />,
-        );
-      }
-    }
-    return rects;
-  }, [activeRoute, warehouse]);
 
   // Worker route polylines + animated dots.
   // NOTE: deliberately NOT memoized on [activeRoute, animationProgressRef] —
@@ -395,17 +358,16 @@ function WarehouseSvgRendererInner({
   const workerStart = warehouse.workerStart;
 
   const hovered = hoveredCell ? warehouse.grid[hoveredCell.y]?.[hoveredCell.x] : null;
-  const isHoveringShelf = !!hovered && hovered.type === 'shelf';
 
   return (
     <div
       ref={containerRef}
-      className="flex-1 bg-muted/30 overflow-hidden relative border border-border rounded"
+      className="flex-1 bg-muted/30 overflow-hidden relative"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleMouseUp}
-      style={{ cursor: selectedTool === 'hand' ? 'grab' : selectedTool === 'select' ? 'default' : isHoveringShelf ? 'pointer' : 'crosshair', touchAction: 'none' }}
+      style={{ cursor: selectedTool === 'hand' ? 'grab' : selectedTool === 'select' ? 'default' : 'crosshair', touchAction: 'none' }}
     >
       <svg
         width={logicalW}
@@ -420,10 +382,7 @@ function WarehouseSvgRendererInner({
         {/* Paper bays */}
         {shelfBays}
 
-        {/* Route heatmap */}
-        {heatmapRects}
-
-        {/* Route paths + worker dots */}
+        {/* Worker route polylines + animated dots */}
         {routePaths}
 
         {/* Hover highlight */}
@@ -434,7 +393,7 @@ function WarehouseSvgRendererInner({
               y={hoveredCell.y * CELL_SIZE}
               width={CELL_SIZE}
               height={CELL_SIZE}
-              fill="rgba(59, 130, 246, 0.2)"
+              fill="rgba(17, 17, 17, 0.2)"
             />
             <rect
               x={hoveredCell.x * CELL_SIZE + 1}
@@ -442,7 +401,7 @@ function WarehouseSvgRendererInner({
               width={CELL_SIZE - 2}
               height={CELL_SIZE - 2}
               fill="none"
-              stroke="#3b82f6"
+              stroke="#111111"
               strokeWidth={2}
             />
           </g>
@@ -463,24 +422,23 @@ function WarehouseSvgRendererInner({
           </text>
         )}
 
-        {/* Border */}
-        <rect x={0.5} y={0.5} width={logicalW - 1} height={logicalH - 1} fill="none" stroke="#d1d5db" strokeWidth={2} />
+        {/* No inner border rect — the card's border is the single frame. */}
       </svg>
 
       {/* Hover Tooltip */}
       {tooltip.visible && (
         <div
-          className="absolute z-50 pointer-events-none bg-foreground text-background rounded-md px-3 py-2 text-xs shadow-lg"
+          className="absolute z-50 pointer-events-none bg-foreground text-background rounded-md px-3 py-2 text-xs"
           style={{ left: tooltip.x, top: tooltip.y, transform: 'translate(-50%, -100%)' }}
         >
           <div className="font-semibold mb-1">Shelf ({tooltip.cellX}, {tooltip.cellY})</div>
           <div className="space-y-0.5">
             {tooltip.locations.length === 0 ? (
-              <div className="text-background/70 italic">Click to manage items</div>
+              <div className="text-background/70 italic">Empty shelf</div>
             ) : (
               tooltip.locations.slice(0, 4).map((loc, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#3b82f6' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#111111' }} />
                   <span>Z{loc.z}</span>
                   <span className="font-sans">{loc.sku}</span>
                   <span className="text-background/70">×{loc.quantity}</span>

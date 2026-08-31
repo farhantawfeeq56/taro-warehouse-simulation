@@ -70,7 +70,7 @@ const STATS: Stat[] = [
 
 function StatCard({ s }: { s: Stat }) {
   return (
-    <div className="rounded-lg border border-border-default bg-surface px-3 py-2">
+    <div className="rounded-lg border border-border bg-surface px-3 py-2">
       <p className="text-[10px] font-bold uppercase tracking-wide text-text-secondary">{s.title}</p>
       <ul className="mt-1 space-y-0.5">
         {s.rows.map((r) => (
