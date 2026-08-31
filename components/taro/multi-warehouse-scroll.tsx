@@ -67,6 +67,7 @@ function ActionButton({
   label,
   icon: Icon,
   danger = false,
+  accent = false,
   showLabel = false,
 }: {
   onClick: () => void;
@@ -74,6 +75,7 @@ function ActionButton({
   label: string;
   icon: typeof Plus;
   danger?: boolean;
+  accent?: boolean;
   showLabel?: boolean;
 }) {
   return (
@@ -89,7 +91,9 @@ function ActionButton({
         showLabel ? 'px-2' : 'w-6 px-0',
         danger
           ? 'text-destructive hover:bg-destructive/10'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+          : accent
+            ? 'bg-accent text-white hover:bg-accent-hover'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
       <Icon className="h-3 w-3 shrink-0" />
@@ -201,7 +205,7 @@ function PageHeader({
           {onDelete && (
             <ActionButton onClick={onDelete} title="Delete this warehouse" label="Delete" icon={Trash2} danger />
           )}
-          <ActionButton onClick={onCompare} title="Compare this warehouse with others" label="Compare" icon={GitCompareArrows} showLabel />
+          <ActionButton onClick={onCompare} title="Compare this warehouse with others" label="Compare" icon={GitCompareArrows} accent showLabel />
         </div>
       )}
     </div>
@@ -353,7 +357,7 @@ export function MultiWarehouseScroll({
                   never scaled, never occupying layout space. Active page only. */}
               {isActive && (
                 <div className="absolute bottom-3 left-1/2 z-30 max-w-[calc(100%-24px)] -translate-x-1/2">
-                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 shadow-md max-w-full">
+                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 max-w-full">
                     <PageHeader
                       name={entry.name}
                       isActive={isActive}
