@@ -4,37 +4,31 @@
  * CompareView — a dedicated "special page" (in-app route) for comparing
  * warehouse simulations side by side.
  *
- * Flow:
+ * Flow (locked in, do not restructure):
  *   1. The user clicked "Compare" on a warehouse in the workspace. That
- *      warehouse is passed in as `baseWarehouseId` and is pre-selected as the
- *      fixed base column of the comparison.
- *   2. A multi-select lets the user pick one or MORE other warehouses to
- *      compare against the base.
- *   3. "Run Comparison" runs `runSimulation` on the base + every selected
- *      warehouse — silently, with no user-visible simulation UI — and shows
- *      each warehouse's key metrics per strategy.
+ *      warehouse is the fixed base.
+ *   2. Entering this page AUTOMATICALLY runs the simulation for the base +
+ *      every other warehouse (no Run button). Toggling the selection
+ *      re-runs automatically too.
+ *   3. The page shows, top to bottom: setup/selection, ranked results, and
+ *      the AI experiment card — all on one scrollable page.
  *
- * vartest5: the whole screen used to be "one page with many boxes". Now the
- * entire screen has 5 page-level compositions, switched by the floating
- * segmented control in the bottom-right corner (keys 1–5). Every variant
- * preserves ALL content: base + selection, Run Comparison, ranked results,
- * AI experiment card.
+ * vartest5: the flow stays identical in every variant; only the VISUAL
+ * treatment of the page changes. 5 designs, switched by the floating
+ * segmented control in the bottom-right corner (keys 1–5):
  *
- *   1 Stack    — one scrollable column (setup → results → AI), the current layout
- *   2 Tabs     — three tabs: Setup | Results | AI, shown one at a time
- *   3 Split    — left column setup, right column results + AI
- *   4 Ledger   — results as a compact two-column ledger, setup inline top
- *   5 Focus    — setup always visible at top, results + AI in a collapsible drawer
+ *   1 Cards   — warm background, white bordered cards, dot labels (baseline)
+ *   2 Report  — seamless white page, hairline dividers, uppercase micro-labels
+ *   3 Podium  — dark toolbar, top-3 podium with bars, medal ranking
+ *   4 Tiles   — results as a responsive grid of stat tiles
+ *   5 Minimal — airy, borderless, slim leaderboard rows
  *
  * All state lives in TaroApp memory, so leaving the page loses nothing.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  FlaskConical,
   GitCompareArrows,
   Loader2,
   Trophy,
@@ -57,7 +51,6 @@ import type {
   WorkspaceWarehouse,
 } from '@/lib/taro/types';
 import { Button } from '@/components/ui/button';
-import { LoadingButton } from '@/components/interior/loading-button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -83,11 +76,11 @@ interface CompareViewProps {
   ) => Promise<void>;
 }
 
-/** Strategy label + short description for the table rows. */
-const STRATEGY_META: Record<StrategyType, { label: string; description: string }> = {
-  single: { label: 'Single Order', description: 'One worker, one order at a time' },
-  batch: { label: 'Batch Picking', description: 'Group orders into batches' },
-  zone: { label: 'Zone Picking', description: 'Workers own zones' },
+/** Strategy label for the table rows. */
+const STRATEGY_META: Record<StrategyType, { label: string }> = {
+  single: { label: 'Single Order' },
+  batch: { label: 'Batch Picking' },
+  zone: { label: 'Zone Picking' },
 };
 
 interface WarehouseResult {
@@ -111,7 +104,7 @@ const METRIC_DEFS = [
 
 type MetricDef = (typeof METRIC_DEFS)[number];
 
-/** Delta value vs a base warehouse, with ▲/▼ % tag (same rule as the table). */
+/** Delta value vs a base warehouse, with ▲/▼ % tag. */
 function DeltaChip({
   label,
   base,
@@ -145,6 +138,30 @@ function DeltaChip({
   );
 }
 
+/** One-line compact metric row with deltas (Report + Minimal variants). */
+function MetricLine({ best, base }: { best: StrategyResult; base?: StrategyResult }) {
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-muted-foreground">
+      {METRIC_DEFS.map((m) => {
+        const b = base ? m.pick(base) : undefined;
+        const c = m.pick(best);
+        const diff = b !== undefined ? c - b : 0;
+        const pct = b ? (diff / Math.abs(b)) * 100 : 0;
+        return (
+          <span key={m.key}>
+            <span className="font-medium text-foreground">{m.format(c)}</span>
+            {b !== undefined && Math.abs(diff) > 1e-9 && (
+              <span className={cn('ml-0.5', diff < 0 ? 'text-positive' : 'text-destructive')}>
+                {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function bestOf(byStrategy: Record<StrategyType, StrategyResult>): StrategyResult | undefined {
   return Object.values(byStrategy).filter(Boolean).sort((a, b) => b.efficiency - a.efficiency)[0];
 }
@@ -158,6 +175,47 @@ function WhName({ name, isBase }: { name: string; isBase?: boolean }) {
         <Badge variant="outline" className="text-[10px] text-muted-foreground">base</Badge>
       )}
     </span>
+  );
+}
+
+/** Selection chips (shared by every variant). */
+function SelectionChips({
+  others,
+  selectedIds,
+  onToggle,
+  dark = false,
+}: {
+  others: WorkspaceWarehouse[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  dark?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {others.map((w) => {
+        const active = selectedIds.includes(w.id);
+        return (
+          <button
+            key={w.id}
+            type="button"
+            onClick={() => onToggle(w.id)}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+              dark
+                ? active
+                  ? 'border-transparent bg-primary text-primary-foreground'
+                  : 'border-white/20 bg-white/5 text-background hover:bg-white/10'
+                : active
+                  ? 'border-foreground/25 bg-muted text-foreground'
+                  : 'border-border bg-background text-muted-foreground hover:bg-muted',
+            )}
+          >
+            {w.name}
+            {active && <X className={cn('h-3 w-3', dark ? 'text-primary-foreground' : 'text-foreground/60')} />}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -186,13 +244,8 @@ export function CompareView({
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
-  // vartest5: whole-screen composition variant (1 stack · 2 tabs · 3 split · 4 ledger · 5 focus)
+  // vartest5: page design variant (1 cards · 2 report · 3 podium · 4 tiles · 5 minimal)
   const [variant, setVariant] = useState<1 | 2 | 3 | 4 | 5>(1);
-  // Tabs variant: which tab is active.
-  const [tab, setTab] = useState<'setup' | 'results' | 'ai'>('setup');
-  // Focus variant: whether results + AI drawer is open.
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -214,17 +267,15 @@ export function CompareView({
     setSelectedIds(checked ? others.map((w) => w.id) : []);
   }, [others]);
 
+  // ── Auto-run ────────────────────────────────────────────────────────────
+  // No Run button: entering the page (or changing the selection) runs the
+  // simulation automatically for base + every selected warehouse.
   const handleRun = useCallback(() => {
     if (!baseEntry) return;
-    // The selected set INCLUDES the base — we always run the base too so the
-    // table has a reference column.
     const ids = [baseEntry.id, ...selectedIds];
     setIsRunning(true);
     setRunError(null);
 
-    // Run synchronously (same engine the main app uses) but off the paint
-    // path so the page stays responsive. Simulations here are "silent": no
-    // animation, no right-sidebar UI — just results.
     requestAnimationFrame(() => {
       try {
         const next: Record<string, WarehouseResult> = {};
@@ -257,11 +308,20 @@ export function CompareView({
     });
   }, [baseEntry, selectedIds, warehouses, ordersByWarehouse, workerCount, warehouseProfile, laborProfile]);
 
+  // Debounced auto-run on entry + selection change.
+  const runRef = useRef(handleRun);
+  useEffect(() => {
+    runRef.current = handleRun;
+  }, [handleRun]);
+  useEffect(() => {
+    if (!baseEntry) return;
+    const t = setTimeout(() => runRef.current(), 250);
+    return () => clearTimeout(t);
+  }, [baseEntry?.id, selectedIds]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const allSelected = others.length > 0 && selectedIds.length === others.length;
 
   // ── AI experiment insights ─────────────────────────────────────────────
-  // Reduce every warehouse's results + config into the flat shape the
-  // heuristic engine consumes. Recomputed whenever a run lands.
   const insights = useMemo(() => {
     return Object.values(resultsByWarehouse)
       .map((whRes) => {
@@ -278,8 +338,6 @@ export function CompareView({
   }, [resultsByWarehouse, warehouses]);
 
   // ── Comparison assembly ────────────────────────────────────────────────
-  // Columns are warehouses (base first). Each column holds its per-strategy
-  // results, indexed by strategy type.
   const columns = useMemo(() => {
     if (!baseEntry) return null;
     const columnWarehouses = [baseEntry.id, ...selectedIds]
@@ -321,78 +379,7 @@ export function CompareView({
 
   const hasResults = !!columns?.hasResults;
 
-  // ── Shared pieces ──────────────────────────────────────────────────────
-  // Setup: base + selection + run button. Every variant shows this (tabs show
-  // it in the Setup tab; focus keeps it always on top).
-  const setupBlock = (
-    <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <span className="h-2 w-2 rounded-full bg-muted-foreground" />
-        Base warehouse
-      </div>
-      <div className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2">
-        <span className="text-sm font-semibold text-foreground">{baseEntry.name}</span>
-        <Badge variant="outline" className="text-muted-foreground">base</Badge>
-      </div>
-
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <span className="h-2 w-2 rounded-full bg-muted-foreground" />
-        Compare against
-      </div>
-      {others.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No other warehouses available. Add another warehouse first.
-        </p>
-      ) : (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {others.map((w) => {
-              const active = selectedIds.includes(w.id);
-              return (
-                <button
-                  key={w.id}
-                  type="button"
-                  onClick={() => toggleWarehouse(w.id)}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                    active
-                      ? 'border-foreground/25 bg-muted text-foreground'
-                      : 'border-border bg-background text-muted-foreground hover:bg-muted',
-                  )}
-                >
-                  {w.name}
-                  {active && <X className="h-3 w-3 text-foreground/60" />}
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={(e) => toggleAll(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-border"
-              />
-              Select all
-            </label>
-            <LoadingButton
-              onAction={handleRun}
-              disabled={isRunning || selectedIds.length === 0}
-              pendingLabel="Running…"
-              successLabel="Done"
-              tone="primary"
-              className="gap-1.5"
-            >
-              Run Comparison
-            </LoadingButton>
-          </div>
-        </>
-      )}
-    </section>
-  );
-
-  // Status: running / error lines.
+  // ── Status (shared) ─────────────────────────────────────────────────────
   const statusBlock = (
     <>
       {isRunning && (
@@ -414,59 +401,6 @@ export function CompareView({
     </>
   );
 
-  // Results: ranked-by-efficiency rows (locked in earlier).
-  const resultsBlock = (
-    <section className="rounded-lg border border-border bg-surface overflow-hidden">
-      <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold text-foreground">Simulation comparison</h2>
-        <p className="text-xs text-muted-foreground">
-          Each warehouse runs the same strategy set on its own orders. Delta vs the base warehouse is shown where relevant.
-        </p>
-      </div>
-      <div className="p-4 space-y-3">
-        {rankEff.map(({ col, eff }, rank) => {
-          const best = bestOf(col.byStrategy)!;
-          const isBase = col.entry.id === baseEntry.id;
-          return (
-            <div key={col.entry.id} className="rounded-xl border border-border bg-surface p-4">
-              <div className="flex items-center gap-3">
-                <span
-                  className={cn(
-                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                    rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                  )}
-                >
-                  {rank === 0 ? <Trophy className="h-3.5 w-3.5" /> : rank + 1}
-                </span>
-                <WhName name={col.entry.name} isBase={isBase} />
-                <div className="ml-auto text-right">
-                  <span className="text-lg font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
-                  <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">eff.</span>
-                  <div className="mt-0.5 h-1.5 w-32 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${(eff / topEff) * 100}%` }} />
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-6">
-                {METRIC_DEFS.map((m) => (
-                  <DeltaChip
-                    key={m.key}
-                    label={m.label}
-                    base={isBase ? undefined : baseByStrategy?.[best.strategy]}
-                    current={best}
-                    pick={m.pick}
-                    format={m.format}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-
-  // AI card (same component, always full width in every variant).
   const aiBlock = hasResults ? (
     <ExperimentRecommendationCard
       insights={insights}
@@ -475,61 +409,16 @@ export function CompareView({
     />
   ) : null;
 
-  // Ledger variant: a compact two-column table (metric → value) per warehouse.
-  const ledgerBlock = (
-    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/40">
-            <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">Warehouse</th>
-            <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">Strategy</th>
-            {METRIC_DEFS.map((m) => (
-              <th key={m.key} className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">
-                {m.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rankEff.map(({ col }) => {
-            const best = bestOf(col.byStrategy)!;
-            const isBase = col.entry.id === baseEntry.id;
-            return (
-              <tr key={col.entry.id} className="border-b border-border/60 last:border-0">
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <WhName name={col.entry.name} isBase={isBase} />
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <span className="text-xs text-muted-foreground">{STRATEGY_META[best.strategy].label}</span>
-                </td>
-                {METRIC_DEFS.map((m) => {
-                  const b = isBase ? undefined : baseByStrategy?.[best.strategy];
-                  const baseVal = b ? m.pick(b) : undefined;
-                  const cur = m.pick(best);
-                  const diff = baseVal !== undefined ? cur - baseVal : 0;
-                  const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
-                  return (
-                    <td key={m.key} className="px-3 py-2 whitespace-nowrap tabular-nums">
-                      {m.format(cur)}
-                      {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
-                        <span className={cn('ml-1 text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
-                          {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
-                        </span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+  const scrollBody = (children: React.ReactNode) => (
+    <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="mx-auto max-w-5xl px-6 py-6">{children}</div>
     </div>
   );
 
-  const scrollBody = (children: React.ReactNode) => (
-    <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-6 py-6 space-y-6">{children}</div>
+  const microLabel = (text: string) => (
+    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+      {text}
     </div>
   );
 
@@ -550,140 +439,430 @@ export function CompareView({
         </Badge>
       </div>
 
-      {/* Body — one of 5 page compositions. */}
+      {/* ── V1 · Cards (baseline) ───────────────────────────────────────── */}
       {variant === 1 && (
-        // Stack: one scrollable column, everything in order.
         scrollBody(
-          <>
-            {setupBlock}
-            {statusBlock}
-            {hasResults && resultsBlock}
-            {aiBlock}
-          </>,
-        )
-      )}
-
-      {variant === 2 && (
-        // Tabs: Setup | Results | AI shown one at a time.
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="shrink-0 flex items-center justify-center border-b border-border bg-surface px-4 py-2">
-            <div className="flex items-center gap-0.5 rounded-full border border-border bg-muted/60 p-0.5">
-              {(['setup', 'results', 'ai'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTab(t)}
-                  disabled={t !== 'setup' && !hasResults}
-                  className={cn(
-                    'rounded-full px-3 py-1 text-[11px] font-medium capitalize transition-colors',
-                    tab === t ? 'bg-surface text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                    t !== 'setup' && !hasResults && 'cursor-not-allowed opacity-40',
-                  )}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-          {scrollBody(
-            <>
-              {tab === 'setup' && setupBlock}
-              {tab === 'setup' && statusBlock}
-              {tab === 'results' && (
-                <>
-                  {statusBlock}
-                  {resultsBlock}
-                </>
+          <div className="space-y-6">
+            <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
+              {microLabel('Base warehouse')}
+              <div className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2">
+                <span className="text-sm font-semibold text-foreground">{baseEntry.name}</span>
+                <Badge variant="outline" className="text-muted-foreground">base</Badge>
+              </div>
+              {microLabel('Compare against')}
+              {others.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No other warehouses available. Add another warehouse first.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <SelectionChips others={others} selectedIds={selectedIds} onToggle={toggleWarehouse} />
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={(e) => toggleAll(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-border"
+                    />
+                    Select all
+                  </label>
+                </div>
               )}
-              {tab === 'ai' && aiBlock}
-            </>,
-          )}
-        </div>
-      )}
+            </section>
 
-      {variant === 3 && (
-        // Split: setup left, results + AI right.
-        <div className="flex-1 min-h-0 flex overflow-hidden">
-          <div className="w-80 shrink-0 min-h-0 overflow-y-auto border-r border-border bg-secondary/40 px-4 py-4">
-            <div className="space-y-4">
-              {setupBlock}
-              {statusBlock}
-            </div>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="mx-auto max-w-3xl px-6 py-6 space-y-6">
-              {hasResults && resultsBlock}
-              {aiBlock}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {variant === 4 && (
-        // Ledger: setup on top (compact), results as a dense ledger table, AI below.
-        scrollBody(
-          <>
-            {setupBlock}
             {statusBlock}
+
             {hasResults && (
               <section className="rounded-lg border border-border bg-surface overflow-hidden">
                 <div className="border-b border-border px-4 py-3">
                   <h2 className="text-sm font-semibold text-foreground">Simulation comparison</h2>
                   <p className="text-xs text-muted-foreground">
-                    Best strategy per warehouse, with deltas vs the base.
+                    Each warehouse runs the same strategy set on its own orders. Delta vs the base warehouse is shown where relevant.
                   </p>
                 </div>
-                <div className="p-3">{ledgerBlock}</div>
+                <div className="p-4 space-y-3">
+                  {rankEff.map(({ col, eff }, rank) => {
+                    const best = bestOf(col.byStrategy)!;
+                    const isBase = col.entry.id === baseEntry.id;
+                    return (
+                      <div key={col.entry.id} className="rounded-xl border border-border bg-surface p-4">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={cn(
+                              'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                              rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                            )}
+                          >
+                            {rank === 0 ? <Trophy className="h-3.5 w-3.5" /> : rank + 1}
+                          </span>
+                          <WhName name={col.entry.name} isBase={isBase} />
+                          <div className="ml-auto text-right">
+                            <span className="text-lg font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
+                            <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">eff.</span>
+                            <div className="mt-0.5 h-1.5 w-32 overflow-hidden rounded-full bg-muted">
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${(eff / topEff) * 100}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-6">
+                          {METRIC_DEFS.map((m) => (
+                            <DeltaChip
+                              key={m.key}
+                              label={m.label}
+                              base={isBase ? undefined : baseByStrategy?.[best.strategy]}
+                              current={best}
+                              pick={m.pick}
+                              format={m.format}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </section>
             )}
+
             {aiBlock}
-          </>,
+          </div>,
         )
       )}
 
-      {variant === 5 && (
-        // Focus: setup always on top, results + AI in a collapsible drawer.
-        <div className="flex-1 min-h-0 flex flex-col">
-          {scrollBody(
-            <>
-              {setupBlock}
-              {statusBlock}
-              {hasResults && (
-                <div className="rounded-lg border border-border bg-surface overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setDrawerOpen((o) => !o)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/40"
-                  >
-                    <div>
-                      <h2 className="text-sm font-semibold text-foreground">Simulation comparison</h2>
-                      <p className="text-xs text-muted-foreground">
-                        {drawerOpen ? 'Hide results' : 'Tap to expand results + AI suggestion'}
-                      </p>
-                    </div>
-                    {drawerOpen ? (
-                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </button>
-                  {drawerOpen && (
-                    <div className="border-t border-border p-4 space-y-6">
-                      {resultsBlock}
-                      {aiBlock}
-                    </div>
-                  )}
-                </div>
+      {/* ── V2 · Report (seamless white page, hairlines) ─────────────────── */}
+      {variant === 2 && (
+        <div className="flex-1 min-h-0 overflow-y-auto bg-surface">
+          <div className="mx-auto max-w-5xl px-6 py-6">
+            {/* Setup — inline single line, no card. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-4">
+              {microLabel('Base')}
+              <span className="text-sm font-semibold text-foreground">{baseEntry.name}</span>
+              <Badge variant="outline" className="text-[10px] text-muted-foreground">base</Badge>
+              <span className="mx-1 h-4 w-px bg-border" />
+              {microLabel('Compare')}
+              {others.length === 0 ? (
+                <span className="text-sm text-muted-foreground">No other warehouses.</span>
+              ) : (
+                <SelectionChips others={others} selectedIds={selectedIds} onToggle={toggleWarehouse} />
               )}
-            </>,
-          )}
+              {others.length > 0 && (
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-border"
+                  />
+                  Select all
+                </label>
+              )}
+            </div>
+
+            <div className="mt-4">{statusBlock}</div>
+
+            {hasResults && (
+              <div className="mt-8">
+                <h2 className="text-sm font-semibold text-foreground">Results</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Best strategy per warehouse, ranked by efficiency.
+                </p>
+                <div className="mt-4 divide-y divide-border border-t border-border">
+                  {rankEff.map(({ col, eff }, rank) => {
+                    const best = bestOf(col.byStrategy)!;
+                    const isBase = col.entry.id === baseEntry.id;
+                    return (
+                      <div key={col.entry.id} className="py-4">
+                        <div className="flex items-center gap-4">
+                          <span className="w-7 shrink-0 text-center text-sm font-bold text-muted-foreground">
+                            {rank + 1}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <WhName name={col.entry.name} isBase={isBase} />
+                            <div className="mt-1.5 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-muted">
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${(eff / topEff) * 100}%` }} />
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
+                            <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">eff.</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 pl-11">
+                          <MetricLine best={best} base={isBase ? undefined : baseByStrategy?.[best.strategy]} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {aiBlock && (
+              <div className="mt-10 border-t border-border pt-6">
+                <h2 className="mb-4 text-sm font-semibold text-foreground">AI suggestion</h2>
+                {aiBlock}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* vartest5: floating segmented toolbar — switches screen composition (keys 1–5). */}
+      {/* ── V3 · Podium (dark toolbar, top-3 podium) ─────────────────────── */}
+      {variant === 3 && (
+        scrollBody(
+          <div className="space-y-6">
+            {/* Dark toolbar. */}
+            <div className="rounded-xl bg-foreground px-4 py-3 text-background">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-background/60">
+                  Base · {baseEntry.name}
+                </span>
+                <span className="mx-1 h-4 w-px bg-background/20" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-background/60">
+                  vs
+                </span>
+                {others.length === 0 ? (
+                  <span className="text-sm text-background/60">No other warehouses.</span>
+                ) : (
+                  <SelectionChips dark others={others} selectedIds={selectedIds} onToggle={toggleWarehouse} />
+                )}
+              </div>
+            </div>
+
+            {statusBlock}
+
+            {hasResults && (
+              <section className="rounded-xl border border-border bg-surface p-6">
+                <h2 className="text-sm font-semibold text-foreground">Podium</h2>
+                <p className="text-xs text-muted-foreground">
+                  Best efficiency per warehouse, ranked.
+                </p>
+
+                {/* Top-3 podium. */}
+                <div className="mt-6 flex items-end justify-center gap-4">
+                  {(() => {
+                    const top3 = rankEff.slice(0, 3);
+                    const order = [1, 0, 2]; // 2nd, 1st, 3rd on the podium
+                    const heights = ['h-28', 'h-40', 'h-20'];
+                    const labels = ['2nd', '1st', '3rd'];
+                    return order.map((idx, pos) => {
+                      const item = top3[idx];
+                      if (!item) return <div key={pos} className="w-24" />;
+                      const best = bestOf(item.col.byStrategy)!;
+                      const isBase = item.col.entry.id === baseEntry.id;
+                      return (
+                        <div key={item.col.entry.id} className="flex w-28 flex-col items-center">
+                          <span className="text-lg font-bold tabular-nums text-foreground">{fmtNumber(item.eff)}%</span>
+                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{labels[pos]}</span>
+                          <div
+                            className={cn(
+                              'mt-2 w-full rounded-t-lg flex flex-col items-center justify-end pb-2',
+                              idx === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                              heights[idx],
+                            )}
+                          >
+                            <span className="px-2 text-center text-xs font-semibold leading-tight">
+                              {item.col.entry.name}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            {isBase && <Badge variant="outline" className="text-[10px] text-muted-foreground">base</Badge>}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+
+                {/* Full results, all warehouses. */}
+                <div className="mt-8 space-y-3">
+                  {rankEff.map(({ col, eff }, rank) => {
+                    const best = bestOf(col.byStrategy)!;
+                    const isBase = col.entry.id === baseEntry.id;
+                    return (
+                      <div key={col.entry.id} className="rounded-lg border border-border bg-background p-3">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={cn(
+                              'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
+                              rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                            )}
+                          >
+                            {rank + 1}
+                          </span>
+                          <WhName name={col.entry.name} isBase={isBase} />
+                          <span className="ml-auto text-sm font-semibold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
+                        </div>
+                        <div className="mt-2">
+                          <MetricLine best={best} base={isBase ? undefined : baseByStrategy?.[best.strategy]} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {aiBlock}
+          </div>,
+        )
+      )}
+
+      {/* ── V4 · Tiles (responsive stat-tile grid) ───────────────────────── */}
+      {variant === 4 && (
+        scrollBody(
+          <div className="space-y-6">
+            {/* Compact chips row. */}
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <span className="h-2 w-2 rounded-full bg-muted-foreground" />
+                Base · {baseEntry.name}
+              </span>
+              <span className="mx-1 h-4 w-px bg-border" />
+              {others.length === 0 ? (
+                <span className="text-sm text-muted-foreground">No other warehouses.</span>
+              ) : (
+                <SelectionChips others={others} selectedIds={selectedIds} onToggle={toggleWarehouse} />
+              )}
+            </div>
+
+            {statusBlock}
+
+            {hasResults && (
+              <div className="grid gap-4 md:grid-cols-2">
+                {rankEff.map(({ col, eff }, rank) => {
+                  const best = bestOf(col.byStrategy)!;
+                  const isBase = col.entry.id === baseEntry.id;
+                  return (
+                    <div
+                      key={col.entry.id}
+                      className={cn(
+                        'rounded-xl border bg-surface p-4',
+                        rank === 0 ? 'border-primary/40 ring-1 ring-primary/20' : 'border-border',
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
+                            rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                          )}
+                        >
+                          {rank === 0 ? <Trophy className="h-3 w-3" /> : rank + 1}
+                        </span>
+                        <WhName name={col.entry.name} isBase={isBase} />
+                      </div>
+                      <div className="mt-3 flex items-end justify-between">
+                        <div>
+                          <div className="text-2xl font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</div>
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">best efficiency</div>
+                        </div>
+                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${(eff / topEff) * 100}%` }} />
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-1.5">
+                        {METRIC_DEFS.map((m) => (
+                          <DeltaChip
+                            key={m.key}
+                            label={m.label}
+                            base={isBase ? undefined : baseByStrategy?.[best.strategy]}
+                            current={best}
+                            pick={m.pick}
+                            format={m.format}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {aiBlock}
+          </div>,
+        )
+      )}
+
+      {/* ── V5 · Minimal (borderless, airy, slim rows) ───────────────────── */}
+      {variant === 5 && (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-8 py-8">
+            {/* Setup — one quiet line. */}
+            <p className="text-sm text-muted-foreground">
+              Comparing <span className="font-semibold text-foreground">{baseEntry.name}</span>
+              {others.length > 0 ? (
+                <>
+                  {' '}against{' '}
+                  {selectedIds.length === 0 ? (
+                    <span className="text-foreground">no one</span>
+                  ) : (
+                    <span className="font-semibold text-foreground">
+                      {selectedIds.length} other{selectedIds.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </>
+              ) : null}
+            </p>
+            {others.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <SelectionChips others={others} selectedIds={selectedIds} onToggle={toggleWarehouse} />
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-border"
+                  />
+                  Select all
+                </label>
+              </div>
+            )}
+
+            <div className="mt-6">{statusBlock}</div>
+
+            {hasResults && (
+              <div className="mt-10">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Results</h2>
+                <div className="mt-4 space-y-2">
+                  {rankEff.map(({ col, eff }, rank) => {
+                    const best = bestOf(col.byStrategy)!;
+                    const isBase = col.entry.id === baseEntry.id;
+                    return (
+                      <div key={col.entry.id} className="py-2">
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 shrink-0 text-right text-xs font-semibold text-muted-foreground">{rank + 1}</span>
+                          <WhName name={col.entry.name} isBase={isBase} />
+                          <div className="ml-auto flex items-center gap-3">
+                            <div className="h-1 w-20 overflow-hidden rounded-full bg-muted">
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${(eff / topEff) * 100}%` }} />
+                            </div>
+                            <span className="w-14 text-right text-sm font-semibold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
+                          </div>
+                        </div>
+                        <div className="mt-1.5 pl-9">
+                          <MetricLine best={best} base={isBase ? undefined : baseByStrategy?.[best.strategy]} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {aiBlock && (
+              <div className="mt-12">
+                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">AI suggestion</h2>
+                {aiBlock}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* vartest5: floating segmented toolbar — switches page design (keys 1–5). */}
       <div className="pointer-events-none fixed bottom-4 right-4 z-[120] flex items-center gap-1.5">
         <span className="rounded bg-surface/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shadow-sm">
-          Screen 1–5
+          UI 1–5
         </span>
         <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 py-0.5 shadow-lg">
           {[1, 2, 3, 4, 5].map((v) => (
@@ -691,7 +870,7 @@ export function CompareView({
               key={v}
               type="button"
               onClick={() => setVariant(v as 1 | 2 | 3 | 4 | 5)}
-              title={`Screen variant ${v}`}
+              title={`UI variant ${v}`}
               className={cn(
                 'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold transition-colors',
                 variant === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
