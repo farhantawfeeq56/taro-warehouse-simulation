@@ -8,10 +8,13 @@
  *   1. The user clicked "Compare" on a warehouse. Entering this page
  *      AUTOMATICALLY runs the simulation for EVERY warehouse (no selection,
  *      no Run button — all warehouses compete).
- *   2. The page shows the ranked results in the Editorial style: big-type
- *      banner rows with hairline separators, each metric as its own box with
- *      deltas vs the base warehouse. No section heading — the rows speak for
- *      themselves.
+ *   2. The page shows the ranked results in one of two presentations,
+ *      switched by the floating segmented toolbar (bottom-right, keys 1–2):
+ *       1 Editorial — big-type banner rows with hairline separators, each
+ *                     metric as its own box (deltas vs the base warehouse)
+ *       2 Table     — transposed: warehouses as columns (X axis, ranked by
+ *                     efficiency, #1 marked with a trophy), metrics incl.
+ *                     efficiency as rows (Y axis)
  *
  * Below the rankings, AiSuggestion is a quiet nudge: a small line offering a
  * recommended AI experiment that expands downward on click.
@@ -24,6 +27,7 @@ import {
   ArrowLeft,
   GitCompareArrows,
   Loader2,
+  Trophy,
 } from 'lucide-react';
 import { AiSuggestion } from './experiment-recommendation-card';
 import {
@@ -129,6 +133,19 @@ export function CompareView({
   const [resultsByWarehouse, setResultsByWarehouse] = useState<Record<string, WarehouseResult>>({});
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+
+  // vartest2: rankings presentation (1 editorial rows · 2 transposed table)
+  const [variant, setVariant] = useState<1 | 2>(1);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      const n = Number(e.key);
+      if (n >= 1 && n <= 2) setVariant(n as 1 | 2);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // ── Auto-run all warehouses on entry ────────────────────────────────────
   const handleRun = useCallback(() => {
@@ -289,10 +306,10 @@ export function CompareView({
 
       {statusBlock && <div className="mx-auto w-full max-w-5xl px-6 pt-4">{statusBlock}</div>}
 
-      {/* Editorial (locked in): big-type banner rows, hairline separators. */}
+      {/* Editorial (variant 1): big-type banner rows, hairline separators. */}
       {scrollBody(
         <div className="space-y-6">
-          {hasResults && (
+          {variant === 1 && hasResults && (
             <div>
               {rankEff.map(({ col, eff }, rank) => {
                 const best = bestOf(col.byStrategy)!;
@@ -347,10 +364,112 @@ export function CompareView({
             </div>
           )}
 
+          {/* vartest2 · Variant 2 — transposed table: warehouses as columns, metrics as rows. */}
+          {variant === 2 && hasResults && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="h-11 px-3 text-left align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                      Metric
+                    </th>
+                    {rankEff.map(({ col, eff }, rank) => (
+                      <th
+                        key={col.entry.id}
+                        className={cn(
+                          'h-11 px-3 text-left align-middle whitespace-nowrap',
+                          rank === 0 && 'bg-primary/5',
+                        )}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {rank === 0 && (
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                              <Trophy className="h-3 w-3" />
+                            </span>
+                          )}
+                          <span className="text-sm font-semibold text-foreground">{col.entry.name}</span>
+                        </span>
+                        <div className="mt-0.5 text-[10px] text-muted-foreground">{fmtNumber(eff)}% eff</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Efficiency row — first, so the ranked metric tops the table. */}
+                  <tr className="border-b border-border/60">
+                    <td className="px-3 py-3 align-middle whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Efficiency
+                    </td>
+                    {rankEff.map(({ eff }, rank) => (
+                      <td
+                        key={rank}
+                        className={cn('px-3 py-3 align-middle whitespace-nowrap', rank === 0 && 'bg-primary/5')}
+                      >
+                        <span className="text-sm font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
+                      </td>
+                    ))}
+                  </tr>
+                  {METRIC_DEFS.filter((m) => m.key !== 'eff').map((m) => (
+                    <tr key={m.key} className="border-b border-border/60 last:border-0">
+                      <td className="px-3 py-3 align-middle whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {m.label}
+                      </td>
+                      {rankEff.map(({ col }, rank) => {
+                        const best = bestOf(col.byStrategy)!;
+                        const isBase = col.entry.id === baseEntry.id;
+                        const b = isBase ? undefined : baseByStrategy?.[best.strategy];
+                        const baseVal = b ? m.pick(b) : undefined;
+                        const cur = m.pick(best);
+                        const diff = baseVal !== undefined ? cur - baseVal : 0;
+                        const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
+                        return (
+                          <td
+                            key={col.entry.id}
+                            className={cn('px-3 py-3 align-middle whitespace-nowrap tabular-nums', rank === 0 && 'bg-primary/5')}
+                          >
+                            <span className="font-medium text-foreground">{m.format(cur)}</span>
+                            {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
+                              <span className={cn('ml-1 text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
+                                {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* AI suggestion — a quiet nudge below the rankings, expands downward. */}
           {aiSuggestion}
         </div>,
       )}
+
+      {/* vartest2: floating segmented toolbar — switches rankings presentation (keys 1–2). */}
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[120] flex items-center gap-1.5">
+        <span className="rounded bg-surface/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shadow-sm">
+          Rows 1–2
+        </span>
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 py-0.5 shadow-lg">
+          {[1, 2].map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setVariant(v as 1 | 2)}
+              title={`Rankings variant ${v}`}
+              className={cn(
+                'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold transition-colors',
+                variant === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
