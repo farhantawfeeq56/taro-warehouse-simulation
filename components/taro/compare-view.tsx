@@ -297,7 +297,7 @@ export function CompareView({
                     <th className="h-11 px-3 text-left align-middle text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap border-r border-border/60 pr-4">
                       Metric
                     </th>
-                    {rankDist.map(({ col, dist }, rank) => (
+                    {rankDist.map(({ col }, rank) => (
                       <th
                         key={col.entry.id}
                         className={cn(
@@ -316,7 +316,6 @@ export function CompareView({
                           </span>
                           <span className="text-sm font-semibold text-foreground">{col.entry.name}</span>
                         </span>
-                        <div className="mt-1 text-[10px] text-muted-foreground tabular-nums">{fmtNumber(dist)} m</div>
                       </th>
                     ))}
                   </tr>
