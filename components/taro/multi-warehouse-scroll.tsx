@@ -309,29 +309,31 @@ export function MultiWarehouseScroll({
   // React's maximum-update-depth error.
   useEffect(() => {
     if (!activeWarehouseId) return;
-    // Defer to the next frame so the just-appended section's ref + layout
-    // are settled before measuring (otherwise the new page at the bottom of
-    // the list is measured before it exists and the scroll never happens).
+    let settleTimer: number | undefined;
     const raf = requestAnimationFrame(() => {
-      const el = sectionRefs.current[activeWarehouseId];
-      const cont = scrollRef.current;
-      if (!el || !cont) return;
-      const cRect = cont.getBoundingClientRect();
-      const eRect = el.getBoundingClientRect();
-      const inside =
-        eRect.top >= cRect.top + VISIBILITY_MARGIN &&
-        eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
-      if (!inside) {
-        settlingRef.current = true;
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Release the guard once the smooth scroll should have settled.
-        const t = window.setTimeout(() => {
-          settlingRef.current = false;
-        }, 600);
-        return () => window.clearTimeout(t);
-      }
+      requestAnimationFrame(() => {
+        const el = sectionRefs.current[activeWarehouseId];
+        const cont = scrollRef.current;
+        if (!el || !cont) return;
+        const cRect = cont.getBoundingClientRect();
+        const eRect = el.getBoundingClientRect();
+        const inside =
+          eRect.top >= cRect.top + VISIBILITY_MARGIN &&
+          eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
+        if (!inside) {
+          settlingRef.current = true;
+          const top = el.offsetTop;
+          cont.scrollTo({ top, behavior: 'smooth' });
+          settleTimer = window.setTimeout(() => {
+            settlingRef.current = false;
+          }, 700);
+        }
+      });
     });
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWarehouseId]);
 

@@ -109,7 +109,7 @@ export function RightSidebar(props: RightSidebarProps) {
           value={section}
           onValueChange={(v) => setSection(v as Section)}
           label="Sidebar section"
-          className="max-w-[200px] !rounded-md border-0 bg-transparent p-0.5 shadow-sm [&_button]:h-5 [&_button]:text-[10px] [&_button]:px-1.5"
+          className="max-w-[200px] !rounded-md border-0 bg-transparent p-0.5 [&_button]:h-5 [&_button]:text-[10px] [&_button]:px-1.5"
         />
       </div>
 

@@ -237,7 +237,7 @@ export function Tabs({
             width: plateau.width,
             opacity: plateau.ready ? 1 : 0,
           }}
-          className="absolute bottom-0 top-0 bg-surface"
+          className="absolute bottom-0 top-0 bg-surface shadow-sm"
           transition={reduced ? { duration: 0 } : INDICATOR}
         />
 

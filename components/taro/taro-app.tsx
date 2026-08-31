@@ -837,6 +837,10 @@ export function TaroApp(_props: TaroAppProps) {
           warehouseProfile={warehouseProfile}
           laborProfile={laborProfile}
           onExit={() => {
+            // Return to the warehouse the user clicked Compare on (the base).
+            if (compareBaseWarehouseId) {
+              setActiveWarehouseId(compareBaseWarehouseId);
+            }
             setCompareViewOpen(false);
             setCompareBaseWarehouseId(null);
           }}
