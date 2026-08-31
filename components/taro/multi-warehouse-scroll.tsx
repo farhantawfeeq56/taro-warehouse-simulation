@@ -295,12 +295,21 @@ export function MultiWarehouseScroll({
     if (bestId && bestId !== activeWarehouseIdRef.current) onActiveChange(bestId);
   }, [warehouses, onActiveChange]);
 
+  const didInitRef = useRef(false);
+
   useEffect(() => {
     const cont = scrollRef.current;
     if (!cont) return;
-    // Settle once on mount (no scroll fires yet).
-    settlingRef.current = false;
-    determineActive();
+    // Activate the closest page ONCE on first mount (the parent usually sets
+    // an active id itself; this is only a fallback). It must NOT run again on
+    // warehouses change: at that point the scroll hasn't moved yet, so the
+    // closest page is still the OLD one, and the call would override the
+    // programmatic activation of a freshly added/duplicated warehouse and
+    // cancel the auto-scroll to it.
+    if (!didInitRef.current) {
+      didInitRef.current = true;
+      determineActive();
+    }
     cont.addEventListener('scroll', determineActive, { passive: true });
     window.addEventListener('resize', determineActive);
     return () => {
@@ -316,32 +325,28 @@ export function MultiWarehouseScroll({
   useEffect(() => {
     if (!activeWarehouseId) return;
     let settleTimer: number | undefined;
-    let retryTimer: number | undefined;
-    const attemptScroll = () => {
-      const el = sectionRefs.current[activeWarehouseId];
-      const cont = scrollRef.current;
-      if (!el || !cont) return;
-      const cRect = cont.getBoundingClientRect();
-      const eRect = el.getBoundingClientRect();
-      const inside =
-        eRect.top >= cRect.top + VISIBILITY_MARGIN &&
-        eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
-      if (inside) return;
-      settlingRef.current = true;
-      const top = eRect.top - cRect.top + cont.scrollTop;
-      cont.scrollTo({ top, behavior: 'smooth' });
-      settleTimer = window.setTimeout(() => {
-        settlingRef.current = false;
-      }, 700);
-    };
-    // First attempt after the commit; retry once after 200ms in case a
-    // full-screen overlay (Add flow) was still closing and shifted layout.
-    const raf = requestAnimationFrame(() => requestAnimationFrame(attemptScroll));
-    retryTimer = window.setTimeout(attemptScroll, 200);
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = sectionRefs.current[activeWarehouseId];
+        const cont = scrollRef.current;
+        if (!el || !cont) return;
+        const cRect = cont.getBoundingClientRect();
+        const eRect = el.getBoundingClientRect();
+        const inside =
+          eRect.top >= cRect.top + VISIBILITY_MARGIN &&
+          eRect.bottom <= cRect.bottom - VISIBILITY_MARGIN;
+        if (inside) return;
+        settlingRef.current = true;
+        const top = eRect.top - cRect.top + cont.scrollTop;
+        cont.scrollTo({ top, behavior: 'smooth' });
+        settleTimer = window.setTimeout(() => {
+          settlingRef.current = false;
+        }, 700);
+      });
+    });
     return () => {
       cancelAnimationFrame(raf);
       if (settleTimer !== undefined) window.clearTimeout(settleTimer);
-      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWarehouseId]);
