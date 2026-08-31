@@ -358,7 +358,6 @@ function WarehouseSvgRendererInner({
   const workerStart = warehouse.workerStart;
 
   const hovered = hoveredCell ? warehouse.grid[hoveredCell.y]?.[hoveredCell.x] : null;
-  const isHoveringShelf = !!hovered && hovered.type === 'shelf';
 
   return (
     <div
@@ -368,7 +367,7 @@ function WarehouseSvgRendererInner({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleMouseUp}
-      style={{ cursor: selectedTool === 'hand' ? 'grab' : selectedTool === 'select' ? 'default' : isHoveringShelf ? 'pointer' : 'crosshair', touchAction: 'none' }}
+      style={{ cursor: selectedTool === 'hand' ? 'grab' : selectedTool === 'select' ? 'default' : 'crosshair', touchAction: 'none' }}
     >
       <svg
         width={logicalW}
