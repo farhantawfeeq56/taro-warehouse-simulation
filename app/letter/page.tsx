@@ -72,17 +72,17 @@ export default function LetterPage() {
       <div aria-hidden className="pointer-events-none absolute right-[10%] top-[30rem] h-32 w-1 rounded bg-accent/10" />
       <div aria-hidden className="pointer-events-none absolute left-[14%] top-[55rem] h-20 w-1 rounded bg-accent/10" />
 
-      <div className="relative mx-auto max-w-2xl px-6 py-16 md:py-24">
+      <div className="relative mx-auto max-w-2xl px-4 py-12 sm:px-6 md:py-24">
         {/* Header */}
-        <header className="mb-12 flex flex-col items-center gap-4 text-center">
+        <header className="mb-10 flex flex-col items-center gap-4 text-center md:mb-12">
           <Badge
             variant="outline"
-            className="gap-1.5 rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] text-text-muted"
+            className="max-w-full whitespace-normal gap-1.5 rounded-full px-3 py-1 text-center text-[11px] uppercase leading-snug tracking-[0.18em] text-text-muted sm:text-xs"
           >
             <Warehouse className="size-3.5" aria-hidden />
             A letter to everyone who believed in Taro
           </Badge>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl md:text-4xl">
             Taro is <Highlight>(almost)</Highlight> complete.
           </h1>
           <p className="max-w-md text-sm text-text-muted">
@@ -97,7 +97,7 @@ export default function LetterPage() {
             aria-hidden
             className="absolute -top-3 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border border-b-0 border-l-0 bg-surface"
           />
-          <div className="flex flex-col gap-5 p-7 text-[15px] leading-relaxed text-text-primary md:p-10">
+          <div className="flex flex-col gap-5 p-5 text-[15px] leading-relaxed text-text-primary sm:p-7 md:p-10">
             <p>
               It is difficult to fully describe what this project has become. Looking back at where it
               started, <Highlight>almost everything</Highlight> that I could change, improve, rethink, or
@@ -187,7 +187,7 @@ export default function LetterPage() {
         </article>
 
         {/* Warehouse flair — understated, just enough */}
-        <ShelfRow className="mt-10 opacity-80" />
+        <ShelfRow className="mt-10 scale-[0.85] opacity-80 sm:scale-100" />
         <p className="mt-3 text-center text-[11px] uppercase tracking-[0.2em] text-text-muted">
           Aisles cleared · Inventory zeroed · Lights out
         </p>
@@ -206,8 +206,8 @@ export default function LetterPage() {
       <Annotation className="right-[7%] bottom-24 rotate-[-1deg]">pickers off the clock. job done ✅</Annotation>
 
       {/* Status card — the one thing that *is* empty now */}
-      <div className="relative mx-auto -mt-2 max-w-2xl px-6 pb-20">
-        <div className="rounded-xl border border-dashed border-border-default bg-secondary/50 p-6 text-center">
+        <div className="relative mx-auto -mt-2 max-w-2xl px-4 pb-16 sm:px-6 md:pb-20">
+        <div className="rounded-xl border border-dashed border-border-default bg-secondary/50 p-5 text-center sm:p-6">
           <p className="flex items-center justify-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-text-muted">
             <Heart className="size-3.5 text-accent" aria-hidden />
             Status
