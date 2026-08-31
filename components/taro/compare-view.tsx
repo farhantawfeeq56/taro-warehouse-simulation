@@ -8,13 +8,10 @@
  *   1. The user clicked "Compare" on a warehouse. Entering this page
  *      AUTOMATICALLY runs the simulation for EVERY warehouse (no selection,
  *      no Run button — all warehouses compete).
- *   2. The page shows the ranked results in one of two presentations,
- *      switched by the floating segmented toolbar (bottom-right, keys 1–2):
- *       1 Editorial — big-type banner rows with hairline separators, each
- *                     metric as its own box (deltas vs the base warehouse)
- *       2 Table     — transposed: warehouses as columns (X axis, ranked by
- *                     efficiency, #1 marked with a trophy), metrics incl.
- *                     efficiency as rows (Y axis)
+ *   2. The page shows the ranked results as a transposed TABLE: warehouses
+ *      as columns (X axis, ranked by best-strategy efficiency, #1 marked
+ *      with a trophy), metrics including efficiency as rows (Y axis), with
+ *      deltas vs the base warehouse.
  *
  * Below the rankings, AiSuggestion is a quiet nudge: a small line offering a
  * recommended AI experiment that expands downward on click.
@@ -71,13 +68,6 @@ interface CompareViewProps {
   ) => Promise<void>;
 }
 
-/** Strategy label for the results. */
-const STRATEGY_META: Record<StrategyType, { label: string }> = {
-  single: { label: 'Single Order' },
-  batch: { label: 'Batch Picking' },
-  zone: { label: 'Zone Picking' },
-};
-
 interface WarehouseResult {
   id: string;
   name: string;
@@ -103,9 +93,9 @@ function bestOf(byStrategy: Record<StrategyType, StrategyResult>): StrategyResul
   return Object.values(byStrategy).filter(Boolean).sort((a, b) => b.efficiency - a.efficiency)[0];
 }
 
-function WhName({ name, isBase, className }: { name: string; isBase?: boolean; className?: string }) {
+function WhName({ name, isBase }: { name: string; isBase?: boolean }) {
   return (
-    <span className={cn('flex items-center gap-1.5 text-sm font-semibold text-foreground', className)}>
+    <span className={cn('flex items-center gap-1.5 text-sm font-semibold text-foreground')}>
       {isBase && <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />}
       {name}
       {isBase && (
@@ -133,19 +123,6 @@ export function CompareView({
   const [resultsByWarehouse, setResultsByWarehouse] = useState<Record<string, WarehouseResult>>({});
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
-
-  // vartest2: rankings presentation (1 editorial rows · 2 transposed table)
-  const [variant, setVariant] = useState<1 | 2>(1);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      const n = Number(e.key);
-      if (n >= 1 && n <= 2) setVariant(n as 1 | 2);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   // ── Auto-run all warehouses on entry ────────────────────────────────────
   const handleRun = useCallback(() => {
@@ -306,66 +283,10 @@ export function CompareView({
 
       {statusBlock && <div className="mx-auto w-full max-w-5xl px-6 pt-4">{statusBlock}</div>}
 
-      {/* Editorial (variant 1): big-type banner rows, hairline separators. */}
+      {/* Rankings — transposed table: warehouses as columns, metrics as rows. */}
       {scrollBody(
         <div className="space-y-6">
-          {variant === 1 && hasResults && (
-            <div>
-              {rankEff.map(({ col, eff }, rank) => {
-                const best = bestOf(col.byStrategy)!;
-                const isBase = col.entry.id === baseEntry.id;
-                return (
-                  <div key={col.entry.id} className="border-b border-border py-6 last:border-0">
-                    {/* Header row: rank, name, strategy, eff — baseline aligned. */}
-                    <div className="flex items-start gap-4">
-                      <span className="shrink-0 text-4xl font-bold leading-none tabular-nums text-muted-foreground/30">
-                        {String(rank + 1).padStart(2, '0')}
-                      </span>
-                      <div className="min-w-0 flex-1 pt-1">
-                        <WhName name={col.entry.name} isBase={isBase} className="text-lg" />
-                        <div className="mt-0.5 text-[11px] text-muted-foreground">
-                          {STRATEGY_META[best.strategy].label} · delta vs base
-                        </div>
-                      </div>
-                      <span className="shrink-0 pt-0.5 text-3xl font-bold tabular-nums text-foreground">
-                        {fmtNumber(eff)}<span className="ml-0.5 text-base font-medium text-muted-foreground">%</span>
-                      </span>
-                    </div>
-                    {/* Metrics — each as its own box. */}
-                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
-                      {METRIC_DEFS.map((m) => {
-                        const b = isBase ? undefined : baseByStrategy?.[best.strategy];
-                        const baseVal = b ? m.pick(b) : undefined;
-                        const cur = m.pick(best);
-                        const diff = baseVal !== undefined ? cur - baseVal : 0;
-                        const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
-                        return (
-                          <div key={m.key} className="rounded-lg border border-border bg-surface px-2.5 py-2">
-                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                              {m.label}
-                            </div>
-                            <div className="mt-0.5 flex items-baseline gap-1">
-                              <span className="text-sm font-semibold tabular-nums text-foreground">
-                                {m.format(cur)}
-                              </span>
-                              {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
-                                <span className={cn('text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
-                                  {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* vartest2 · Variant 2 — transposed table: warehouses as columns, metrics as rows. */}
-          {variant === 2 && hasResults && (
+          {hasResults && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -447,29 +368,6 @@ export function CompareView({
           {aiSuggestion}
         </div>,
       )}
-
-      {/* vartest2: floating segmented toolbar — switches rankings presentation (keys 1–2). */}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[120] flex items-center gap-1.5">
-        <span className="rounded bg-surface/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shadow-sm">
-          Rows 1–2
-        </span>
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 py-0.5 shadow-lg">
-          {[1, 2].map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setVariant(v as 1 | 2)}
-              title={`Rankings variant ${v}`}
-              className={cn(
-                'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold transition-colors',
-                variant === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
