@@ -439,7 +439,7 @@ function WarehouseSvgRendererInner({
           <div className="font-semibold mb-1">Shelf ({tooltip.cellX}, {tooltip.cellY})</div>
           <div className="space-y-0.5">
             {tooltip.locations.length === 0 ? (
-              <div className="text-background/70 italic">Click to manage items</div>
+              <div className="text-background/70 italic">Empty shelf</div>
             ) : (
               tooltip.locations.slice(0, 4).map((loc, idx) => (
                 <div key={idx} className="flex items-center gap-2">
