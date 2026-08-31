@@ -14,25 +14,29 @@
  *      warehouse — silently, with no user-visible simulation UI — and shows
  *      each warehouse's key metrics per strategy.
  *
- * Results presentation (locked in from vartest5 round 1, variant 4):
- * warehouses are RANKED by best-strategy efficiency with score bars, then the
- * best strategy's metrics per warehouse with delta vs the base warehouse.
+ * vartest5: the whole screen used to be "one page with many boxes". Now the
+ * entire screen has 5 page-level compositions, switched by the floating
+ * segmented control in the bottom-right corner (keys 1–5). Every variant
+ * preserves ALL content: base + selection, Run Comparison, ranked results,
+ * AI experiment card.
  *
- * The AI experiment suggestion card uses the Hero presentation (vartest5
- * round 2, variant 1).
+ *   1 Stack    — one scrollable column (setup → results → AI), the current layout
+ *   2 Tabs     — three tabs: Setup | Results | AI, shown one at a time
+ *   3 Split    — left column setup, right column results + AI
+ *   4 Ledger   — results as a compact two-column ledger, setup inline top
+ *   5 Focus    — setup always visible at top, results + AI in a collapsible drawer
  *
  * All state lives in TaroApp memory, so leaving the page loses nothing.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  ArrowRight,
-  Check,
+  ChevronDown,
+  ChevronUp,
   FlaskConical,
   GitCompareArrows,
   Loader2,
-  Sparkles,
   Trophy,
   X,
 } from 'lucide-react';
@@ -182,7 +186,24 @@ export function CompareView({
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
-  // vartest5: AI-recommendation presentation (locked in: Hero, variant 1)
+  // vartest5: whole-screen composition variant (1 stack · 2 tabs · 3 split · 4 ledger · 5 focus)
+  const [variant, setVariant] = useState<1 | 2 | 3 | 4 | 5>(1);
+  // Tabs variant: which tab is active.
+  const [tab, setTab] = useState<'setup' | 'results' | 'ai'>('setup');
+  // Focus variant: whether results + AI drawer is open.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      const n = Number(e.key);
+      if (n >= 1 && n <= 5) setVariant(n as 1 | 2 | 3 | 4 | 5);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const toggleWarehouse = useCallback((id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
@@ -298,6 +319,220 @@ export function CompareView({
     .sort((a, b) => b.eff - a.eff);
   const topEff = Math.max(...rankEff.map((r) => r.eff)) || 1;
 
+  const hasResults = !!columns?.hasResults;
+
+  // ── Shared pieces ──────────────────────────────────────────────────────
+  // Setup: base + selection + run button. Every variant shows this (tabs show
+  // it in the Setup tab; focus keeps it always on top).
+  const setupBlock = (
+    <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <span className="h-2 w-2 rounded-full bg-muted-foreground" />
+        Base warehouse
+      </div>
+      <div className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2">
+        <span className="text-sm font-semibold text-foreground">{baseEntry.name}</span>
+        <Badge variant="outline" className="text-muted-foreground">base</Badge>
+      </div>
+
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <span className="h-2 w-2 rounded-full bg-muted-foreground" />
+        Compare against
+      </div>
+      {others.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No other warehouses available. Add another warehouse first.
+        </p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {others.map((w) => {
+              const active = selectedIds.includes(w.id);
+              return (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => toggleWarehouse(w.id)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                    active
+                      ? 'border-foreground/25 bg-muted text-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:bg-muted',
+                  )}
+                >
+                  {w.name}
+                  {active && <X className="h-3 w-3 text-foreground/60" />}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(e) => toggleAll(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border"
+              />
+              Select all
+            </label>
+            <LoadingButton
+              onAction={handleRun}
+              disabled={isRunning || selectedIds.length === 0}
+              pendingLabel="Running…"
+              successLabel="Done"
+              tone="primary"
+              className="gap-1.5"
+            >
+              Run Comparison
+            </LoadingButton>
+          </div>
+        </>
+      )}
+    </section>
+  );
+
+  // Status: running / error lines.
+  const statusBlock = (
+    <>
+      {isRunning && (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-foreground">Running simulations…</span>
+            <span className="text-xs text-muted-foreground">
+              Simulating {1 + selectedIds.length} warehouse{1 + selectedIds.length > 1 ? 's' : ''} across all picking strategies.
+            </span>
+          </div>
+        </div>
+      )}
+      {runError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {runError}
+        </div>
+      )}
+    </>
+  );
+
+  // Results: ranked-by-efficiency rows (locked in earlier).
+  const resultsBlock = (
+    <section className="rounded-lg border border-border bg-surface overflow-hidden">
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold text-foreground">Simulation comparison</h2>
+        <p className="text-xs text-muted-foreground">
+          Each warehouse runs the same strategy set on its own orders. Delta vs the base warehouse is shown where relevant.
+        </p>
+      </div>
+      <div className="p-4 space-y-3">
+        {rankEff.map(({ col, eff }, rank) => {
+          const best = bestOf(col.byStrategy)!;
+          const isBase = col.entry.id === baseEntry.id;
+          return (
+            <div key={col.entry.id} className="rounded-xl border border-border bg-surface p-4">
+              <div className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                    rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {rank === 0 ? <Trophy className="h-3.5 w-3.5" /> : rank + 1}
+                </span>
+                <WhName name={col.entry.name} isBase={isBase} />
+                <div className="ml-auto text-right">
+                  <span className="text-lg font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
+                  <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">eff.</span>
+                  <div className="mt-0.5 h-1.5 w-32 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${(eff / topEff) * 100}%` }} />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-6">
+                {METRIC_DEFS.map((m) => (
+                  <DeltaChip
+                    key={m.key}
+                    label={m.label}
+                    base={isBase ? undefined : baseByStrategy?.[best.strategy]}
+                    current={best}
+                    pick={m.pick}
+                    format={m.format}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  // AI card (same component, always full width in every variant).
+  const aiBlock = hasResults ? (
+    <ExperimentRecommendationCard
+      insights={insights}
+      isRunning={isRunning}
+      onGenerate={onGenerateExperiment}
+    />
+  ) : null;
+
+  // Ledger variant: a compact two-column table (metric → value) per warehouse.
+  const ledgerBlock = (
+    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border bg-muted/40">
+            <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">Warehouse</th>
+            <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">Strategy</th>
+            {METRIC_DEFS.map((m) => (
+              <th key={m.key} className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">
+                {m.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rankEff.map(({ col }) => {
+            const best = bestOf(col.byStrategy)!;
+            const isBase = col.entry.id === baseEntry.id;
+            return (
+              <tr key={col.entry.id} className="border-b border-border/60 last:border-0">
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <WhName name={col.entry.name} isBase={isBase} />
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span className="text-xs text-muted-foreground">{STRATEGY_META[best.strategy].label}</span>
+                </td>
+                {METRIC_DEFS.map((m) => {
+                  const b = isBase ? undefined : baseByStrategy?.[best.strategy];
+                  const baseVal = b ? m.pick(b) : undefined;
+                  const cur = m.pick(best);
+                  const diff = baseVal !== undefined ? cur - baseVal : 0;
+                  const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
+                  return (
+                    <td key={m.key} className="px-3 py-2 whitespace-nowrap tabular-nums">
+                      {m.format(cur)}
+                      {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
+                        <span className={cn('ml-1 text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
+                          {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const scrollBody = (children: React.ReactNode) => (
+    <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="mx-auto max-w-5xl px-6 py-6 space-y-6">{children}</div>
+    </div>
+  );
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-background">
       {/* Header — back button + title. */}
@@ -315,154 +550,156 @@ export function CompareView({
         </Badge>
       </div>
 
-      {/* Body. */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-6 py-6 space-y-6">
-          {/* Base + selection card. */}
-          <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <span className="h-2 w-2 rounded-full bg-muted-foreground" />
-              Base warehouse
-            </div>
-            <div className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2">
-              <span className="text-sm font-semibold text-foreground">{baseEntry.name}</span>
-              <Badge variant="outline" className="text-muted-foreground">base</Badge>
-            </div>
+      {/* Body — one of 5 page compositions. */}
+      {variant === 1 && (
+        // Stack: one scrollable column, everything in order.
+        scrollBody(
+          <>
+            {setupBlock}
+            {statusBlock}
+            {hasResults && resultsBlock}
+            {aiBlock}
+          </>,
+        )
+      )}
 
-            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <span className="h-2 w-2 rounded-full bg-muted-foreground" />
-              Compare against
+      {variant === 2 && (
+        // Tabs: Setup | Results | AI shown one at a time.
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="shrink-0 flex items-center justify-center border-b border-border bg-surface px-4 py-2">
+            <div className="flex items-center gap-0.5 rounded-full border border-border bg-muted/60 p-0.5">
+              {(['setup', 'results', 'ai'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTab(t)}
+                  disabled={t !== 'setup' && !hasResults}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-[11px] font-medium capitalize transition-colors',
+                    tab === t ? 'bg-surface text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                    t !== 'setup' && !hasResults && 'cursor-not-allowed opacity-40',
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
-            {others.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No other warehouses available. Add another warehouse first.
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {others.map((w) => {
-                    const active = selectedIds.includes(w.id);
-                    return (
-                      <button
-                        key={w.id}
-                        type="button"
-                        onClick={() => toggleWarehouse(w.id)}
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                          active
-                            ? 'border-foreground/25 bg-muted text-foreground'
-                            : 'border-border bg-background text-muted-foreground hover:bg-muted',
-                        )}
-                      >
-                        {w.name}
-                        {active && <X className="h-3 w-3 text-foreground/60" />}
-                      </button>
-                    );
-                  })}
+          </div>
+          {scrollBody(
+            <>
+              {tab === 'setup' && setupBlock}
+              {tab === 'setup' && statusBlock}
+              {tab === 'results' && (
+                <>
+                  {statusBlock}
+                  {resultsBlock}
+                </>
+              )}
+              {tab === 'ai' && aiBlock}
+            </>,
+          )}
+        </div>
+      )}
+
+      {variant === 3 && (
+        // Split: setup left, results + AI right.
+        <div className="flex-1 min-h-0 flex overflow-hidden">
+          <div className="w-80 shrink-0 min-h-0 overflow-y-auto border-r border-border bg-secondary/40 px-4 py-4">
+            <div className="space-y-4">
+              {setupBlock}
+              {statusBlock}
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="mx-auto max-w-3xl px-6 py-6 space-y-6">
+              {hasResults && resultsBlock}
+              {aiBlock}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {variant === 4 && (
+        // Ledger: setup on top (compact), results as a dense ledger table, AI below.
+        scrollBody(
+          <>
+            {setupBlock}
+            {statusBlock}
+            {hasResults && (
+              <section className="rounded-lg border border-border bg-surface overflow-hidden">
+                <div className="border-b border-border px-4 py-3">
+                  <h2 className="text-sm font-semibold text-foreground">Simulation comparison</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Best strategy per warehouse, with deltas vs the base.
+                  </p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={(e) => toggleAll(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-border"
-                    />
-                    Select all
-                  </label>
-                  <LoadingButton
-                    onAction={handleRun}
-                    disabled={isRunning || selectedIds.length === 0}
-                    pendingLabel="Running…"
-                    successLabel="Done"
-                    tone="primary"
-                    className="gap-1.5"
-                  >
-                    Run Comparison
-                  </LoadingButton>
-                </div>
-              </>
+                <div className="p-3">{ledgerBlock}</div>
+              </section>
             )}
-          </section>
+            {aiBlock}
+          </>,
+        )
+      )}
 
-          {isRunning && (
-            <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3">
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">Running simulations…</span>
-                <span className="text-xs text-muted-foreground">
-                  Simulating {1 + selectedIds.length} warehouse{1 + selectedIds.length > 1 ? 's' : ''} across all picking strategies.
-                </span>
-              </div>
-            </div>
-          )}
-
-          {runError && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {runError}
-            </div>
-          )}
-
-          {/* Results — locked-in variant: warehouses ranked by best efficiency. */}
-          {columns && columns.hasResults && (
-            <section className="rounded-lg border border-border bg-surface overflow-hidden">
-              <div className="border-b border-border px-4 py-3">
-                <h2 className="text-sm font-semibold text-foreground">Simulation comparison</h2>
-                <p className="text-xs text-muted-foreground">
-                  Each warehouse runs the same strategy set on its own orders. Delta vs the base warehouse is shown where relevant.
-                </p>
-              </div>
-              <div className="p-4 space-y-3">
-                {rankEff.map(({ col, eff }, rank) => {
-                  const best = bestOf(col.byStrategy)!;
-                  const isBase = col.entry.id === baseEntry.id;
-                  return (
-                    <div key={col.entry.id} className="rounded-xl border border-border bg-surface p-4">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={cn(
-                            'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                            rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                          )}
-                        >
-                          {rank === 0 ? <Trophy className="h-3.5 w-3.5" /> : rank + 1}
-                        </span>
-                        <WhName name={col.entry.name} isBase={isBase} />
-                        <div className="ml-auto text-right">
-                          <span className="text-lg font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
-                          <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">eff.</span>
-                          <div className="mt-0.5 h-1.5 w-32 overflow-hidden rounded-full bg-muted">
-                            <div className="h-full rounded-full bg-primary" style={{ width: `${(eff / topEff) * 100}%` }} />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-6">
-                        {METRIC_DEFS.map((m) => (
-                          <DeltaChip
-                            key={m.key}
-                            label={m.label}
-                            base={isBase ? undefined : baseByStrategy?.[best.strategy]}
-                            current={best}
-                            pick={m.pick}
-                            format={m.format}
-                          />
-                        ))}
-                      </div>
+      {variant === 5 && (
+        // Focus: setup always on top, results + AI in a collapsible drawer.
+        <div className="flex-1 min-h-0 flex flex-col">
+          {scrollBody(
+            <>
+              {setupBlock}
+              {statusBlock}
+              {hasResults && (
+                <div className="rounded-lg border border-border bg-surface overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setDrawerOpen((o) => !o)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/40"
+                  >
+                    <div>
+                      <h2 className="text-sm font-semibold text-foreground">Simulation comparison</h2>
+                      <p className="text-xs text-muted-foreground">
+                        {drawerOpen ? 'Hide results' : 'Tap to expand results + AI suggestion'}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
-            </section>
+                    {drawerOpen ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                  {drawerOpen && (
+                    <div className="border-t border-border p-4 space-y-6">
+                      {resultsBlock}
+                      {aiBlock}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>,
           )}
+        </div>
+      )}
 
-          {/* AI experiment suggestion. */}
-          {columns && columns.hasResults && (
-            <ExperimentRecommendationCard
-              insights={insights}
-              isRunning={isRunning}
-              onGenerate={onGenerateExperiment}
-            />
-          )}
+      {/* vartest5: floating segmented toolbar — switches screen composition (keys 1–5). */}
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[120] flex items-center gap-1.5">
+        <span className="rounded bg-surface/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shadow-sm">
+          Screen 1–5
+        </span>
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 py-0.5 shadow-lg">
+          {[1, 2, 3, 4, 5].map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setVariant(v as 1 | 2 | 3 | 4 | 5)}
+              title={`Screen variant ${v}`}
+              className={cn(
+                'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold transition-colors',
+                variant === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {v}
+            </button>
+          ))}
         </div>
       </div>
     </div>
