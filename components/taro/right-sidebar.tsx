@@ -100,7 +100,7 @@ export function RightSidebar(props: RightSidebarProps) {
   const renderBody = () => (
     <>
       {/* Header — tab switcher (Config | Simulation). */}
-      <div className="flex items-center justify-between border-b border-border-default px-2.5 py-2 shrink-0">
+      <div className="flex items-center justify-between border-b border-border px-2.5 py-2 shrink-0">
         <Tabs
           items={[
             { value: 'config', label: 'Config' },
@@ -162,7 +162,7 @@ export function RightSidebar(props: RightSidebarProps) {
   );
 
   return (
-    <div className="h-full flex w-80 flex-col overflow-hidden border-l border-border-default bg-secondary shrink-0">
+    <div className="h-full flex w-80 flex-col overflow-hidden border-l border-border bg-secondary shrink-0">
       {renderBody()}
     </div>
   );

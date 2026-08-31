@@ -218,7 +218,7 @@ export function Tabs({
   return (
     <div
       className={cn(
-        "w-full rounded-lg border border-border-default bg-muted/40 p-1",
+        "w-full rounded-lg border border-border bg-muted/40 p-1",
         className,
       )}
     >

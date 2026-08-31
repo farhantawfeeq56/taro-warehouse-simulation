@@ -286,7 +286,7 @@ function WarehouseSvgRendererInner({
       const cell = warehouse.grid[shelf.y][shelf.x];
       const slots: (string | null)[] = [null, null, null, null];
       cell.locations.slice(0, 4).forEach((loc, i) => {
-        slots[i] = PAPER_TILES[i % PAPER_TILES.length] ?? '#3b82f6';
+        slots[i] = PAPER_TILES[i % PAPER_TILES.length] ?? PAPER.dark;
       });
 
       const padX = w * 0.08;
@@ -434,7 +434,7 @@ function WarehouseSvgRendererInner({
               y={hoveredCell.y * CELL_SIZE}
               width={CELL_SIZE}
               height={CELL_SIZE}
-              fill="rgba(59, 130, 246, 0.2)"
+              fill="rgba(17, 17, 17, 0.2)"
             />
             <rect
               x={hoveredCell.x * CELL_SIZE + 1}
@@ -442,7 +442,7 @@ function WarehouseSvgRendererInner({
               width={CELL_SIZE - 2}
               height={CELL_SIZE - 2}
               fill="none"
-              stroke="#3b82f6"
+              stroke="#111111"
               strokeWidth={2}
             />
           </g>
@@ -480,7 +480,7 @@ function WarehouseSvgRendererInner({
             ) : (
               tooltip.locations.slice(0, 4).map((loc, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#3b82f6' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: Z_LEVEL_COLORS[loc.z] || '#111111' }} />
                   <span>Z{loc.z}</span>
                   <span className="font-sans">{loc.sku}</span>
                   <span className="text-background/70">×{loc.quantity}</span>
