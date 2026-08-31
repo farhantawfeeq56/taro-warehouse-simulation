@@ -26,7 +26,6 @@ import type {
   SimulationBlockState,
 } from '@/lib/taro/types';
 import type { SimulationReadiness } from '@/lib/taro/readiness';
-import { getWorkerPalette } from '@/lib/taro/constants';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -315,7 +314,7 @@ export function SimulationPanel({
                         <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border/50">
                           <div
                             className="h-full rounded-full transition-all duration-300"
-                            style={{ width: `${progress}%`, backgroundColor: getWorkerPalette()[(worker.workerId - 1) % getWorkerPalette().length] }}
+                            style={{ width: `${progress}%`, backgroundColor: worker.color }}
                           />
                         </div>
                       </div>

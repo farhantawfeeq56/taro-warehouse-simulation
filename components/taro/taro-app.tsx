@@ -23,7 +23,7 @@ import {
   generateSkeletonWarehouse,
 } from '@/lib/taro/demo-generator';
 import { parseWarehouseCsv } from '@/lib/taro/warehouse-import';
-import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE, WORKER_PALETTES, setWorkerPalette } from '@/lib/taro/constants';
+import { DEFAULT_WAREHOUSE_PROFILE, DEFAULT_LABOR_PROFILE } from '@/lib/taro/constants';
 import { MultiWarehouseScroll } from './multi-warehouse-scroll';
 import { CompareView } from './compare-view';
 import { RightSidebar } from './right-sidebar';
@@ -165,24 +165,6 @@ export function TaroApp(_props: TaroAppProps) {
   // it becomes the fixed base column of the comparison table.
   const [compareViewOpen, setCompareViewOpen] = useState(false);
   const [compareBaseWarehouseId, setCompareBaseWarehouseId] = useState<string | null>(null);
-
-  // vartest3: worker palette index — module-level palette + local state to re-render.
-  const [workerPaletteIdx, setWorkerPaletteIdx] = useState(0);
-  const [, setPaletteTick] = useState(0);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      const n = Number(e.key);
-      if (n >= 1 && n <= WORKER_PALETTES.length) {
-        setWorkerPalette(n - 1);
-        setWorkerPaletteIdx(n - 1);
-        setPaletteTick(t => t + 1);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
   const [highlightedMissingSkuIds, setHighlightedMissingSkuIds] = useState<Set<string> | null>(null);
   const [orderCount, setOrderCount] = useState(50);
   const [avgOrderSize, setAvgOrderSize] = useState(3);
@@ -1156,36 +1138,6 @@ export function TaroApp(_props: TaroAppProps) {
             }
           }}
         />
-      )}
-
-      {/* vartest3: floating segmented toolbar — worker palette (keys 1–3). */}
-      {!compareViewOpen && (
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[120] flex items-center gap-1.5">
-        <span className="rounded bg-surface/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
-          Palette 1–3
-        </span>
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 py-0.5">
-          {WORKER_PALETTES.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => {
-                setWorkerPalette(i);
-                setWorkerPaletteIdx(i);
-                setPaletteTick(t => t + 1);
-              }}
-              title={`Worker palette ${i + 1}`}
-              className={
-                workerPaletteIdx === i
-                  ? 'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold transition-colors bg-primary text-primary-foreground'
-                  : 'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold transition-colors text-muted-foreground hover:bg-muted hover:text-foreground'
-              }
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-      </div>
       )}
     </div>
   );
