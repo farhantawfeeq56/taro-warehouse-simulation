@@ -28,7 +28,7 @@ import type {
 import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
-import { Plus, Copy, Pencil, Trash2, GitCompareArrows, Sparkles } from 'lucide-react';
+import { Plus, Copy, TextCursorInput, Trash2, GitCompareArrows } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /** Padding (px) kept between the warehouse and the page edges when fitting. */
@@ -146,10 +146,9 @@ function PageHeader({
   return (
     <div
       className={cn(
-        'shrink-0 flex items-center gap-2 px-3 py-1.5 border-b rounded-t-md transition-colors',
-        isActive
-          ? 'bg-surface border-border'
-          : 'bg-muted/40 border-border/60',
+        'shrink-0 flex items-center gap-2 transition-colors',
+        // Floating-pill form: no borders/bg (the pill wrapper provides both).
+        isActive ? 'text-foreground' : 'text-muted-foreground',
       )}
       onClick={(e) => e.stopPropagation()}
     >
@@ -171,11 +170,10 @@ function PageHeader({
       ) : (
         <h3
           className={cn(
-            'flex items-center gap-1.5 text-xs font-semibold truncate',
+            'flex min-w-0 items-center gap-1.5 text-xs font-semibold truncate',
             isActive ? 'text-foreground' : 'text-muted-foreground',
           )}
         >
-          <Sparkles className="h-3 w-3 shrink-0 text-primary/70" />
           {name}
         </h3>
       )}
@@ -183,7 +181,7 @@ function PageHeader({
       <div className="flex-1" />
 
       {isActive && (
-        <div className="flex items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           <ActionButton onClick={onAdd} title="Add a new warehouse" label="Add" icon={Plus} />
           <ActionButton onClick={onDuplicate} title="Duplicate this warehouse" label="Duplicate" icon={Copy} />
           {renaming ? (
@@ -198,7 +196,7 @@ function PageHeader({
               Cancel
             </button>
           ) : (
-            <ActionButton onClick={onStartRename} title="Rename this warehouse" label="Rename" icon={Pencil} />
+            <ActionButton onClick={onStartRename} title="Rename this warehouse" label="Rename" icon={TextCursorInput} />
           )}
           {onDelete && (
             <ActionButton onClick={onDelete} title="Delete this warehouse" label="Delete" icon={Trash2} danger />
@@ -323,7 +321,7 @@ export function MultiWarehouseScroll({
   }, [activeWarehouseId]);
 
   return (
-    <div ref={scrollRef} className="h-full w-full overflow-y-auto bg-muted/20">
+    <div ref={scrollRef} className="h-full w-full overflow-y-auto bg-muted/20 relative">
       {warehouses.map((entry) => {
         const isActive = entry.id === activeWarehouseId;
         const warehouse = entry.warehouse;
@@ -351,14 +349,11 @@ export function MultiWarehouseScroll({
           >
             {/* Fit-to-page body: scale the warehouse card to fit, centre it both ways. */}
             <div className="relative flex-1 min-h-0 overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center">
-                {/* Card — header bar above the warehouse renderer, scaled as one unit. */}
-                <div
-                  className="flex flex-col border border-border rounded-md shadow-sm bg-background overflow-hidden"
-                  style={{ transform: `scale(${fitScale})` }}
-                >
-                  {/* Name + actions bar — sits ABOVE the warehouse, never over shelves. */}
-                  <div style={{ width: logicalW }}>
+              {/* Full-size warehouse controls — floating pill at the bottom,
+                  never scaled, never occupying layout space. Active page only. */}
+              {isActive && (
+                <div className="absolute bottom-3 left-1/2 z-30 max-w-[calc(100%-24px)] -translate-x-1/2">
+                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 shadow-md max-w-full">
                     <PageHeader
                       name={entry.name}
                       isActive={isActive}
@@ -375,6 +370,18 @@ export function MultiWarehouseScroll({
                       onCompare={() => onCompareWarehouse(entry.id)}
                     />
                   </div>
+                </div>
+              )}
+
+              <div className="absolute inset-0 flex items-center justify-center">
+                {/* Card — the warehouse renderer, scaled as one unit. */}
+                {/* shrink-0: the card is a flex item; without it flex shrinks the card
+                    below its content width while the header keeps its full logicalW,
+                    so the action buttons overflow the card's clip and get hidden. */}
+                <div
+                  className="flex flex-col shrink-0 border border-border rounded-md shadow-sm bg-background overflow-hidden"
+                  style={{ transform: `scale(${fitScale})` }}
+                >
                   <div className="relative" style={{ width: logicalW, height: logicalH }}>
                     <WarehouseSvgRenderer
                       warehouseId={entry.id}

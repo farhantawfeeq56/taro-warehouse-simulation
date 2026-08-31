@@ -21,13 +21,6 @@
  */
 
 import { useState } from 'react';
-import {
-  Play,
-  X,
-  Settings,
-  PanelRightOpen,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Tabs } from '@/components/ui/tabs';
 import type {
   Warehouse,
@@ -78,15 +71,35 @@ export interface RightSidebarProps {
 }
 
 /**
- * Right sidebar — an in-flow div (flex child). When `open`, renders the
- * full panel; when closed, renders a slim icon-only rail allowing re-open.
+ * Right sidebar — an in-flow div (flex child). Always open; hosts Config +
+ * Simulation, switched by the in-panel tab bar.
  */
-export function RightSidebar({ open, onOpenChange, ...props }: RightSidebarProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function RightSidebar(props: RightSidebarProps) {
   const [section, setSection] = useState<Section>('simulation');
+  // Two-step flow inside the Simulation tab: setup (orders+workers) →
+  // simulation (results). Simulate advances AND runs the simulation.
+  const [simFlowStep, setSimFlowStep] = useState<'setup' | 'simulation'>('setup');
+  // Auto-jump to simulation when a run starts (results/isSimulating).
+  // BUT respect an explicit user navigation back to setup (simFlowStep set
+  // to 'setup' manually) even when results exist.
+  const simFlowStepEffective: 'setup' | 'simulation' =
+    simFlowStep === 'setup' ? 'setup' : props.simulationResults || props.isSimulating ? 'simulation' : simFlowStep;
+  const advance = () => {
+    setSimFlowStep('simulation');
+    props.onSimulate?.();
+  };
+  const goBack = () => setSimFlowStep('setup');
+  // Breadcrumb navigation — always honors the click (Setup is always reachable).
+  const jumpTo = (step: 'setup' | 'simulation') => {
+    setSimFlowStep(step);
+    if (step === 'simulation' && !props.simulationResults && !props.isSimulating) {
+      props.onSimulate?.();
+    }
+  };
 
   const renderBody = () => (
     <>
-      {/* Header — tab switcher (Config | Simulation) + collapse. */}
+      {/* Header — tab switcher (Config | Simulation). */}
       <div className="flex items-center justify-between border-b border-border-default px-2.5 py-2 shrink-0">
         <Tabs
           items={[
@@ -96,14 +109,8 @@ export function RightSidebar({ open, onOpenChange, ...props }: RightSidebarProps
           value={section}
           onValueChange={(v) => setSection(v as Section)}
           label="Sidebar section"
+          className="max-w-[200px] !rounded-md border-0 bg-transparent p-0.5 [&_button]:h-6 [&_button]:text-[11px] [&_button]:px-2"
         />
-        <button
-          onClick={() => onOpenChange(false)}
-          title="Collapse (Esc)"
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
       </div>
 
       {/* Body */}
@@ -113,7 +120,6 @@ export function RightSidebar({ open, onOpenChange, ...props }: RightSidebarProps
             <ConfigTab
               configuration={props.configuration ?? null}
               onEdit={props.onEditConfig ?? (() => {})}
-              stacked
             />
           </div>
         )}
@@ -143,54 +149,17 @@ export function RightSidebar({ open, onOpenChange, ...props }: RightSidebarProps
               onViewUnresolvableItems={props.onViewUnresolvableItems}
               onSimulate={props.onSimulate}
               onZVisualizationChange={props.onZVisualizationChange}
+              flowStep={simFlowStepEffective}
+              onFlowAdvance={
+                simFlowStepEffective === 'setup' ? advance : goBack
+              }
+              onFlowStepChange={jumpTo}
             />
           </div>
         )}
       </div>
     </>
   );
-
-  if (!open) {
-    // Narrow collapsed rail — just icons to re-open.
-    return (
-      <div className="h-full flex flex-col items-center gap-2 border-l border-border-default bg-surface px-1.5 py-3 shrink-0 w-12">
-        <button
-          onClick={() => {
-            setSection('simulation');
-            onOpenChange(true);
-          }}
-          title="Simulation"
-          className={cn(
-            'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-            'text-muted-foreground hover:bg-muted hover:text-foreground',
-          )}
-        >
-          <Play className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => {
-            setSection('config');
-            onOpenChange(true);
-          }}
-          title="Configuration"
-          className={cn(
-            'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-            'text-muted-foreground hover:bg-muted hover:text-foreground',
-          )}
-        >
-          <Settings className="h-4 w-4" />
-        </button>
-        <div className="flex-1" />
-        <button
-          onClick={() => onOpenChange(true)}
-          title="Expand"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-        >
-          <PanelRightOpen className="h-4 w-4" />
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="h-full flex w-80 flex-col overflow-hidden border-l border-border-default bg-secondary shrink-0">

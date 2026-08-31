@@ -20,8 +20,7 @@
 import { useRef, useEffect, useState, useCallback, useMemo, memo, type MutableRefObject } from 'react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
 import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
-import { buildCoordinateLocations, getShelfLocationId } from '@/lib/taro/layout';
-import { getNextSku } from '@/lib/taro/demo-generator';
+import { buildCoordinateLocations } from '@/lib/taro/layout';
 
 const PAPER = {
   dark: '#111111',
@@ -59,13 +58,6 @@ interface TooltipState {
   locations: StorageLocation[];
 }
 
-interface ShelfDetailsState {
-  visible: boolean;
-  cellX: number;
-  cellY: number;
-  locations: StorageLocation[];
-}
-
 function WarehouseSvgRendererInner({
   warehouseId,
   warehouse,
@@ -93,7 +85,6 @@ function WarehouseSvgRendererInner({
     cellY: 0,
     locations: [],
   });
-  const [shelfDetails, setShelfDetails] = useState<ShelfDetailsState | null>(null);
 
   const logicalW = useMemo(() => warehouse.width * CELL_SIZE, [warehouse.width]);
   const logicalH = useMemo(() => warehouse.height * CELL_SIZE, [warehouse.height]);
@@ -239,60 +230,6 @@ function WarehouseSvgRendererInner({
   const handleMouseUp = useCallback(() => {
     setIsDrawing(false);
   }, []);
-
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    if (selectedTool === 'hand') return;
-    const cellPosition = getCellFromMouse(e);
-    if (!cellPosition) return;
-    const cell = warehouse.grid[cellPosition.y][cellPosition.x];
-    if (cell.type !== 'shelf') {
-      setShelfDetails(null);
-      return;
-    }
-    setShelfDetails({ visible: true, cellX: cellPosition.x, cellY: cellPosition.y, locations: cell.locations });
-  }, [selectedTool, getCellFromMouse, warehouse]);
-
-  const addItemToShelf = useCallback(() => {
-    if (!shelfDetails) return;
-    const nextWarehouse = {
-      ...warehouse,
-      grid: warehouse.grid.map(row => row.map(cell => ({ ...cell, locations: [...cell.locations] }))),
-    };
-    const locationId = getShelfLocationId(shelfDetails.cellX, shelfDetails.cellY);
-    const cell = nextWarehouse.grid[shelfDetails.cellY][shelfDetails.cellX];
-    const nextZ = Math.min(cell.locations.length + 1, 4);
-    if (cell.locations.length >= 4) return;
-    const sku = getNextSku(warehouse);
-    const newLocation: StorageLocation = {
-      id: `${sku}@${shelfDetails.cellX},${shelfDetails.cellY},${nextZ}`,
-      locationId,
-      x: shelfDetails.cellX,
-      y: shelfDetails.cellY,
-      z: nextZ,
-      sku,
-      quantity: 50,
-    };
-    cell.locations.push(newLocation);
-    nextWarehouse.locations = buildCoordinateLocations(nextWarehouse);
-    onWarehouseChange(warehouseId ?? '', nextWarehouse);
-  }, [onWarehouseChange, shelfDetails, warehouse, warehouseId]);
-
-  const selectedShelfCell = shelfDetails
-    ? warehouse.grid[shelfDetails.cellY]?.[shelfDetails.cellX]
-    : null;
-  const shelfBins = selectedShelfCell?.locations ?? [];
-
-  useEffect(() => {
-    if (!shelfDetails) return;
-    const latestCell = warehouse.grid[shelfDetails.cellY]?.[shelfDetails.cellX];
-    if (!latestCell || latestCell.type !== 'shelf') {
-      setShelfDetails(null);
-      return;
-    }
-    if (shelfDetails.locations !== latestCell.locations) {
-      setShelfDetails(prev => prev ? { ...prev, locations: latestCell.locations } : prev);
-    }
-  }, [warehouse, shelfDetails?.cellX, shelfDetails?.cellY, shelfDetails?.locations, shelfDetails]);
 
   // Animation: while a route is active, tick progress and force a re-render
   // of the SVG (React re-renders the path/dots). Same progress source as A/B.
@@ -468,7 +405,6 @@ function WarehouseSvgRendererInner({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleMouseUp}
-      onClick={handleClick}
       style={{ cursor: selectedTool === 'hand' ? 'grab' : selectedTool === 'select' ? 'default' : isHoveringShelf ? 'pointer' : 'crosshair', touchAction: 'none' }}
     >
       <svg
@@ -556,43 +492,6 @@ function WarehouseSvgRendererInner({
             )}
           </div>
           <div className="absolute left-1/2 -bottom-1 -translate-x-1/2 w-2 h-2 bg-foreground rotate-45" />
-        </div>
-      )}
-
-      {/* Shelf Details Panel */}
-      {shelfDetails && shelfDetails.visible && (
-        <div className="absolute top-3 left-3 z-40 bg-background border border-border rounded-lg shadow-lg p-4 min-w-[200px] max-w-[280px]">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-sm">Shelf ({shelfDetails.cellX}, {shelfDetails.cellY})</h3>
-            <button onClick={() => setShelfDetails(null)} className="text-muted-foreground hover:text-foreground transition-colors">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {shelfBins.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No items stored</p>
-          ) : (
-            <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {shelfBins.map((bin) => (
-                <div key={bin.id} className="flex items-center justify-between gap-2 p-2 rounded bg-muted/50 text-xs">
-                  <div className="font-sans font-medium truncate">{bin.sku}</div>
-                  <div className="text-muted-foreground">Z{bin.z} · qty {bin.quantity}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
-            Total bins: {shelfBins.length}
-          </div>
-
-          <div className="mt-3">
-            <button onClick={addItemToShelf} className="w-full px-2.5 py-2 text-xs font-medium border border-border rounded-md hover:bg-muted/60 transition-colors">
-              + Add Item
-            </button>
-          </div>
         </div>
       )}
     </div>

@@ -47,7 +47,6 @@ import {
 } from '@/lib/taro/footprint';
 import { PreviewStats } from './layout-config-variants';
 import { AffinityGrid, affinityColor } from './affinity-view';
-import { TabBar } from './section-tabs';
 import type { SectionTab } from './section-tabs';
 
 export interface LayoutConfig {
