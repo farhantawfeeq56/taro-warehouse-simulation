@@ -294,7 +294,7 @@ export function CompareView({
                 <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="h-11 px-3 text-left align-middle text-[10px] font-bold uppercase tracking-wider text-muted whitespace-nowrap">
+                    <th className="h-11 px-3 text-left align-middle text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap border-r border-border/60 pr-4">
                       Metric
                     </th>
                     {rankDist.map(({ col, dist }, rank) => (
@@ -308,7 +308,7 @@ export function CompareView({
                         <span className="flex items-center gap-2">
                           <span
                             className={cn(
-                              'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+                              'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
                               rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                             )}
                           >
@@ -316,7 +316,7 @@ export function CompareView({
                           </span>
                           <span className="text-sm font-semibold text-foreground">{col.entry.name}</span>
                         </span>
-                        <div className="mt-1 text-[10px] text-muted tabular-nums">{fmtNumber(dist)} m</div>
+                        <div className="mt-1 text-[10px] text-muted-foreground tabular-nums">{fmtNumber(dist)} m</div>
                       </th>
                     ))}
                   </tr>
@@ -324,7 +324,7 @@ export function CompareView({
                 <tbody>
                   {/* Total Distance row — first, so the ranked metric tops the table. */}
                   <tr className="border-b border-border/60">
-                    <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-muted">
+                    <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60 pr-4">
                       Total Distance
                     </td>
                     {rankDist.map(({ dist }, rank) => (
@@ -338,7 +338,7 @@ export function CompareView({
                   </tr>
                   {METRIC_DEFS.filter((m) => m.key !== 'eff' && m.key !== 'dist').map((m) => (
                     <tr key={m.key} className="border-b border-border/60 last:border-0">
-                      <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-muted">
+                      <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60 pr-4">
                         {m.label}
                       </td>
                       {rankDist.map(({ col }, rank) => {

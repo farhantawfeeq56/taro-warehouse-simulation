@@ -72,13 +72,12 @@ export function CompareGateModal({ state, onClose, onAddWarehouse, onNavigate }:
                   <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     {g.map((w, j) => (
                       <span key={w.id} className="flex items-center gap-2">
-                        <span className="font-medium text-foreground">{w.name}</span>
                         <button
                           type="button"
                           onClick={() => onNavigate(w.id)}
-                          className="text-primary underline underline-offset-2 hover:text-primary/80"
+                          className="font-semibold text-primary underline underline-offset-2 hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
                         >
-                          Go to warehouse
+                          {w.name}
                         </button>
                         {j < g.length - 1 && <span className="text-muted-foreground">and</span>}
                       </span>
