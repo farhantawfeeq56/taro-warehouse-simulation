@@ -8,14 +8,13 @@
  *   1. The user clicked "Compare" on a warehouse. Entering this page
  *      AUTOMATICALLY runs the simulation for EVERY warehouse (no selection,
  *      no Run button — all warehouses compete).
- *   2. The page shows, top to bottom: a quiet AI suggestion line, then the
- *      ranked results in the Editorial style (big-type banner rows, hairline
- *      separators, labeled metrics with deltas vs the base warehouse).
+ *   2. The page shows the ranked results in the Editorial style: big-type
+ *      banner rows with hairline separators, each metric as its own box with
+ *      deltas vs the base warehouse. No section heading — the rows speak for
+ *      themselves.
  *
- * The AI experiment suggestion is NOT a card in the page flow anymore — it
- * surfaces as one of 5 light forms (banner / bubble / rail / toast / line)
- * via AiSuggestion, switched by the floating segmented control in the
- * bottom-right corner (keys 1–5).
+ * Below the rankings, AiSuggestion is a quiet nudge: a small line offering a
+ * recommended AI experiment that expands downward on click.
  *
  * All state lives in TaroApp memory, so leaving the page loses nothing.
  */
@@ -96,55 +95,6 @@ const METRIC_DEFS = [
 
 type MetricDef = (typeof METRIC_DEFS)[number];
 
-/** Labeled metric + delta vs base. */
-function MetricValue({
-  label,
-  base,
-  current,
-  pick,
-  format,
-}: {
-  label: string;
-  base?: StrategyResult;
-  current: StrategyResult;
-  pick: (r: StrategyResult) => number;
-  format: (n: number) => string;
-}) {
-  const b = base ? pick(base) : undefined;
-  const c = pick(current);
-  const diff = b !== undefined ? c - b : 0;
-  const pct = b ? (diff / Math.abs(b)) * 100 : 0;
-  return (
-    <span className="inline-flex items-baseline gap-1.5">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold tabular-nums text-foreground">{format(c)}</span>
-      {b !== undefined && Math.abs(diff) > 1e-9 && (
-        <span className={cn('text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
-          {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
-        </span>
-      )}
-    </span>
-  );
-}
-
-/** The full labeled metric strip (deltas vs base). */
-function MetricStrip({ best, base }: { best: StrategyResult; base?: StrategyResult }) {
-  return (
-    <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[11px]">
-      {METRIC_DEFS.map((m) => (
-        <MetricValue
-          key={m.key}
-          label={m.label}
-          base={base}
-          current={best}
-          pick={m.pick}
-          format={m.format}
-        />
-      ))}
-    </div>
-  );
-}
-
 function bestOf(byStrategy: Record<StrategyType, StrategyResult>): StrategyResult | undefined {
   return Object.values(byStrategy).filter(Boolean).sort((a, b) => b.efficiency - a.efficiency)[0];
 }
@@ -179,19 +129,6 @@ export function CompareView({
   const [resultsByWarehouse, setResultsByWarehouse] = useState<Record<string, WarehouseResult>>({});
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
-
-  // vartest5: AI-suggestion form variant (1 banner · 2 bubble · 3 rail · 4 toast · 5 line)
-  const [aiVariant, setAiVariant] = useState<1 | 2 | 3 | 4 | 5>(1);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      const n = Number(e.key);
-      if (n >= 1 && n <= 5) setAiVariant(n as 1 | 2 | 3 | 4 | 5);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   // ── Auto-run all warehouses on entry ────────────────────────────────────
   const handleRun = useCallback(() => {
@@ -324,8 +261,6 @@ export function CompareView({
       insights={insights}
       isRunning={isRunning}
       onGenerate={onGenerateExperiment}
-      variant={aiVariant}
-      onVariantChange={setAiVariant}
     />
   ) : null;
 
@@ -357,13 +292,6 @@ export function CompareView({
       {/* Editorial (locked in): big-type banner rows, hairline separators. */}
       {scrollBody(
         <div className="space-y-6">
-          {/* AI suggestion — a quiet line above the rankings (form varies via AiSuggestion). */}
-          {aiSuggestion}
-
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Warehouse rankings</h2>
-            <span className="text-xs text-muted-foreground">best strategy · efficiency</span>
-          </div>
           {hasResults && (
             <div>
               {rankEff.map(({ col, eff }, rank) => {
@@ -371,28 +299,56 @@ export function CompareView({
                 const isBase = col.entry.id === baseEntry.id;
                 return (
                   <div key={col.entry.id} className="border-b border-border py-6 last:border-0">
-                    <div className="flex items-baseline gap-4">
-                      <span className="text-4xl font-bold tabular-nums text-muted-foreground/30">
+                    {/* Header row: rank, name, strategy, eff — baseline aligned. */}
+                    <div className="flex items-start gap-4">
+                      <span className="shrink-0 text-4xl font-bold leading-none tabular-nums text-muted-foreground/30">
                         {String(rank + 1).padStart(2, '0')}
                       </span>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1 pt-1">
                         <WhName name={col.entry.name} isBase={isBase} className="text-lg" />
                         <div className="mt-0.5 text-[11px] text-muted-foreground">
                           {STRATEGY_META[best.strategy].label} · delta vs base
                         </div>
                       </div>
-                      <span className="ml-auto text-3xl font-bold tabular-nums text-foreground">
+                      <span className="shrink-0 pt-0.5 text-3xl font-bold tabular-nums text-foreground">
                         {fmtNumber(eff)}<span className="ml-0.5 text-base font-medium text-muted-foreground">%</span>
                       </span>
                     </div>
-                    <div className="mt-3 pl-14">
-                      <MetricStrip best={best} base={isBase ? undefined : baseBest} />
+                    {/* Metrics — each as its own box. */}
+                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
+                      {METRIC_DEFS.map((m) => {
+                        const b = isBase ? undefined : baseByStrategy?.[best.strategy];
+                        const baseVal = b ? m.pick(b) : undefined;
+                        const cur = m.pick(best);
+                        const diff = baseVal !== undefined ? cur - baseVal : 0;
+                        const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
+                        return (
+                          <div key={m.key} className="rounded-lg border border-border bg-surface px-2.5 py-2">
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                              {m.label}
+                            </div>
+                            <div className="mt-0.5 flex items-baseline gap-1">
+                              <span className="text-sm font-semibold tabular-nums text-foreground">
+                                {m.format(cur)}
+                              </span>
+                              {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
+                                <span className={cn('text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
+                                  {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
+
+          {/* AI suggestion — a quiet nudge below the rankings, expands downward. */}
+          {aiSuggestion}
         </div>,
       )}
     </div>
