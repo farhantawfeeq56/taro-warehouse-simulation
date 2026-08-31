@@ -118,7 +118,7 @@ export function ExperimentRecommendationCard({
           </div>
         ) : (
           <>
-            {/* Locked-in Hero presentation: badge → headline → rationale. */}
+            {/* Locked-in Hero presentation: badge → headline → why → changes. */}
             <div className="space-y-3">
               {axMeta && (
                 <Badge variant="outline" className={cn('text-[10px]', axMeta.tone)}>
@@ -126,11 +126,25 @@ export function ExperimentRecommendationCard({
                 </Badge>
               )}
               <p className="text-base font-semibold leading-relaxed text-foreground">
-                {recommendation.recommendation}
+                {recommendation.shortSummary}
               </p>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                {recommendation.rationale}
+                {recommendation.why}
               </p>
+              {recommendation.details.changes.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {recommendation.details.changes.map((change) => (
+                    <Badge key={change} variant="secondary" className="text-[10px]">
+                      {change}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {recommendation.details.constraints.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Constraints: {recommendation.details.constraints.join('; ')}
+                </p>
+              )}
             </div>
 
             {/* The experiment disclaimer — always present, non-negotiable. */}
@@ -138,7 +152,7 @@ export function ExperimentRecommendationCard({
               <FlaskConical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
               <p className="text-[11px] leading-relaxed text-warning">
                 <span className="font-semibold">This is just an experiment.</span> It is not a
-                guarantee — the AI is hypothesizing what might improve things based on your
+                guarantee. The AI is hypothesizing what might improve things based on your
                 current warehouses. Add it, run the comparison again, and judge by the numbers.
               </p>
             </div>

@@ -77,6 +77,8 @@ export type ExperimentAxis =
 export interface ExperimentRecommendation {
   /** One-line summary, e.g. "Test 15 racks at height 24 with zone-friendly aisles." */
   recommendation: string;
+  /** One short sentence — the headline rationale (no em dash). */
+  shortSummary: string;
   /** Prose explanation of why this was chosen. */
   rationale: string;
   /** The exact configuration to generate for the experiment. */
@@ -94,6 +96,17 @@ export interface ExperimentRecommendation {
   seedWarehouseName: string;
   /** Whether the user's constraints prevented any real change. */
   constrainedToNoChange: boolean;
+  /**
+   * Structured "why" + "what changed / constraints" — so the UI can render
+   * the why and the change list as separate blocks instead of one blob.
+   */
+  why: string;
+  details: {
+    /** Human-readable change list, e.g. "Racks: 12 → 14". */
+    changes: string[];
+    /** Raw constraint fragments the user entered (or none). */
+    constraints: string[];
+  };
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -341,9 +354,12 @@ export function generateExperiment(
   if (!seed || !seed.configuration) {
     return {
       recommendation: 'Not enough data to recommend an experiment yet.',
+      shortSummary: 'Not enough data to recommend an experiment yet.',
       rationale:
         'We need at least one warehouse with a saved configuration and a finished ' +
         'comparison run before we can study what works. Run the comparison first.',
+      why: 'We need at least one warehouse with a saved configuration and a finished comparison run before we can study what works.',
+      details: { changes: [], constraints: [] },
       configuration: seed?.configuration ?? ({} as WarehouseConfiguration),
       axis: 'capacity',
       changes: [],
@@ -427,11 +443,17 @@ export function generateExperiment(
   const constrainedToNoChange = changes.length === 0 && !budgetShrank;
   if (constrainedToNoChange) {
     return {
-      recommendation: `Test the same configuration as "${seed.name}" again — or relax a constraint.`,
+      recommendation: `Test the same configuration as "${seed.name}" again, or relax a constraint.`,
+      shortSummary: `Retest "${seed.name}" with fresh orders.`,
       rationale:
         'Your constraints prevent every change the data suggested, so the most ' +
         'honest experiment right now is a re-test of the current best warehouse ' +
         'with fresh orders. Relax a constraint to unlock layout changes.',
+      why: 'Your constraints prevent every change the data suggested.',
+      details: {
+        changes: [],
+        constraints: constraints.map((c) => c.raw),
+      },
       configuration: config,
       axis,
       changes,
@@ -445,39 +467,46 @@ export function generateExperiment(
   const axisCopy: Record<ExperimentAxis, { summary: (n: string) => string; why: string }> = {
     capacity: {
       summary: (n) =>
-        `Add ${n} racks to the layout of "${seed.name}" — more storage, same footprint width pressure.`,
-      why: 'The winning warehouse still has the best efficiency, but more capacity usually helps it handle the same order flow with less congestion. This is the most promising next step to test.',
+        `Add ${n} racks to the layout of "${seed.name}". More storage, same footprint width pressure.`,
+      why: 'The winning warehouse still has the best efficiency, but more capacity usually helps it handle the same order flow with less congestion.',
     },
     throughput: {
       summary: (n) =>
-        `Add ${n} racks to "${seed.name}" — denser storage shortens travel paths for pickers.`,
-      why: 'Travel time dominates: the best warehouse spends most of its time walking. More racks in the same footprint mean pickers cover less ground per order.',
+        `Add ${n} racks to "${seed.name}". Denser storage shortens travel paths for pickers.`,
+      why: 'Travel time dominates. The best warehouse spends most of its time walking, so more racks in the same footprint mean pickers cover less ground per order.',
     },
     density: {
       summary: (n) =>
-        `Add ${n} racks to "${seed.name}" — pack more storage into the same area.`,
-      why: 'The best warehouse is distance-heavy; denser racks mean shorter average walks between picks.',
+        `Add ${n} racks to "${seed.name}". Pack more storage into the same area.`,
+      why: 'The best warehouse is distance-heavy. Denser racks mean shorter average walks between picks.',
     },
     'inventory-fit': {
       summary: (n) =>
-        `Trim "${seed.name}"'s SKU count to match demand — fewer, higher-demand SKUs.`,
+        `Trim "${seed.name}"'s SKU count to match demand. Fewer, higher-demand SKUs.`,
       why: 'Efficiency is low even on the best warehouse, which usually means too much inventory sprawl for the order flow. A tighter catalogue keeps the hot items closer together.',
     },
     placement: {
       summary: (n) =>
-        `Raise category clustering on "${seed.name}" — put frequently-ordered SKUs together.`,
-      why: 'Time is high relative to distance: pickers stop often. Clustering related SKUs near the dispatch point turns long trips into short hops.',
+        `Raise category clustering on "${seed.name}". Put frequently-ordered SKUs together.`,
+      why: 'Time is high relative to distance. Pickers stop often, so clustering related SKUs near the dispatch point turns long trips into short hops.',
     },
   };
 
   const copy = axisCopy[axis];
-  const deltas = changes.map((d) => `${d.label}: ${d.before} → ${d.after}`).join(', ');
+  const deltas = changes.map((d) => `${d.label}: ${d.before} → ${d.after}`);
+  const rawConstraintList = constraints.map((c) => c.raw);
 
   return {
     recommendation: copy.summary(seed.name),
+    shortSummary: copy.summary(seed.name),
     rationale:
-      `${copy.why} Constraints applied: ${constraints.length > 0 ? constraints.map((c) => c.raw).join('; ') : 'none — free experiment'}. ` +
-      `Changed: ${deltas}. ${EXPERIMENT_NOTE}`,
+      `${copy.why} Constraints applied: ${rawConstraintList.length > 0 ? rawConstraintList.join('; ') : 'none (free experiment)'}. ` +
+      `Changed: ${deltas.join(', ')}. ${EXPERIMENT_NOTE}`,
+    why: copy.why,
+    details: {
+      changes: deltas,
+      constraints: rawConstraintList,
+    },
     configuration: config,
     axis,
     changes,
