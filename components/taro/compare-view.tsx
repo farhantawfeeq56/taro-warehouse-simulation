@@ -14,20 +14,29 @@
  *      warehouse — silently, with no user-visible simulation UI — and shows
  *      each warehouse's key metrics per strategy.
  *
- * vartest5: the results block (was a plain table) is now presented in 5
- * visual variants, switched by the floating segmented control in the
- * bottom-right corner (keys 1–5):
- *   1 Timeline — strategies as phases on a vertical rail, metric chips per warehouse
- *   2 Cards    — one card per warehouse with all 3 strategies inside
- *   3 Split    — one block per warehouse, 3 strategy columns side by side
- *   4 Scored   — warehouses ranked by best efficiency with score bars
- *   5 Classic  — the original comparison table
+ * Results presentation (locked in from vartest5 round 1, variant 4):
+ * warehouses are RANKED by best-strategy efficiency with score bars, then the
+ * best strategy's metrics per warehouse with delta vs the base warehouse.
+ *
+ * vartest5 (this round): the AI experiment suggestion card has 5 presentation
+ * variants, switched by the floating segmented control in the bottom-right
+ * corner (keys 1–5).
  *
  * All state lives in TaroApp memory, so leaving the page loses nothing.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, GitCompareArrows, Layers, Loader2, Map, Trophy, UserRound, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  FlaskConical,
+  GitCompareArrows,
+  Loader2,
+  Sparkles,
+  Trophy,
+  X,
+} from 'lucide-react';
 import { ExperimentRecommendationCard } from './experiment-recommendation-card';
 import {
   toWarehouseInsight,
@@ -77,8 +86,6 @@ const STRATEGY_META: Record<StrategyType, { label: string; description: string }
   batch: { label: 'Batch Picking', description: 'Group orders into batches' },
   zone: { label: 'Zone Picking', description: 'Workers own zones' },
 };
-
-const STRATEGY_ICONS = { single: UserRound, batch: Layers, zone: Map } as const;
 
 interface WarehouseResult {
   id: string;
@@ -142,18 +149,13 @@ function bestOf(byStrategy: Record<StrategyType, StrategyResult>): StrategyResul
 function WhName({ name, isBase }: { name: string; isBase?: boolean }) {
   return (
     <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-      {isBase && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+      {isBase && <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />}
       {name}
       {isBase && (
         <Badge variant="outline" className="text-[10px] text-muted-foreground">base</Badge>
       )}
     </span>
   );
-}
-
-function BestBadge({ byStrategy }: { byStrategy: Record<StrategyType, StrategyResult> }) {
-  const best = bestOf(byStrategy);
-  return best ? <Badge variant="secondary">{STRATEGY_META[best.strategy].label}</Badge> : <Badge variant="secondary">—</Badge>;
 }
 
 export function CompareView({
@@ -181,7 +183,7 @@ export function CompareView({
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
-  // vartest5: results-presentation variant (1 timeline · 2 cards · 3 split · 4 scored · 5 classic)
+  // vartest5: AI-recommendation variant (1 hero · 2 verdict · 3 tabs · 4 table · 5 side-by-side)
   const [variant, setVariant] = useState<1 | 2 | 3 | 4 | 5>(1);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -302,28 +304,26 @@ export function CompareView({
   }
 
   const cols = columns?.colResults.filter((c): c is NonNullable<typeof c> => c !== null) ?? [];
-  const strategies = Object.entries(STRATEGY_META) as [StrategyType, { label: string; description: string }][];
   const baseByStrategy = cols[0]?.byStrategy;
+
+  const rankEff = cols
+    .map((col) => ({ col, eff: bestOf(col.byStrategy)?.efficiency ?? 0 }))
+    .sort((a, b) => b.eff - a.eff);
+  const topEff = Math.max(...rankEff.map((r) => r.eff)) || 1;
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-background">
       {/* Header — back button + title. */}
-      <div className="shrink-0 flex items-center gap-3 border-b border-primary/20 bg-primary px-4 py-3">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onExit}
-          title="Back to workspace"
-          className="text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground"
-        >
+      <div className="shrink-0 flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
+        <Button variant="ghost" size="icon-sm" onClick={onExit} title="Back to workspace">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex items-center gap-2">
-          <GitCompareArrows className="h-5 w-5 text-primary-foreground/80" />
-          <h1 className="text-base font-semibold text-primary-foreground">Compare Warehouses</h1>
+          <GitCompareArrows className="h-5 w-5 text-muted-foreground" />
+          <h1 className="text-base font-semibold text-foreground">Compare Warehouses</h1>
         </div>
         <div className="flex-1" />
-        <Badge className="border-transparent bg-primary-foreground/15 text-primary-foreground">
+        <Badge variant="secondary" className="text-muted-foreground">
           {cols.length} warehouse{cols.length !== 1 ? 's' : ''} in comparison
         </Badge>
       </div>
@@ -334,7 +334,7 @@ export function CompareView({
           {/* Base + selection card. */}
           <section className="rounded-lg border border-border bg-surface p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <span className="h-2 w-2 rounded-full bg-primary" />
+              <span className="h-2 w-2 rounded-full bg-muted-foreground" />
               Base warehouse
             </div>
             <div className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2">
@@ -343,7 +343,7 @@ export function CompareView({
             </div>
 
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <span className="h-2 w-2 rounded-full bg-primary" />
+              <span className="h-2 w-2 rounded-full bg-muted-foreground" />
               Compare against
             </div>
             {others.length === 0 ? (
@@ -363,12 +363,12 @@ export function CompareView({
                         className={cn(
                           'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
                           active
-                            ? 'border-primary bg-primary/10 text-foreground'
+                            ? 'border-foreground/25 bg-muted text-foreground'
                             : 'border-border bg-background text-muted-foreground hover:bg-muted',
                         )}
                       >
                         {w.name}
-                        {active && <X className="h-3 w-3 text-primary" />}
+                        {active && <X className="h-3 w-3 text-foreground/60" />}
                       </button>
                     );
                   })}
@@ -379,7 +379,7 @@ export function CompareView({
                       type="checkbox"
                       checked={allSelected}
                       onChange={(e) => toggleAll(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-border accent-primary"
+                      className="h-3.5 w-3.5 rounded border-border"
                     />
                     Select all
                   </label>
@@ -400,7 +400,7 @@ export function CompareView({
 
           {isRunning && (
             <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3">
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-foreground">Running simulations…</span>
                 <span className="text-xs text-muted-foreground">
@@ -416,7 +416,7 @@ export function CompareView({
             </div>
           )}
 
-          {/* Results — vartest5: one of 5 presentations. */}
+          {/* Results — locked-in variant: warehouses ranked by best efficiency. */}
           {columns && columns.hasResults && (
             <section className="rounded-lg border border-border bg-surface overflow-hidden">
               <div className="border-b border-border px-4 py-3">
@@ -425,276 +425,59 @@ export function CompareView({
                   Each warehouse runs the same strategy set on its own orders. Delta vs the base warehouse is shown where relevant.
                 </p>
               </div>
-              <div className="p-4 space-y-4">
-                {variant === 1 && (
-                  <div className="relative pl-8">
-                    <span className="absolute left-[11px] top-3 bottom-3 w-px bg-border" />
-                    {strategies.map(([strategy, meta]) => {
-                      const Icon = STRATEGY_ICONS[strategy];
-                      return (
-                        <div key={strategy} className="relative pb-5 last:pb-0">
-                          <span className="absolute -left-8 top-0 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface shadow-sm">
-                            <Icon className="h-3.5 w-3.5 text-primary" />
-                          </span>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-sm font-semibold text-foreground">{meta.label}</span>
-                            <span className="text-[11px] text-muted-foreground">{meta.description}</span>
+              <div className="p-4 space-y-3">
+                {rankEff.map(({ col, eff }, rank) => {
+                  const best = bestOf(col.byStrategy)!;
+                  const isBase = col.entry.id === baseEntry.id;
+                  return (
+                    <div key={col.entry.id} className="rounded-xl border border-border bg-surface p-4">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                            rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                          )}
+                        >
+                          {rank === 0 ? <Trophy className="h-3.5 w-3.5" /> : rank + 1}
+                        </span>
+                        <WhName name={col.entry.name} isBase={isBase} />
+                        <div className="ml-auto text-right">
+                          <span className="text-lg font-bold tabular-nums text-foreground">{fmtNumber(eff)}%</span>
+                          <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">eff.</span>
+                          <div className="mt-0.5 h-1.5 w-32 overflow-hidden rounded-full bg-muted">
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${(eff / topEff) * 100}%` }} />
                           </div>
-                          <div className="mt-2 space-y-2">
-                            {cols.map((col) => {
-                              const sr = col.byStrategy[strategy];
-                              if (!sr) return null;
-                              return (
-                                <div key={col.entry.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-2">
-                                  <span className="w-36 shrink-0 truncate text-xs font-medium text-foreground">{col.entry.name}</span>
-                                  {METRIC_DEFS.map((m) => (
-                                    <DeltaChip
-                                      key={m.key}
-                                      label={m.label}
-                                      base={baseByStrategy?.[strategy]}
-                                      current={sr}
-                                      pick={m.pick}
-                                      format={m.format}
-                                    />
-                                  ))}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {variant === 2 && (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {cols.map((col, i) => (
-                      <div
-                        key={col.entry.id}
-                        className={cn(
-                          'rounded-xl border bg-surface p-4 space-y-3',
-                          i === 0 && 'border-primary/60 ring-1 ring-primary/20',
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <WhName name={col.entry.name} isBase={i === 0} />
-                          <BestBadge byStrategy={col.byStrategy} />
-                        </div>
-                        {strategies.map(([strategy, meta]) => {
-                          const sr = col.byStrategy[strategy];
-                          if (!sr) return null;
-                          const Icon = STRATEGY_ICONS[strategy];
-                          return (
-                            <div key={strategy} className="space-y-1.5">
-                              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                                <Icon className="h-3 w-3 text-primary" />
-                                {meta.label}
-                              </div>
-                              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                                {METRIC_DEFS.map((m) => (
-                                  <DeltaChip key={m.key} label={m.label} base={i === 0 ? undefined : baseByStrategy?.[strategy]} current={sr} pick={m.pick} format={m.format} />
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {variant === 3 && (
-                  <div className="space-y-4">
-                    {cols.map((col, i) => (
-                      <div key={col.entry.id} className="overflow-hidden rounded-xl border border-border">
-                        <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
-                          <WhName name={col.entry.name} isBase={i === 0} />
-                          <BestBadge byStrategy={col.byStrategy} />
-                        </div>
-                        <div className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
-                          {strategies.map(([strategy, meta]) => {
-                            const sr = col.byStrategy[strategy];
-                            if (!sr) return null;
-                            const Icon = STRATEGY_ICONS[strategy];
-                            return (
-                              <div key={strategy} className="p-3 space-y-2">
-                                <div className="flex items-center gap-1.5">
-                                  <Icon className="h-3.5 w-3.5 text-primary" />
-                                  <span className="text-xs font-semibold text-foreground">{meta.label}</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-1.5">
-                                  {METRIC_DEFS.map((m) => (
-                                    <DeltaChip key={m.key} label={m.label} base={i === 0 ? undefined : baseByStrategy?.[strategy]} current={sr} pick={m.pick} format={m.format} />
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {variant === 4 && (
-                  <div className="space-y-3">
-                    {cols
-                      .map((col) => ({ col, best: bestOf(col.byStrategy) }))
-                      .filter((x): x is { col: NonNullable<typeof cols[number]>; best: StrategyResult } => !!x.best)
-                      .sort((a, b) => b.best.efficiency - a.best.efficiency)
-                      .map(({ col, best }, rank) => {
-                        const topEff = Math.max(...cols.map((c) => bestOf(c.byStrategy)?.efficiency ?? 0)) || 1;
-                        return (
-                          <div key={col.entry.id} className="rounded-xl border border-border bg-surface p-4">
-                            <div className="flex items-center gap-3">
-                              <span className={cn(
-                                'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                                rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                              )}>
-                                {rank === 0 ? <Trophy className="h-3.5 w-3.5" /> : rank + 1}
-                              </span>
-                              <WhName name={col.entry.name} isBase={col.entry.id === baseEntry.id} />
-                              <div className="ml-auto text-right">
-                                <span className="text-lg font-bold tabular-nums text-foreground">{fmtNumber(best.efficiency)}%</span>
-                                <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">eff.</span>
-                                <div className="mt-0.5 h-1.5 w-32 overflow-hidden rounded-full bg-muted">
-                                  <div className="h-full rounded-full bg-primary" style={{ width: `${(best.efficiency / topEff) * 100}%` }} />
-                                </div>
-                              </div>
-                            </div>
-                            <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-6">
-                              {METRIC_DEFS.map((m) => (
-                                <DeltaChip
-                                  key={m.key}
-                                  label={m.label}
-                                  base={col.entry.id === baseEntry.id ? undefined : baseByStrategy?.[best.strategy]}
-                                  current={best}
-                                  pick={m.pick}
-                                  format={m.format}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
-
-                {variant === 5 && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border bg-muted/40">
-                          <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">
-                            Metric
-                          </th>
-                          {cols.map((col, i) => (
-                            <th
-                              key={col.entry.id}
-                              className={cn(
-                                'h-10 px-3 text-left align-middle font-medium whitespace-nowrap',
-                                i === 0 ? 'text-primary' : 'text-foreground',
-                              )}
-                            >
-                              <WhName name={col.entry.name} isBase={i === 0} />
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {strategies.map(([strategy, meta]) => (
-                          <tr key={strategy} className="border-b border-border bg-muted/50">
-                            <td colSpan={cols.length + 1} className="px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
-                                  {meta.label}
-                                </span>
-                                <span className="text-[11px] text-muted-foreground">{meta.description}</span>
-                              </div>
-                            </td>
-                          </tr>
+                      <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-6">
+                        {METRIC_DEFS.map((m) => (
+                          <DeltaChip
+                            key={m.key}
+                            label={m.label}
+                            base={isBase ? undefined : baseByStrategy?.[best.strategy]}
+                            current={best}
+                            pick={m.pick}
+                            format={m.format}
+                          />
                         ))}
-                        {strategies.flatMap(([strategy]) =>
-                          METRIC_DEFS.map((m) => (
-                            <tr key={`${strategy}-${m.key}`} className="border-b border-border/60 last:border-0 hover:bg-muted/30">
-                              <td className="px-3 py-2 align-middle whitespace-nowrap font-medium text-foreground">{m.label}</td>
-                              {cols.map((col, i) => {
-                                const sr = col.byStrategy[strategy];
-                                if (!sr) {
-                                  return <td key={col.entry.id} className="px-3 py-2 text-muted-foreground">—</td>;
-                                }
-                                const b = i === 0 ? undefined : baseByStrategy?.[strategy];
-                                const baseVal = b ? m.pick(b) : undefined;
-                                const cur = m.pick(sr);
-                                const diff = baseVal !== undefined ? cur - baseVal : 0;
-                                const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
-                                return (
-                                  <td key={col.entry.id} className="px-3 py-2 whitespace-nowrap tabular-nums">
-                                    {m.format(cur)}
-                                    {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
-                                      <span className={cn('ml-1 text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}>
-                                        {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
-                                      </span>
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          )),
-                        )}
-                        <tr className="border-t border-border bg-muted/20">
-                          <td className="px-3 py-2 align-middle whitespace-nowrap">
-                            <div className="flex flex-col">
-                              <span className="font-medium text-foreground">Best Strategy</span>
-                              <span className="text-[10px] text-muted-foreground">Highest-efficiency strategy per warehouse</span>
-                            </div>
-                          </td>
-                          {cols.map((col) => (
-                            <td key={col.entry.id} className="px-3 py-2 whitespace-nowrap">
-                              <BestBadge byStrategy={col.byStrategy} />
-                            </td>
-                          ))}
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}
 
-          {/* AI experiment suggestion — the mock-AI block. */}
+          {/* AI experiment suggestion — vartest5: presentation variant switches inside the card. */}
           {columns && columns.hasResults && (
             <ExperimentRecommendationCard
               insights={insights}
               isRunning={isRunning}
               onGenerate={onGenerateExperiment}
+              variant={variant}
+              onVariantChange={setVariant}
             />
           )}
-        </div>
-      </div>
-
-      {/* vartest5: floating segmented toolbar — switches results variant (keys 1–5). */}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[120] flex items-center gap-1.5">
-        <span className="rounded bg-surface/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shadow-sm">
-          Results 1–5
-        </span>
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 py-0.5 shadow-lg">
-          {[1, 2, 3, 4, 5].map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setVariant(v as 1 | 2 | 3 | 4 | 5)}
-              title={`Results variant ${v}`}
-              className={cn(
-                'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold transition-colors',
-                variant === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              {v}
-            </button>
-          ))}
         </div>
       </div>
     </div>
