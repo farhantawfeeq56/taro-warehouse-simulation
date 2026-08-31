@@ -400,7 +400,7 @@ function WarehouseSvgRendererInner({
   return (
     <div
       ref={containerRef}
-      className="flex-1 bg-muted/30 overflow-hidden relative border border-border rounded"
+      className="flex-1 bg-muted/30 overflow-hidden relative"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -463,8 +463,7 @@ function WarehouseSvgRendererInner({
           </text>
         )}
 
-        {/* Border */}
-        <rect x={0.5} y={0.5} width={logicalW - 1} height={logicalH - 1} fill="none" stroke="#d1d5db" strokeWidth={2} />
+        {/* No inner border rect — the card's border is the single frame. */}
       </svg>
 
       {/* Hover Tooltip */}

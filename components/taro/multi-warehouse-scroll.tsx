@@ -383,7 +383,7 @@ export function MultiWarehouseScroll({
                     below its content width while the header keeps its full logicalW,
                     so the action buttons overflow the card's clip and get hidden. */}
                 <div
-                  className="flex flex-col shrink-0 border border-border rounded-md bg-background overflow-hidden"
+                  className="flex flex-col shrink-0 border border-border rounded-md overflow-hidden"
                   style={{ transform: `scale(${fitScale})` }}
                 >
                   <div className="relative" style={{ width: logicalW, height: logicalH }}>
