@@ -69,6 +69,7 @@ function ActionButton({
   icon: Icon,
   danger = false,
   accent = false,
+  disabled = false,
   showLabel = false,
 }: {
   onClick: () => void;
@@ -77,6 +78,7 @@ function ActionButton({
   icon: typeof Plus;
   danger?: boolean;
   accent?: boolean;
+  disabled?: boolean;
   showLabel?: boolean;
 }) {
   return (
@@ -91,11 +93,13 @@ function ActionButton({
           className={cn(
             'flex h-6 items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-colors',
             showLabel ? 'px-2' : 'w-6 px-0',
-            danger
-              ? 'text-destructive'
-              : accent
-                ? 'bg-accent text-white hover:bg-accent-hover'
-                : 'text-muted-foreground',
+            disabled
+              ? 'cursor-not-allowed opacity-60'
+              : danger
+                ? 'text-destructive'
+                : accent
+                  ? 'bg-accent text-white hover:bg-accent-hover'
+                  : 'text-muted-foreground',
           )}
         >
           <Icon className="h-3 w-3 shrink-0" />
@@ -118,6 +122,7 @@ function PageHeader({
   onDuplicate,
   onDelete,
   onCompare,
+  canCompare = true,
 }: {
   name: string;
   isActive: boolean;
@@ -129,6 +134,7 @@ function PageHeader({
   onDuplicate: () => void;
   onDelete?: () => void;
   onCompare: () => void;
+  canCompare?: boolean;
 }) {
   const [draft, setDraft] = useState(name);
 
@@ -210,7 +216,7 @@ function PageHeader({
           {onDelete && (
             <ActionButton onClick={onDelete} title="Delete this warehouse" label="Delete" icon={Trash2} danger />
           )}
-          <ActionButton onClick={onCompare} title="Compare all warehouses" label="Compare" icon={GitCompareArrows} accent showLabel />
+          <ActionButton onClick={onCompare} title="Compare all warehouses" label="Compare" icon={GitCompareArrows} accent disabled={!canCompare} showLabel />
         </div>
       )}
     </div>
@@ -385,6 +391,7 @@ export function MultiWarehouseScroll({
                       onDuplicate={() => onDuplicateWarehouse(entry.id)}
                       onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
                       onCompare={() => onCompareWarehouse(entry.id)}
+                      canCompare={warehouses.length > 1}
                     />
                   </div>
                 </div>
