@@ -19,7 +19,7 @@
 
 import { useRef, useEffect, useState, useCallback, useMemo, memo, type MutableRefObject } from 'react';
 import type { Warehouse, ToolType, StrategyResult, ZVisualizationMode, StorageLocation } from '@/lib/taro/types';
-import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS } from '@/lib/taro/constants';
+import { CELL_SIZE, GRID_COLOR, SHELF_COLOR, WORKER_COLOR, EMPTY_COLOR, Z_LEVEL_COLORS, getWorkerPalette } from '@/lib/taro/constants';
 import { buildCoordinateLocations } from '@/lib/taro/layout';
 
 const PAPER = {
@@ -360,7 +360,7 @@ function WarehouseSvgRendererInner({
   const routePaths = (() => {
     if (!activeRoute) return null;
     const groups = activeRoute.workerRoutes && activeRoute.workerRoutes.length > 0
-      ? activeRoute.workerRoutes.map(wr => ({ color: wr.color, route: wr.route }))
+      ? activeRoute.workerRoutes.map(wr => ({ color: getWorkerPalette()[(wr.workerId - 1) % getWorkerPalette().length], route: wr.route }))
       : [{ color: activeRoute.color, route: activeRoute.route }];
 
     const paths: React.ReactNode[] = [];
