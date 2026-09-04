@@ -1,17 +1,7 @@
 import type { Metadata } from 'next'
 import { Instrument_Sans } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { AgentationToolbar } from '@/components/agentation'
 import './globals.css'
-
-// Agentation runs on preview deployments only — never on production.
-// Vercel sets VERCEL_ENV='preview' for deployment previews and 'production'
-// for the production branch; local `next dev` has no VERCEL_ENV at all.
-const isPreviewOrDev =
-  process.env.VERCEL_ENV === 'preview' ||
-  (!process.env.VERCEL_ENV && process.env.NODE_ENV === 'development');
-
-export const dynamic = 'force-dynamic';
 
 const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
@@ -49,7 +39,6 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${instrumentSans.variable} font-sans antialiased`}>
         {children}
-        <AgentationToolbar enabled={isPreviewOrDev} />
         <Analytics />
       </body>
     </html>
