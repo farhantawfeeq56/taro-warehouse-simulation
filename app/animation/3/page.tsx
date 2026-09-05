@@ -164,15 +164,18 @@ export default function Animation3Page() {
       : 1;
 
   return (
-    <div className="h-screen overflow-hidden bg-background">
+    <div className="h-screen overflow-hidden bg-muted/20">
       <div ref={stageRef} className="relative flex h-full w-full items-center justify-center">
         {!session ? (
           <p className="animate-pulse text-sm text-text-secondary">Preparing warehouse…</p>
         ) : (
           <div className="flex flex-col items-center">
-            {/* The exact renderer from the main app, scaled to fill the viewport. */}
-            <div className="shrink-0 overflow-hidden" style={{ transform: `scale(${fitScale})` }}>
-              <div style={{ width: logicalW, height: logicalH }}>
+            {/* The exact card from the main app, scaled as one unit. */}
+            <div
+              className="flex flex-col shrink-0 border border-border rounded-md overflow-hidden"
+              style={{ transform: `scale(${fitScale})` }}
+            >
+              <div className="relative" style={{ width: logicalW, height: logicalH }}> 
                 <WarehouseSvgRenderer
                   warehouseId={`a3-${active}`}
                   warehouse={session.warehouse}
