@@ -81,7 +81,6 @@ function FauxSlider({
   value,
   min,
   max,
-  step = 1,
   display,
   low,
   high,
@@ -90,13 +89,11 @@ function FauxSlider({
   value: number;
   min: number;
   max: number;
-  step?: number;
   display: string;
   low?: string;
   high?: string;
 }) {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
-  const rounded = Math.round(value / step) * step;
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
@@ -109,8 +106,8 @@ function FauxSlider({
         type="range"
         min={min}
         max={max}
-        step={step}
-        value={rounded}
+        step={0.01}
+        value={value}
         readOnly
         tabIndex={-1}
         aria-label={label}
@@ -181,7 +178,8 @@ export default function LayoutVideoPage() {
   const tab = tabAt(time);
   const zoomP = easeOutExpo(clamp01((time - ZOOM_T0) / (ZOOM_T1 - ZOOM_T0)));
   const settleP = easeInOutCubic(clamp01((time - 11.4) / 1.6));
-  const scale = 0.85 + 0.27 * zoomP - 0.12 * settleP;
+  // Zoom via width, not transform — fractional scale() rasterizes text blurry.
+  const width = 300 + 60 * zoomP - 20 * settleP;
 
   const v = {
     gridHeight: valueAt('gridHeight', time),
@@ -197,10 +195,7 @@ export default function LayoutVideoPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
-      <div
-        style={{ transform: `scale(${scale})` }}
-        className="w-[340px] max-w-[calc(100vw-2rem)] will-change-transform"
-      >
+      <div style={{ width: `${width}px` }} className="max-w-[calc(100vw-2rem)]">
         <aside className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
           <div className="space-y-3 p-3">
             <TabPills active={tab} />
