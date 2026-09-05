@@ -172,7 +172,7 @@ export default function Animation3Page() {
           <div className="flex flex-col items-center">
             {/* The exact card from the main app, scaled as one unit. */}
             <div
-              className="flex flex-col shrink-0 border border-border rounded-md overflow-hidden"
+              className="flex flex-col shrink-0 border border-border rounded-md overflow-hidden pointer-events-none"
               style={{ transform: `scale(${fitScale})` }}
             >
               <div className="relative" style={{ width: logicalW, height: logicalH }}> 
