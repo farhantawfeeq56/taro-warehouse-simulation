@@ -1,41 +1,32 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Loader2 } from 'lucide-react';
 import { AgentationToolbar } from '@/components/agentation';
+import { LoadingButton } from '@/components/interior/loading-button';
 
 /* ── Easing ─────────────────────────────────────────────── */
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-const easeOutBack = (t: number) => {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-};
+const easeInOutCubic = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-/* ── Timeline (seconds, loops) ──────────────────────────── */
+/* ── Timeline (seconds, loops) — same click choreography as /animation/1 ── */
 const TOTAL = 9;
 const FLY_T0 = 1.2;
-const FLY_T1 = 2.2;
 const CLICK_T = 2.25;
-const SIM_T1 = 4.5;
-const DONE_T1 = 5.5;
-const HOP_T0 = 5.7;
-const HOP_T1 = 6.3;
 const OUT_T0 = 6.4;
-
-const BURST = 8;
 
 export default function Animation2Page() {
   const [time, setTime] = useState(0);
   const raf = useRef<number | null>(null);
   const last = useRef<number | null>(null);
+  const timeRef = useRef(0);
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const buttonRef = useRef<HTMLDivElement | null>(null);
-  const clickRef = useRef({ x: 130, y: 18 });
+  const buttonBoxRef = useRef<HTMLDivElement | null>(null);
+  const clickRef = useRef({ x: 170, y: 18 });
 
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      timeRef.current = TOTAL;
       setTime(TOTAL);
       return;
     }
@@ -43,20 +34,27 @@ export default function Animation2Page() {
       if (last.current == null) last.current = now;
       const dt = (now - last.current) / 1000;
       last.current = now;
+      // Measure the real button center so the cursor lands exactly on it.
       const wrap = wrapRef.current;
-      const btn = buttonRef.current;
-      if (wrap && btn) {
+      const box = buttonBoxRef.current;
+      if (wrap && box) {
         const wb = wrap.getBoundingClientRect();
-        const bb = btn.getBoundingClientRect();
+        const bb = box.getBoundingClientRect();
         clickRef.current = {
           x: bb.left + bb.width / 2 - wb.left,
           y: bb.top + bb.height / 2 - wb.top,
         };
       }
-      setTime((t) => {
-        const nt = t + dt;
-        return nt >= TOTAL ? nt - TOTAL : nt;
-      });
+      // Fire one genuine click per loop as the timeline crosses CLICK_T.
+      const prev = timeRef.current;
+      let nt = prev + dt;
+      if (nt >= TOTAL) nt -= TOTAL;
+      const crossed =
+        (prev < CLICK_T && nt >= CLICK_T) ||
+        (nt < prev && (CLICK_T >= prev || CLICK_T <= nt));
+      if (crossed) wrap?.querySelector('button')?.click();
+      timeRef.current = nt;
+      setTime(nt);
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
@@ -69,121 +67,91 @@ export default function Animation2Page() {
 
   const click = clickRef.current;
 
-  /* Cursor flight — overshoot ease, lands with a wobble. */
-  const flyRaw = clamp01((time - FLY_T0) / (FLY_T1 - FLY_T0));
-  const fly = easeOutBack(flyRaw);
+  // Cursor: flies in from bottom-right, clicks, fades out before the loop.
+  const cursorP = easeInOutCubic(clamp01((time - FLY_T0) / (CLICK_T - FLY_T0)));
   const cursorOpacity =
-    time < FLY_T0 + 0.15
-      ? clamp01((time - FLY_T0) / 0.15)
+    time < FLY_T0
+      ? 0
       : time < OUT_T0
-        ? 1
+        ? cursorP
         : Math.max(0, 1 - (time - OUT_T0) / (TOTAL - OUT_T0));
-  const hopP = clamp01((time - HOP_T0) / (HOP_T1 - HOP_T0));
-  const hopY = -Math.sin(hopP * Math.PI) * 22;
-  const outDrift = time >= OUT_T0 ? (time - OUT_T0) * 60 : 0;
-  const cursorDX = 180 * (1 - fly) + outDrift;
-  const cursorDY = 150 * (1 - fly) + hopY - outDrift * 0.4;
-  const wiggle =
-    flyRaw < 1 ? 9 * Math.sin((time - FLY_T0) * 14) * (1 - flyRaw) : 0;
-
-  /* Button states. */
-  const simulating = time >= CLICK_T + 0.25 && time < SIM_T1;
-  const done = time >= SIM_T1 && time < DONE_T1;
-  const pressing = time >= CLICK_T && time < CLICK_T + 0.3;
-  const burstP = easeOutCubic(clamp01((time - CLICK_T) / 0.7));
-
-  // Jelly wobble after the press.
-  const wobT = time - (CLICK_T + 0.25);
-  const wob =
-    wobT > 0 && wobT < 1.2
-      ? Math.sin(wobT * 18) * Math.exp(-wobT * 5)
-      : 0;
-  const squashX = (pressing ? 1.06 : 1) + wob * 0.04;
-  const squashY = (pressing ? 0.9 : 1) - wob * 0.04;
+  const cursorDX = 150 * (1 - cursorP);
+  const cursorDY = 140 * (1 - cursorP);
+  const clickP = clamp01((time - CLICK_T) / 0.6);
+  const clicked = time >= CLICK_T;
+  const pressing = time >= CLICK_T && time < CLICK_T + 0.45;
 
   return (
     <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
-      <div ref={wrapRef} className="relative w-[260px]">
-        {/* The green Simulate button, as in the simulation tab. */}
+      <div ref={wrapRef} className="relative w-[340px] max-w-[calc(100vw-2rem)]">
+        {/* The genuine Simulate button — same component, size and animation
+            as the simulation tab. */}
         <div
-          ref={buttonRef}
-          style={{ transform: `scale(${squashX}, ${squashY})` }}
-          className={`inline-flex h-9 w-full select-none items-center justify-center gap-1.5 rounded-md border border-transparent bg-primary px-4 text-sm font-medium text-primary-foreground transition-[filter] duration-150 ${
-            pressing ? 'brightness-90' : ''
-          }`}
+          ref={buttonBoxRef}
+          className={`transition-all duration-150 ${pressing ? 'scale-[0.97] brightness-90' : ''}`}
         >
-          {simulating ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Simulating…</span>
-            </>
-          ) : done ? (
-            <>
-              <Check className="h-4 w-4" />
-              <span>Done</span>
-            </>
-          ) : (
-            <span>Simulate</span>
-          )}
+          <LoadingButton
+            onAction={() => new Promise((r) => setTimeout(r, 1800))}
+            pendingLabel="Simulating…"
+            successLabel="Done"
+            tone="primary"
+            className="w-full justify-center"
+          >
+            Simulate
+          </LoadingButton>
         </div>
 
-        {/* Cursor + click effects, anchored to the measured button center. */}
+        {/* Cursor + click ripple, anchored to the button (same as /animation/1). */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
-          {/* Ripple ring. */}
-          {time >= CLICK_T && burstP < 1 && (
-            <span
-              className="absolute rounded-full border-[3px] border-primary"
-              style={{
-                left: click.x - (7 + 30 * burstP),
-                top: click.y - (7 + 30 * burstP),
-                width: 14 + 60 * burstP,
-                height: 14 + 60 * burstP,
-                opacity: 1 - burstP,
-              }}
-            />
-          )}
-          {/* Particle burst — playful fan upward. */}
-          {time >= CLICK_T &&
-            burstP < 1 &&
-            Array.from({ length: BURST }).map((_, i) => {
-              const ang = ((-90 + (i - (BURST - 1) / 2) * 24) * Math.PI) / 180;
-              const dist = 36 + (i % 3) * 13;
-              return (
-                <span
-                  key={i}
-                  className={`absolute rounded-full ${i % 2 ? 'bg-accent' : 'bg-primary'}`}
-                  style={{
-                    left: click.x + Math.cos(ang) * dist * burstP - 3,
-                    top: click.y + Math.sin(ang) * dist * burstP - 3,
-                    width: 6 - (i % 3),
-                    height: 6 - (i % 3),
-                    opacity: 1 - burstP,
-                  }}
-                />
-              );
-            })}
-          {/* Arrow pointer, tip exactly on the click point. */}
-          <svg
-            width="26"
-            height="26"
-            viewBox="0 0 24 24"
+          <div
             className="absolute"
             style={{
-              left: click.x + cursorDX - 5.4,
-              top: click.y + cursorDY - 3.25,
+              left: click.x + cursorDX,
+              top: click.y + cursorDY,
               opacity: cursorOpacity,
-              transform: `rotate(${wiggle}deg)`,
-              filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))',
             }}
           >
-            <path
-              d="M5 3l14 7.5-6.2 1.8L9.5 19 5 3z"
-              fill="#111"
-              stroke="#fff"
-              strokeWidth="1.8"
-              strokeLinejoin="round"
-            />
-          </svg>
+            {clicked && clickP < 1 && (
+              <>
+                <span
+                  className="absolute rounded-full border-[3px] border-primary"
+                  style={{
+                    width: 14 + 56 * clickP,
+                    height: 14 + 56 * clickP,
+                    left: -(7 + 28 * clickP),
+                    top: -(7 + 28 * clickP),
+                    opacity: 1 - clickP,
+                  }}
+                />
+                <span
+                  className="absolute rounded-full bg-primary"
+                  style={{
+                    width: 10,
+                    height: 10,
+                    left: -5,
+                    top: -5,
+                    opacity: 0.9 * (1 - clickP),
+                    transform: `scale(${1 + clickP * 0.6})`,
+                  }}
+                />
+              </>
+            )}
+            <svg
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              className="absolute"
+              style={{ left: -5.4, top: -3.25, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))' }}
+            >
+              <path
+                d="M5 3l14 7.5-6.2 1.8L9.5 19 5 3z"
+                fill="#111"
+                stroke="#fff"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
         </div>
       </div>
 
