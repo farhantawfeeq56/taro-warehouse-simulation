@@ -13,9 +13,9 @@ import { CELL_SIZE } from '@/lib/taro/constants';
 /* ── Four distinct warehouses ───────────────────────────────── */
 const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
-    name: 'Parallel',
+    name: 'Single',
     config: {
-      layout: { gridHeight: 10, rackCount: 6, aisleWidth: 1, crossAisleCount: 0 },
+      layout: { gridHeight: 12, rackCount: 12, aisleWidth: 1, crossAisleCount: 1 },
       inventory: { skuCount: 400, demandDistribution: 10, productAffinity: 10, storageFootprint: 20 },
       placement: { slottingBias: 10, categoryClustering: 10 },
     },
@@ -23,7 +23,7 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
     name: 'Thoroughfare',
     config: {
-      layout: { gridHeight: 12, rackCount: 8, aisleWidth: 1, crossAisleCount: 2 },
+      layout: { gridHeight: 12, rackCount: 12, aisleWidth: 1, crossAisleCount: 2 },
       inventory: { skuCount: 450, demandDistribution: 70, productAffinity: 30, storageFootprint: 30 },
       placement: { slottingBias: 80, categoryClustering: 30 },
     },
@@ -31,7 +31,7 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
     name: 'Clustered',
     config: {
-      layout: { gridHeight: 12, rackCount: 10, aisleWidth: 1, crossAisleCount: 1 },
+      layout: { gridHeight: 12, rackCount: 12, aisleWidth: 1, crossAisleCount: 1 },
       inventory: { skuCount: 450, demandDistribution: 40, productAffinity: 80, storageFootprint: 40 },
       placement: { slottingBias: 40, categoryClustering: 85 },
     },
@@ -46,9 +46,9 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   },
 ];
 
-const ORDER_COUNT = 10;
+const ORDER_COUNT = 50;
 const AVG_ORDER_SIZE = 3;
-const WORKERS = 2;
+const WORKERS = 5;
 /** Same baseline as the main app's strategy replay. */
 const REPLAY_MS = 3000;
 
