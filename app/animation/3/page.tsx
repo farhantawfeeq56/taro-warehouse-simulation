@@ -153,9 +153,14 @@ export default function Animation3Page() {
   const H = session?.warehouse.height ?? 0;
   const logicalW = W * CELL_SIZE;
   const logicalH = H * CELL_SIZE;
+  // Same size as the main page: its canvas is the viewport minus the 320px
+  // sidebar, run through the identical fit formula (48px pads, 32px header,
+  // 1.5x upscale cap from multi-warehouse-scroll).
+  const availW = Math.max(stage.w - 320 - 48, 1);
+  const availH = Math.max(stage.h - 32 - 48, 1);
   const fitScale =
     logicalW > 0 && logicalH > 0 && stage.w > 0 && stage.h > 0
-      ? Math.min(stage.w / logicalW, stage.h / logicalH)
+      ? Math.min(availW / logicalW, availH / logicalH, 1.5)
       : 1;
 
   return (
