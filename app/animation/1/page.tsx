@@ -220,6 +220,27 @@ export default function LayoutVideoPage() {
   const raf = useRef<number | null>(null);
   const last = useRef<number | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const asideRef = useRef<HTMLElement | null>(null);
+  const [fit, setFit] = useState(1);
+
+  // Shrink-to-fit so the fixed viewport stage never clips nor scrolls.
+  useLayoutEffect(() => {
+    const compute = () => {
+      const h = asideRef.current?.offsetHeight ?? 0;
+      const avail = window.innerHeight - 32;
+      const f = h > 0 ? Math.min(1, avail / h) : 1;
+      setFit((prev) => (prev === f ? prev : f));
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    const ob = asideRef.current ? new ResizeObserver(compute) : null;
+    if (asideRef.current && ob) ob.observe(asideRef.current);
+    return () => {
+      window.removeEventListener('resize', compute);
+      ob?.disconnect();
+    };
+  }, []);
+
   const buttonRef = useRef<HTMLDivElement | null>(null);
   const scaleRef = useRef(1);
   const clickRef = useRef({ x: 170, y: 300 });
@@ -283,7 +304,7 @@ export default function LayoutVideoPage() {
   // there — crisp for the whole second half, no zoom-out at the end.
   const zoomP = easeOutExpo(clamp01((time - ZOOM_T0) / (ZOOM_T1 - ZOOM_T0)));
   const scale = Math.round((0.85 + 0.15 * zoomP) * 1000) / 1000;
-  scaleRef.current = scale;
+  scaleRef.current = scale * fit;
   const click = clickRef.current;
 
   // Cursor: flies in from bottom-right, clicks, fades out before the loop.
@@ -358,13 +379,13 @@ export default function LayoutVideoPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center overflow-x-clip bg-background px-4 py-10">
+    <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
       <div
         ref={wrapRef}
-        style={{ transform: `scale(${scale})` }}
+        style={{ transform: `scale(${scale * fit})` }}
         className="relative w-[340px] max-w-[calc(100vw-2rem)]"
       >
-        <aside className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
+        <aside ref={asideRef} className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
           <div className="space-y-3 p-3">
             <SyncedTabs time={time} tab={tab} />
             {/* Hidden measurer — group heights drive the smooth height ease. */}
