@@ -75,8 +75,8 @@ export default function Animation2Page() {
 
   return (
     <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
-      {/* Same exact size as the original: w-80 panel, p-3 inset, w-full button. */}
-      <div ref={wrapRef} className="relative w-80 max-w-[calc(100vw-2rem)]">
+      {/* Narrower cut of the original: w-64 panel, p-3 inset, w-full button. */}
+      <div ref={wrapRef} className="relative w-64 max-w-[calc(100vw-2rem)]">
         <div className="p-3">
         {/* The genuine Simulate button — same component, size and animation
             as the simulation tab. */}
