@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AgentationToolbar } from '@/components/agentation';
+import { Tabs } from '@/components/ui/tabs';
 
 /* ── Easing ─────────────────────────────────────────────── */
 const easeInOutCubic = (t: number) =>
@@ -127,33 +128,21 @@ function FauxSlider({
   );
 }
 
-function TabPills({ active }: { active: Tab }) {
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'geometry', label: 'Geometry' },
-    { id: 'inventory', label: 'Inventory' },
-    { id: 'placement', label: 'Placement' },
-  ];
-  return (
-    <div className="flex gap-1 rounded-full border border-border bg-muted/40 p-1">
-      {tabs.map((t) => (
-        <span
-          key={t.id}
-          className={`flex-1 rounded-full px-3 py-1.5 text-center text-[12px] font-medium transition-all duration-300 ${
-            active === t.id ? 'bg-primary text-primary-foreground shadow' : 'text-text-secondary'
-          }`}
-        >
-          {t.label}
-        </span>
-      ))}
-    </div>
-  );
-}
+const TAB_ITEMS = [
+  { value: 'geometry', label: 'Geometry' },
+  { value: 'inventory', label: 'Inventory' },
+  { value: 'placement', label: 'Placement' },
+];
 
 /* ── Page ───────────────────────────────────────────────── */
 export default function LayoutVideoPage() {
   const [time, setTime] = useState(0);
   const raf = useRef<number | null>(null);
   const last = useRef<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLDivElement | null>(null);
+  const scaleRef = useRef(1);
+  const clickRef = useRef({ x: 170, y: 300 });
 
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
@@ -164,6 +153,18 @@ export default function LayoutVideoPage() {
       if (last.current == null) last.current = now;
       const dt = (now - last.current) / 1000;
       last.current = now;
+      // Measure the real button center so the cursor lands exactly on it.
+      const wrap = wrapRef.current;
+      const btn = buttonRef.current;
+      if (wrap && btn) {
+        const wb = wrap.getBoundingClientRect();
+        const bb = btn.getBoundingClientRect();
+        const s = scaleRef.current || 1;
+        clickRef.current = {
+          x: (bb.left + bb.width / 2 - wb.left) / s,
+          y: (bb.top + bb.height / 2 - wb.top) / s,
+        };
+      }
       setTime((t) => {
         const nt = t + dt;
         return nt >= TOTAL ? nt - TOTAL : nt;
@@ -183,6 +184,8 @@ export default function LayoutVideoPage() {
   // there — crisp for the whole second half, no zoom-out at the end.
   const zoomP = easeOutExpo(clamp01((time - ZOOM_T0) / (ZOOM_T1 - ZOOM_T0)));
   const scale = Math.round((0.85 + 0.15 * zoomP) * 1000) / 1000;
+  scaleRef.current = scale;
+  const click = clickRef.current;
 
   // Cursor: flies in from bottom-right, clicks, fades out before the loop.
   const cursorP = easeInOutCubic(clamp01((time - CURSOR_T0) / (CLICK_T - CURSOR_T0)));
@@ -193,7 +196,7 @@ export default function LayoutVideoPage() {
         ? cursorP
         : Math.max(0, 1 - (time - CURSOR_OUT_T0) / (TOTAL - CURSOR_OUT_T0));
   const cursorDX = 150 * (1 - cursorP);
-  const cursorDY = -130 * (1 - cursorP);
+  const cursorDY = 140 * (1 - cursorP);
   const clickP = clamp01((time - CLICK_T) / 0.6);
   const clicked = time >= CLICK_T;
   const pressing = time >= CLICK_T && time < CLICK_T + 0.45;
@@ -213,12 +216,15 @@ export default function LayoutVideoPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
       <div
+        ref={wrapRef}
         style={{ transform: `scale(${scale})` }}
         className="relative w-[340px] max-w-[calc(100vw-2rem)]"
       >
         <aside className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
           <div className="space-y-3 p-3">
-            <TabPills active={tab} />
+            <div className="pointer-events-none" aria-hidden>
+              <Tabs items={TAB_ITEMS} value={tab} onValueChange={() => {}} label="Configuration sections" />
+            </div>
             <div className="space-y-4 rounded-xl border border-border bg-surface p-3">
               {tab === 'geometry' && (
                 <>
@@ -311,6 +317,7 @@ export default function LayoutVideoPage() {
           </div>
           <footer className="border-t border-border bg-card px-3 py-2.5">
             <div
+              ref={buttonRef}
               className={`w-full rounded-md bg-primary py-2 text-center text-sm font-medium text-primary-foreground transition-all duration-150 ${
                 pressing ? 'scale-[0.97] brightness-90' : ''
               }`}
@@ -324,8 +331,8 @@ export default function LayoutVideoPage() {
           <div
             className="absolute"
             style={{
-              left: `calc(50% + ${cursorDX}px)`,
-              bottom: `${30 + cursorDY}px`,
+              left: click.x + cursorDX,
+              top: click.y + cursorDY,
               opacity: cursorOpacity,
             }}
           >
@@ -355,12 +362,13 @@ export default function LayoutVideoPage() {
                 />
               </>
             )}
-            {/* Arrow pointer, tip at the click point */}
+            {/* Arrow pointer — offset so the tip sits exactly on the click point */}
             <svg
               width="26"
               height="26"
               viewBox="0 0 24 24"
-              style={{ transform: 'translate(-2px, -2px)', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))' }}
+              className="absolute"
+              style={{ left: -5.4, top: -3.25, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))' }}
             >
               <path
                 d="M5 3l14 7.5-6.2 1.8L9.5 19 5 3z"
