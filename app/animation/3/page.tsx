@@ -1,20 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { AgentationToolbar } from '@/components/agentation';
+import { WarehouseSvgRenderer } from '@/components/taro/warehouse-svg-renderer';
 import { generateWarehouseSession } from '@/lib/taro/warehouse-generator';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { reconcile } from '@/lib/taro/corrector';
 import { runSimulation } from '@/core/simulationEngine';
-import type { SimulationResults, StrategyType } from '@/lib/taro/types';
-import {
-  SHELF_COLOR,
-  WORKER_COLOR,
-  GRID_COLOR,
-  STRATEGY_COLORS,
-  STRATEGY_NAMES,
-} from '@/lib/taro/constants';
+import type { SimulationResults, StrategyResult, StrategyType } from '@/lib/taro/types';
+import { CELL_SIZE, STRATEGY_COLORS, STRATEGY_NAMES } from '@/lib/taro/constants';
 
 /* ── Four distinct warehouses ───────────────────────────────── */
 interface Showcase {
@@ -60,6 +55,8 @@ const SHOWCASES: Showcase[] = [
 const ORDER_COUNT = 10;
 const AVG_ORDER_SIZE = 3;
 const WORKERS = 2;
+/** Same baseline as the main app's strategy replay. */
+const REPLAY_MS = 3000;
 
 type Session = ReturnType<typeof generateWarehouseSession>;
 
@@ -68,6 +65,11 @@ export default function Animation3Page() {
   const [dir, setDir] = useState(1);
   const [sessions, setSessions] = useState<(Session | null)[]>([null, null, null, null]);
   const [sim, setSim] = useState<{ idx: number; results: SimulationResults } | null>(null);
+  const [replayId, setReplayId] = useState(0);
+
+  // Route playback — read by the renderer at 60fps, exactly like the main app.
+  const animationProgressRef = useRef(0);
+  const animationRef = useRef<number | null>(null);
 
   const go = (next: number, d: number) => {
     setDir(d);
@@ -98,7 +100,7 @@ export default function Animation3Page() {
     return () => clearTimeout(t);
   }, [active, sessions]);
 
-  // Auto-run the simulation on arrival.
+  // Auto-run the simulation on arrival, then play the winning route.
   useEffect(() => {
     const s = sessions[active];
     if (!s) {
@@ -109,33 +111,48 @@ export default function Animation3Page() {
       const corrected = reconcile(s.warehouse, s.orders);
       const results = runSimulation(corrected.warehouse, corrected.orders, WORKERS, {});
       setSim({ idx: active, results });
+
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      animationProgressRef.current = 0;
+      setReplayId((id) => id + 1);
+      let lastTime: number | null = null;
+      let elapsed = 0;
+      const animate = (now: number) => {
+        const delta = lastTime !== null ? now - lastTime : 0;
+        lastTime = now;
+        elapsed += delta;
+        animationProgressRef.current = Math.min(elapsed / REPLAY_MS, 1);
+        if (animationProgressRef.current < 1) {
+          animationRef.current = requestAnimationFrame(animate);
+        }
+      };
+      animationRef.current = requestAnimationFrame(animate);
     } catch {
       setSim(null);
     }
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+    };
   }, [active, sessions]);
 
   const session = sessions[active];
   const results = sim?.idx === active ? sim.results : null;
+  const activeRoute: StrategyResult | null =
+    results?.strategies.find((r) => r.strategy === results.bestStrategy) ??
+    results?.strategies[0] ??
+    null;
 
-  const grid = session?.warehouse.grid;
   const W = session?.warehouse.width ?? 0;
-  const H = session?.warehouse.height ?? 0;
-  const cell = W > 0 && H > 0 ? Math.max(4, Math.min(18, Math.floor(Math.min(460 / W, 300 / H)))) : 10;
-
-  const bestRoute = useMemo(() => {
-    if (!results) return null;
-    const best = results.strategies.find((r) => r.strategy === results.bestStrategy) ?? results.strategies[0];
-    if (!best || best.route.length === 0) return null;
-    return { color: STRATEGY_COLORS[best.strategy as StrategyType] ?? '#111', points: best.route };
-  }, [results]);
+  const fitScale = W > 0 ? Math.min(1, 544 / (W * CELL_SIZE)) : 1;
 
   return (
     <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
       <style>{`
         @keyframes a3-slide-l { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
         @keyframes a3-slide-r { from { opacity: 0; transform: translateX(-48px); } to { opacity: 1; transform: none; } }
-        @keyframes a3-draw { to { stroke-dashoffset: 0; } }
-        .a3-route { stroke-dasharray: 1; stroke-dashoffset: 1; animation: a3-draw 1.6s ease-out 0.2s forwards; }
       `}</style>
 
       <div className="relative w-full max-w-xl">
@@ -166,46 +183,26 @@ export default function Animation3Page() {
           style={{ animation: dir >= 0 ? 'a3-slide-l 0.35s ease-out' : 'a3-slide-r 0.35s ease-out' }}
           className="rounded-2xl border border-border bg-card p-4 shadow-xl shadow-black/5"
         >
-          {!session || !grid ? (
+          {!session ? (
             <div className="flex h-64 items-center justify-center">
               <p className="animate-pulse text-sm text-text-secondary">Preparing warehouse…</p>
             </div>
           ) : (
-            <div className="flex justify-center">
-              <svg
-                width={W * cell}
-                height={H * cell}
-                viewBox={`0 0 ${W} ${H}`}
-                role="img"
-                aria-label={`${SHOWCASES[active].name} warehouse layout`}
-              >
-                {grid.flatMap((row, y) =>
-                  row.map((c, x) => {
-                    if (c.type === 'shelf') {
-                      return <rect key={`${x}-${y}`} x={x + 0.06} y={y + 0.06} width={0.88} height={0.88} rx={0.12} fill={SHELF_COLOR} />;
-                    }
-                    if (c.type === 'worker-start') {
-                      return <circle key={`${x}-${y}`} cx={x + 0.5} cy={y + 0.5} r={0.32} fill={WORKER_COLOR} />;
-                    }
-                    return (
-                      <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill="none" stroke={GRID_COLOR} strokeWidth={0.03} />
-                    );
-                  })
-                )}
-                {bestRoute && (
-                  <polyline
-                    key={`route-${active}`}
-                    points={bestRoute.points.map((p) => `${p.x + 0.5},${p.y + 0.5}`).join(' ')}
-                    fill="none"
-                    stroke={bestRoute.color}
-                    strokeWidth={0.28}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    pathLength={1}
-                    className="a3-route"
-                  />
-                )}
-              </svg>
+            <div className="flex justify-center overflow-hidden">
+              {/* The exact renderer from the main app, scaled as one unit. */}
+              <div className="shrink-0" style={{ transform: `scale(${fitScale})` }}>
+                <WarehouseSvgRenderer
+                  warehouseId={`a3-${active}`}
+                  warehouse={session.warehouse}
+                  onWarehouseChange={() => {}}
+                  selectedTool="select"
+                  activeRoute={activeRoute}
+                  animationProgressRef={animationProgressRef}
+                  zVisualizationMode="all"
+                  animationReplayId={replayId}
+                  zoom={fitScale}
+                />
+              </div>
             </div>
           )}
 
