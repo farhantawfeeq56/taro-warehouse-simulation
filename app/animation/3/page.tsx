@@ -15,7 +15,7 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
     name: 'Single',
     config: {
-      layout: { gridHeight: 12, rackCount: 12, aisleWidth: 1, crossAisleCount: 1 },
+      layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 1 },
       inventory: { skuCount: 400, demandDistribution: 10, productAffinity: 10, storageFootprint: 20 },
       placement: { slottingBias: 10, categoryClustering: 10 },
     },
@@ -23,7 +23,7 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
     name: 'Thoroughfare',
     config: {
-      layout: { gridHeight: 12, rackCount: 12, aisleWidth: 1, crossAisleCount: 2 },
+      layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 2 },
       inventory: { skuCount: 450, demandDistribution: 70, productAffinity: 30, storageFootprint: 30 },
       placement: { slottingBias: 80, categoryClustering: 30 },
     },
@@ -31,7 +31,7 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
     name: 'Clustered',
     config: {
-      layout: { gridHeight: 12, rackCount: 12, aisleWidth: 1, crossAisleCount: 1 },
+      layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 1 },
       inventory: { skuCount: 450, demandDistribution: 40, productAffinity: 80, storageFootprint: 40 },
       placement: { slottingBias: 40, categoryClustering: 85 },
     },
@@ -39,7 +39,7 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
     name: 'Grand',
     config: {
-      layout: { gridHeight: 14, rackCount: 12, aisleWidth: 1, crossAisleCount: 3 },
+      layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 3 },
       inventory: { skuCount: 500, demandDistribution: 55, productAffinity: 50, storageFootprint: 60 },
       placement: { slottingBias: 65, categoryClustering: 60 },
     },
