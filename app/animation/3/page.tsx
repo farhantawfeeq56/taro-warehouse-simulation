@@ -16,7 +16,7 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
     name: 'Single',
     config: {
       layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 1 },
-      inventory: { skuCount: 400, demandDistribution: 10, productAffinity: 10, storageFootprint: 20 },
+      inventory: { skuCount: 430, demandDistribution: 10, productAffinity: 10, storageFootprint: 88 },
       placement: { slottingBias: 10, categoryClustering: 10 },
     },
   },
@@ -24,7 +24,7 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
     name: 'Thoroughfare',
     config: {
       layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 2 },
-      inventory: { skuCount: 450, demandDistribution: 70, productAffinity: 30, storageFootprint: 30 },
+      inventory: { skuCount: 420, demandDistribution: 70, productAffinity: 30, storageFootprint: 82 },
       placement: { slottingBias: 80, categoryClustering: 30 },
     },
   },
@@ -32,7 +32,7 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
     name: 'Clustered',
     config: {
       layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 1 },
-      inventory: { skuCount: 450, demandDistribution: 40, productAffinity: 80, storageFootprint: 40 },
+      inventory: { skuCount: 435, demandDistribution: 40, productAffinity: 80, storageFootprint: 88 },
       placement: { slottingBias: 40, categoryClustering: 85 },
     },
   },
