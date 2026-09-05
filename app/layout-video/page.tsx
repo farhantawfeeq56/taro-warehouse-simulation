@@ -302,94 +302,91 @@ export default function LayoutVideoPage() {
         <aside className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
           <div className="space-y-3 p-3">
             <SyncedTabs time={time} tab={tab} />
-            <div className="space-y-4 rounded-xl border border-border bg-surface p-3">
-              {tab === 'geometry' && (
-                <>
-                  <FauxSlider
-                    label="Grid Height"
-                    value={v.gridHeight}
-                    min={4}
-                    max={25}
-                    display={`${Math.round(v.gridHeight)}`}
-                  />
-                  <FauxSlider
-                    label="Rack Count"
-                    value={v.rackCount}
-                    min={5}
-                    max={25}
-                    display={`${Math.round(v.rackCount)}`}
-                  />
-                  <FauxSlider
-                    label="Cross Aisles"
-                    value={v.crossAisle}
-                    min={0}
-                    max={4}
-                    display={`${Math.round(v.crossAisle)}`}
-                    low="0 · Parallel"
-                    high="4 · Thoroughfares"
-                  />
-                </>
-              )}
-              {tab === 'inventory' && (
-                <>
-                  <FauxSlider
-                    label="SKU Count"
-                    value={v.sku}
-                    min={500}
-                    max={1000}
-                    display={Math.round(v.sku).toLocaleString()}
-                  />
-                  <FauxSlider
-                    label="Demand Distribution"
-                    value={v.demand}
-                    min={0}
-                    max={100}
-                    display={`${Math.round(v.demand)}%`}
-                    low="Uniform"
-                    high="Pareto"
-                  />
-                  <FauxSlider
-                    label="Product Affinity"
-                    value={v.affinity}
-                    min={0}
-                    max={100}
-                    display={`${Math.round(v.affinity)}%`}
-                    low="Independent"
-                    high="Highly Related"
-                  />
-                  <FauxSlider
-                    label="Storage Footprint"
-                    value={v.footprint}
-                    min={0}
-                    max={100}
-                    display={`${Math.round(v.footprint)}%`}
-                    low="Compact"
-                    high="Bulky"
-                  />
-                </>
-              )}
-              {tab === 'placement' && (
-                <>
-                  <FauxSlider
-                    label="Slotting Bias"
-                    value={v.slotting}
-                    min={0}
-                    max={100}
-                    display={`${Math.round(v.slotting)}%`}
-                    low="Random"
-                    high="Demand-Based"
-                  />
-                  <FauxSlider
-                    label="Category Clustering"
-                    value={v.clustering}
-                    min={0}
-                    max={100}
-                    display={`${Math.round(v.clustering)}%`}
-                    low="Scattered"
-                    high="Clustered"
-                  />
-                </>
-              )}
+            {/* All groups stacked in one grid cell — tallest (inventory) sets
+                a fixed height from the first frame, so tab switches never
+                resize the panel. */}
+            <div className="grid rounded-xl border border-border bg-surface p-3">
+              <div className={`col-start-1 row-start-1 space-y-4 ${tab === 'geometry' ? '' : 'invisible'}`} aria-hidden={tab !== 'geometry'}>
+                <FauxSlider
+                  label="Grid Height"
+                  value={v.gridHeight}
+                  min={4}
+                  max={25}
+                  display={`${Math.round(v.gridHeight)}`}
+                />
+                <FauxSlider
+                  label="Rack Count"
+                  value={v.rackCount}
+                  min={5}
+                  max={25}
+                  display={`${Math.round(v.rackCount)}`}
+                />
+                <FauxSlider
+                  label="Cross Aisles"
+                  value={v.crossAisle}
+                  min={0}
+                  max={4}
+                  display={`${Math.round(v.crossAisle)}`}
+                  low="0 · Parallel"
+                  high="4 · Thoroughfares"
+                />
+              </div>
+              <div className={`col-start-1 row-start-1 space-y-4 ${tab === 'inventory' ? '' : 'invisible'}`} aria-hidden={tab !== 'inventory'}>
+                <FauxSlider
+                  label="SKU Count"
+                  value={v.sku}
+                  min={500}
+                  max={1000}
+                  display={Math.round(v.sku).toLocaleString()}
+                />
+                <FauxSlider
+                  label="Demand Distribution"
+                  value={v.demand}
+                  min={0}
+                  max={100}
+                  display={`${Math.round(v.demand)}%`}
+                  low="Uniform"
+                  high="Pareto"
+                />
+                <FauxSlider
+                  label="Product Affinity"
+                  value={v.affinity}
+                  min={0}
+                  max={100}
+                  display={`${Math.round(v.affinity)}%`}
+                  low="Independent"
+                  high="Highly Related"
+                />
+                <FauxSlider
+                  label="Storage Footprint"
+                  value={v.footprint}
+                  min={0}
+                  max={100}
+                  display={`${Math.round(v.footprint)}%`}
+                  low="Compact"
+                  high="Bulky"
+                />
+              </div>
+              <div className={`col-start-1 row-start-1 space-y-4 ${tab === 'placement' ? '' : 'invisible'}`} aria-hidden={tab !== 'placement'}>
+                <FauxSlider
+                  label="Slotting Bias"
+                  value={v.slotting}
+                  min={0}
+                  max={100}
+                  display={`${Math.round(v.slotting)}%`}
+                  low="Random"
+                  high="Demand-Based"
+                />
+                <FauxSlider
+                  label="Category Clustering"
+                  value={v.clustering}
+                  min={0}
+                  max={100}
+                  display={`${Math.round(v.clustering)}%`}
+                  low="Scattered"
+                  high="Clustered"
+                />
+              </div>
             </div>
           </div>
           <footer className="border-t border-border bg-card px-3 py-2.5">
