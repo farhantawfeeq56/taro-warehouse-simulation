@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { AgentationToolbar } from '@/components/agentation';
 
 /* ── Easing ─────────────────────────────────────────────── */
@@ -222,6 +223,25 @@ export default function LayoutVideoPage() {
   const buttonRef = useRef<HTMLDivElement | null>(null);
   const scaleRef = useRef(1);
   const clickRef = useRef({ x: 170, y: 300 });
+  const measureRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [groupH, setGroupH] = useState<number[]>([0, 0, 0]);
+
+  useLayoutEffect(() => {
+    const read = () => {
+      const h = measureRefs.current.map((b) => b?.offsetHeight ?? 0);
+      setGroupH((prev) =>
+        prev.length === 3 && prev.every((x, i) => x === h[i]) ? prev : h
+      );
+    };
+    read();
+    const ros = measureRefs.current.map((el) => {
+      if (!el) return null;
+      const o = new ResizeObserver(read);
+      o.observe(el);
+      return o;
+    });
+    return () => ros.forEach((o) => o?.disconnect());
+  }, []);
 
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
@@ -292,8 +312,53 @@ export default function LayoutVideoPage() {
     clustering: valueAt('clustering', time),
   };
 
+  const groups: ReactNode[][] = [
+    [
+      <FauxSlider key="gh" label="Grid Height" value={v.gridHeight} min={4} max={25} display={`${Math.round(v.gridHeight)}`} />,
+      <FauxSlider key="rc" label="Rack Count" value={v.rackCount} min={5} max={25} display={`${Math.round(v.rackCount)}`} />,
+      <FauxSlider key="ca" label="Cross Aisles" value={v.crossAisle} min={0} max={4} display={`${Math.round(v.crossAisle)}`} low="0 · Parallel" high="4 · Thoroughfares" />,
+    ],
+    [
+      <FauxSlider key="sku" label="SKU Count" value={v.sku} min={500} max={1000} display={Math.round(v.sku).toLocaleString()} />,
+      <FauxSlider key="dd" label="Demand Distribution" value={v.demand} min={0} max={100} display={`${Math.round(v.demand)}%`} low="Uniform" high="Pareto" />,
+      <FauxSlider key="pa" label="Product Affinity" value={v.affinity} min={0} max={100} display={`${Math.round(v.affinity)}%`} low="Independent" high="Highly Related" />,
+      <FauxSlider key="sf" label="Storage Footprint" value={v.footprint} min={0} max={100} display={`${Math.round(v.footprint)}%`} low="Compact" high="Bulky" />,
+    ],
+    [
+      <FauxSlider key="sb" label="Slotting Bias" value={v.slotting} min={0} max={100} display={`${Math.round(v.slotting)}%`} low="Random" high="Demand-Based" />,
+      <FauxSlider key="cc" label="Category Clustering" value={v.clustering} min={0} max={100} display={`${Math.round(v.clustering)}%`} low="Scattered" high="Clustered" />,
+    ],
+  ];
+
+  // vartest transition: which groups are on stage + eased progress.
+  const stageIdx = tab === 'geometry' ? 0 : tab === 'inventory' ? 1 : 2;
+  let fromIdx = stageIdx;
+  let toIdx = stageIdx;
+  let tp = -1;
+  for (const s of SWITCHES) {
+    const pr = (time - (s.at - SWITCH_W / 2)) / SWITCH_W;
+    if (pr >= 0 && pr <= 1) {
+      fromIdx = s.from;
+      toIdx = s.to;
+      tp = easeInOutCubic(pr);
+    }
+  }
+  const heightsReady = groupH.every((h) => h > 0);
+  const boxH = tp < 0 ? groupH[fromIdx] : groupH[fromIdx] + (groupH[toIdx] - groupH[fromIdx]) * tp;
+
+  // Winner: slide — outgoing slides left-out, incoming slides right-in.
+  let outStyle: CSSProperties = {};
+  let inStyle: CSSProperties = {};
+  if (tp >= 0) {
+    outStyle = { opacity: Math.max(0, 1 - tp * 1.6), transform: `translateX(${-48 * tp}px)` };
+    inStyle = {
+      opacity: Math.min(1, Math.max(0, (tp - 0.15) / 0.6)),
+      transform: `translateX(${48 * (1 - tp)}px)`,
+    };
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
+    <div className="min-h-screen flex items-center justify-center overflow-x-clip bg-background px-4 py-10">
       <div
         ref={wrapRef}
         style={{ transform: `scale(${scale})` }}
@@ -302,91 +367,36 @@ export default function LayoutVideoPage() {
         <aside className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
           <div className="space-y-3 p-3">
             <SyncedTabs time={time} tab={tab} />
-            {/* All groups stacked in one grid cell — tallest (inventory) sets
-                a fixed height from the first frame, so tab switches never
-                resize the panel. */}
-            <div className="grid rounded-xl border border-border bg-surface p-3">
-              <div className={`col-start-1 row-start-1 space-y-4 ${tab === 'geometry' ? '' : 'invisible'}`} aria-hidden={tab !== 'geometry'}>
-                <FauxSlider
-                  label="Grid Height"
-                  value={v.gridHeight}
-                  min={4}
-                  max={25}
-                  display={`${Math.round(v.gridHeight)}`}
-                />
-                <FauxSlider
-                  label="Rack Count"
-                  value={v.rackCount}
-                  min={5}
-                  max={25}
-                  display={`${Math.round(v.rackCount)}`}
-                />
-                <FauxSlider
-                  label="Cross Aisles"
-                  value={v.crossAisle}
-                  min={0}
-                  max={4}
-                  display={`${Math.round(v.crossAisle)}`}
-                  low="0 · Parallel"
-                  high="4 · Thoroughfares"
-                />
-              </div>
-              <div className={`col-start-1 row-start-1 space-y-4 ${tab === 'inventory' ? '' : 'invisible'}`} aria-hidden={tab !== 'inventory'}>
-                <FauxSlider
-                  label="SKU Count"
-                  value={v.sku}
-                  min={500}
-                  max={1000}
-                  display={Math.round(v.sku).toLocaleString()}
-                />
-                <FauxSlider
-                  label="Demand Distribution"
-                  value={v.demand}
-                  min={0}
-                  max={100}
-                  display={`${Math.round(v.demand)}%`}
-                  low="Uniform"
-                  high="Pareto"
-                />
-                <FauxSlider
-                  label="Product Affinity"
-                  value={v.affinity}
-                  min={0}
-                  max={100}
-                  display={`${Math.round(v.affinity)}%`}
-                  low="Independent"
-                  high="Highly Related"
-                />
-                <FauxSlider
-                  label="Storage Footprint"
-                  value={v.footprint}
-                  min={0}
-                  max={100}
-                  display={`${Math.round(v.footprint)}%`}
-                  low="Compact"
-                  high="Bulky"
-                />
-              </div>
-              <div className={`col-start-1 row-start-1 space-y-4 ${tab === 'placement' ? '' : 'invisible'}`} aria-hidden={tab !== 'placement'}>
-                <FauxSlider
-                  label="Slotting Bias"
-                  value={v.slotting}
-                  min={0}
-                  max={100}
-                  display={`${Math.round(v.slotting)}%`}
-                  low="Random"
-                  high="Demand-Based"
-                />
-                <FauxSlider
-                  label="Category Clustering"
-                  value={v.clustering}
-                  min={0}
-                  max={100}
-                  display={`${Math.round(v.clustering)}%`}
-                  low="Scattered"
-                  high="Clustered"
-                />
-              </div>
+            {/* Hidden measurer — group heights drive the smooth height ease. */}
+            <div aria-hidden className="invisible h-0 overflow-hidden">
+              {groups.map((g, i) => (
+                <div
+                  key={i}
+                  ref={(node) => {
+                    measureRefs.current[i] = node;
+                  }}
+                  className="space-y-4"
+                >
+                  {g}
+                </div>
+              ))}
+            </div>
+            <div
+              className="overflow-hidden rounded-xl border border-border bg-surface p-3"
+              style={heightsReady ? { height: boxH + 24 } : undefined}
+            >
+              {tp < 0 ? (
+                <div className="space-y-4">{groups[fromIdx]}</div>
+              ) : (
+                <div className="grid">
+                  <div className="col-start-1 row-start-1 space-y-4" style={outStyle}>
+                    {groups[fromIdx]}
+                  </div>
+                  <div className="col-start-1 row-start-1 space-y-4" style={inStyle}>
+                    {groups[toIdx]}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <footer className="border-t border-border bg-card px-3 py-2.5">
