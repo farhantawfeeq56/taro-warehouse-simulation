@@ -71,8 +71,6 @@ export default function Animation2Page() {
         : Math.max(0, 1 - (time - OUT_T0) / (TOTAL - OUT_T0));
   const cursorDX = 150 * (1 - cursorP);
   const cursorDY = 140 * (1 - cursorP);
-  const clickP = clamp01((time - CLICK_T) / 0.6);
-  const clicked = time >= CLICK_T;
   const pressing = time >= CLICK_T && time < CLICK_T + 0.45;
 
   return (
@@ -105,31 +103,6 @@ export default function Animation2Page() {
               opacity: cursorOpacity,
             }}
           >
-            {clicked && clickP < 1 && (
-              <>
-                <span
-                  className="absolute rounded-full border-[3px] border-primary"
-                  style={{
-                    width: 14 + 56 * clickP,
-                    height: 14 + 56 * clickP,
-                    left: -(7 + 28 * clickP),
-                    top: -(7 + 28 * clickP),
-                    opacity: 1 - clickP,
-                  }}
-                />
-                <span
-                  className="absolute rounded-full bg-primary"
-                  style={{
-                    width: 10,
-                    height: 10,
-                    left: -5,
-                    top: -5,
-                    opacity: 0.9 * (1 - clickP),
-                    transform: `scale(${1 + clickP * 0.6})`,
-                  }}
-                />
-              </>
-            )}
             <svg
               width="26"
               height="26"
