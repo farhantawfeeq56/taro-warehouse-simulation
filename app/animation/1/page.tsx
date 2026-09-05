@@ -486,7 +486,13 @@ export default function LayoutVideoPage() {
           </div>
         </div>
       </div>
-      <AgentationToolbar enabled />
+      {/* Never in prod: local dev always, Vercel preview only when explicitly set. */}
+      <AgentationToolbar
+        enabled={
+          process.env.NODE_ENV === 'development' ||
+          process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview'
+        }
+      />
     </div>
   );
 }
