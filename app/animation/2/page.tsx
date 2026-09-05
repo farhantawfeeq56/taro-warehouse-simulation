@@ -75,7 +75,9 @@ export default function Animation2Page() {
 
   return (
     <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
-      <div ref={wrapRef} className="relative w-[340px] max-w-[calc(100vw-2rem)]">
+      {/* Same exact size as the original: w-80 panel, p-3 inset, w-full button. */}
+      <div ref={wrapRef} className="relative w-80 max-w-[calc(100vw-2rem)]">
+        <div className="p-3">
         {/* The genuine Simulate button — same component, size and animation
             as the simulation tab. */}
         <div
@@ -92,8 +94,9 @@ export default function Animation2Page() {
             Simulate
           </LoadingButton>
         </div>
+        </div>
 
-        {/* Cursor + click ripple, anchored to the button (same as /animation/1). */}
+        {/* Cursor press, anchored to the button (same as /animation/1). */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
           <div
             className="absolute"
