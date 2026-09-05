@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AgentationToolbar } from '@/components/agentation';
-import { Tabs } from '@/components/ui/tabs';
 
 /* ── Easing ─────────────────────────────────────────────── */
 const easeInOutCubic = (t: number) =>
@@ -128,11 +127,91 @@ function FauxSlider({
   );
 }
 
-const TAB_ITEMS = [
-  { value: 'geometry', label: 'Geometry' },
-  { value: 'inventory', label: 'Inventory' },
-  { value: 'placement', label: 'Placement' },
+/* Sliding tab bar with the indicator driven by the page timeline — never by
+   its own spring — so it glides exactly with the content switch. */
+const SWITCH_W = 0.45;
+const TAB_DEFS: { id: Tab; label: string }[] = [
+  { id: 'geometry', label: 'Geometry' },
+  { id: 'inventory', label: 'Inventory' },
+  { id: 'placement', label: 'Placement' },
 ];
+const SWITCHES = [
+  { at: INV_TAB, from: 0, to: 1 },
+  { at: PLC_TAB, from: 1, to: 2 },
+];
+
+function SyncedTabs({ time, tab }: { time: number; tab: Tab }) {
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const btnRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const [rects, setRects] = useState<{ x: number; w: number }[]>([]);
+
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const read = () => {
+      const r = btnRefs.current.map((b) => ({
+        x: b?.offsetLeft ?? 0,
+        w: b?.offsetWidth ?? 0,
+      }));
+      setRects((prev) =>
+        prev.length === r.length && prev.every((p, i) => p.x === r[i].x && p.w === r[i].w)
+          ? prev
+          : r
+      );
+    };
+    read();
+    const ob = new ResizeObserver(read);
+    ob.observe(row);
+    return () => ob.disconnect();
+  }, []);
+
+  const activeIdx = tab === 'geometry' ? 0 : tab === 'inventory' ? 1 : 2;
+  let ix = rects[activeIdx]?.x ?? 0;
+  let iw = rects[activeIdx]?.w ?? 0;
+  for (const s of SWITCHES) {
+    const p = clamp01((time - (s.at - SWITCH_W / 2)) / SWITCH_W);
+    if (p > 0 && p < 1 && rects.length === 3) {
+      const e = easeInOutCubic(p);
+      ix = rects[s.from].x + (rects[s.to].x - rects[s.from].x) * e;
+      iw = rects[s.from].w + (rects[s.to].w - rects[s.from].w) * e;
+    }
+  }
+
+  return (
+    <div className="pointer-events-none w-full rounded-lg border border-border bg-muted/40 p-1" aria-hidden>
+      <div ref={rowRef} className="relative flex w-full gap-0.5">
+        <span
+          aria-hidden
+          className="absolute bottom-0 top-0 rounded-md bg-surface shadow-sm"
+          style={{ left: ix, width: iw, opacity: rects.length === 3 ? 1 : 0 }}
+        />
+        {TAB_DEFS.map((t, i) => {
+          const selected = i === activeIdx;
+          return (
+            <span
+              key={t.id}
+              ref={(node) => {
+                btnRefs.current[i] = node;
+              }}
+              className={`relative z-10 flex h-8 flex-1 min-w-0 shrink items-center justify-center rounded-md px-3 text-[12.5px] ${
+                selected ? 'font-medium text-text-primary' : 'text-text-secondary'
+              }`}
+            >
+              <span className="relative grid place-items-center leading-[1.4]">
+                <span aria-hidden className="invisible col-start-1 row-start-1 font-medium">
+                  {t.label}
+                </span>
+                <span className={`col-start-1 row-start-1 ${selected ? 'font-medium' : ''}`}>
+                  {t.label}
+                </span>
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /* ── Page ───────────────────────────────────────────────── */
 export default function LayoutVideoPage() {
@@ -222,9 +301,7 @@ export default function LayoutVideoPage() {
       >
         <aside className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
           <div className="space-y-3 p-3">
-            <div className="pointer-events-none" aria-hidden>
-              <Tabs items={TAB_ITEMS} value={tab} onValueChange={() => {}} label="Configuration sections" />
-            </div>
+            <SyncedTabs time={time} tab={tab} />
             <div className="space-y-4 rounded-xl border border-border bg-surface p-3">
               {tab === 'geometry' && (
                 <>
