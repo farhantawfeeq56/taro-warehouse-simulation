@@ -10,7 +10,7 @@ const easeOutExpo = (t: number) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /* ── Timeline (seconds, loops) ──────────────────────────── */
-const TOTAL = 13;
+const TOTAL = 14;
 const ZOOM_T0 = 1.6;
 const ZOOM_T1 = 3.0;
 const GEO_T0 = 3.4;
@@ -21,6 +21,9 @@ const INV_T1 = 8.0;
 const PLC_TAB = 8.6;
 const PLC_T0 = 9.0;
 const PLC_T1 = 10.8;
+const CURSOR_T0 = 11.2;
+const CLICK_T = 12.2;
+const CURSOR_OUT_T0 = 13.2;
 
 type Tab = 'geometry' | 'inventory' | 'placement';
 
@@ -176,10 +179,24 @@ export default function LayoutVideoPage() {
   }, []);
 
   const tab = tabAt(time);
+  // Uniform scale zoom (no stretch) that lands on exactly 1.0 and stays
+  // there — crisp for the whole second half, no zoom-out at the end.
   const zoomP = easeOutExpo(clamp01((time - ZOOM_T0) / (ZOOM_T1 - ZOOM_T0)));
-  const settleP = easeInOutCubic(clamp01((time - 11.4) / 1.6));
-  // Zoom via width, not transform — fractional scale() rasterizes text blurry.
-  const width = 300 + 60 * zoomP - 20 * settleP;
+  const scale = Math.round((0.85 + 0.15 * zoomP) * 1000) / 1000;
+
+  // Cursor: flies in from bottom-right, clicks, fades out before the loop.
+  const cursorP = easeInOutCubic(clamp01((time - CURSOR_T0) / (CLICK_T - CURSOR_T0)));
+  const cursorOpacity =
+    time < CURSOR_T0
+      ? 0
+      : time < CURSOR_OUT_T0
+        ? cursorP
+        : Math.max(0, 1 - (time - CURSOR_OUT_T0) / (TOTAL - CURSOR_OUT_T0));
+  const cursorDX = 150 * (1 - cursorP);
+  const cursorDY = -130 * (1 - cursorP);
+  const clickP = clamp01((time - CLICK_T) / 0.6);
+  const clicked = time >= CLICK_T;
+  const pressing = time >= CLICK_T && time < CLICK_T + 0.45;
 
   const v = {
     gridHeight: valueAt('gridHeight', time),
@@ -195,7 +212,10 @@ export default function LayoutVideoPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
-      <div style={{ width: `${width}px` }} className="max-w-[calc(100vw-2rem)]">
+      <div
+        style={{ transform: `scale(${scale})` }}
+        className="relative w-[340px] max-w-[calc(100vw-2rem)]"
+      >
         <aside className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
           <div className="space-y-3 p-3">
             <TabPills active={tab} />
@@ -290,11 +310,68 @@ export default function LayoutVideoPage() {
             </div>
           </div>
           <footer className="border-t border-border bg-card px-3 py-2.5">
-            <div className="w-full rounded-md bg-primary py-2 text-center text-sm font-medium text-primary-foreground">
+            <div
+              className={`w-full rounded-md bg-primary py-2 text-center text-sm font-medium text-primary-foreground transition-all duration-150 ${
+                pressing ? 'scale-[0.97] brightness-90' : ''
+              }`}
+            >
               Generate Warehouse
             </div>
           </footer>
         </aside>
+        {/* Cursor + click ripple, anchored to the button (bottom-center) */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div
+            className="absolute"
+            style={{
+              left: `calc(50% + ${cursorDX}px)`,
+              bottom: `${30 + cursorDY}px`,
+              opacity: cursorOpacity,
+            }}
+          >
+            {/* Ripple rings on click — clearly visible */}
+            {clicked && clickP < 1 && (
+              <>
+                <span
+                  className="absolute rounded-full border-[3px] border-primary"
+                  style={{
+                    width: 14 + 56 * clickP,
+                    height: 14 + 56 * clickP,
+                    left: -(7 + 28 * clickP),
+                    top: -(7 + 28 * clickP),
+                    opacity: 1 - clickP,
+                  }}
+                />
+                <span
+                  className="absolute rounded-full bg-primary"
+                  style={{
+                    width: 10,
+                    height: 10,
+                    left: -5,
+                    top: -5,
+                    opacity: 0.9 * (1 - clickP),
+                    transform: `scale(${1 + clickP * 0.6})`,
+                  }}
+                />
+              </>
+            )}
+            {/* Arrow pointer, tip at the click point */}
+            <svg
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              style={{ transform: 'translate(-2px, -2px)', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))' }}
+            >
+              <path
+                d="M5 3l14 7.5-6.2 1.8L9.5 19 5 3z"
+                fill="#111"
+                stroke="#fff"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+        </div>
       </div>
       <AgentationToolbar enabled />
     </div>
