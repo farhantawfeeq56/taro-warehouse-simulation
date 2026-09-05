@@ -160,8 +160,8 @@ export default function Animation3Page() {
   const availH = Math.max(stage.h - 32 - 48, 1);
   const fitScale =
     logicalW > 0 && logicalH > 0 && stage.w > 0 && stage.h > 0
-      ? Math.min(availW / logicalW, availH / logicalH, 1.5)
-      : 1;
+      ? Math.min(availW / logicalW, availH / logicalH, 1.5) * 0.8
+      : 0.8;
 
   return (
     <div className="h-screen overflow-hidden bg-muted/20">
