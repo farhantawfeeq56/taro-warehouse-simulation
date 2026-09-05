@@ -45,14 +45,8 @@ export default function Animation2Page() {
           y: bb.top + bb.height / 2 - wb.top,
         };
       }
-      // Fire one genuine click per loop as the timeline crosses CLICK_T.
-      const prev = timeRef.current;
-      let nt = prev + dt;
+      let nt = timeRef.current + dt;
       if (nt >= TOTAL) nt -= TOTAL;
-      const crossed =
-        (prev < CLICK_T && nt >= CLICK_T) ||
-        (nt < prev && (CLICK_T >= prev || CLICK_T <= nt));
-      if (crossed) wrap?.querySelector('button')?.click();
       timeRef.current = nt;
       setTime(nt);
       raf.current = requestAnimationFrame(tick);
@@ -91,7 +85,7 @@ export default function Animation2Page() {
           className={`transition-all duration-150 ${pressing ? 'scale-[0.97] brightness-90' : ''}`}
         >
           <LoadingButton
-            onAction={() => new Promise((r) => setTimeout(r, 1800))}
+            onAction={() => {}}
             pendingLabel="Simulating…"
             successLabel="Done"
             tone="primary"
