@@ -191,20 +191,6 @@ export default function Animation3Page() {
             </div>
           </div>
         )}
-
-        {/* Invisible transfer zones — click left/right halves to travel. */}
-        <button
-          aria-label="Previous warehouse"
-          title="Previous warehouse"
-          onClick={() => go(active - 1)}
-          className="absolute inset-y-0 left-0 w-1/4 cursor-w-resize outline-none"
-        />
-        <button
-          aria-label="Next warehouse"
-          title="Next warehouse"
-          onClick={() => go(active + 1)}
-          className="absolute inset-y-0 right-0 w-1/4 cursor-e-resize outline-none"
-        />
       </div>
 
       {/* Never in prod: local dev always, Vercel preview only when explicitly set. */}
