@@ -23,8 +23,8 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
     name: 'Thoroughfare',
     config: {
-      layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 2 },
-      inventory: { skuCount: 420, demandDistribution: 70, productAffinity: 30, storageFootprint: 82 },
+      layout: { gridHeight: 20, rackCount: 16, aisleWidth: 1, crossAisleCount: 2 },
+      inventory: { skuCount: 540, demandDistribution: 70, productAffinity: 30, storageFootprint: 85 },
       placement: { slottingBias: 80, categoryClustering: 30 },
     },
   },
@@ -39,8 +39,8 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
     name: 'Grand',
     config: {
-      layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 3 },
-      inventory: { skuCount: 500, demandDistribution: 55, productAffinity: 50, storageFootprint: 60 },
+      layout: { gridHeight: 24, rackCount: 12, aisleWidth: 1, crossAisleCount: 3 },
+      inventory: { skuCount: 530, demandDistribution: 55, productAffinity: 50, storageFootprint: 72 },
       placement: { slottingBias: 65, categoryClustering: 60 },
     },
   },
