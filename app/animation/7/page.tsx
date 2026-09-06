@@ -32,14 +32,14 @@ export default function Animation7Page() {
       `}</style>
 
       <div key={runId} className="text-center">
-        <div className="text-7xl font-bold tracking-tight text-text-primary sm:text-8xl" aria-label="Taro">
+        <div className="text-7xl font-bold tracking-tight text-foreground sm:text-8xl" aria-label="Taro">
           {WORD.map((ch, i) => (
             <span key={i} className="taro-settle inline-block" style={{ animationDelay: `${i * 75}ms, ${3000 + i * 70}ms` }}>
               {ch}
             </span>
           ))}
         </div>
-        <p className="taro-tag mt-4 text-[13px] font-medium uppercase tracking-[0.32em] text-text-secondary">
+        <p className="taro-tag mt-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
           Warehouse Decision Lab
         </p>
       </div>
