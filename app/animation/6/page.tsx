@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Trophy } from 'lucide-react';
 import { AgentationToolbar } from '@/components/agentation';
-import { LoadingButton } from '@/components/interior/loading-button';
 import { AiSuggestion } from '@/components/taro/experiment-recommendation-card';
 import type { WarehouseInsight } from '@/lib/taro/experiment-recommendation';
 import { cn } from '@/lib/utils';
@@ -49,16 +48,13 @@ const METRIC_DEFS = [
 ];
 
 /* Phases: table → close → AI chain → out. Ends on the last button. */
-const TOTAL = 9.5;
+const TOTAL = 8.5;
 const TABLE_OUT_T0 = 2.5;
 const TABLE_OUT_T1 = 3.5;
 const AI_IN_T = 3.5;
-const CLICK_TS = [4.8, 5.8];
+const CLICK_TS = [4.8, 5.8, 7.1];
 const TYPE_T0 = 6.1;
 const TYPE_T1 = 6.8;
-const ISO_T0 = 6.9;
-const ISO_T1 = 7.5;
-const PRESS2 = 8.1;
 const CONSTRAINTS_TEXT = 'max 14 racks, height at least 20';
 
 export default function Animation6Page() {
@@ -71,12 +67,9 @@ export default function Animation6Page() {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const aiRef = useRef<HTMLDivElement | null>(null);
-  const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null]);
-  const done = useRef<boolean[]>([false, false]);
-  const lastTry = useRef<number[]>([0, 0]);
-  const isoRect = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
-  const overlayBtn = useRef<HTMLDivElement | null>(null);
-  const pressed2 = useRef(false);
+  const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null, null]);
+  const done = useRef<boolean[]>([false, false, false]);
+  const lastTry = useRef<number[]>([0, 0, 0]);
   const typed = useRef(0);
   const taAnchor = useRef<{ x: number; y: number } | null>(null);
   const prevTime = useRef(0);
@@ -89,11 +82,9 @@ export default function Animation6Page() {
     last.current = null;
     prevTime.current = 0;
     setRunId((id) => id + 1);
-    anchors.current = [null, null];
-    done.current = [false, false];
-    lastTry.current = [0, 0];
-    isoRect.current = null;
-    pressed2.current = false;
+    anchors.current = [null, null, null];
+    done.current = [false, false, false];
+    lastTry.current = [0, 0, 0];
     typed.current = 0;
     taAnchor.current = null;
     setTime(0);
@@ -160,7 +151,8 @@ export default function Animation6Page() {
       } else {
         const btns = ai.querySelectorAll('button');
         for (const b of btns) {
-          if (b.textContent?.includes('Generate experiment')) {
+          const txt = b.textContent ?? '';
+          if (i === 1 ? txt.includes('Generate experiment') : txt.includes('Generate') && !txt.toLowerCase().includes('experiment')) {
             anchors.current[i] = pt(b);
             break;
           }
@@ -168,11 +160,14 @@ export default function Animation6Page() {
       }
       const at = CLICK_TS[i];
       const a = anchors.current[i];
-      // Step is done when its UI is gone (opened / advanced).
+      // Steps 0-1 are done when their UI is gone (opened / advanced);
+      // step 2 (final Generate) ends on fire.
       const gone =
         i === 0
           ? ![...ai.querySelectorAll('span')].some((s) => s.textContent === 'View it')
-          : ![...ai.querySelectorAll('button')].some((b) => b.textContent?.includes('Generate experiment'));
+          : i === 1
+            ? ![...ai.querySelectorAll('button')].some((b) => b.textContent?.includes('Generate experiment'))
+            : done.current[i];
       if (gone) {
         done.current[i] = true;
       } else if (a && time >= at && time - lastTry.current[i] > 0.4) {
@@ -189,19 +184,7 @@ export default function Animation6Page() {
         );
         el.click();
         setClickT(at);
-      }
-    }
-    // Track the finale Generate button for its breakout. (Its labels stack
-    // in the DOM, so match loosely — the experiment button is gone by now.)
-    if (aiRef.current && time >= CLICK_TS[1]) {
-      const btns = aiRef.current.querySelectorAll('button');
-      for (const b of btns) {
-        const txt = b.textContent ?? '';
-        if (txt.includes('Generate') && !txt.toLowerCase().includes('experiment')) {
-          const r = b.getBoundingClientRect();
-          isoRect.current = { left: r.left, top: r.top, width: r.width, height: r.height };
-          break;
-        }
+        if (i === 2) done.current[i] = true;
       }
     }
     // Track the textarea for the cursor to watch, then type into it.
@@ -319,57 +302,15 @@ export default function Animation6Page() {
     cy = A2.y;
     cop = 1;
   }
-  // Cursor's job ends at the Generate experiment click — gone after that.
-  if (time >= CLICK_TS[1] && time < 7.4) {
-    cx = (anchors.current[1] ?? A1).x;
-    cy = (anchors.current[1] ?? A1).y;
-    cop = Math.max(0, 1 - (time - CLICK_TS[1] - 0.1) / 0.6);
+  if (time >= CLICK_TS[2]) {
+    cop = Math.max(0, 1 - (time - CLICK_TS[2] - 0.4) / 0.8);
   }
-
-  // Finale: the Generate button breaks out to center stage.
-  const iso = isoRect.current;
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
-  const isoP = easeInOutCubic(clamp01((time - ISO_T0) / (ISO_T1 - ISO_T0)));
-  const isoX = iso ? iso.left + (vw / 2 - iso.left - iso.width / 2) * isoP : vw / 2;
-  const isoY = iso ? iso.top + (vh / 2 - iso.top - iso.height / 2) * isoP : vh / 2;
-  const isoW = iso?.width ?? 160;
-  if (time >= 7.4) {
-    const p2 = easeInOutCubic(clamp01((time - 7.5) / 0.6));
-    cx = isoX + isoW / 2 + 190 * (1 - p2);
-    cy = isoY + 18 + 160 * (1 - p2);
-    cop = clamp01((time - 7.4) / 0.2);
-    if (time >= 8.6) cop = Math.max(0, 1 - (time - 8.6) / 0.7);
-  }
-
-  // Theatre press on the breakout button — same squash as /animation/2.
-  useEffect(() => {
-    if (!pressed2.current && time >= PRESS2 && overlayBtn.current) {
-      pressed2.current = true;
-      overlayBtn.current.animate(
-        [
-          { transform: 'scale(1)', filter: 'brightness(1)' },
-          { transform: 'scale(0.97)', filter: 'brightness(0.9)' },
-          { transform: 'scale(1)', filter: 'brightness(1)' },
-        ],
-        { duration: 350, easing: 'ease-out' }
-      );
-    }
-  }, [time]);
-
 
 
   return (
     <div ref={stageRef} className="relative flex h-screen items-center justify-center overflow-hidden bg-background px-4">
       {/* Both acts share one grid cell — the size never moves. */}
-      <div
-        ref={cardRef}
-        style={{
-          transform: `scale(${fit})`,
-          opacity: 1 - easeInOutCubic(clamp01((time - ISO_T0) / (ISO_T1 - ISO_T0))),
-        }}
-        className="grid w-full max-w-4xl place-items-center"
-      >
+      <div ref={cardRef} style={{ transform: `scale(${fit})` }} className="grid w-full max-w-4xl place-items-center">
         <div className="col-start-1 row-start-1 w-full" style={tableClose}>
           <div className="overflow-hidden rounded-xl border border-border bg-surface">
             <div className="overflow-hidden">
@@ -449,20 +390,6 @@ export default function Animation6Page() {
           <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={() => new Promise<void>((r) => setTimeout(r, 600))} />
         </div>
       </div>
-
-      {/* Breakout: only the Generate button remains, center stage. */}
-      {iso && time >= ISO_T0 - 0.05 && (
-        <div
-          className="fixed z-[105]"
-          style={{ left: isoX, top: isoY, width: isoW }}
-        >
-          <div ref={overlayBtn}>
-            <LoadingButton onAction={() => {}} tone="primary" className="w-full justify-center">
-              Generate
-            </LoadingButton>
-          </div>
-        </div>
-      )}
 
       {/* Pointer */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
