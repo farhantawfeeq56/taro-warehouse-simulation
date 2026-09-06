@@ -301,7 +301,12 @@ export default function Animation6Page() {
     cy = A2.y;
     cop = 1;
   }
-  if (time >= 7.5) cop = Math.max(0, 1 - (time - 7.5) / 0.8);
+  // Cursor's job ends at the Generate experiment click — gone after that.
+  if (time >= CLICK_TS[1]) {
+    cx = (anchors.current[1] ?? A1).x;
+    cy = (anchors.current[1] ?? A1).y;
+    cop = Math.max(0, 1 - (time - CLICK_TS[1] - 0.1) / 0.6);
+  }
 
 
 
