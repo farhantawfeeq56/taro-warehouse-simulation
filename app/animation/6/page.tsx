@@ -60,6 +60,7 @@ const CONSTRAINTS_TEXT = 'max 14 racks, height at least 20';
 export default function Animation6Page() {
   const [time, setTime] = useState(0);
   const [clickT, setClickT] = useState(-1);
+  const [runId, setRunId] = useState(0);
 
   const raf = useRef<number | null>(null);
   const last = useRef<number | null>(null);
@@ -80,6 +81,7 @@ export default function Animation6Page() {
   const replay = () => {
     last.current = null;
     prevTime.current = 0;
+    setRunId((id) => id + 1);
     anchors.current = [null, null, null];
     done.current = [false, false, false];
     lastTry.current = [0, 0, 0];
@@ -381,7 +383,7 @@ export default function Animation6Page() {
             </div>
           </div>
 
-        <div ref={aiRef} style={aiShow} className="col-start-1 row-start-1 mt-3 w-full">
+        <div key={runId} ref={aiRef} style={aiShow} className="col-start-1 row-start-1 mt-3 w-full">
           {/* Confirmation paints after the last click — after we're gone. */}
           <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={() => new Promise<void>((r) => setTimeout(r, 600))} />
         </div>
