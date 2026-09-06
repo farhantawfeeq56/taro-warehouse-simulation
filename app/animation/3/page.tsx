@@ -50,9 +50,9 @@ const ORDER_COUNT = 50;
 const AVG_ORDER_SIZE = 3;
 const WORKERS = 5;
 
-/* Drop the single order reaching furthest left (left fifth only) — it draws
-   a lone extreme excursion across the floorplan. Warehouse 2 only. */
-function dropLeftExtremeOrder(warehouse: Warehouse, orders: Order[]): Order[] {
+/* Drop every order rooted in the left end (left fifth) — their excursions
+   stretch the route across the floorplan. Warehouse 2 only. */
+function dropLeftEndOrders(warehouse: Warehouse, orders: Order[]): Order[] {
   const skuX = new Map<string, number>();
   for (const row of warehouse.grid) {
     for (const cell of row) {
@@ -62,21 +62,15 @@ function dropLeftExtremeOrder(warehouse: Warehouse, orders: Order[]): Order[] {
       }
     }
   }
-  let worstId: string | null = null;
-  let worstX = Infinity;
-  for (const o of orders) {
+  const edge = warehouse.width * 0.2;
+  return orders.filter((o) => {
     let m = Infinity;
     for (const it of o.items) {
       const x = skuX.get(it.skuId);
       if (x !== undefined) m = Math.min(m, x);
     }
-    if (m < worstX) {
-      worstX = m;
-      worstId = o.id;
-    }
-  }
-  if (worstId === null || worstX >= warehouse.width * 0.2) return orders;
-  return orders.filter((o) => o.id !== worstId);
+    return m >= edge;
+  });
 }
 /** Same baseline as the main app's strategy replay. */
 const REPLAY_MS = 3000;
@@ -126,7 +120,7 @@ export default function Animation3Page() {
       // Warehouse 2 only: prune the lone left-extreme order.
       const s =
         active === 1
-          ? { ...raw, orders: dropLeftExtremeOrder(raw.warehouse, raw.orders) }
+          ? { ...raw, orders: dropLeftEndOrders(raw.warehouse, raw.orders) }
           : raw;
       setSessions((prev) => {
         if (prev[active]) return prev;
