@@ -19,7 +19,7 @@ const CLICK_T = 2.25;
 const SETTLE_T1 = 2.8;
 const OUT_T0 = 6.4;
 
-export default function Animation7Page() {
+export default function Animation5Page() {
   const [time, setTime] = useState(0);
   const raf = useRef<number | null>(null);
   const last = useRef<number | null>(null);

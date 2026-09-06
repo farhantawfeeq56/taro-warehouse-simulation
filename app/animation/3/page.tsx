@@ -74,7 +74,7 @@ type Built = {
   results: SimulationResults | null;
 } | null;
 
-export default function Animation4Page() {
+export default function Animation3Page() {
   const [built, setBuilt] = useState<Built[]>([null, null, null, null]);
   const [readyCount, setReadyCount] = useState(0);
   const [time, setTime] = useState(0);

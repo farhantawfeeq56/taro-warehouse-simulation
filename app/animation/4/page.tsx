@@ -57,7 +57,7 @@ const TYPE_T0 = 6.1;
 const TYPE_T1 = 6.8;
 const CONSTRAINTS_TEXT = 'max 14 racks, height at least 20';
 
-export default function Animation6Page() {
+export default function Animation4Page() {
   const [time, setTime] = useState(0);
   const [clickT, setClickT] = useState(-1);
   const [runId, setRunId] = useState(0);

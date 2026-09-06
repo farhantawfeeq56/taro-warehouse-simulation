@@ -48,7 +48,7 @@ const AVG_ORDER_SIZE = 3;
 
 type Session = ReturnType<typeof generateWarehouseSession>;
 
-export default function Animation8Page() {
+export default function Animation6Page() {
   const [active, setActive] = useState(0);
   const [sessions, setSessions] = useState<(Session | null)[]>([null, null, null, null]);
   const [stage, setStage] = useState({ w: 0, h: 0 });
