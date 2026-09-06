@@ -55,46 +55,30 @@ const TOTAL = 3;
 const WIN_STARTS = [0, 0.6, 1.2, 1.8];
 const WIN_DUR = 0.6;
 
-/* Speed ramping — output time = curve(input time), slope of the curve = speed.
-   Each variant is a cubic Bézier (same model as CSS easing), solved properly. */
-function cubicBezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
-  const cx = 3 * x1;
-  const bx = 3 * (x2 - x1) - cx;
-  const ax = 1 - cx - bx;
-  const cy = 3 * y1;
-  const by = 3 * (y2 - y1) - cy;
-  const ay = 1 - cy - by;
-  const sx = (t: number) => ((ax * t + bx) * t + cx) * t;
-  const sy = (t: number) => ((ay * t + by) * t + cy) * t;
-  const dx = (t: number) => (3 * ax * t + 2 * bx) * t + cx;
-  return (x: number) => {
-    let t = Math.min(1, Math.max(0, x));
-    for (let i = 0; i < 5; i++) {
-      const err = sx(t) - x;
-      if (Math.abs(err) < 1e-5) break;
-      const d = dx(t);
-      if (Math.abs(d) < 1e-6) break;
-      t -= err / d;
-    }
-    t = Math.min(1, Math.max(0, t));
-    if (Math.abs(sx(t) - x) > 1e-3) {
-      let lo = 0;
-      let hi = 1;
-      for (let i = 0; i < 12; i++) {
-        t = (lo + hi) / 2;
-        if (sx(t) < x) lo = t;
-        else hi = t;
-      }
-    }
-    return sy(t);
+/* Speed ramping — velocity follows a bell (Gaussian): slow-fast-slow with
+   perfect entry/exit symmetry. Position = normalized bell integral. */
+function bellRemap(sigma: number): { solve: (x: number) => number; speed: (x: number) => number } {
+  const N = 256;
+  const table: number[] = [0];
+  let sum = 0;
+  const g = (u: number) => Math.exp(-((u - 0.5) * (u - 0.5)) / (2 * sigma * sigma));
+  for (let i = 1; i <= N; i++) {
+    sum += g((i - 0.5) / N);
+    table.push(sum);
+  }
+  const solve = (x: number) => {
+    const u = Math.min(1, Math.max(0, x)) * N;
+    const i = Math.min(N - 1, Math.floor(u));
+    const f = u - i;
+    return ((table[i] * (1 - f) + table[i + 1] * f) / sum) * 1;
   };
+  return { solve, speed: (x: number) => g(Math.min(1, Math.max(0, x))) };
 }
 
-/* Symmetric: exit slowness mirrors entry slowness on every curve. */
 const CURVES = [
-  { n: 1, label: 'Classic', solve: cubicBezier(0.42, 0, 0.58, 1) },
-  { n: 2, label: 'Snap', solve: cubicBezier(0.7, 0, 0.3, 1) },
-  { n: 3, label: 'Cruise', solve: cubicBezier(0.3, 0, 0.7, 1) },
+  { n: 1, label: 'Tight', ...bellRemap(0.16) },
+  { n: 2, label: 'Bell', ...bellRemap(0.26) },
+  { n: 3, label: 'Wide', ...bellRemap(0.4) },
 ];
 
 function warp(t: number, variant: number): number {
@@ -307,9 +291,10 @@ export default function Animation4Page() {
       <div className="fixed bottom-4 right-4 z-[110] rounded-2xl border border-border bg-card p-2 shadow-lg">
         <div className="flex items-center gap-1">
           {CURVES.map((o) => {
+            // Thumbnail plots the speed bell itself (tall = fast).
             const pts = Array.from({ length: 25 }, (_, i) => {
               const u = i / 24;
-              return `${(u * 20).toFixed(1)},${(16 - o.solve(u) * 14 - 1).toFixed(1)}`;
+              return `${(u * 20).toFixed(1)},${(16 - o.speed(u) * 14 - 1).toFixed(1)}`;
             }).join(' ');
             return (
               <button
