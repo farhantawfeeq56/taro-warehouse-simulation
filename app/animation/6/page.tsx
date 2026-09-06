@@ -71,7 +71,6 @@ export default function Animation6Page() {
   const done = useRef<boolean[]>([false, false, false]);
   const lastTry = useRef<number[]>([0, 0, 0]);
   const typed = useRef(0);
-  const taAnchor = useRef<{ x: number; y: number } | null>(null);
   const prevTime = useRef(0);
   const [fit, setFit] = useState(1);
   const [playing, setPlaying] = useState(false);
@@ -86,7 +85,6 @@ export default function Animation6Page() {
     done.current = [false, false, false];
     lastTry.current = [0, 0, 0];
     typed.current = 0;
-    taAnchor.current = null;
     setTime(0);
     setClickT(-1);
     setPlaying(true);
@@ -187,15 +185,8 @@ export default function Animation6Page() {
         if (i === 2) done.current[i] = true;
       }
     }
-    // Track the textarea for the cursor to watch, then type into it.
-    const taEl = aiRef.current?.querySelector('textarea');
-    if (taEl && stageRef.current) {
-      const sr = stageRef.current.getBoundingClientRect();
-      const r = taEl.getBoundingClientRect();
-      taAnchor.current = { x: r.left + r.width / 2 - sr.left, y: r.top + r.height / 2 - sr.top };
-    }
     if (time >= TYPE_T0 && time <= TYPE_T1 + 0.2) {
-      const ta = taEl;
+      const ta = aiRef.current?.querySelector('textarea');
       if (ta) {
         const n = Math.min(
           CONSTRAINTS_TEXT.length,
@@ -284,26 +275,16 @@ export default function Animation6Page() {
     cop = clamp01((time - t0) / 0.2);
   };
 
-  const TA = taAnchor.current ?? A1;
   if (time < CLICK_TS[0]) {
     leg(3.6, CLICK_TS[0], A0.x + SX, A0.y + SY, A0.x, A0.y);
   } else if (time < CLICK_TS[1]) {
     leg(CLICK_TS[0], CLICK_TS[1], A0.x, A0.y, A1.x, A1.y);
-  } else if (time < TYPE_T0) {
-    leg(CLICK_TS[1], TYPE_T0, A1.x, A1.y, TA.x, TA.y);
-  } else if (time < TYPE_T1) {
-    cx = TA.x;
-    cy = TA.y + Math.sin((time - TYPE_T0) * 12) * 2;
-    cop = 1;
-  } else if (time < CLICK_TS[2]) {
-    leg(TYPE_T1, CLICK_TS[2], TA.x, TA.y, A2.x, A2.y);
   } else {
-    cx = A2.x;
-    cy = A2.y;
-    cop = 1;
-  }
-  if (time >= CLICK_TS[2]) {
-    cop = Math.max(0, 1 - (time - CLICK_TS[2] - 0.4) / 0.8);
+    // Cursor's job ends on the Generate experiment click — typing and the
+    // final Generate happen on their own.
+    cx = A1.x;
+    cy = A1.y;
+    cop = Math.max(0, 1 - (time - CLICK_TS[1] - 0.1) / 0.6);
   }
 
 
