@@ -38,15 +38,13 @@ export default function Animation7Page() {
       if (last.current == null) last.current = now;
       const dt = (now - last.current) / 1000;
       last.current = now;
-      // Measure the real button center so the cursor lands exactly on it.
-      const wrap = wrapRef.current;
+      // Button center in unscaled layout coordinates — immune to the
+      // button's own zoom/press scaling, so the cursor never shakes.
       const box = buttonBoxRef.current;
-      if (wrap && box) {
-        const wb = wrap.getBoundingClientRect();
-        const bb = box.getBoundingClientRect();
+      if (box) {
         clickRef.current = {
-          x: bb.left + bb.width / 2 - wb.left,
-          y: bb.top + bb.height / 2 - wb.top,
+          x: box.offsetLeft + box.offsetWidth / 2,
+          y: box.offsetTop + box.offsetHeight / 2,
         };
       }
       let nt = timeRef.current + dt;
@@ -68,8 +66,12 @@ export default function Animation7Page() {
   // Button zooms out a touch before the click, dips on press, settles after.
   const zoomP = easeOutCubic(clamp01((time - ZOOM_T0) / (ZOOM_T1 - ZOOM_T0)));
   const settleP = easeInOutCubic(clamp01((time - CLICK_T) / (SETTLE_T1 - CLICK_T)));
-  const pressing = time >= CLICK_T && time < CLICK_T + 0.45;
-  const btnScale = (1 + 0.07 * zoomP * (1 - settleP)) * (pressing ? 0.93 : 1);
+  // Eased press envelope — dips in fast, releases soft. No snapping.
+  const pressAmt =
+    easeOutCubic(clamp01((time - CLICK_T) / 0.12)) *
+    (1 - easeInOutCubic(clamp01((time - CLICK_T - 0.25) / 0.2)));
+  const btnScale = 1 + 0.07 * zoomP * (1 - settleP) - 0.08 * pressAmt;
+  const btnBright = 1 - 0.1 * pressAmt;
 
   // Cursor: flies in from bottom-right, clicks, fades out before the loop.
   const cursorP = easeInOutCubic(clamp01((time - FLY_T0) / (CLICK_T - FLY_T0)));
@@ -89,8 +91,7 @@ export default function Animation7Page() {
           {/* The genuine Generate button — same component as the app. */}
           <div
             ref={buttonBoxRef}
-            style={{ transform: `scale(${btnScale})` }}
-            className={pressing ? 'brightness-90' : ''}
+            style={{ transform: `scale(${btnScale})`, filter: `brightness(${btnBright})` }}
           >
             <LoadingButton
               onAction={() => {}}
