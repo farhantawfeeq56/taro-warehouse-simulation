@@ -38,11 +38,6 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-const easeOutBack = (t: number) => {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-};
 const fmtNumber = (n: number, digits = 1) =>
   n.toLocaleString(undefined, { maximumFractionDigits: digits });
 
@@ -70,15 +65,6 @@ export default function Animation6Page() {
   const [time, setTime] = useState(0);
   const [clickT, setClickT] = useState(-1);
   const [runId, setRunId] = useState(0);
-  const [variant, setVariant] = useState(1);
-
-  const VARIANTS = [
-    { n: 1, label: 'Fly' },
-    { n: 2, label: 'Arc' },
-    { n: 3, label: 'Grow' },
-    { n: 4, label: 'Rise' },
-    { n: 5, label: 'Dissolve' },
-  ];
 
   const raf = useRef<number | null>(null);
   const last = useRef<number | null>(null);
@@ -99,8 +85,7 @@ export default function Animation6Page() {
   const playingRef = useRef(false);
   playingRef.current = playing;
 
-  const replay = (v?: number) => {
-    if (v !== undefined) setVariant(v);
+  const replay = () => {
     last.current = null;
     prevTime.current = 0;
     setRunId((id) => id + 1);
@@ -116,12 +101,10 @@ export default function Animation6Page() {
     setPlaying(true);
   };
 
-  // R replays, 1-5 switch breakout style. Nothing else ever starts it.
+  // R replays. Nothing else ever starts it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
-      if (k === 'r') replay();
-      else if (['1', '2', '3', '4', '5'].includes(k)) replay(Number(k));
+      if (e.key.toLowerCase() === 'r') replay();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -348,50 +331,9 @@ export default function Animation6Page() {
   const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
   const isoP = easeInOutCubic(clamp01((time - ISO_T0) / (ISO_T1 - ISO_T0)));
+  const isoX = iso ? iso.left + (vw / 2 - iso.left - iso.width / 2) * isoP : vw / 2;
+  const isoY = iso ? iso.top + (vh / 2 - iso.top - iso.height / 2) * isoP : vh / 2;
   const isoW = iso?.width ?? 160;
-  const endX = (iso?.left ?? vw / 2) + (vw / 2 - (iso?.left ?? vw / 2) - isoW / 2);
-  const endY = (iso?.top ?? vh / 2) + (vh / 2 - (iso?.top ?? vh / 2) - 18);
-  let isoX = endX;
-  let isoY = endY;
-  let isoS = 1;
-  let isoO = 1;
-  if (iso) {
-    if (variant === 1) {
-      // Fly: straight eased lerp.
-      isoX = iso.left + (endX - iso.left) * isoP;
-      isoY = iso.top + (endY - iso.top) * isoP;
-    } else if (variant === 2) {
-      // Arc: swoops up and down into center.
-      isoX = iso.left + (endX - iso.left) * isoP;
-      isoY = iso.top + (endY - iso.top) * isoP - Math.sin(isoP * Math.PI) * 120;
-    } else if (variant === 3) {
-      // Grow: travels fast, swells, settles.
-      const q = easeInOutCubic(clamp01(isoP / 0.35));
-      isoX = iso.left + (endX - iso.left) * q;
-      isoY = iso.top + (endY - iso.top) * q;
-      isoS = 1 + 0.25 * Math.sin(Math.min(1, isoP) * Math.PI);
-    } else if (variant === 4) {
-      // Rise: overshoots center, bounces back.
-      const b = isoP <= 0 ? 0 : isoP >= 1 ? 1 : easeOutBack(isoP);
-      isoX = iso.left + (endX - iso.left) * isoP;
-      isoY = iso.top + (endY - iso.top) * b;
-    } else {
-      // Dissolve: out at origin, in at center.
-      if (isoP < 0.5) {
-        const q = isoP / 0.5;
-        isoX = iso.left;
-        isoY = iso.top;
-        isoO = 1 - q;
-        isoS = 1 - 0.1 * q;
-      } else {
-        const q = (isoP - 0.5) / 0.5;
-        isoX = endX;
-        isoY = endY;
-        isoO = q;
-        isoS = 1.08 - 0.08 * q;
-      }
-    }
-  }
   if (time >= 7.4) {
     const p2 = easeInOutCubic(clamp01((time - 7.5) / 0.6));
     cx = isoX + isoW / 2 + 190 * (1 - p2);
@@ -512,7 +454,7 @@ export default function Animation6Page() {
       {iso && time >= ISO_T0 - 0.05 && (
         <div
           className="fixed z-[105]"
-          style={{ left: isoX, top: isoY, width: isoW, opacity: isoO, transform: `scale(${isoS})`, transformOrigin: 'top left' }}
+          style={{ left: isoX, top: isoY, width: isoW }}
         >
           <div ref={overlayBtn}>
             <LoadingButton onAction={() => {}} tone="primary" className="w-full justify-center">
@@ -544,27 +486,6 @@ export default function Animation6Page() {
             strokeLinejoin="round"
           />
         </svg>
-      </div>
-
-      {/* vartest breakout styles — keys 1-5, R replay */}
-      <div className="fixed bottom-4 right-4 z-[110] rounded-2xl border border-border bg-card p-2 shadow-lg">
-        <div className="flex items-center gap-1">
-          {VARIANTS.map((o) => (
-            <button
-              key={o.n}
-              onClick={() => replay(o.n)}
-              title={`${o.label} — press ${o.n}`}
-              className={`rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                variant === o.n ? 'bg-primary text-primary-foreground' : 'text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              {o.n} · {o.label}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1 text-center text-[11px] text-text-secondary">
-          {playing ? 'playing…' : 'R replay · 1–5 style'}
-        </p>
       </div>
 
       <AgentationToolbar
