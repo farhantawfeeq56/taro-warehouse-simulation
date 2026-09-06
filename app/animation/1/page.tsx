@@ -303,7 +303,9 @@ export default function LayoutVideoPage() {
   // Uniform scale zoom (no stretch) that lands on exactly 1.0 and stays
   // there — crisp for the whole second half, no zoom-out at the end.
   const zoomP = easeOutExpo(clamp01((time - ZOOM_T0) / (ZOOM_T1 - ZOOM_T0)));
-  const scale = Math.round((0.85 + 0.15 * zoomP) * 1000) / 1000;
+  const scale = Math.round((0.7 + 0.3 * zoomP) * 1000) / 1000;
+  // From nothing: fades in just ahead of the zoom.
+  const appear = easeOutExpo(clamp01((time - (ZOOM_T0 - 0.5)) / 1.2));
   scaleRef.current = scale * fit;
   const click = clickRef.current;
 
@@ -317,8 +319,6 @@ export default function LayoutVideoPage() {
         : Math.max(0, 1 - (time - CURSOR_OUT_T0) / (TOTAL - CURSOR_OUT_T0));
   const cursorDX = 150 * (1 - cursorP);
   const cursorDY = 140 * (1 - cursorP);
-  const clickP = clamp01((time - CLICK_T) / 0.6);
-  const clicked = time >= CLICK_T;
   const pressing = time >= CLICK_T && time < CLICK_T + 0.45;
 
   const v = {
@@ -382,7 +382,7 @@ export default function LayoutVideoPage() {
     <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
       <div
         ref={wrapRef}
-        style={{ transform: `scale(${scale * fit})` }}
+        style={{ transform: `scale(${scale * fit})`, opacity: appear }}
         className="relative w-[340px] max-w-[calc(100vw-2rem)]"
       >
         <aside ref={asideRef} className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
@@ -441,32 +441,6 @@ export default function LayoutVideoPage() {
               opacity: cursorOpacity,
             }}
           >
-            {/* Ripple rings on click — clearly visible */}
-            {clicked && clickP < 1 && (
-              <>
-                <span
-                  className="absolute rounded-full border-[3px] border-primary"
-                  style={{
-                    width: 14 + 56 * clickP,
-                    height: 14 + 56 * clickP,
-                    left: -(7 + 28 * clickP),
-                    top: -(7 + 28 * clickP),
-                    opacity: 1 - clickP,
-                  }}
-                />
-                <span
-                  className="absolute rounded-full bg-primary"
-                  style={{
-                    width: 10,
-                    height: 10,
-                    left: -5,
-                    top: -5,
-                    opacity: 0.9 * (1 - clickP),
-                    transform: `scale(${1 + clickP * 0.6})`,
-                  }}
-                />
-              </>
-            )}
             {/* Arrow pointer — offset so the tip sits exactly on the click point */}
             <svg
               width="26"
