@@ -128,7 +128,7 @@ export default function Animation5Page() {
     <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
       <div ref={cardRef} style={{ transform: `scale(${fit})` }} className="w-full max-w-4xl">
         <div className="overflow-hidden rounded-xl border border-border bg-surface">
-          <div className="overflow-x-auto">
+          <div className="overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border" style={rowIn(0)}>
