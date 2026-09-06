@@ -303,9 +303,8 @@ export default function LayoutVideoPage() {
   // Uniform scale zoom (no stretch) that lands on exactly 1.0 and stays
   // there — crisp for the whole second half, no zoom-out at the end.
   const zoomP = easeOutExpo(clamp01((time - ZOOM_T0) / (ZOOM_T1 - ZOOM_T0)));
-  const scale = Math.round((0.7 + 0.3 * zoomP) * 1000) / 1000;
-  // From nothing: fades in just ahead of the zoom.
-  const appear = easeOutExpo(clamp01((time - (ZOOM_T0 - 0.5)) / 1.2));
+  // From nothing: grows out of a point, no fading — pure zoom.
+  const scale = Math.round(zoomP * 1000) / 1000;
   scaleRef.current = scale * fit;
   const click = clickRef.current;
 
@@ -382,7 +381,7 @@ export default function LayoutVideoPage() {
     <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
       <div
         ref={wrapRef}
-        style={{ transform: `scale(${scale * fit})`, opacity: appear }}
+        style={{ transform: `scale(${scale * fit})` }}
         className="relative w-[340px] max-w-[calc(100vw-2rem)]"
       >
         <aside ref={asideRef} className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
