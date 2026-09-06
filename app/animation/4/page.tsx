@@ -55,6 +55,14 @@ const TOTAL = 3;
 const WIN_STARTS = [0, 0.6, 1.2, 1.8];
 const WIN_DUR = 0.6;
 
+/* Speed ramping — the whole video plays through a remap curve. */
+function warp(t: number, variant: number): number {
+  const u = Math.min(1, Math.max(0, t / TOTAL));
+  if (variant === 1) return TOTAL * (1 - Math.pow(1 - u, 2.4)); // Rush: fast start, settles
+  if (variant === 2) return TOTAL * Math.pow(u, 2.4); // Build: slow start, rushes home
+  return TOTAL * (u * u * u * (u * (u * 6 - 15) + 10)); // Float: slow-fast-slow
+}
+
 function slotAt(t: number): { idx: number; progress: number } {
   let idx = 0;
   for (let k = 0; k < WIN_STARTS.length; k++) {
@@ -83,6 +91,17 @@ export default function Animation4Page() {
   const animationProgressRef = useRef(0);
   const [replayId, setReplayId] = useState(0);
   const lastIdx = useRef(0);
+  const [variant, setVariant] = useState(1);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '1') setVariant(1);
+      else if (e.key === '2') setVariant(2);
+      else if (e.key === '3') setVariant(3);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Build all four warehouses + simulations once, yielding between each.
   useEffect(() => {
@@ -157,7 +176,7 @@ export default function Animation4Page() {
   }, []);
 
   const ready = readyCount >= SHOWCASES.length && built.every(Boolean);
-  const { idx, progress } = slotAt(time);
+  const { idx, progress } = slotAt(warp(time, variant));
   if (idx !== lastIdx.current) {
     lastIdx.current = idx;
     setReplayId((id) => id + 1);
@@ -212,6 +231,30 @@ export default function Animation4Page() {
         )}
       </div>
 
+      {/* vartest speed curves — keys 1-3 */}
+      <div className="fixed bottom-4 right-4 z-[110] flex items-center gap-1 rounded-full border border-border bg-card p-1 shadow-lg">
+        {[
+          { n: 1, label: 'Rush', d: 'M2 14 C 8 14, 10 3, 18 2' },
+          { n: 2, label: 'Build', d: 'M2 2 C 10 3, 12 14, 18 14' },
+          { n: 3, label: 'Float', d: 'M2 12 C 7 12, 7 4, 11 4 C 15 4, 15 12, 18 12' },
+        ].map((o) => (
+          <button
+            key={o.n}
+            onClick={() => setVariant(o.n)}
+            title={`Curve ${o.n} (${o.label}) — press ${o.n}`}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors ${
+              variant === o.n
+                ? 'bg-primary text-primary-foreground'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <svg width="20" height="16" viewBox="0 0 20 16" aria-hidden>
+              <path d={o.d} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            {o.n} · {o.label}
+          </button>
+        ))}
+      </div>
       {/* Never in prod: local dev always, Vercel preview only when explicitly set. */}
       <AgentationToolbar
         enabled={
