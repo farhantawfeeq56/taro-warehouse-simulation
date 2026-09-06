@@ -47,9 +47,14 @@ const METRIC_DEFS = [
   { key: 'orders', label: 'Orders Done', pick: (r: Baked) => r.ordersCompleted, format: (n: number) => `${fmtNumber(n, 0)}` },
 ];
 
+/* Phases: table → close → AI chain → out. Ends on the last button. */
 const TOTAL = 8;
-/* Click chain — each lands on exact button text. */
-const CLICK_TS = [3.4, 4.4, 5.4];
+const TABLE_OUT_T0 = 2.5;
+const TABLE_OUT_T1 = 3.5;
+const AI_IN_T = 3.5;
+const CLICK_TS = [4.3, 5.3, 6.3];
+const AI_OUT_T0 = 6.7;
+const AI_OUT_T1 = 7.4;
 
 export default function Animation6Page() {
   const [time, setTime] = useState(0);
@@ -60,15 +65,13 @@ export default function Animation6Page() {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const aiRef = useRef<HTMLDivElement | null>(null);
+  const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null, null]);
+  const fired = useRef<boolean[]>([false, false, false]);
   const prevTime = useRef(0);
-  const maxH = useRef(0);
   const [fit, setFit] = useState(1);
   const [playing, setPlaying] = useState(false);
   const playingRef = useRef(false);
   playingRef.current = playing;
-
-  const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null, null]);
-  const fired = useRef<boolean[]>([false, false, false]);
 
   const replay = () => {
     last.current = null;
@@ -120,7 +123,7 @@ export default function Animation6Page() {
     const stage = stageRef.current;
     const ai = aiRef.current;
     const i = fired.current.findIndex((f) => !f);
-    if (stage && ai && i >= 0) {
+    if (stage && ai && i >= 0 && time >= AI_IN_T) {
       const sr = stage.getBoundingClientRect();
       const pt = (el: Element) => {
         const r = el.getBoundingClientRect();
@@ -157,12 +160,11 @@ export default function Animation6Page() {
     prevTime.current = time;
   }, [time]);
 
-  // Shrink-to-fit on the tallest seen state.
+  // Stack height never changes (both acts share one grid cell) — one fit.
   useEffect(() => {
     const compute = () => {
       const h = cardRef.current?.offsetHeight ?? 0;
-      if (h > maxH.current) maxH.current = h;
-      const f = maxH.current > 0 ? Math.min(1, (window.innerHeight - 32) / maxH.current) : 1;
+      const f = h > 0 ? Math.min(1, (window.innerHeight - 32) / h) : 1;
       setFit((prev) => (prev === f ? prev : f));
     };
     compute();
@@ -187,6 +189,28 @@ export default function Animation6Page() {
     opacity: clamp01((time - (0.3 + i * 0.35 + 0.25)) / 0.3),
   });
 
+  // Table closes: rises + fades as one piece.
+  const tableClose = (() => {
+    const p = easeInOutCubic(clamp01((time - TABLE_OUT_T0) / (TABLE_OUT_T1 - TABLE_OUT_T0)));
+    return {
+      opacity: 1 - p,
+      transform: `translateY(${-18 * p}px) scale(${1 - 0.02 * p})`,
+      visibility: (time >= TABLE_OUT_T1 ? 'hidden' : 'visible') as 'hidden' | 'visible',
+    };
+  })();
+
+  // AI enters after the table is gone, exits after the last click.
+  const aiShow = (() => {
+    if (time < AI_IN_T) return { opacity: 0, visibility: 'hidden' as const };
+    const pIn = easeOutCubic(clamp01((time - AI_IN_T) / 0.3));
+    const pOut = easeInOutCubic(clamp01((time - AI_OUT_T0) / (AI_OUT_T1 - AI_OUT_T0)));
+    return {
+      opacity: pIn * (1 - pOut),
+      transform: `translateY(${(1 - pIn) * 16 + pOut * 10}px)`,
+      visibility: (time >= AI_OUT_T1 ? 'hidden' : 'visible') as 'hidden' | 'visible',
+    };
+  })();
+
   /* ── Pointer chain: View it → Generate experiment → No constraints ── */
   const AN = anchors.current;
   const A0 = AN[0] ?? { x: 0, y: 0 };
@@ -205,107 +229,107 @@ export default function Animation6Page() {
     cop = clamp01((time - t0) / 0.2);
   };
 
-  if (time < 3.4) {
-    leg(2.6, 3.4, A0.x + SX, A0.y + SY, A0.x, A0.y);
-  } else if (time < 4.4) {
-    leg(3.4, 4.4, A0.x, A0.y, A1.x, A1.y);
-  } else if (time < 5.4) {
-    leg(4.4, 5.4, A1.x, A1.y, A2.x, A2.y);
+  if (time < CLICK_TS[0]) {
+    leg(3.6, CLICK_TS[0], A0.x + SX, A0.y + SY, A0.x, A0.y);
+  } else if (time < CLICK_TS[1]) {
+    leg(CLICK_TS[0], CLICK_TS[1], A0.x, A0.y, A1.x, A1.y);
+  } else if (time < CLICK_TS[2]) {
+    leg(CLICK_TS[1], CLICK_TS[2], A1.x, A1.y, A2.x, A2.y);
   } else {
     cx = A2.x;
     cy = A2.y;
     cop = 1;
   }
-  if (time >= 6.4) cop = Math.max(0, 1 - (time - 6.4) / 0.8);
+  if (time >= 7.0) cop = Math.max(0, 1 - (time - 7.0) / 0.8);
 
   const pressing = clickT >= 0 && time < clickT + 0.4;
   const aiPulse = (() => {
     if (clickT < 0) return {};
     const p = clamp01((time - clickT) / 0.45);
-    return { transform: `scale(${1 + 0.012 * Math.sin(p * Math.PI)})` };
+    return { transform: `${aiShow.transform ?? ''} scale(${1 + 0.012 * Math.sin(p * Math.PI)})` };
   })();
 
   return (
     <div ref={stageRef} className="relative flex h-screen items-center justify-center overflow-hidden bg-background px-4">
-      <div ref={cardRef} style={{ transform: `scale(${fit})` }} className="w-full max-w-4xl">
-        <div className="overflow-hidden rounded-xl border border-border bg-surface">
-          <div className="overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border" style={rowIn(0)}>
-                  <th className="h-11 px-3 text-left align-middle text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap border-r border-border/60 pr-4">
-                    Metric
-                  </th>
-                  {rankDist.map(({ col }, rank) => (
-                    <th
-                      key={col.name}
-                      style={rowIn(0)}
-                      className={cn('h-11 px-3 text-left align-middle whitespace-nowrap', rank === 0 && 'bg-primary/5')}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
-                            rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                          )}
-                        >
-                          {rank === 0 ? <Trophy className="size-3" /> : rank + 1}
-                        </span>
-                        <span className="text-sm font-semibold text-foreground">{col.name}</span>
-                      </span>
+      {/* Both acts share one grid cell — the size never moves. */}
+      <div ref={cardRef} style={{ transform: `scale(${fit})` }} className="grid w-full max-w-4xl place-items-center">
+        <div className="col-start-1 row-start-1 w-full" style={tableClose}>
+          <div className="overflow-hidden rounded-xl border border-border bg-surface">
+            <div className="overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border" style={rowIn(0)}>
+                    <th className="h-11 px-3 text-left align-middle text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap border-r border-border/60 pr-4">
+                      Metric
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-border/60" style={rowIn(1)}>
-                  <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60 pr-4">
-                    Total Distance
-                  </td>
-                  {rankDist.map(({ col, dist }) => (
-                    <td key={col.name} className={cn('px-3 py-3 align-middle whitespace-nowrap', col.name === rankDist[0].col.name && 'bg-primary/5')}>
-                      <span className="text-sm font-bold tabular-nums text-foreground">{fmtNumber(dist)} m</span>
-                    </td>
-                  ))}
-                </tr>
-                {METRIC_DEFS.map((m, mi) => (
-                  <tr key={m.key} style={rowIn(mi + 2)} className="border-b border-border/60 last:border-0">
-                    <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60 pr-4">
-                      {m.label}
-                    </td>
-                    {rankDist.map(({ col }) => {
-                      const isBase = col.name === BASE.name;
-                      const baseVal = isBase ? undefined : m.pick(BASE);
-                      const cur = m.pick(col);
-                      const diff = baseVal !== undefined ? cur - baseVal : 0;
-                      const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
-                      return (
-                        <td key={col.name} className={cn('px-3 py-3 align-middle whitespace-nowrap tabular-nums', col.name === rankDist[0].col.name && 'bg-primary/5')}>
-                          <span className="font-medium text-foreground">{m.format(cur)}</span>
-                          {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
-                            <span
-                              style={deltaStyle(mi)}
-                              className={cn('ml-1 text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}
-                            >
-                              {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
-                            </span>
-                          )}
-                        </td>
-                      );
-                    })}
+                    {rankDist.map(({ col }, rank) => (
+                      <th
+                        key={col.name}
+                        style={rowIn(0)}
+                        className={cn('h-11 px-3 text-left align-middle whitespace-nowrap', rank === 0 && 'bg-primary/5')}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
+                              rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                            )}
+                          >
+                            {rank === 0 ? <Trophy className="size-3" /> : rank + 1}
+                          </span>
+                          <span className="text-sm font-semibold text-foreground">{col.name}</span>
+                        </span>
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border/60" style={rowIn(1)}>
+                    <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60 pr-4">
+                      Total Distance
+                    </td>
+                    {rankDist.map(({ col, dist }) => (
+                      <td key={col.name} className={cn('px-3 py-3 align-middle whitespace-nowrap', col.name === rankDist[0].col.name && 'bg-primary/5')}>
+                        <span className="text-sm font-bold tabular-nums text-foreground">{fmtNumber(dist)} m</span>
+                      </td>
+                    ))}
+                  </tr>
+                  {METRIC_DEFS.map((m, mi) => (
+                    <tr key={m.key} style={rowIn(mi + 2)} className="border-b border-border/60 last:border-0">
+                      <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60 pr-4">
+                        {m.label}
+                      </td>
+                      {rankDist.map(({ col }) => {
+                        const isBase = col.name === BASE.name;
+                        const baseVal = isBase ? undefined : m.pick(BASE);
+                        const cur = m.pick(col);
+                        const diff = baseVal !== undefined ? cur - baseVal : 0;
+                        const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
+                        return (
+                          <td key={col.name} className={cn('px-3 py-3 align-middle whitespace-nowrap tabular-nums', col.name === rankDist[0].col.name && 'bg-primary/5')}>
+                            <span className="font-medium text-foreground">{m.format(cur)}</span>
+                            {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
+                              <span
+                                style={deltaStyle(mi)}
+                                className={cn('ml-1 text-[10px] font-medium', diff < 0 ? 'text-positive' : 'text-destructive')}
+                              >
+                                {diff < 0 ? '▼' : '▲'}{fmtNumber(Math.abs(pct), 0)}%
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div
-          ref={aiRef}
-          style={pressing ? { ...aiPulse, filter: 'brightness(0.97)' } : aiPulse}
-          className="mt-3"
-        >
-          <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={async () => {}} />
+        <div ref={aiRef} style={pressing ? { ...aiShow, ...aiPulse, filter: 'brightness(0.97)' } : { ...aiShow, ...aiPulse }} className="col-start-1 row-start-1 mt-3 w-full">
+          {/* Confirmation paints after the last click — after we're gone. */}
+          <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={() => new Promise<void>((r) => setTimeout(r, 3000))} />
         </div>
       </div>
 
@@ -320,7 +344,6 @@ export default function Animation6Page() {
             left: cx - 5.4,
             top: cy - 3.25,
             opacity: cop,
-            transform: 'rotate(0deg)',
             filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))',
           }}
         >
