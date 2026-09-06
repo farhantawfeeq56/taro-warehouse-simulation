@@ -25,7 +25,7 @@ export default function Animation7Page() {
         .taro-settle { opacity: 0; animation: taro-settle 0.85s cubic-bezier(0.2,0.9,0.3,1) forwards, taro-out 0.55s ease-in forwards; }
         @keyframes taro-tag { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         @keyframes taro-tagout { to { opacity: 0; transform: translateY(-8px); } }
-        .taro-tag { opacity: 0; animation: taro-tag 0.6s ease-out 0.6s forwards, taro-tagout 0.5s ease-in 2.8s forwards; }
+        .taro-tag { opacity: 0; animation: taro-tag 0.6s cubic-bezier(0.22,1,0.36,1) 0.6s forwards, taro-tagout 0.5s ease-in 2.8s forwards; }
         @media (prefers-reduced-motion: reduce) {
           .taro-settle, .taro-tag { animation-duration: 0.01s !important; animation-delay: 0s !important; }
         }
