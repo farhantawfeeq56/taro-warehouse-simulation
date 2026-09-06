@@ -7,7 +7,7 @@ import { generateWarehouseSession } from '@/lib/taro/warehouse-generator';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { reconcile } from '@/lib/taro/corrector';
 import { runSimulation } from '@/core/simulationEngine';
-import type { SimulationResults, StrategyResult } from '@/lib/taro/types';
+import type { Order, SimulationResults, StrategyResult, Warehouse } from '@/lib/taro/types';
 import { CELL_SIZE } from '@/lib/taro/constants';
 
 /* Same four warehouses as /animation/3. */
@@ -49,6 +49,35 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
 const ORDER_COUNT = 50;
 const AVG_ORDER_SIZE = 3;
 const WORKERS = 5;
+
+/* Drop the single order reaching furthest left (left fifth only) — it draws
+   a lone extreme excursion across the floorplan. Warehouse 2 only. */
+function dropLeftExtremeOrder(warehouse: Warehouse, orders: Order[]): Order[] {
+  const skuX = new Map<string, number>();
+  for (const row of warehouse.grid) {
+    for (const cell of row) {
+      for (const loc of cell.locations) {
+        const prev = skuX.get(loc.sku);
+        if (prev === undefined || loc.x < prev) skuX.set(loc.sku, loc.x);
+      }
+    }
+  }
+  let worstId: string | null = null;
+  let worstX = Infinity;
+  for (const o of orders) {
+    let m = Infinity;
+    for (const it of o.items) {
+      const x = skuX.get(it.skuId);
+      if (x !== undefined) m = Math.min(m, x);
+    }
+    if (m < worstX) {
+      worstX = m;
+      worstId = o.id;
+    }
+  }
+  if (worstId === null || worstX >= warehouse.width * 0.2) return orders;
+  return orders.filter((o) => o.id !== worstId);
+}
 
 /* One continuous 0→100% journey — each warehouse carries one quarter of it. */
 const TOTAL = 3;
@@ -114,7 +143,10 @@ export default function Animation4Page() {
         if (cancelled) return;
         let entry: Built = null;
         try {
-          const session = generateWarehouseSession(SHOWCASES[i].config, ORDER_COUNT, AVG_ORDER_SIZE);
+          const raw = generateWarehouseSession(SHOWCASES[i].config, ORDER_COUNT, AVG_ORDER_SIZE);
+          // Warehouse 2 only: prune the lone left-extreme order.
+          const session =
+            i === 1 ? { ...raw, orders: dropLeftExtremeOrder(raw.warehouse, raw.orders) } : raw;
           let results: SimulationResults | null = null;
           try {
             const corrected = reconcile(session.warehouse, session.orders);
