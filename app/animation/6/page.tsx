@@ -55,8 +55,6 @@ const AI_IN_T = 3.5;
 const CLICK_TS = [4.8, 5.8, 7.1];
 const TYPE_T0 = 6.1;
 const TYPE_T1 = 6.8;
-const AI_OUT_T0 = 7.4;
-const AI_OUT_T1 = 8.1;
 const CONSTRAINTS_TEXT = 'max 14 racks, height at least 20';
 
 export default function Animation6Page() {
@@ -253,15 +251,15 @@ export default function Animation6Page() {
     };
   })();
 
-  // AI enters after the table is gone, exits after the last click.
+  // AI enters after the table is gone and stays — the finale is the
+  // genuine Generate result painting on screen.
   const aiShow = (() => {
     if (time < AI_IN_T) return { opacity: 0, visibility: 'hidden' as const };
     const pIn = easeOutCubic(clamp01((time - AI_IN_T) / 0.3));
-    const pOut = easeInOutCubic(clamp01((time - AI_OUT_T0) / (AI_OUT_T1 - AI_OUT_T0)));
     return {
-      opacity: pIn * (1 - pOut),
-      transform: `translateY(${(1 - pIn) * 16 + pOut * 10}px)`,
-      visibility: (time >= AI_OUT_T1 ? 'hidden' : 'visible') as 'hidden' | 'visible',
+      opacity: pIn,
+      transform: `translateY(${(1 - pIn) * 16}px)`,
+      visibility: 'visible' as const,
     };
   })();
 
@@ -385,7 +383,7 @@ export default function Animation6Page() {
 
         <div ref={aiRef} style={aiShow} className="col-start-1 row-start-1 mt-3 w-full">
           {/* Confirmation paints after the last click — after we're gone. */}
-          <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={() => new Promise<void>((r) => setTimeout(r, 3000))} />
+          <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={() => new Promise<void>((r) => setTimeout(r, 600))} />
         </div>
       </div>
 
