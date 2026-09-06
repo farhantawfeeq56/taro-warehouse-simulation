@@ -24,7 +24,6 @@ const DATA: Baked[] = [
   { name: 'Grand', estimatedTime: 10.6, totalDistance: 1204, workerUtilization: 100, costPerOrder: 0.34, ordersCompleted: 50 },
 ];
 
-/* Baked AI inputs from the same real run — animation only. */
 const INSIGHTS: WarehouseInsight[] = [
   { id: 'wh-0', name: 'Single', configuration: { layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 1 }, inventory: { skuCount: 430, demandDistribution: 10, productAffinity: 10, storageFootprint: 88 }, placement: { slottingBias: 10, categoryClustering: 10 } }, bestEfficiency: 55, bestEstimatedTime: 15.3, bestTotalDistance: 1760, bestCostPerOrder: 0.45, averageDistance: 4600, averageTime: 21.633333333333336 },
   { id: 'wh-1', name: 'Double', configuration: { layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 2 }, inventory: { skuCount: 420, demandDistribution: 70, productAffinity: 30, storageFootprint: 82 }, placement: { slottingBias: 80, categoryClustering: 30 } }, bestEfficiency: 29, bestEstimatedTime: 9.6, bestTotalDistance: 1576, bestCostPerOrder: 0.4, averageDistance: 1608, averageTime: 11.333333333333334 },
@@ -36,6 +35,8 @@ const BASE = DATA[0];
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+const easeInOutCubic = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 const fmtNumber = (n: number, digits = 1) =>
   n.toLocaleString(undefined, { maximumFractionDigits: digits });
 
@@ -46,24 +47,30 @@ const METRIC_DEFS = [
   { key: 'orders', label: 'Orders Done', pick: (r: Baked) => r.ordersCompleted, format: (n: number) => `${fmtNumber(n, 0)}` },
 ];
 
-const TOTAL = 5;
-/* When each variant auto-opens the recommendation (0 = stays closed). */
-const OPEN_AT: Record<number, number> = { 1: 0, 2: 3.2, 3: 3.6 };
+const TOTAL = 7;
+/* Guaranteed-open click moment per variant. */
+const CLICK_AT: Record<number, number> = { 1: 3.4, 2: 3.9, 3: 4.6, 4: 4.2, 5: 4.0 };
 
 const VARIANTS = [
-  { n: 1, label: 'Nudge' },
-  { n: 2, label: 'Open' },
-  { n: 3, label: 'Glow' },
+  { n: 1, label: 'Direct' },
+  { n: 2, label: 'Hold' },
+  { n: 3, label: 'Circle' },
+  { n: 4, label: 'Underline' },
+  { n: 5, label: 'Hops' },
 ];
 
 export default function Animation6Page() {
   const [time, setTime] = useState(0);
   const [variant, setVariant] = useState(1);
+  const [clicked, setClicked] = useState(false);
+  const [clickT, setClickT] = useState(0);
 
   const raf = useRef<number | null>(null);
   const last = useRef<number | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const aiRef = useRef<HTMLDivElement | null>(null);
+  const anchorRef = useRef({ x: 0, y: 0, w: 200 });
   const prevTime = useRef(0);
   const maxH = useRef(0);
   const [fit, setFit] = useState(1);
@@ -76,6 +83,7 @@ export default function Animation6Page() {
     last.current = null;
     prevTime.current = 0;
     setTime(0);
+    setClicked(false);
     setPlaying(true);
   };
 
@@ -83,7 +91,7 @@ export default function Animation6Page() {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === 'r') replay();
-      else if (['1', '2', '3'].includes(k)) replay(Number(k));
+      else if (['1', '2', '3', '4', '5'].includes(k)) replay(Number(k));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -115,16 +123,32 @@ export default function Animation6Page() {
     };
   }, []);
 
-  // Auto-open the recommendation as the clock crosses OPEN_AT.
+  // Measure the nudge button until it gets clicked, then fire the click.
   useEffect(() => {
-    const at = OPEN_AT[variant] ?? 0;
-    if (at > 0 && prevTime.current < at && time >= at) {
+    const stage = stageRef.current;
+    const ai = aiRef.current;
+    if (stage && ai && !clicked) {
+      const btn = ai.querySelector('button');
+      if (btn) {
+        const sr = stage.getBoundingClientRect();
+        const br = btn.getBoundingClientRect();
+        anchorRef.current = {
+          x: br.left + br.width / 2 - sr.left,
+          y: br.top + br.height / 2 - sr.top,
+          w: br.width,
+        };
+      }
+    }
+    const at = CLICK_AT[variant] ?? 3.4;
+    if (!clicked && prevTime.current < at && time >= at) {
       aiRef.current?.querySelector('button')?.click();
+      setClicked(true);
+      setClickT(at);
     }
     prevTime.current = time;
-  }, [time, variant]);
+  }, [time, variant, clicked]);
 
-  // Shrink-to-fit on the tallest seen state — never rescales mid-play.
+  // Shrink-to-fit on the tallest seen state.
   useEffect(() => {
     const compute = () => {
       const h = cardRef.current?.offsetHeight ?? 0;
@@ -146,7 +170,6 @@ export default function Animation6Page() {
     .map((col) => ({ col, dist: col.totalDistance }))
     .sort((a, b) => a.dist - b.dist);
 
-  // Table cascade (locked winner style from /animation/5).
   const rowIn = (i: number) => {
     const p = easeOutCubic(clamp01((time - (0.3 + i * 0.35)) / 0.4));
     return { opacity: p, transform: `translateY(${(1 - p) * 14}px)` };
@@ -155,25 +178,97 @@ export default function Animation6Page() {
     opacity: clamp01((time - (0.3 + i * 0.35 + 0.25)) / 0.3),
   });
 
-  // AI block entrance per variant.
-  const aiIn = (() => {
-    const p = easeOutCubic(clamp01((time - 2.6) / 0.5));
-    return { opacity: p, transform: `translateY(${(1 - p) * 16}px)` };
-  })();
-  const glowing = variant === 3 && time >= 2.8 && time < 3.6;
-  const pulse = (() => {
-    const at = OPEN_AT[variant] ?? 0;
-    if (!at || time < at) return {};
-    const p = clamp01((time - at) / 0.4);
+  /* ── Pointer choreography ── */
+  const A = anchorRef.current;
+  const clickAt = CLICK_AT[variant] ?? 3.4;
+  const SX = 190;
+  const SY = 160;
+  let cx = A.x + SX;
+  let cy = A.y + SY;
+  let cop = 0;
+  let rot = 0;
+
+  const flyTo = (t0: number, t1: number, fx: number, fy: number) => {
+    const p = easeInOutCubic(clamp01((time - t0) / (t1 - t0)));
+    cx = A.x + SX * (1 - p) + (fx - A.x) * p;
+    cy = A.y + SY * (1 - p) + (fy - A.y) * p;
+    cop = clamp01((time - t0) / 0.2);
+  };
+
+  if (variant === 1) {
+    // Direct: straight in, click, leave.
+    flyTo(2.6, 3.4, A.x, A.y);
+  } else if (variant === 2) {
+    // Hold: arrives early, circles impatiently, then clicks.
+    if (time < 3.2) {
+      flyTo(2.6, 3.2, A.x, A.y);
+    } else if (time < clickAt) {
+      const w = (time - 3.2) * 5;
+      cx = A.x + Math.cos(w) * 7;
+      cy = A.y + Math.sin(w) * 7 - 4;
+      cop = 1;
+      rot = Math.sin(w) * 8;
+    } else {
+      cx = A.x; cy = A.y; cop = 1;
+    }
+  } else if (variant === 3) {
+    // Circle: draws an ellipse around the nudge, then clicks.
+    if (time < 3.0) {
+      flyTo(2.6, 3.0, A.x, A.y - 34);
+    } else if (time < 4.2) {
+      const p = (time - 3.0) / 1.2;
+      const ang = -Math.PI / 2 + p * Math.PI * 2 * 1.25;
+      cx = A.x + Math.cos(ang) * (A.w / 2 + 14);
+      cy = A.y + Math.sin(ang) * 30;
+      cop = 1;
+    } else if (time < clickAt) {
+      const p = easeInOutCubic((time - 4.2) / (clickAt - 4.2));
+      cx = A.x + Math.cos(Math.PI * 1.75) * (A.w / 2 + 14) * (1 - p);
+      cy = (A.y + Math.sin(Math.PI * 1.75) * 30) * (1 - p) + A.y * p;
+      cop = 1;
+    } else {
+      cx = A.x; cy = A.y; cop = 1;
+    }
+  } else if (variant === 4) {
+    // Underline: sweeps beneath the text, returns, taps.
+    if (time < 2.9) {
+      flyTo(2.6, 2.9, A.x - A.w / 2, A.y + 16);
+    } else if (time < 3.6) {
+      const p = easeInOutCubic((time - 2.9) / 0.7);
+      cx = A.x - A.w / 2 + A.w * p;
+      cy = A.y + 16;
+      cop = 1;
+    } else if (time < clickAt) {
+      const p = easeInOutCubic((time - 3.6) / (clickAt - 3.6));
+      cx = A.x + A.w / 2 - (A.w / 2) * p;
+      cy = A.y + 16 - 16 * p;
+      cop = 1;
+    } else {
+      cx = A.x; cy = A.y; cop = 1;
+    }
+  } else {
+    // Hops: two anticipation bounces, then clicks.
+    if (time < 3.2) {
+      flyTo(2.6, 3.2, A.x, A.y);
+    } else if (time < clickAt) {
+      const hp = (time - 3.2) / (clickAt - 3.2);
+      cx = A.x; cy = A.y - Math.abs(Math.sin(hp * Math.PI * 2)) * 16;
+      cop = 1;
+    } else {
+      cx = A.x; cy = A.y; cop = 1;
+    }
+  }
+  if (time >= clickAt + 1.2) cop = Math.max(0, 1 - (time - clickAt - 1.2) / 0.8);
+
+  const pressing = clicked && time < clickT + 0.4;
+  const aiPulse = (() => {
+    if (!clicked) return {};
+    const p = clamp01((time - clickT) / 0.45);
     return { transform: `scale(${1 + 0.012 * Math.sin(p * Math.PI)})` };
   })();
 
   return (
-    <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
-      <style>{`
-        @keyframes a6-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(76, 92, 45, 0); } 50% { box-shadow: 0 0 0 4px rgba(76, 92, 45, 0.35); } }
-        .a6-glow { animation: a6-glow 0.9s ease-in-out infinite; border-radius: 0.5rem; }
-      `}</style>
+    <div ref={stageRef} className="relative flex h-screen items-center justify-center overflow-hidden bg-background px-4">
       <div ref={cardRef} style={{ transform: `scale(${fit})` }} className="w-full max-w-4xl">
         <div className="overflow-hidden rounded-xl border border-border bg-surface">
           <div className="overflow-hidden">
@@ -247,13 +342,41 @@ export default function Animation6Page() {
           </div>
         </div>
 
-        {/* The genuine AI recommendation, animated in per variant. */}
-        <div ref={aiRef} style={{ ...aiIn, ...pulse }} className={glowing ? 'a6-glow mt-3' : 'mt-3'}>
+        <div
+          ref={aiRef}
+          style={pressing ? { ...aiPulse, filter: 'brightness(0.97)' } : aiPulse}
+          className="mt-3"
+        >
           <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={async () => {}} />
         </div>
       </div>
 
-      {/* vartest switcher — keys 1-3, R replay */}
+      {/* Pointer */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <svg
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          className="absolute"
+          style={{
+            left: cx - 5.4,
+            top: cy - 3.25,
+            opacity: cop,
+            transform: `rotate(${rot}deg)`,
+            filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))',
+          }}
+        >
+          <path
+            d="M5 3l14 7.5-6.2 1.8L9.5 19 5 3z"
+            fill="#111"
+            stroke="#fff"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+
+      {/* vartest switcher — keys 1-5, R replay */}
       <div className="fixed bottom-4 right-4 z-[110] rounded-2xl border border-border bg-card p-2 shadow-lg">
         <div className="flex items-center gap-1">
           {VARIANTS.map((o) => (
@@ -270,7 +393,7 @@ export default function Animation6Page() {
           ))}
         </div>
         <p className="mt-1 text-center text-[11px] text-text-secondary">
-          {playing ? 'playing…' : 'R replay · 1–3 variant'}
+          {playing ? 'playing…' : 'R replay · 1–5 variant'}
         </p>
       </div>
 
