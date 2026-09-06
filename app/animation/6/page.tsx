@@ -47,30 +47,19 @@ const METRIC_DEFS = [
   { key: 'orders', label: 'Orders Done', pick: (r: Baked) => r.ordersCompleted, format: (n: number) => `${fmtNumber(n, 0)}` },
 ];
 
-const TOTAL = 7;
-/* Guaranteed-open click moment per variant. */
-const CLICK_AT: Record<number, number> = { 1: 3.4, 2: 3.9, 3: 4.6, 4: 4.2, 5: 4.0 };
-
-const VARIANTS = [
-  { n: 1, label: 'Direct' },
-  { n: 2, label: 'Hold' },
-  { n: 3, label: 'Circle' },
-  { n: 4, label: 'Underline' },
-  { n: 5, label: 'Hops' },
-];
+const TOTAL = 8;
+/* Click chain — each lands on exact button text. */
+const CLICK_TS = [3.4, 4.4, 5.4];
 
 export default function Animation6Page() {
   const [time, setTime] = useState(0);
-  const [variant, setVariant] = useState(1);
-  const [clicked, setClicked] = useState(false);
-  const [clickT, setClickT] = useState(0);
+  const [clickT, setClickT] = useState(-1);
 
   const raf = useRef<number | null>(null);
   const last = useRef<number | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const aiRef = useRef<HTMLDivElement | null>(null);
-  const anchorRef = useRef({ x: 0, y: 0, w: 200 });
   const prevTime = useRef(0);
   const maxH = useRef(0);
   const [fit, setFit] = useState(1);
@@ -78,20 +67,23 @@ export default function Animation6Page() {
   const playingRef = useRef(false);
   playingRef.current = playing;
 
-  const replay = (v?: number) => {
-    if (v !== undefined) setVariant(v);
+  const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null, null]);
+  const fired = useRef<boolean[]>([false, false, false]);
+
+  const replay = () => {
     last.current = null;
     prevTime.current = 0;
+    anchors.current = [null, null, null];
+    fired.current = [false, false, false];
     setTime(0);
-    setClicked(false);
+    setClickT(-1);
     setPlaying(true);
   };
 
+  // R replays. Nothing else ever starts it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
-      if (k === 'r') replay();
-      else if (['1', '2', '3', '4', '5'].includes(k)) replay(Number(k));
+      if (e.key.toLowerCase() === 'r') replay();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -123,30 +115,47 @@ export default function Animation6Page() {
     };
   }, []);
 
-  // Measure the nudge button until it gets clicked, then fire the click.
+  // Measure each step's exact target, then click it on schedule.
   useEffect(() => {
     const stage = stageRef.current;
     const ai = aiRef.current;
-    if (stage && ai && !clicked) {
-      const btn = ai.querySelector('button');
-      if (btn) {
-        const sr = stage.getBoundingClientRect();
-        const br = btn.getBoundingClientRect();
-        anchorRef.current = {
-          x: br.left + br.width / 2 - sr.left,
-          y: br.top + br.height / 2 - sr.top,
-          w: br.width,
-        };
+    const i = fired.current.findIndex((f) => !f);
+    if (stage && ai && i >= 0) {
+      const sr = stage.getBoundingClientRect();
+      const pt = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        return { el, x: r.left + r.width / 2 - sr.left, y: r.top + r.height / 2 - sr.top };
+      };
+      if (!anchors.current[i]) {
+        if (i === 0) {
+          const spans = ai.querySelectorAll('span');
+          for (const s of spans) {
+            if (s.textContent === 'View it') {
+              anchors.current[i] = pt(s);
+              break;
+            }
+          }
+        } else {
+          const label = i === 1 ? 'Generate experiment' : 'No constraints';
+          const btns = ai.querySelectorAll('button');
+          for (const b of btns) {
+            if (b.textContent?.includes(label)) {
+              anchors.current[i] = pt(b);
+              break;
+            }
+          }
+        }
+      }
+      const at = CLICK_TS[i];
+      const a = anchors.current[i];
+      if (a && prevTime.current < at && time >= at) {
+        (a.el as HTMLElement).click();
+        fired.current[i] = true;
+        setClickT(at);
       }
     }
-    const at = CLICK_AT[variant] ?? 3.4;
-    if (!clicked && prevTime.current < at && time >= at) {
-      aiRef.current?.querySelector('button')?.click();
-      setClicked(true);
-      setClickT(at);
-    }
     prevTime.current = time;
-  }, [time, variant, clicked]);
+  }, [time]);
 
   // Shrink-to-fit on the tallest seen state.
   useEffect(() => {
@@ -178,91 +187,40 @@ export default function Animation6Page() {
     opacity: clamp01((time - (0.3 + i * 0.35 + 0.25)) / 0.3),
   });
 
-  /* ── Pointer choreography ── */
-  const A = anchorRef.current;
-  const clickAt = CLICK_AT[variant] ?? 3.4;
+  /* ── Pointer chain: View it → Generate experiment → No constraints ── */
+  const AN = anchors.current;
+  const A0 = AN[0] ?? { x: 0, y: 0 };
+  const A1 = AN[1] ?? A0;
+  const A2 = AN[2] ?? A1;
   const SX = 190;
   const SY = 160;
-  let cx = A.x + SX;
-  let cy = A.y + SY;
+  let cx = A0.x + SX;
+  let cy = A0.y + SY;
   let cop = 0;
-  let rot = 0;
 
-  const flyTo = (t0: number, t1: number, fx: number, fy: number) => {
+  const leg = (t0: number, t1: number, fx: number, fy: number, tx: number, ty: number) => {
     const p = easeInOutCubic(clamp01((time - t0) / (t1 - t0)));
-    cx = A.x + SX * (1 - p) + (fx - A.x) * p;
-    cy = A.y + SY * (1 - p) + (fy - A.y) * p;
+    cx = fx + (tx - fx) * p;
+    cy = fy + (ty - fy) * p;
     cop = clamp01((time - t0) / 0.2);
   };
 
-  if (variant === 1) {
-    // Direct: straight in, click, leave.
-    flyTo(2.6, 3.4, A.x, A.y);
-  } else if (variant === 2) {
-    // Hold: arrives early, circles impatiently, then clicks.
-    if (time < 3.2) {
-      flyTo(2.6, 3.2, A.x, A.y);
-    } else if (time < clickAt) {
-      const w = (time - 3.2) * 5;
-      cx = A.x + Math.cos(w) * 7;
-      cy = A.y + Math.sin(w) * 7 - 4;
-      cop = 1;
-      rot = Math.sin(w) * 8;
-    } else {
-      cx = A.x; cy = A.y; cop = 1;
-    }
-  } else if (variant === 3) {
-    // Circle: draws an ellipse around the nudge, then clicks.
-    if (time < 3.0) {
-      flyTo(2.6, 3.0, A.x, A.y - 34);
-    } else if (time < 4.2) {
-      const p = (time - 3.0) / 1.2;
-      const ang = -Math.PI / 2 + p * Math.PI * 2 * 1.25;
-      cx = A.x + Math.cos(ang) * (A.w / 2 + 14);
-      cy = A.y + Math.sin(ang) * 30;
-      cop = 1;
-    } else if (time < clickAt) {
-      const p = easeInOutCubic((time - 4.2) / (clickAt - 4.2));
-      cx = A.x + Math.cos(Math.PI * 1.75) * (A.w / 2 + 14) * (1 - p);
-      cy = (A.y + Math.sin(Math.PI * 1.75) * 30) * (1 - p) + A.y * p;
-      cop = 1;
-    } else {
-      cx = A.x; cy = A.y; cop = 1;
-    }
-  } else if (variant === 4) {
-    // Underline: sweeps beneath the text, returns, taps.
-    if (time < 2.9) {
-      flyTo(2.6, 2.9, A.x - A.w / 2, A.y + 16);
-    } else if (time < 3.6) {
-      const p = easeInOutCubic((time - 2.9) / 0.7);
-      cx = A.x - A.w / 2 + A.w * p;
-      cy = A.y + 16;
-      cop = 1;
-    } else if (time < clickAt) {
-      const p = easeInOutCubic((time - 3.6) / (clickAt - 3.6));
-      cx = A.x + A.w / 2 - (A.w / 2) * p;
-      cy = A.y + 16 - 16 * p;
-      cop = 1;
-    } else {
-      cx = A.x; cy = A.y; cop = 1;
-    }
+  if (time < 3.4) {
+    leg(2.6, 3.4, A0.x + SX, A0.y + SY, A0.x, A0.y);
+  } else if (time < 4.4) {
+    leg(3.4, 4.4, A0.x, A0.y, A1.x, A1.y);
+  } else if (time < 5.4) {
+    leg(4.4, 5.4, A1.x, A1.y, A2.x, A2.y);
   } else {
-    // Hops: two anticipation bounces, then clicks.
-    if (time < 3.2) {
-      flyTo(2.6, 3.2, A.x, A.y);
-    } else if (time < clickAt) {
-      const hp = (time - 3.2) / (clickAt - 3.2);
-      cx = A.x; cy = A.y - Math.abs(Math.sin(hp * Math.PI * 2)) * 16;
-      cop = 1;
-    } else {
-      cx = A.x; cy = A.y; cop = 1;
-    }
+    cx = A2.x;
+    cy = A2.y;
+    cop = 1;
   }
-  if (time >= clickAt + 1.2) cop = Math.max(0, 1 - (time - clickAt - 1.2) / 0.8);
+  if (time >= 6.4) cop = Math.max(0, 1 - (time - 6.4) / 0.8);
 
-  const pressing = clicked && time < clickT + 0.4;
+  const pressing = clickT >= 0 && time < clickT + 0.4;
   const aiPulse = (() => {
-    if (!clicked) return {};
+    if (clickT < 0) return {};
     const p = clamp01((time - clickT) / 0.45);
     return { transform: `scale(${1 + 0.012 * Math.sin(p * Math.PI)})` };
   })();
@@ -362,7 +320,7 @@ export default function Animation6Page() {
             left: cx - 5.4,
             top: cy - 3.25,
             opacity: cop,
-            transform: `rotate(${rot}deg)`,
+            transform: 'rotate(0deg)',
             filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))',
           }}
         >
@@ -374,27 +332,6 @@ export default function Animation6Page() {
             strokeLinejoin="round"
           />
         </svg>
-      </div>
-
-      {/* vartest switcher — keys 1-5, R replay */}
-      <div className="fixed bottom-4 right-4 z-[110] rounded-2xl border border-border bg-card p-2 shadow-lg">
-        <div className="flex items-center gap-1">
-          {VARIANTS.map((o) => (
-            <button
-              key={o.n}
-              onClick={() => replay(o.n)}
-              title={`${o.label} — press ${o.n}`}
-              className={`rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                variant === o.n ? 'bg-primary text-primary-foreground' : 'text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              {o.n} · {o.label}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1 text-center text-[11px] text-text-secondary">
-          {playing ? 'playing…' : 'R replay · 1–5 variant'}
-        </p>
       </div>
 
       <AgentationToolbar
