@@ -48,15 +48,15 @@ const METRIC_DEFS = [
 ];
 
 /* Phases: table → close → AI chain → out. Ends on the last button. */
-const TOTAL = 8;
+const TOTAL = 8.5;
 const TABLE_OUT_T0 = 2.5;
 const TABLE_OUT_T1 = 3.5;
 const AI_IN_T = 3.5;
-const CLICK_TS = [4.3, 5.3, 6.6];
-const TYPE_T0 = 5.6;
-const TYPE_T1 = 6.3;
-const AI_OUT_T0 = 6.9;
-const AI_OUT_T1 = 7.6;
+const CLICK_TS = [4.8, 5.8, 7.1];
+const TYPE_T0 = 6.1;
+const TYPE_T1 = 6.8;
+const AI_OUT_T0 = 7.4;
+const AI_OUT_T1 = 8.1;
 const CONSTRAINTS_TEXT = 'max 14 racks, height at least 20';
 
 export default function Animation6Page() {
@@ -69,7 +69,8 @@ export default function Animation6Page() {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const aiRef = useRef<HTMLDivElement | null>(null);
   const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null, null]);
-  const fired = useRef<boolean[]>([false, false, false]);
+  const done = useRef<boolean[]>([false, false, false]);
+  const lastTry = useRef<number[]>([0, 0, 0]);
   const typed = useRef(0);
   const taAnchor = useRef<{ x: number; y: number } | null>(null);
   const prevTime = useRef(0);
@@ -82,7 +83,8 @@ export default function Animation6Page() {
     last.current = null;
     prevTime.current = 0;
     anchors.current = [null, null, null];
-    fired.current = [false, false, false];
+    done.current = [false, false, false];
+    lastTry.current = [0, 0, 0];
     typed.current = 0;
     taAnchor.current = null;
     setTime(0);
@@ -129,7 +131,7 @@ export default function Animation6Page() {
   useEffect(() => {
     const stage = stageRef.current;
     const ai = aiRef.current;
-    const i = fired.current.findIndex((f) => !f);
+    const i = done.current.findIndex((f) => !f);
     if (stage && ai && i >= 0 && time >= AI_IN_T) {
       const sr = stage.getBoundingClientRect();
       const pt = (el: Element) => {
@@ -158,10 +160,20 @@ export default function Animation6Page() {
       }
       const at = CLICK_TS[i];
       const a = anchors.current[i];
-      if (a && prevTime.current < at && time >= at) {
+      // Step is done when its UI is gone (opened / advanced) — step 2 ends on fire.
+      const gone =
+        i === 0
+          ? ![...ai.querySelectorAll('span')].some((s) => s.textContent === 'View it')
+          : i === 1
+            ? ![...ai.querySelectorAll('button')].some((b) => b.textContent?.includes('Generate experiment'))
+            : done.current[i];
+      if (gone) {
+        done.current[i] = true;
+      } else if (a && time >= at && time - lastTry.current[i] > 0.4) {
+        lastTry.current[i] = time;
         (a.el as HTMLElement).click();
-        fired.current[i] = true;
         setClickT(at);
+        if (i === 2) done.current[i] = true;
       }
     }
     // Track the textarea for the cursor to watch, then type into it.
@@ -279,7 +291,7 @@ export default function Animation6Page() {
     cy = A2.y;
     cop = 1;
   }
-  if (time >= 7.0) cop = Math.max(0, 1 - (time - 7.0) / 0.8);
+  if (time >= 7.5) cop = Math.max(0, 1 - (time - 7.5) / 0.8);
 
   const pressing = clickT >= 0 && time < clickT + 0.4;
   const aiPulse = (() => {
