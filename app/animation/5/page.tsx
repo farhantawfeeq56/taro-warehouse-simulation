@@ -53,13 +53,6 @@ const TOTAL = 4;
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-const easeInOutCubic = (t: number) =>
-  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-const easeOutBack = (t: number) => {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-};
 
 const fmtNumber = (n: number, digits = 1) =>
   n.toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -80,38 +73,48 @@ function bestOf(byStrategy: Record<StrategyType, StrategyResult>): StrategyResul
 
 type Built = { name: string; results: SimulationResults } | null;
 
-const VARIANTS = [
-  { n: 1, label: 'Count-up' },
-  { n: 2, label: 'Column race' },
-  { n: 3, label: 'Bar race' },
-  { n: 4, label: 'Row cascade' },
-  { n: 5, label: 'Trophy finale' },
-];
 
 export default function Animation5Page() {
   const [built, setBuilt] = useState<Built[]>([null, null, null, null]);
   const [readyCount, setReadyCount] = useState(0);
   const [time, setTime] = useState(0);
-  const [variant, setVariant] = useState(1);
 
   const raf = useRef<number | null>(null);
   const last = useRef<number | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [fit, setFit] = useState(1);
+
+  // Shrink-to-fit so the fixed stage never clips nor scrolls.
+  useEffect(() => {
+    const compute = () => {
+      const h = cardRef.current?.offsetHeight ?? 0;
+      const avail = window.innerHeight - 32;
+      const f = h > 0 ? Math.min(1, avail / h) : 1;
+      setFit((prev) => (prev === f ? prev : f));
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    const ob = cardRef.current ? new ResizeObserver(compute) : null;
+    if (cardRef.current && ob) ob.observe(cardRef.current);
+    return () => {
+      window.removeEventListener('resize', compute);
+      ob?.disconnect();
+    };
+  }, [readyCount]);
   const [playing, setPlaying] = useState(false);
   const playingRef = useRef(false);
   playingRef.current = playing;
 
-  const replay = (v?: number) => {
-    if (v !== undefined) setVariant(v);
+  const replay = () => {
     last.current = null;
     setTime(0);
     setPlaying(true);
   };
 
+  // R replays. Nothing else ever starts it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
-      if (k === 'r') replay();
-      else if (['1', '2', '3', '4', '5'].includes(k)) replay(Number(k));
+      if (e.key.toLowerCase() === 'r') replay();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -185,65 +188,18 @@ export default function Animation5Page() {
     .sort((a, b) => a.dist - b.dist);
   const maxDist = Math.max(1, ...rankDist.map((r) => r.dist));
 
-  /* ── Per-variant presentation helpers ── */
-  // Column entrance (V2): worst slides in first, winner last.
-  const colIn = (rank: number) => {
-    if (variant !== 2) return {};
-    const at = 0.3 + (rankDist.length - 1 - rank) * 0.4;
-    const p = easeOutCubic(clamp01((time - at) / 0.45));
-    return { opacity: p, transform: `translateY(${(1 - p) * 24}px)` };
-  };
-  // Row entrance (V4): top rows first.
+  // Row cascade — rows drop in top-first, deltas follow their row.
   const rowIn = (i: number) => {
-    if (variant !== 4) return {};
     const p = easeOutCubic(clamp01((time - (0.3 + i * 0.35)) / 0.4));
     return { opacity: p, transform: `translateY(${(1 - p) * 14}px)` };
   };
-  // Count-up numbers (V1).
-  const countFmt = (m: (typeof METRIC_DEFS)[number], v: number) => {
-    if (variant !== 1) return m.format(v);
-    const p = easeInOutCubic(clamp01((time - 0.3) / 2));
-    return m.format(v * p);
-  };
-  const distFmt = (v: number) => {
-    if (variant !== 1) return `${fmtNumber(v)} m`;
-    const p = easeInOutCubic(clamp01((time - 0.3) / 2));
-    return `${fmtNumber(v * p)} m`;
-  };
-  // Trophy pop (V1 late, V2 with winner, V5 drop).
-  const trophyStyle = (rank: number): React.CSSProperties => {
-    if (rank !== 0) return {};
-    if (variant === 1) {
-      const p = clamp01((time - 2.3) / 0.5);
-      return p <= 0 ? { opacity: 0, transform: 'scale(0.4)' } : { opacity: 1, transform: `scale(${easeOutBack(p)})` };
-    }
-    if (variant === 5) {
-      const p = easeOutCubic(clamp01((time - 1.5) / 0.5));
-      return { opacity: p, transform: `translateY(${(1 - p) * -26}px)` };
-    }
-    return colIn(rank);
-  };
-  // Deltas visibility.
-  const deltaStyle = (i: number): React.CSSProperties => {
-    if (variant === 1) return { opacity: clamp01((time - 2.3) / 0.4) };
-    if (variant === 4) return { opacity: clamp01((time - (0.3 + i * 0.35 + 0.25)) / 0.3) };
-    if (variant === 5) return { opacity: clamp01((time - 0.8) / 0.5) };
-    return {};
-  };
-  // Bar race widths (V3).
-  const barW = (rank: number, dist: number) => {
-    if (variant !== 3) return '100%';
-    const at = 0.3 + rank * 0.22;
-    return `${(dist / maxDist) * 100 * easeOutCubic(clamp01((time - at) / 0.8))}%`;
-  };
-  const restFade = variant === 3 ? { opacity: clamp01((time - 2.4) / 0.5) } : {};
-  // V5: everything together, then winner sweep.
-  const v5col = variant === 5 ? { opacity: easeOutCubic(clamp01((time - 0.2) / 0.6)) } : {};
-  const sweep = variant === 5 ? clamp01((time - 1.1) / 0.5) * (1 - clamp01((time - 2.2) / 0.6)) : 0;
+  const deltaStyle = (i: number): React.CSSProperties => ({
+    opacity: clamp01((time - (0.3 + i * 0.35 + 0.25)) / 0.3),
+  });
 
   return (
     <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
-      <div className="w-full max-w-4xl">
+      <div ref={cardRef} style={{ transform: `scale(${fit})` }} className="w-full max-w-4xl">
         {!ready ? (
             <p className="animate-pulse py-10 text-center text-sm text-text-secondary">
               Running simulations… {readyCount}/4
@@ -253,19 +209,18 @@ export default function Animation5Page() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border" style={variant === 4 ? rowIn(0) : undefined}>
+                    <tr className="border-b border-border" style={rowIn(0)}>
                       <th className="h-11 whitespace-nowrap border-r border-border/60 px-3 pr-4 text-left align-middle text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Metric
                       </th>
                       {rankDist.map(({ col }, rank) => (
                         <th
                           key={col.name}
-                          style={variant === 4 ? rowIn(0) : { ...colIn(rank), ...v5col }}
+                          style={rowIn(0)}
                           className={cn('h-11 whitespace-nowrap px-3 text-left align-middle', rank === 0 && 'bg-primary/5')}
                         >
                           <span className="flex items-center gap-2">
                             <span
-                              style={trophyStyle(rank)}
                               className={cn(
                                 'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
                                 rank === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
@@ -280,28 +235,18 @@ export default function Animation5Page() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="border-b border-border/60" style={variant === 4 ? rowIn(1) : undefined}>
+                    <tr className="border-b border-border/60" style={rowIn(1)}>
                       <td className="whitespace-nowrap border-r border-border/60 px-3 py-3 pr-4 align-middle text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Total Distance
                       </td>
                       {rankDist.map(({ col, dist }, rank) => (
-                        <td key={col.name} style={{ ...colIn(rank), ...v5col }} className={cn('whitespace-nowrap px-3 py-3 align-middle', rank === 0 && 'bg-primary/5')}>
-                          <span className="text-sm font-bold tabular-nums text-foreground">{distFmt(dist)}</span>
-                          {variant === 3 && (
-                            <span className="mt-1 block h-1.5 w-28 overflow-hidden rounded-full bg-muted">
-                              <span className="block h-full rounded-full bg-primary" style={{ width: barW(rank, dist) }} />
-                            </span>
-                          )}
-                          {rank === 0 && sweep > 0 && (
-                            <span className="mt-1 block h-0.5 w-28 overflow-hidden rounded-full bg-primary/20">
-                              <span className="block h-full bg-primary" style={{ width: `${sweep * 100}%` }} />
-                            </span>
-                          )}
+                        <td key={col.name} className={cn('whitespace-nowrap px-3 py-3 align-middle', rank === 0 && 'bg-primary/5')}>
+                          <span className="text-sm font-bold tabular-nums text-foreground">{`${fmtNumber(dist)} m`}</span>
                         </td>
                       ))}
                     </tr>
                     {METRIC_DEFS.map((m, mi) => (
-                      <tr key={m.key} style={{ ...restFade, ...(variant === 4 ? rowIn(mi + 2) : undefined) }} className="border-b border-border/60 last:border-0">
+                      <tr key={m.key} style={rowIn(mi + 2)} className="border-b border-border/60 last:border-0">
                         <td className="whitespace-nowrap border-r border-border/60 px-3 py-3 pr-4 align-middle text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                           {m.label}
                         </td>
@@ -314,8 +259,8 @@ export default function Animation5Page() {
                           const diff = baseVal !== undefined ? cur - baseVal : 0;
                           const pct = baseVal ? (diff / Math.abs(baseVal)) * 100 : 0;
                           return (
-                            <td key={col.name} style={{ ...colIn(rank), ...v5col }} className={cn('whitespace-nowrap px-3 py-3 align-middle tabular-nums', rank === 0 && 'bg-primary/5')}>
-                              <span className="font-medium text-foreground">{countFmt(m, cur)}</span>
+                            <td key={col.name} className={cn('whitespace-nowrap px-3 py-3 align-middle tabular-nums', rank === 0 && 'bg-primary/5')}>
+                              <span className="font-medium text-foreground">{m.format(cur)}</span>
                               {baseVal !== undefined && Math.abs(diff) > 1e-9 && (
                                 <span
                                   style={deltaStyle(mi)}
@@ -334,27 +279,6 @@ export default function Animation5Page() {
               </div>
             </div>
           )}
-      </div>
-
-      {/* vartest switcher — keys 1-5, R replay */}
-      <div className="fixed bottom-4 right-4 z-[110] rounded-2xl border border-border bg-card p-2 shadow-lg">
-        <div className="flex items-center gap-1">
-          {VARIANTS.map((o) => (
-            <button
-              key={o.n}
-              onClick={() => replay(o.n)}
-              title={`${o.label} — press ${o.n}`}
-              className={`rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                variant === o.n ? 'bg-primary text-primary-foreground' : 'text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              {o.n} · {o.label}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1 text-center text-[11px] text-text-secondary">
-          {playing ? 'playing…' : 'R replay · 1–5 variant'}
-        </p>
       </div>
 
       <AgentationToolbar
