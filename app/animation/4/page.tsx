@@ -50,9 +50,9 @@ const ORDER_COUNT = 50;
 const AVG_ORDER_SIZE = 3;
 const WORKERS = 5;
 
-/* One 3s master clock — each warehouse owns its window. */
+/* One continuous 0→100% journey — each warehouse carries one quarter of it. */
 const TOTAL = 3;
-const WIN_STARTS = [0, 0.7, 1.3, 1.9];
+const WIN_STARTS = [0, 0.6, 1.2, 1.8];
 const WIN_DUR = 0.6;
 
 function slotAt(t: number): { idx: number; progress: number } {
@@ -61,8 +61,9 @@ function slotAt(t: number): { idx: number; progress: number } {
     if (t >= WIN_STARTS[k]) idx = k;
   }
   const start = WIN_STARTS[idx];
-  const progress = t <= start + WIN_DUR ? (t - start) / WIN_DUR : 1;
-  return { idx, progress: Math.min(1, Math.max(0, progress)) };
+  const frac = t <= start + WIN_DUR ? (t - start) / WIN_DUR : 1;
+  const progress = idx * 0.25 + 0.25 * Math.min(1, Math.max(0, frac));
+  return { idx, progress };
 }
 
 type Built = {
