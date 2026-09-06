@@ -91,9 +91,9 @@ function cubicBezier(x1: number, y1: number, x2: number, y2: number): (x: number
 }
 
 const CURVES = [
-  { n: 1, label: 'Rush', solve: cubicBezier(0.25, 0.9, 0.25, 1) },
-  { n: 2, label: 'Build', solve: cubicBezier(0.7, 0, 0.84, 0.3) },
-  { n: 3, label: 'Float', solve: cubicBezier(0.65, 0, 0.35, 1) },
+  { n: 1, label: 'Classic', solve: cubicBezier(0.42, 0, 0.58, 1) },
+  { n: 2, label: 'Snap', solve: cubicBezier(0.85, 0, 0.15, 1) },
+  { n: 3, label: 'Cruise', solve: cubicBezier(0.3, 0, 0.6, 1) },
 ];
 
 function warp(t: number, variant: number): number {
