@@ -21,11 +21,11 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
     },
   },
   {
-    name: 'Thoroughfare',
+    name: 'Parallel',
     config: {
-      layout: { gridHeight: 20, rackCount: 16, aisleWidth: 1, crossAisleCount: 2 },
-      inventory: { skuCount: 540, demandDistribution: 70, productAffinity: 30, storageFootprint: 85 },
-      placement: { slottingBias: 80, categoryClustering: 30 },
+      layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 0 },
+      inventory: { skuCount: 430, demandDistribution: 10, productAffinity: 10, storageFootprint: 88 },
+      placement: { slottingBias: 10, categoryClustering: 10 },
     },
   },
   {
