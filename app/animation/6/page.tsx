@@ -191,11 +191,13 @@ export default function Animation6Page() {
         setClickT(at);
       }
     }
-    // Track the finale Generate button for its breakout.
+    // Track the finale Generate button for its breakout. (Its labels stack
+    // in the DOM, so match loosely — the experiment button is gone by now.)
     if (aiRef.current && time >= CLICK_TS[1]) {
       const btns = aiRef.current.querySelectorAll('button');
       for (const b of btns) {
-        if (b.textContent?.trim() === 'Generate') {
+        const txt = b.textContent ?? '';
+        if (txt.includes('Generate') && !txt.toLowerCase().includes('experiment')) {
           const r = b.getBoundingClientRect();
           isoRect.current = { left: r.left, top: r.top, width: r.width, height: r.height };
           break;
