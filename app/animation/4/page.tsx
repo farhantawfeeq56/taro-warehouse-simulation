@@ -55,37 +55,7 @@ const TOTAL = 3;
 const WIN_STARTS = [0, 0.6, 1.2, 1.8];
 const WIN_DUR = 0.6;
 
-/* Speed ramping — velocity follows a bell (Gaussian): slow-fast-slow with
-   perfect entry/exit symmetry. Position = normalized bell integral. */
-function bellRemap(sigma: number): { solve: (x: number) => number; speed: (x: number) => number } {
-  const N = 256;
-  const table: number[] = [0];
-  let sum = 0;
-  const g = (u: number) => Math.exp(-((u - 0.5) * (u - 0.5)) / (2 * sigma * sigma));
-  for (let i = 1; i <= N; i++) {
-    sum += g((i - 0.5) / N);
-    table.push(sum);
-  }
-  const solve = (x: number) => {
-    const u = Math.min(1, Math.max(0, x)) * N;
-    const i = Math.min(N - 1, Math.floor(u));
-    const f = u - i;
-    return ((table[i] * (1 - f) + table[i + 1] * f) / sum) * 1;
-  };
-  return { solve, speed: (x: number) => g(Math.min(1, Math.max(0, x))) };
-}
 
-const CURVES = [
-  { n: 1, label: 'Tight', ...bellRemap(0.16) },
-  { n: 2, label: 'Bell', ...bellRemap(0.26) },
-  { n: 3, label: 'Wide', ...bellRemap(0.4) },
-];
-
-function warp(t: number, variant: number): number {
-  const u = Math.min(1, Math.max(0, t / TOTAL));
-  const c = CURVES.find((c) => c.n === variant) ?? CURVES[0];
-  return TOTAL * c.solve(u);
-}
 
 function slotAt(t: number): { idx: number; progress: number } {
   let idx = 0;
@@ -115,39 +85,21 @@ export default function Animation4Page() {
   const animationProgressRef = useRef(0);
   const [replayId, setReplayId] = useState(0);
   const lastIdx = useRef(0);
-  const [variant, setVariant] = useState(1);
 
   const [playing, setPlaying] = useState(false);
   const playingRef = useRef(false);
   playingRef.current = playing;
-  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [armed, setArmed] = useState(false);
 
-  const replay = (v?: number) => {
-    if (v !== undefined) setVariant(v);
+  const replay = () => {
     last.current = null;
     setTime(0);
     setPlaying(true);
   };
 
-  // R replays. R then 1/2/3 replays that variant. Bare 1/2/3 also works.
+  // R replays. Nothing else ever starts it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
-      if (k === 'r') {
-        setArmed(true);
-        if (armTimer.current) clearTimeout(armTimer.current);
-        armTimer.current = setTimeout(() => {
-          setArmed(false);
-          replay();
-        }, 600);
-        return;
-      }
-      if (k === '1' || k === '2' || k === '3') {
-        if (armTimer.current) clearTimeout(armTimer.current);
-        setArmed(false);
-        replay(Number(k));
-      }
+      if (e.key.toLowerCase() === 'r') replay();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -232,7 +184,7 @@ export default function Animation4Page() {
   }, []);
 
   const ready = readyCount >= SHOWCASES.length && built.every(Boolean);
-  const { idx, progress } = slotAt(warp(time, variant));
+  const { idx, progress } = slotAt(time);
   if (idx !== lastIdx.current) {
     lastIdx.current = idx;
     setReplayId((id) => id + 1);
@@ -287,39 +239,6 @@ export default function Animation4Page() {
         )}
       </div>
 
-      {/* vartest rig — real sampled curves, R replay, R+1/2/3 variant */}
-      <div className="fixed bottom-4 right-4 z-[110] rounded-2xl border border-border bg-card p-2 shadow-lg">
-        <div className="flex items-center gap-1">
-          {CURVES.map((o) => {
-            // Thumbnail plots the speed bell itself (tall = fast).
-            const pts = Array.from({ length: 25 }, (_, i) => {
-              const u = i / 24;
-              return `${(u * 20).toFixed(1)},${(16 - o.speed(u) * 14 - 1).toFixed(1)}`;
-            }).join(' ');
-            return (
-              <button
-                key={o.n}
-                onClick={() => replay(o.n)}
-                title={`Curve ${o.n} (${o.label}) — R then ${o.n}`}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                  variant === o.n
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <svg width="20" height="16" viewBox="0 0 20 16" aria-hidden>
-                  <line x1="0" y1="15" x2="20" y2="1" stroke="currentColor" strokeWidth="0.75" opacity="0.3" />
-                  <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-                {o.n} · {o.label}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-1 text-center text-[11px] text-text-secondary">
-          {armed ? 'R armed — press 1 / 2 / 3' : playing ? 'playing…' : 'R replay · R+1/2/3 variant'}
-        </p>
-      </div>
       {/* Never in prod: local dev always, Vercel preview only when explicitly set. */}
       <AgentationToolbar
         enabled={
