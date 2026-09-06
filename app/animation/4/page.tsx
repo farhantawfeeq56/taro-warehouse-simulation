@@ -55,12 +55,51 @@ const TOTAL = 3;
 const WIN_STARTS = [0, 0.6, 1.2, 1.8];
 const WIN_DUR = 0.6;
 
-/* Speed ramping — the whole video plays through a remap curve. */
+/* Speed ramping — output time = curve(input time), slope of the curve = speed.
+   Each variant is a cubic Bézier (same model as CSS easing), solved properly. */
+function cubicBezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
+  const cx = 3 * x1;
+  const bx = 3 * (x2 - x1) - cx;
+  const ax = 1 - cx - bx;
+  const cy = 3 * y1;
+  const by = 3 * (y2 - y1) - cy;
+  const ay = 1 - cy - by;
+  const sx = (t: number) => ((ax * t + bx) * t + cx) * t;
+  const sy = (t: number) => ((ay * t + by) * t + cy) * t;
+  const dx = (t: number) => (3 * ax * t + 2 * bx) * t + cx;
+  return (x: number) => {
+    let t = Math.min(1, Math.max(0, x));
+    for (let i = 0; i < 5; i++) {
+      const err = sx(t) - x;
+      if (Math.abs(err) < 1e-5) break;
+      const d = dx(t);
+      if (Math.abs(d) < 1e-6) break;
+      t -= err / d;
+    }
+    t = Math.min(1, Math.max(0, t));
+    if (Math.abs(sx(t) - x) > 1e-3) {
+      let lo = 0;
+      let hi = 1;
+      for (let i = 0; i < 12; i++) {
+        t = (lo + hi) / 2;
+        if (sx(t) < x) lo = t;
+        else hi = t;
+      }
+    }
+    return sy(t);
+  };
+}
+
+const CURVES = [
+  { n: 1, label: 'Rush', solve: cubicBezier(0.25, 0.9, 0.25, 1) },
+  { n: 2, label: 'Build', solve: cubicBezier(0.7, 0, 0.84, 0.3) },
+  { n: 3, label: 'Float', solve: cubicBezier(0.65, 0, 0.35, 1) },
+];
+
 function warp(t: number, variant: number): number {
   const u = Math.min(1, Math.max(0, t / TOTAL));
-  if (variant === 1) return TOTAL * (1 - Math.pow(1 - u, 2.4)); // Rush: fast start, settles
-  if (variant === 2) return TOTAL * Math.pow(u, 2.4); // Build: slow start, rushes home
-  return TOTAL * (u * u * u * (u * (u * 6 - 15) + 10)); // Float: slow-fast-slow
+  const c = CURVES.find((c) => c.n === variant) ?? CURVES[0];
+  return TOTAL * c.solve(u);
 }
 
 function slotAt(t: number): { idx: number; progress: number } {
@@ -93,11 +132,37 @@ export default function Animation4Page() {
   const lastIdx = useRef(0);
   const [variant, setVariant] = useState(1);
 
+  const [playing, setPlaying] = useState(false);
+  const playingRef = useRef(false);
+  playingRef.current = playing;
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [armed, setArmed] = useState(false);
+
+  const replay = (v?: number) => {
+    if (v !== undefined) setVariant(v);
+    last.current = null;
+    setTime(0);
+    setPlaying(true);
+  };
+
+  // R replays. R then 1/2/3 replays that variant. Bare 1/2/3 also works.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === '1') setVariant(1);
-      else if (e.key === '2') setVariant(2);
-      else if (e.key === '3') setVariant(3);
+      const k = e.key.toLowerCase();
+      if (k === 'r') {
+        setArmed(true);
+        if (armTimer.current) clearTimeout(armTimer.current);
+        armTimer.current = setTimeout(() => {
+          setArmed(false);
+          replay();
+        }, 600);
+        return;
+      }
+      if (k === '1' || k === '2' || k === '3') {
+        if (armTimer.current) clearTimeout(armTimer.current);
+        setArmed(false);
+        replay(Number(k));
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -150,10 +215,16 @@ export default function Animation4Page() {
       if (last.current == null) last.current = now;
       const dt = (now - last.current) / 1000;
       last.current = now;
-      setTime((t) => {
-        const nt = t + dt;
-        return nt >= TOTAL ? nt - TOTAL : nt;
-      });
+      if (playingRef.current) {
+        setTime((t) => {
+          const nt = t + dt;
+          if (nt >= TOTAL) {
+            setPlaying(false);
+            return TOTAL;
+          }
+          return nt;
+        });
+      }
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
@@ -231,29 +302,37 @@ export default function Animation4Page() {
         )}
       </div>
 
-      {/* vartest speed curves — keys 1-3 */}
-      <div className="fixed bottom-4 right-4 z-[110] flex items-center gap-1 rounded-full border border-border bg-card p-1 shadow-lg">
-        {[
-          { n: 1, label: 'Rush', d: 'M2 14 C 8 14, 10 3, 18 2' },
-          { n: 2, label: 'Build', d: 'M2 2 C 10 3, 12 14, 18 14' },
-          { n: 3, label: 'Float', d: 'M2 12 C 7 12, 7 4, 11 4 C 15 4, 15 12, 18 12' },
-        ].map((o) => (
-          <button
-            key={o.n}
-            onClick={() => setVariant(o.n)}
-            title={`Curve ${o.n} (${o.label}) — press ${o.n}`}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors ${
-              variant === o.n
-                ? 'bg-primary text-primary-foreground'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            <svg width="20" height="16" viewBox="0 0 20 16" aria-hidden>
-              <path d={o.d} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            {o.n} · {o.label}
-          </button>
-        ))}
+      {/* vartest rig — real sampled curves, R replay, R+1/2/3 variant */}
+      <div className="fixed bottom-4 right-4 z-[110] rounded-2xl border border-border bg-card p-2 shadow-lg">
+        <div className="flex items-center gap-1">
+          {CURVES.map((o) => {
+            const pts = Array.from({ length: 25 }, (_, i) => {
+              const u = i / 24;
+              return `${(u * 20).toFixed(1)},${(16 - o.solve(u) * 14 - 1).toFixed(1)}`;
+            }).join(' ');
+            return (
+              <button
+                key={o.n}
+                onClick={() => replay(o.n)}
+                title={`Curve ${o.n} (${o.label}) — R then ${o.n}`}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                  variant === o.n
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <svg width="20" height="16" viewBox="0 0 20 16" aria-hidden>
+                  <line x1="0" y1="15" x2="20" y2="1" stroke="currentColor" strokeWidth="0.75" opacity="0.3" />
+                  <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                {o.n} · {o.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1 text-center text-[11px] text-text-secondary">
+          {armed ? 'R armed — press 1 / 2 / 3' : playing ? 'playing…' : 'R replay · R+1/2/3 variant'}
+        </p>
       </div>
       {/* Never in prod: local dev always, Vercel preview only when explicitly set. */}
       <AgentationToolbar
