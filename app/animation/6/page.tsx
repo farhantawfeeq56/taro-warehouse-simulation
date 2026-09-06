@@ -52,7 +52,7 @@ const TOTAL = 8.5;
 const TABLE_OUT_T0 = 2.5;
 const TABLE_OUT_T1 = 3.5;
 const AI_IN_T = 3.5;
-const CLICK_TS = [4.8, 5.8, 7.1];
+const CLICK_TS = [4.8, 5.8];
 const TYPE_T0 = 6.1;
 const TYPE_T1 = 6.8;
 const CONSTRAINTS_TEXT = 'max 14 racks, height at least 20';
@@ -67,9 +67,9 @@ export default function Animation6Page() {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const aiRef = useRef<HTMLDivElement | null>(null);
-  const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null, null]);
-  const done = useRef<boolean[]>([false, false, false]);
-  const lastTry = useRef<number[]>([0, 0, 0]);
+  const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null]);
+  const done = useRef<boolean[]>([false, false]);
+  const lastTry = useRef<number[]>([0, 0]);
   const typed = useRef(0);
   const prevTime = useRef(0);
   const [fit, setFit] = useState(1);
@@ -81,9 +81,9 @@ export default function Animation6Page() {
     last.current = null;
     prevTime.current = 0;
     setRunId((id) => id + 1);
-    anchors.current = [null, null, null];
-    done.current = [false, false, false];
-    lastTry.current = [0, 0, 0];
+    anchors.current = [null, null];
+    done.current = [false, false];
+    lastTry.current = [0, 0];
     typed.current = 0;
     setTime(0);
     setClickT(-1);
@@ -149,8 +149,7 @@ export default function Animation6Page() {
       } else {
         const btns = ai.querySelectorAll('button');
         for (const b of btns) {
-          const txt = b.textContent ?? '';
-          if (i === 1 ? txt.includes('Generate experiment') : txt.includes('Generate') && !txt.toLowerCase().includes('experiment')) {
+          if (b.textContent?.includes('Generate experiment')) {
             anchors.current[i] = pt(b);
             break;
           }
@@ -158,14 +157,11 @@ export default function Animation6Page() {
       }
       const at = CLICK_TS[i];
       const a = anchors.current[i];
-      // Steps 0-1 are done when their UI is gone (opened / advanced);
-      // step 2 (final Generate) ends on fire.
+      // A step is done when its UI is gone (opened / advanced).
       const gone =
         i === 0
           ? ![...ai.querySelectorAll('span')].some((s) => s.textContent === 'View it')
-          : i === 1
-            ? ![...ai.querySelectorAll('button')].some((b) => b.textContent?.includes('Generate experiment'))
-            : done.current[i];
+          : ![...ai.querySelectorAll('button')].some((b) => b.textContent?.includes('Generate experiment'));
       if (gone) {
         done.current[i] = true;
       } else if (a && time >= at && time - lastTry.current[i] > 0.4) {
@@ -182,7 +178,6 @@ export default function Animation6Page() {
         );
         el.click();
         setClickT(at);
-        if (i === 2) done.current[i] = true;
       }
     }
     if (time >= TYPE_T0 && time <= TYPE_T1 + 0.2) {
