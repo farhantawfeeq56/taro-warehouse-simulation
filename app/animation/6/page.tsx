@@ -138,23 +138,23 @@ export default function Animation6Page() {
         const r = el.getBoundingClientRect();
         return { el, x: r.left + r.width / 2 - sr.left, y: r.top + r.height / 2 - sr.top };
       };
-      if (!anchors.current[i]) {
-        if (i === 0) {
-          const spans = ai.querySelectorAll('span');
-          for (const s of spans) {
-            if (s.textContent === 'View it') {
-              anchors.current[i] = pt(s);
-              break;
-            }
+      // Re-measure every frame until fired — cached anchors go stale
+      // the moment the card shifts.
+      if (i === 0) {
+        const spans = ai.querySelectorAll('span');
+        for (const s of spans) {
+          if (s.textContent === 'View it') {
+            anchors.current[i] = pt(s);
+            break;
           }
-        } else {
-          const btns = ai.querySelectorAll('button');
-          for (const b of btns) {
-            const txt = b.textContent?.trim() ?? '';
-            if (i === 1 ? txt.includes('Generate experiment') : txt === 'Generate') {
-              anchors.current[i] = pt(b);
-              break;
-            }
+        }
+      } else {
+        const btns = ai.querySelectorAll('button');
+        for (const b of btns) {
+          const txt = b.textContent?.trim() ?? '';
+          if (i === 1 ? txt.includes('Generate experiment') : txt === 'Generate') {
+            anchors.current[i] = pt(b);
+            break;
           }
         }
       }
@@ -171,7 +171,17 @@ export default function Animation6Page() {
         done.current[i] = true;
       } else if (a && time >= at && time - lastTry.current[i] > 0.4) {
         lastTry.current[i] = time;
-        (a.el as HTMLElement).click();
+        const el = a.el as HTMLElement;
+        // Same press as /animation/2 — squash + dim, no ring.
+        el.animate(
+          [
+            { transform: 'scale(1)', filter: 'brightness(1)' },
+            { transform: 'scale(0.97)', filter: 'brightness(0.9)' },
+            { transform: 'scale(1)', filter: 'brightness(1)' },
+          ],
+          { duration: 350, easing: 'ease-out' }
+        );
+        el.click();
         setClickT(at);
         if (i === 2) done.current[i] = true;
       }
@@ -293,12 +303,7 @@ export default function Animation6Page() {
   }
   if (time >= 7.5) cop = Math.max(0, 1 - (time - 7.5) / 0.8);
 
-  const pressing = clickT >= 0 && time < clickT + 0.4;
-  const aiPulse = (() => {
-    if (clickT < 0) return {};
-    const p = clamp01((time - clickT) / 0.45);
-    return { transform: `${aiShow.transform ?? ''} scale(${1 + 0.012 * Math.sin(p * Math.PI)})` };
-  })();
+
 
   return (
     <div ref={stageRef} className="relative flex h-screen items-center justify-center overflow-hidden bg-background px-4">
@@ -378,7 +383,7 @@ export default function Animation6Page() {
             </div>
           </div>
 
-        <div ref={aiRef} style={pressing ? { ...aiShow, ...aiPulse, filter: 'brightness(0.97)' } : { ...aiShow, ...aiPulse }} className="col-start-1 row-start-1 mt-3 w-full">
+        <div ref={aiRef} style={aiShow} className="col-start-1 row-start-1 mt-3 w-full">
           {/* Confirmation paints after the last click — after we're gone. */}
           <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={() => new Promise<void>((r) => setTimeout(r, 3000))} />
         </div>
