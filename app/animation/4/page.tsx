@@ -54,11 +54,6 @@ const WORKERS = 5;
 const TOTAL = 3;
 const WIN_STARTS = [0, 0.6, 1.2, 1.8];
 const WIN_DUR = 0.6;
-const BOUNDS = [0.6, 1.2, 1.8];
-const BLEND = 0.12;
-
-const easeInOutCubic = (t: number) =>
-  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 /* Speed ramping — velocity follows a bell (Gaussian): slow-fast-slow with
    perfect entry/exit symmetry. Position = normalized bell integral. */
@@ -236,42 +231,31 @@ export default function Animation4Page() {
     return () => ro.disconnect();
   }, []);
 
-  const frozenRef = useRef(1);
   const ready = readyCount >= SHOWCASES.length && built.every(Boolean);
-  const tw = warp(time, variant);
-  const { idx, progress } = slotAt(tw);
+  const { idx, progress } = slotAt(warp(time, variant));
   if (idx !== lastIdx.current) {
     lastIdx.current = idx;
     setReplayId((id) => id + 1);
   }
-
-  // Eased handoff around each boundary — outgoing frozen complete,
-  // incoming growing, scales lerped.
-  let blendK = -1;
-  let blendP = 0;
-  for (const b of BOUNDS) {
-    if (Math.abs(tw - b) < BLEND) {
-      blendK = Math.round(b / WIN_DUR);
-      blendP = easeInOutCubic((tw - (b - BLEND)) / (BLEND * 2));
-    }
-  }
-
-  const scaleFor = (w: number, h: number) => {
-    const lw = w * CELL_SIZE;
-    const lh = h * CELL_SIZE;
-    if (!lw || !lh || !stage.w || !stage.h) return 0.8;
-    return Math.min((stage.w - 320 - 48) / lw, (stage.h - 32 - 48) / lh, 1.5) * 0.8;
-  };
-  const routeFor = (entry: NonNullable<Built>): StrategyResult | null =>
-    entry.results?.strategies.find((r) => r.strategy === entry.results!.bestStrategy) ??
-    entry.results?.strategies[0] ??
-    null;
-
-  const blending = ready && blendK > 0;
-  const inLocal = blending ? Math.min(1, Math.max(0, (tw - BOUNDS[blendK - 1]) / WIN_DUR)) : 0;
-  animationProgressRef.current = ready ? (blending ? inLocal : progress) : 0;
+  animationProgressRef.current = ready ? progress : 0;
 
   const entry = ready ? built[idx] : null;
+  const results = entry?.results ?? null;
+  const activeRoute: StrategyResult | null =
+    results?.strategies.find((r) => r.strategy === results.bestStrategy) ??
+    results?.strategies[0] ??
+    null;
+
+  const W = entry?.session.warehouse.width ?? 0;
+  const H = entry?.session.warehouse.height ?? 0;
+  const logicalW = W * CELL_SIZE;
+  const logicalH = H * CELL_SIZE;
+  const availW = Math.max(stage.w - 320 - 48, 1);
+  const availH = Math.max(stage.h - 32 - 48, 1);
+  const fitScale =
+    logicalW > 0 && logicalH > 0 && stage.w > 0 && stage.h > 0
+      ? Math.min(availW / logicalW, availH / logicalH, 1.5) * 0.8
+      : 0.8;
 
   return (
     <div className="h-screen overflow-hidden bg-muted/20">
@@ -280,64 +264,23 @@ export default function Animation4Page() {
           <p className="animate-pulse text-sm text-text-secondary">
             Preparing warehouses… {readyCount}/4
           </p>
-        ) : blending ? (
-          // Crossfade handoff — both cards stacked, scales lerped.
-          (() => {
-            const out = built[blendK - 1]!;
-            const inc = built[blendK]!;
-            const sOut = scaleFor(out.session.warehouse.width, out.session.warehouse.height);
-            const sIn = scaleFor(inc.session.warehouse.width, inc.session.warehouse.height);
-            const s = sOut + (sIn - sOut) * blendP;
-            const card = (
-              k: number,
-              e: NonNullable<Built>,
-              ref: typeof animationProgressRef,
-              sc: number,
-              opacity: number
-            ) => (
-              <div
-                className="col-start-1 row-start-1 flex flex-col shrink-0 border border-border rounded-md overflow-hidden pointer-events-none"
-                style={{ transform: `scale(${sc})`, opacity }}
-              >
-                <div className="relative" style={{ width: e.session.warehouse.width * CELL_SIZE, height: e.session.warehouse.height * CELL_SIZE }}>
-                  <WarehouseSvgRenderer
-                    warehouseId={`a4-${k}`}
-                    warehouse={e.session.warehouse}
-                    onWarehouseChange={() => {}}
-                    selectedTool="select"
-                    activeRoute={routeFor(e)}
-                    animationProgressRef={ref}
-                    zVisualizationMode="all"
-                    animationReplayId={replayId}
-                    zoom={sc}
-                  />
-                </div>
-              </div>
-            );
-            return (
-              <div key={`blend-${blendK}`} className="grid place-items-center">
-                {card(blendK - 1, out, frozenRef, s, 1 - blendP)}
-                {card(blendK, inc, animationProgressRef, s, blendP)}
-              </div>
-            );
-          })()
         ) : (
           <div
             key={idx}
             className="flex flex-col shrink-0 border border-border rounded-md overflow-hidden pointer-events-none"
-            style={{ transform: `scale(${scaleFor(entry.session.warehouse.width, entry.session.warehouse.height)})` }}
+            style={{ transform: `scale(${fitScale})` }}
           >
-            <div className="relative" style={{ width: entry.session.warehouse.width * CELL_SIZE, height: entry.session.warehouse.height * CELL_SIZE }}>
+            <div className="relative" style={{ width: logicalW, height: logicalH }}>
               <WarehouseSvgRenderer
                 warehouseId={`a4-${idx}`}
                 warehouse={entry.session.warehouse}
                 onWarehouseChange={() => {}}
                 selectedTool="select"
-                activeRoute={routeFor(entry)}
+                activeRoute={activeRoute}
                 animationProgressRef={animationProgressRef}
                 zVisualizationMode="all"
                 animationReplayId={replayId}
-                zoom={scaleFor(entry.session.warehouse.width, entry.session.warehouse.height)}
+                zoom={fitScale}
               />
             </div>
           </div>
