@@ -7,7 +7,7 @@ import { generateWarehouseSession } from '@/lib/taro/warehouse-generator';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { reconcile } from '@/lib/taro/corrector';
 import { runSimulation } from '@/core/simulationEngine';
-import type { Order, SimulationResults, StrategyResult, Warehouse } from '@/lib/taro/types';
+import type { SimulationResults, StrategyResult } from '@/lib/taro/types';
 import { CELL_SIZE } from '@/lib/taro/constants';
 
 /* ── Four distinct warehouses ───────────────────────────────── */
@@ -21,11 +21,11 @@ const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
     },
   },
   {
-    name: 'Parallel',
+    name: 'Double',
     config: {
-      layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 0 },
-      inventory: { skuCount: 430, demandDistribution: 10, productAffinity: 10, storageFootprint: 88 },
-      placement: { slottingBias: 10, categoryClustering: 10 },
+      layout: { gridHeight: 20, rackCount: 12, aisleWidth: 1, crossAisleCount: 2 },
+      inventory: { skuCount: 420, demandDistribution: 70, productAffinity: 30, storageFootprint: 82 },
+      placement: { slottingBias: 80, categoryClustering: 30 },
     },
   },
   {
@@ -50,28 +50,6 @@ const ORDER_COUNT = 50;
 const AVG_ORDER_SIZE = 3;
 const WORKERS = 5;
 
-/* Drop every order rooted in the left end (left fifth) — their excursions
-   stretch the route across the floorplan. Warehouse 2 only. */
-function dropLeftEndOrders(warehouse: Warehouse, orders: Order[]): Order[] {
-  const skuX = new Map<string, number>();
-  for (const row of warehouse.grid) {
-    for (const cell of row) {
-      for (const loc of cell.locations) {
-        const prev = skuX.get(loc.sku);
-        if (prev === undefined || loc.x < prev) skuX.set(loc.sku, loc.x);
-      }
-    }
-  }
-  const edge = warehouse.width * 0.2;
-  return orders.filter((o) => {
-    let m = Infinity;
-    for (const it of o.items) {
-      const x = skuX.get(it.skuId);
-      if (x !== undefined) m = Math.min(m, x);
-    }
-    return m >= edge;
-  });
-}
 /** Same baseline as the main app's strategy replay. */
 const REPLAY_MS = 3000;
 
@@ -116,12 +94,7 @@ export default function Animation3Page() {
   useEffect(() => {
     if (sessions[active]) return;
     const t = setTimeout(() => {
-      const raw = generateWarehouseSession(SHOWCASES[active].config, ORDER_COUNT, AVG_ORDER_SIZE);
-      // Warehouse 2 only: prune the lone left-extreme order.
-      const s =
-        active === 1
-          ? { ...raw, orders: dropLeftEndOrders(raw.warehouse, raw.orders) }
-          : raw;
+      const s = generateWarehouseSession(SHOWCASES[active].config, ORDER_COUNT, AVG_ORDER_SIZE);
       setSessions((prev) => {
         if (prev[active]) return prev;
         const next = [...prev];
