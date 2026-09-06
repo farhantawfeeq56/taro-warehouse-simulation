@@ -52,9 +52,12 @@ const TOTAL = 8;
 const TABLE_OUT_T0 = 2.5;
 const TABLE_OUT_T1 = 3.5;
 const AI_IN_T = 3.5;
-const CLICK_TS = [4.3, 5.3, 6.3];
-const AI_OUT_T0 = 6.7;
-const AI_OUT_T1 = 7.4;
+const CLICK_TS = [4.3, 5.3, 6.6];
+const TYPE_T0 = 5.6;
+const TYPE_T1 = 6.3;
+const AI_OUT_T0 = 6.9;
+const AI_OUT_T1 = 7.6;
+const CONSTRAINTS_TEXT = 'max 14 racks, height at least 20';
 
 export default function Animation6Page() {
   const [time, setTime] = useState(0);
@@ -67,6 +70,8 @@ export default function Animation6Page() {
   const aiRef = useRef<HTMLDivElement | null>(null);
   const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null, null]);
   const fired = useRef<boolean[]>([false, false, false]);
+  const typed = useRef(0);
+  const taAnchor = useRef<{ x: number; y: number } | null>(null);
   const prevTime = useRef(0);
   const [fit, setFit] = useState(1);
   const [playing, setPlaying] = useState(false);
@@ -78,6 +83,8 @@ export default function Animation6Page() {
     prevTime.current = 0;
     anchors.current = [null, null, null];
     fired.current = [false, false, false];
+    typed.current = 0;
+    taAnchor.current = null;
     setTime(0);
     setClickT(-1);
     setPlaying(true);
@@ -139,10 +146,10 @@ export default function Animation6Page() {
             }
           }
         } else {
-          const label = i === 1 ? 'Generate experiment' : 'No constraints';
           const btns = ai.querySelectorAll('button');
           for (const b of btns) {
-            if (b.textContent?.includes(label)) {
+            const txt = b.textContent?.trim() ?? '';
+            if (i === 1 ? txt.includes('Generate experiment') : txt === 'Generate') {
               anchors.current[i] = pt(b);
               break;
             }
@@ -155,6 +162,31 @@ export default function Animation6Page() {
         (a.el as HTMLElement).click();
         fired.current[i] = true;
         setClickT(at);
+      }
+    }
+    // Track the textarea for the cursor to watch, then type into it.
+    const taEl = aiRef.current?.querySelector('textarea');
+    if (taEl && stageRef.current) {
+      const sr = stageRef.current.getBoundingClientRect();
+      const r = taEl.getBoundingClientRect();
+      taAnchor.current = { x: r.left + r.width / 2 - sr.left, y: r.top + r.height / 2 - sr.top };
+    }
+    if (time >= TYPE_T0 && time <= TYPE_T1 + 0.2) {
+      const ta = taEl;
+      if (ta) {
+        const n = Math.min(
+          CONSTRAINTS_TEXT.length,
+          Math.floor(((time - TYPE_T0) / (TYPE_T1 - TYPE_T0)) * CONSTRAINTS_TEXT.length)
+        );
+        if (n !== typed.current) {
+          typed.current = n;
+          const setter = Object.getOwnPropertyDescriptor(
+            window.HTMLTextAreaElement.prototype,
+            'value'
+          )?.set;
+          setter?.call(ta, CONSTRAINTS_TEXT.slice(0, n));
+          ta.dispatchEvent(new Event('input', { bubbles: true }));
+        }
       }
     }
     prevTime.current = time;
@@ -229,12 +261,19 @@ export default function Animation6Page() {
     cop = clamp01((time - t0) / 0.2);
   };
 
+  const TA = taAnchor.current ?? A1;
   if (time < CLICK_TS[0]) {
     leg(3.6, CLICK_TS[0], A0.x + SX, A0.y + SY, A0.x, A0.y);
   } else if (time < CLICK_TS[1]) {
     leg(CLICK_TS[0], CLICK_TS[1], A0.x, A0.y, A1.x, A1.y);
+  } else if (time < TYPE_T0) {
+    leg(CLICK_TS[1], TYPE_T0, A1.x, A1.y, TA.x, TA.y);
+  } else if (time < TYPE_T1) {
+    cx = TA.x;
+    cy = TA.y + Math.sin((time - TYPE_T0) * 12) * 2;
+    cop = 1;
   } else if (time < CLICK_TS[2]) {
-    leg(CLICK_TS[1], CLICK_TS[2], A1.x, A1.y, A2.x, A2.y);
+    leg(TYPE_T1, CLICK_TS[2], TA.x, TA.y, A2.x, A2.y);
   } else {
     cx = A2.x;
     cy = A2.y;
