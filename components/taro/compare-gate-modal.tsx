@@ -87,12 +87,7 @@ export function CompareGateModal({ state, onClose, onAddWarehouse, onNavigate }:
               </ul>
               <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">How to make them different</p>
-                <ol className="list-decimal pl-4 space-y-0.5">
-                  <li>Go to one of the warehouses above.</li>
-                  <li>In the right sidebar, open the <span className="font-medium text-foreground">Config</span> tab.</li>
-                  <li>Click <span className="font-medium text-foreground">Edit</span> to change its layout (aisles, racks) or inventory, then apply.</li>
-                  <li>Come back and Compare again.</li>
-                </ol>
+                <p>Click a warehouse above to go to it, then use <span className="font-medium text-foreground">Edit</span> in its bottom dock to change the layout or inventory — then Compare again.</p>
               </div>
             </>
           )}
