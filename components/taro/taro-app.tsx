@@ -875,6 +875,7 @@ export function TaroApp(_props: TaroAppProps) {
                 onRenameWarehouse={handleRenameWarehouse}
                 onDeleteWarehouse={handleDeleteWarehouse}
                 onCompareWarehouse={handleCompareWarehouse}
+                onEditWarehouse={handleOpenLayoutConfig}
                 selectedTool={selectedTool}
                 activeRoute={activeRoute}
                 animationProgressRef={animationProgressRef}

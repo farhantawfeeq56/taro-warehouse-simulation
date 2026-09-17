@@ -28,7 +28,7 @@ import type {
 import type { MutableRefObject } from 'react';
 import { CELL_SIZE } from '@/lib/taro/constants';
 import { WarehouseSvgRenderer } from './warehouse-svg-renderer';
-import { Plus, Copy, TextCursorInput, Trash2, GitCompareArrows } from 'lucide-react';
+import { Plus, Copy, TextCursorInput, Trash2, GitCompareArrows, Pencil } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -55,6 +55,7 @@ interface MultiWarehouseScrollProps {
   onRenameWarehouse: (warehouseId: string, name: string) => void;
   onDeleteWarehouse?: (warehouseId: string) => void;
   onCompareWarehouse: (warehouseId: string) => void;
+  onEditWarehouse?: (warehouseId: string) => void;
   selectedTool: ToolType;
   activeRoute: StrategyResult | null;
   animationProgressRef: MutableRefObject<number>;
@@ -122,6 +123,7 @@ function PageHeader({
   onDuplicate,
   onDelete,
   onCompare,
+  onEdit,
   canCompare = true,
 }: {
   name: string;
@@ -134,6 +136,7 @@ function PageHeader({
   onDuplicate: () => void;
   onDelete?: () => void;
   onCompare: () => void;
+  onEdit?: () => void;
   canCompare?: boolean;
 }) {
   const [draft, setDraft] = useState(name);
@@ -199,6 +202,9 @@ function PageHeader({
         <div className="flex shrink-0 items-center gap-0.5">
           <ActionButton onClick={onAdd} title="Add a new warehouse" label="Add" icon={Plus} />
           <ActionButton onClick={onDuplicate} title="Duplicate this warehouse" label="Duplicate" icon={Copy} />
+          {onEdit && (
+            <ActionButton onClick={onEdit} title="Edit this warehouse" label="Edit" icon={Pencil} />
+          )}
           {renaming ? (
             <button
               type="button"
@@ -233,6 +239,7 @@ export function MultiWarehouseScroll({
   onRenameWarehouse,
   onDeleteWarehouse,
   onCompareWarehouse,
+  onEditWarehouse,
   selectedTool,
   activeRoute,
   animationProgressRef,
@@ -399,6 +406,7 @@ export function MultiWarehouseScroll({
                       onDuplicate={() => onDuplicateWarehouse(entry.id)}
                       onDelete={onDeleteWarehouse ? () => onDeleteWarehouse(entry.id) : undefined}
                       onCompare={() => onCompareWarehouse(entry.id)}
+                      onEdit={onEditWarehouse ? () => onEditWarehouse(entry.id) : undefined}
                       canCompare={warehouses.length > 1}
                     />
                   </div>
