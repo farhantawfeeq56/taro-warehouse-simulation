@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ExperimentSuggestion — a rule-based experiment suggestion as a quiet nudge placed BELOW
+ * AiSuggestion — the AI experiment suggestion as a quiet nudge placed BELOW
  * the rankings on the compare page. It is deliberately not a big card in the
  * flow: just a small line inviting the user to look at a recommended
  * experiment. Clicking it expands the full recommendation downward (axis +
@@ -9,7 +9,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, FlaskConical, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, FlaskConical, Sparkles, X } from 'lucide-react';
 import {
   generateExperiment,
   type ExperimentRecommendation,
@@ -21,7 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
-interface ExperimentSuggestionProps {
+interface AiSuggestionProps {
   /** Every warehouse in the comparison, with its simulation results. */
   insights: WarehouseInsight[];
   isRunning: boolean;
@@ -40,7 +40,7 @@ const AXIS_META: Record<string, { label: string; tone: string }> = {
   placement: { label: 'Smarter slotting', tone: 'border-border bg-muted text-muted-foreground' },
 };
 
-export function ExperimentSuggestion({ insights, isRunning, onGenerate }: ExperimentSuggestionProps) {
+export function AiSuggestion({ insights, isRunning, onGenerate }: AiSuggestionProps) {
   const recommendation = useMemo(() => {
     if (insights.length === 0) return null;
     return generateExperiment(insights, '');
@@ -92,9 +92,9 @@ export function ExperimentSuggestion({ insights, isRunning, onGenerate }: Experi
           onClick={() => setOpen(true)}
           className="group flex w-full items-center gap-2 text-left text-sm text-muted-foreground"
         >
-          <FlaskConical className="h-4 w-4 shrink-0 text-primary" />
+          <Sparkles className="h-4 w-4 shrink-0 text-primary" />
           <span>
-            There's a recommended experiment.{' '}
+            The AI has a recommended experiment.{' '}
             <span className="font-medium text-primary underline-offset-2 group-hover:underline">
               View it
             </span>
@@ -105,8 +105,15 @@ export function ExperimentSuggestion({ insights, isRunning, onGenerate }: Experi
         <div className="rounded-lg border border-border bg-surface">
           {/* Expanded header */}
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-            <FlaskConical className="h-4 w-4 text-primary" />
+            <Sparkles className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-semibold text-foreground">Recommended experiment</h3>
+            <Badge
+              variant="outline"
+              className="text-[10px] text-muted-foreground"
+              title="No model or API call — a fixed rule-based heuristic over your comparison numbers."
+            >
+              Mock AI
+            </Badge>
             <button
               type="button"
               onClick={close}
@@ -161,7 +168,7 @@ export function ExperimentSuggestion({ insights, isRunning, onGenerate }: Experi
                   <FlaskConical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                   <p className="text-[11px] leading-relaxed text-warning">
                     <span className="font-semibold">This is just an experiment.</span> It is not a
-                    guarantee. This hypothesizes what might improve things based on your
+                    guarantee. The AI is hypothesizing what might improve things based on your
                     current warehouses. Add it, run the comparison again, and judge by the numbers.
                   </p>
                 </div>
@@ -237,7 +244,7 @@ export function ExperimentSuggestion({ insights, isRunning, onGenerate }: Experi
                 {/* Post-generate confirmation. */}
                 {generatedName && (
                   <div className="flex items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2.5">
-                    <FlaskConical className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="text-xs">
                       <p className="font-medium text-foreground">
                         Generated "{generatedName}" — it's in your workspace now.

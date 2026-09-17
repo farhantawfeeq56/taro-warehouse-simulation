@@ -324,7 +324,7 @@ export function TaroApp(_props: TaroAppProps) {
   }, []);
 
   // ── Workspace: Generate experiment warehouse ────────────────────────────
-  // The recommendation hands us a full WarehouseConfiguration. We run the
+  // The AI recommendation hands us a full WarehouseConfiguration. We run the
   // same session pipeline as the normal New-Warehouse flow, append the result
   // to the workspace, and jump back to the warehouse screen so the user sees
   // the new experiment immediately.

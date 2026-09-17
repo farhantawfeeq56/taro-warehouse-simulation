@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Trophy } from 'lucide-react';
 import { AgentationToolbar } from '@/components/agentation';
-import { ExperimentSuggestion } from '@/components/taro/experiment-recommendation-card';
+import { AiSuggestion } from '@/components/taro/experiment-recommendation-card';
 import type { WarehouseInsight } from '@/lib/taro/experiment-recommendation';
 import { cn } from '@/lib/utils';
 
@@ -47,11 +47,11 @@ const METRIC_DEFS = [
   { key: 'orders', label: 'Orders Done', pick: (r: Baked) => r.ordersCompleted, format: (n: number) => `${fmtNumber(n, 0)}` },
 ];
 
-/* Phases: table → close → suggestion chain → out. Ends on the last button. */
+/* Phases: table → close → AI chain → out. Ends on the last button. */
 const TOTAL = 8.5;
 const TABLE_OUT_T0 = 2.5;
 const TABLE_OUT_T1 = 3.5;
-const SUGG_IN_T = 3.5;
+const AI_IN_T = 3.5;
 const CLICK_TS = [4.8, 5.8];
 const TYPE_T0 = 6.1;
 const TYPE_T1 = 6.8;
@@ -66,7 +66,7 @@ export default function Animation4Page() {
   const last = useRef<number | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const suggRef = useRef<HTMLDivElement | null>(null);
+  const aiRef = useRef<HTMLDivElement | null>(null);
   const anchors = useRef<({ el: Element; x: number; y: number } | null)[]>([null, null]);
   const done = useRef<boolean[]>([false, false]);
   const lastTry = useRef<number[]>([0, 0]);
@@ -128,9 +128,9 @@ export default function Animation4Page() {
   // Measure each step's exact target, then click it on schedule.
   useEffect(() => {
     const stage = stageRef.current;
-    const sugg = suggRef.current;
+    const ai = aiRef.current;
     const i = done.current.findIndex((f) => !f);
-    if (stage && sugg && i >= 0 && time >= SUGG_IN_T) {
+    if (stage && ai && i >= 0 && time >= AI_IN_T) {
       const sr = stage.getBoundingClientRect();
       const pt = (el: Element) => {
         const r = el.getBoundingClientRect();
@@ -139,7 +139,7 @@ export default function Animation4Page() {
       // Re-measure every frame until fired — cached anchors go stale
       // the moment the card shifts.
       if (i === 0) {
-        const spans = sugg.querySelectorAll('span');
+        const spans = ai.querySelectorAll('span');
         for (const s of spans) {
           if (s.textContent === 'View it') {
             anchors.current[i] = pt(s);
@@ -147,7 +147,7 @@ export default function Animation4Page() {
           }
         }
       } else {
-        const btns = sugg.querySelectorAll('button');
+        const btns = ai.querySelectorAll('button');
         for (const b of btns) {
           if (b.textContent?.includes('Generate experiment')) {
             anchors.current[i] = pt(b);
@@ -160,8 +160,8 @@ export default function Animation4Page() {
       // A step is done when its UI is gone (opened / advanced).
       const gone =
         i === 0
-          ? ![...sugg.querySelectorAll('span')].some((s) => s.textContent === 'View it')
-          : ![...sugg.querySelectorAll('button')].some((b) => b.textContent?.includes('Generate experiment'));
+          ? ![...ai.querySelectorAll('span')].some((s) => s.textContent === 'View it')
+          : ![...ai.querySelectorAll('button')].some((b) => b.textContent?.includes('Generate experiment'));
       if (gone) {
         done.current[i] = true;
       } else if (a && time >= at && time - lastTry.current[i] > 0.4) {
@@ -181,7 +181,7 @@ export default function Animation4Page() {
       }
     }
     if (time >= TYPE_T0 && time <= TYPE_T1 + 0.2) {
-      const ta = suggRef.current?.querySelector('textarea');
+      const ta = aiRef.current?.querySelector('textarea');
       if (ta) {
         const n = Math.min(
           CONSTRAINTS_TEXT.length,
@@ -240,11 +240,11 @@ export default function Animation4Page() {
     };
   })();
 
-  // Suggestion enters after the table is gone and stays — the finale is the
+  // AI enters after the table is gone and stays — the finale is the
   // genuine Generate result painting on screen.
-  const suggShow = (() => {
-    if (time < SUGG_IN_T) return { opacity: 0, visibility: 'hidden' as const };
-    const pIn = easeOutCubic(clamp01((time - SUGG_IN_T) / 0.3));
+  const aiShow = (() => {
+    if (time < AI_IN_T) return { opacity: 0, visibility: 'hidden' as const };
+    const pIn = easeOutCubic(clamp01((time - AI_IN_T) / 0.3));
     return {
       opacity: pIn,
       transform: `translateY(${(1 - pIn) * 16}px)`,
@@ -361,9 +361,9 @@ export default function Animation4Page() {
             </div>
           </div>
 
-        <div key={runId} ref={suggRef} style={suggShow} className="col-start-1 row-start-1 mt-3 w-full">
+        <div key={runId} ref={aiRef} style={aiShow} className="col-start-1 row-start-1 mt-3 w-full">
           {/* Confirmation paints after the last click — after we're gone. */}
-          <ExperimentSuggestion insights={INSIGHTS} isRunning={false} onGenerate={() => new Promise<void>((r) => setTimeout(r, 600))} />
+          <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={() => new Promise<void>((r) => setTimeout(r, 600))} />
         </div>
       </div>
 
