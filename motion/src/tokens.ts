@@ -1,4 +1,4 @@
-// Taro design tokens — mirrored 1:1 from app/globals.css so the film is a
+// Taro design tokens - mirrored 1:1 from app/globals.css so the film is a
 // direct extension of the product interface.
 
 export const C = {
@@ -20,7 +20,7 @@ export const C = {
   borderSubtle: '#E9E7E6',
   borderDefault: '#DDDAD9',
   borderStrong: '#C9C5C4',
-  // semantic — used sparingly and with meaning
+  // semantic - used sparingly and with meaning
   positive: '#159A6F',
   positiveSoft: '#DCF7EA',
   warning: '#B7791F',
@@ -47,7 +47,7 @@ export const FONT = 'InstrumentSans, "Instrument Sans", sans-serif';
 // Worker colors from lib/taro/constants (first four read well on paper)
 export const WORKER_COLORS = ['#4C5C2D', '#BC6C25', '#2563A8', '#159A6F'];
 
-// Strategy colors — Taro's STRATEGY_COLORS but tuned to sit on paper:
+// Strategy colors - Taro's STRATEGY_COLORS but tuned to sit on paper:
 // single stays oxidized-iron (reads as "busy"), batch warm rose,
 // zone amber.
 export const STRATEGY_COLORS = {
@@ -59,7 +59,7 @@ export const STRATEGY_COLORS = {
 export const RADIUS = 10;
 export const OUTER_PADDING = 2;
 
-// Easing — Apple-style decelerate for arrivals, calm cubic for drift
+// Easing - Apple-style decelerate for arrivals, calm cubic for drift
 const bz = (c1x: number, c1y: number, c2x: number, c2y: number) => {
   const ax = 3 * c1x; const ay = 3 * c1y;
   const bx = 3 * (c2x - c1x) - ax; const by = 3 * (c2y - c1y) - ay;

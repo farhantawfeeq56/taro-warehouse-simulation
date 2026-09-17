@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Records /intro as a real-time 1920x1080 @ 60fps MP4.
 //
-// Captures the ACTUAL rendered page (layout, fonts, motion timing) —
+// Captures the ACTUAL rendered page (layout, fonts, motion timing) -
 // headless CDP screencast encoded to CFR 60fps MP4 (runs in the
 // background, safe while you keep working). Pass --display for true-60
 // display capture of a fullscreen kiosk Chrome (needs the machine
@@ -122,7 +122,7 @@ async function recordGdigrab(exe, url, ms, out) {
     const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     const page = await context.newPage();
 
-    // Warm-up load: compiles pages, caches fonts — the recorded pass then starts clean.
+    // Warm-up load: compiles pages, caches fonts - the recorded pass then starts clean.
     console.log('[video] warm-up load…');
     await page.goto(url, { waitUntil: 'networkidle' });
     await sleep(2500);
@@ -130,7 +130,7 @@ async function recordGdigrab(exe, url, ms, out) {
     await page.keyboard.press('F11').catch(() => {}); // true fullscreen: no tabs, no taskbar
     await page.bringToFront().catch(() => {}); // kiosk must be the top window for display capture
     await sleep(800);
-    console.log("[video] heads up: capture runs ~30s — hands off mouse/keyboard meanwhile");
+    console.log("[video] heads up: capture runs ~30s - hands off mouse/keyboard meanwhile");
 
     mkdirSync(join(ROOT, 'out'), { recursive: true });
     const secs = (ms / 1000).toFixed(2);
@@ -168,7 +168,7 @@ async function recordGdigrab(exe, url, ms, out) {
   }
 }
 
-// Fallback path: CDP screencast (unique fps lower — container still CFR 60).
+// Fallback path: CDP screencast (unique fps lower - container still CFR 60).
 async function recordScreencast(exe, url, ms, out) {
   console.log(`[video] launching headless ${exe}`);
   const browser = await chromium.launch({
@@ -211,13 +211,13 @@ async function recordScreencast(exe, url, ms, out) {
         return !!tag && getComputedStyle(tag).opacity === '1';
       }, null, { timeout: ms });
       await sleep(2500); // hold the finale card
-    } catch { /* cap hit — keep what we captured */ }
+    } catch { /* cap hit - keep what we captured */ }
     await sleep(1000); // drain in-flight frames
     const stopT = frames.length ? frames[frames.length - 1].t : 0;
     await session.send('Page.stopScreencast').catch(() => {});
     await browser.close();
 
-    if (frames.length < 10) throw new Error(`only ${frames.length} frames captured — screencast failed`);
+    if (frames.length < 10) throw new Error(`only ${frames.length} frames captured - screencast failed`);
     console.log(`[video] captured ${frames.length} frames`);
 
     const lines = [];

@@ -6,7 +6,7 @@ export interface Point2D {
 // 4-directional (Manhattan) distance helpers.
 // All legal moves are orthogonal, so every step costs exactly 1.
 
-/** Manhattan distance — admissible heuristic for 4-directional A*. */
+/** Manhattan distance - admissible heuristic for 4-directional A*. */
 export function calculateManhattanDistance(a: Point2D, b: Point2D): number {
   const dx = Math.abs(a.x - b.x);
   const dy = Math.abs(a.y - b.y);

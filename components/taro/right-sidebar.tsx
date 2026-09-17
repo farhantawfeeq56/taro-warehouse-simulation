@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * Right sidebar — a plain in-flow right panel beside the warehouse canvas.
+ * Right sidebar - a plain in-flow right panel beside the warehouse canvas.
  *
  * Unlike a fixed overlay, this is a real flex child of the workspace row, so
  * it occupies actual layout width and the canvas shrinks to make room. It
  * hosts Config + Simulation, switched by an in-panel tab bar:
  *
- *   • Config      — read-only view of the active warehouse's configuration
+ *   • Config      - read-only view of the active warehouse's configuration
  *                   (see config-tab.tsx), with an Edit action.
- *   • Simulation  — Orders generation + simulation panel (see
+ *   • Simulation  - Orders generation + simulation panel (see
  *                   simulation-panel.tsx).
  *
  * The drawing tools live in a separate floating Tools dock (left edge); the
@@ -71,7 +71,7 @@ export interface RightSidebarProps {
 }
 
 /**
- * Right sidebar — an in-flow div (flex child). Always open; hosts Config +
+ * Right sidebar - an in-flow div (flex child). Always open; hosts Config +
  * Simulation, switched by the in-panel tab bar.
  */
 export function RightSidebar(props: RightSidebarProps) {
@@ -89,7 +89,7 @@ export function RightSidebar(props: RightSidebarProps) {
     props.onSimulate?.();
   };
   const goBack = () => setSimFlowStep('setup');
-  // Breadcrumb navigation — always honors the click (Setup is always reachable).
+  // Breadcrumb navigation - always honors the click (Setup is always reachable).
   const jumpTo = (step: 'setup' | 'simulation') => {
     setSimFlowStep(step);
     if (step === 'simulation' && !props.simulationResults && !props.isSimulating) {
@@ -99,7 +99,7 @@ export function RightSidebar(props: RightSidebarProps) {
 
   const renderBody = () => (
     <>
-      {/* Header — tab switcher (Config | Simulation). */}
+      {/* Header - tab switcher (Config | Simulation). */}
       <div className="flex items-center justify-between border-b border-border px-2.5 py-2 shrink-0">
         <Tabs
           items={[

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Preview stats — the four warehouse summary cards under the layout-config
+ * Preview stats - the four warehouse summary cards under the layout-config
  * preview. Rendered as a horizontal Stepper ("Flow") design: four numbered
  * badges joined by a rail, with a card of stat rows below each one.
  */

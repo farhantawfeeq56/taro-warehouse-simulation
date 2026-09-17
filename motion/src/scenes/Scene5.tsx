@@ -1,5 +1,5 @@
-// Scene 5 — Simulate Picking Strategies (40–52s)
-// Same warehouse, same workload — three strategies run back to back and a
+// Scene 5 - Simulate Picking Strategies (40–52s)
+// Same warehouse, same workload - three strategies run back to back and a
 // metrics table fills in as each finishes.
 
 import React from 'react';

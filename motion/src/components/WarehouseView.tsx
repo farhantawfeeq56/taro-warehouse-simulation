@@ -1,4 +1,4 @@
-// WarehouseView — the film's main visual system, built exactly like Taro's
+// WarehouseView - the film's main visual system, built exactly like Taro's
 // SVG renderer: paper background, dark rack bays with paper-dot SKUs, worker
 // start marker, colored route polylines with head dots, order pins, workers
 // and soft zone tints. All coordinates are in cell units; the SVG viewBox
@@ -51,9 +51,9 @@ interface Props {
   shelfFades?: Record<string, number>; // "x,y" -> opacity 0..1
   gridOpacity?: number;
   startMarker?: boolean;
-  /** how many SKU dots to show per bay (1..4) — inventory density */
+  /** how many SKU dots to show per bay (1..4) - inventory density */
   skuDensity?: number;
-  /** accessibility of grid lines — subtle paper grid */
+  /** accessibility of grid lines - subtle paper grid */
   gridLines?: boolean;
   pad?: number;   // inner padding ratio
   /** stage-wise fade for the whole view */

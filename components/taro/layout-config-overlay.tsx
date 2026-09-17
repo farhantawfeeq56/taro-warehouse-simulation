@@ -1,20 +1,20 @@
 'use client';
 
 /**
- * Warehouse Layout Config — Tabbed Navigation (Pills).
+ * Warehouse Layout Config - Tabbed Navigation (Pills).
  *
  * Left sidebar: three tabs (Geometry / Inventory / Placement) instead of
  * expandable cards. The active tab renders its sliders below the tab bar.
- * Tab direction is fixed to variant 1 (Pills — rounded pill tabs, active =
+ * Tab direction is fixed to variant 1 (Pills - rounded pill tabs, active =
  * filled accent). The Generate/Update button sits in a docked footer at the
  * bottom of the sidebar so it stays put and reads as part of the window.
  * Right side: the live warehouse preview, which ALWAYS fits the screen.
  *
  * Constraints:
  *   • Fishbone is removed entirely.
- *   • No layout types — just a single geometry config.
+ *   • No layout types - just a single geometry config.
  *   • Cross-aisle slider: default 1, range 0–4 (0 = plain parallel).
- *   • Aisle width is fixed at 2 (scope reduction — no slider).
+ *   • Aisle width is fixed at 2 (scope reduction - no slider).
  *   • SKU count max 1,000; grid height & rack count max 25.
  */
 
@@ -71,7 +71,7 @@ export interface LayoutConfig {
 interface LayoutConfigOverlayProps {
   onClose: () => void;
   onApply?: (config: LayoutConfig) => void;
-  /** When false, the close button is hidden — user must generate a warehouse. */
+  /** When false, the close button is hidden - user must generate a warehouse. */
   canClose?: boolean;
   /** When provided, the overlay pre-populates all controls from this config. */
   initialConfig?: WarehouseConfiguration;
@@ -159,7 +159,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const [debouncedGridHeight, setDebouncedGridHeight] = useState(initialConfig?.layout.gridHeight ?? 20);
   const [rackCount, setRackCount] = useState(initialConfig?.layout.rackCount ?? 12);
   const [debouncedRackCount, setDebouncedRackCount] = useState(initialConfig?.layout.rackCount ?? 12);
-  // Aisle width is fixed at 1 (scope reduction — not user-configurable).
+  // Aisle width is fixed at 1 (scope reduction - not user-configurable).
   const aisleWidth = 1;
   const [crossAisleCount, setCrossAisleCount] = useState(initialConfig?.layout.crossAisleCount ?? 1);
 
@@ -298,7 +298,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
   const fullWidth = previewWarehouse.width;
   const fullHeight = previewWarehouse.height;
 
-  // Effective catalogue size — the SKU slider is an upper limit; the layout's
+  // Effective catalogue size - the SKU slider is an upper limit; the layout's
   // bin capacity (via `balanceSkuCount`) decides how many SKUs actually fit.
   const effectiveSkuCount = balanceSkuCount(skuCount, previewWarehouse.shelves.length * 2);
 
@@ -349,7 +349,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
     onClose();
   };
 
-  // ── Tab state — Pills (variant 1) is the fixed direction ─────────────
+  // ── Tab state - Pills (variant 1) is the fixed direction ─────────────
   const [activeTab, setActiveTab] = useState<CardId>('geometry');
 
   const cards: SectionTab[] = [
@@ -393,7 +393,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
               high="4 · Thoroughfares"
               description={
                 crossAisleCount === 0
-                  ? 'No cross aisles — a plain parallel layout.'
+                  ? 'No cross aisles - a plain parallel layout.'
                   : `${crossAisleCount} horizontal thoroughfare${crossAisleCount === 1 ? '' : 's'} cutting across the racks.`
               }
               onChange={setCrossAisleCount}
@@ -513,9 +513,9 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
         )}
       </header>
 
-      {/* Main — Split Deck: left tabs, right preview */}
+      {/* Main - Split Deck: left tabs, right preview */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left sidebar — tabs, one active at a time, button docked in footer */}
+        {/* Left sidebar - tabs, one active at a time, button docked in footer */}
         <aside className="w-[340px] shrink-0 border-r bg-card flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0" style={{ scrollbarGutter: 'stable' }}>
             <Tabs
@@ -530,7 +530,7 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
             </div>
           </div>
 
-          {/* Docked footer — button sits inside a bordered window, not floating */}
+          {/* Docked footer - button sits inside a bordered window, not floating */}
           <footer className="shrink-0 border-t border-border bg-card px-3 py-2.5">
             <LoadingButton
               onAction={handleApply}
@@ -545,17 +545,17 @@ export function LayoutConfigOverlay({ onClose, onApply, canClose = true, initial
           </footer>
         </aside>
 
-        {/* Right — live preview, always fits */}
+        {/* Right - live preview, always fits */}
         <main ref={setPreviewRef} className="flex-1 bg-muted/20 overflow-auto min-h-0">
           <div className="flex flex-col items-center justify-center min-h-full min-w-full p-6 gap-4">
-            {/* Overflow warning — shown above the warehouse preview */}
+            {/* Overflow warning - shown above the warehouse preview */}
             {placementPreview.unplacedCount > 0 && (
               <p className="text-[11px] text-warning font-medium">
                 ⚠ {placementPreview.unplacedCount} SKUs overflow (not enough bins).
               </p>
             )}
 
-            {/* Affinity floorplan — the only preview view now */}
+            {/* Affinity floorplan - the only preview view now */}
             <AffinityGrid
               grid={previewWarehouse.grid}
               shelfLookup={shelfLookup}

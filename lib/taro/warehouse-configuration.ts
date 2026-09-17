@@ -1,5 +1,5 @@
 /**
- * WarehouseConfiguration — the complete set of INPUT parameters that describe
+ * WarehouseConfiguration - the complete set of INPUT parameters that describe
  * how a warehouse was generated.
  *
  * Separation of concerns:
@@ -20,17 +20,17 @@ export interface LayoutConfiguration {
   rackCount: number;
   aisleWidth: number;
   crossAisleCount: number;
-  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  /** @deprecated Fishbone is removed - fields kept optional for legacy configs. */
   fbWidth?: number;
-  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  /** @deprecated Fishbone is removed - fields kept optional for legacy configs. */
   fbHeight?: number;
-  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  /** @deprecated Fishbone is removed - fields kept optional for legacy configs. */
   fbTheta?: number;
-  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  /** @deprecated Fishbone is removed - fields kept optional for legacy configs. */
   fbI2?: number;
-  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  /** @deprecated Fishbone is removed - fields kept optional for legacy configs. */
   fbS?: number;
-  /** @deprecated Fishbone is removed — fields kept optional for legacy configs. */
+  /** @deprecated Fishbone is removed - fields kept optional for legacy configs. */
   fbAp?: number;
 }
 
@@ -103,7 +103,7 @@ export function mergeConfiguration(
   if (!saved) {
     // Deep clone each subsection so every call returns fully independent objects.
     // A top-level spread ({ ...DEFAULT_WAREHOUSE_CONFIGURATION }) only shallow-
-    // copies — nested objects would share references with the defaults and with
+    // copies - nested objects would share references with the defaults and with
     // other null-config callers, causing cross-warehouse mutations.
     return {
       layout: { ...DEFAULT_LAYOUT_CONFIGURATION },
@@ -117,7 +117,7 @@ export function mergeConfiguration(
     return mergeLegacyFlatConfig(saved as Record<string, unknown>);
   }
 
-  // New-style nested config — deep merge each subsection
+  // New-style nested config - deep merge each subsection
   const cfg = saved as Partial<WarehouseConfiguration>;
   return {
     layout: { ...DEFAULT_LAYOUT_CONFIGURATION, ...cfg.layout },

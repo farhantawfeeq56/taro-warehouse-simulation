@@ -3,7 +3,7 @@
 import { Agentation } from 'agentation';
 
 /**
- * Visual feedback toolbar (bottom-right) — click an element to annotate it
+ * Visual feedback toolbar (bottom-right) - click an element to annotate it
  * and copy structured selectors/paths for AI coding agents.
  *
  * `enabled` is computed in the server layout from Vercel env, so this stays

@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * Simulation panel — the single merged Orders + Simulation panel.
+ * Simulation panel - the single merged Orders + Simulation panel.
  *
  * Previously the left dock had two separate sections: "Orders" (a full list
  * of every generated order) and "Simulation" (readiness + strategy results).
  * They are now one panel:
  *
- *   • Orders header — shows how many orders are generated, with the
+ *   • Orders header - shows how many orders are generated, with the
  *     Order Count and Average Order Size sliders live-adjustable inline.
  *   • Generate / Simulate controls.
  *   • Readiness checklist, strategy results, worker allocation and
@@ -87,7 +87,7 @@ interface SimulationPanelProps {
   flowStep?: 'setup' | 'simulation';
   /** Called when the user clicks Simulate in the setup step (advances flow). */
   onFlowAdvance?: () => void;
-  /** Breadcrumb navigation — jump to a flow step directly. */
+  /** Breadcrumb navigation - jump to a flow step directly. */
   onFlowStepChange?: (step: 'setup' | 'simulation') => void;
 }
 
@@ -143,7 +143,7 @@ export function SimulationPanel({
   const simulateDisabled = !readiness?.isReady || isSimulating || orders.length === 0;
   const simBody = (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      {/* results body — unchanged from current step 2 */}
+      {/* results body - unchanged from current step 2 */}
       {isSimulating ? (
         <div className="flex-1 flex items-center justify-center p-6">
           <Empty className="border-0 p-0">
@@ -454,7 +454,7 @@ export function SimulationPanel({
     </div>
   );
 
-  // Setup status summary — confirms orders are generated and workers are
+  // Setup status summary - confirms orders are generated and workers are
   // configured, right above the accent Simulate button.
   const setupSummaryBlock = (
     <div className="p-3 shrink-0">
@@ -482,7 +482,7 @@ export function SimulationPanel({
     </div>
   );
 
-  // Flow chrome — none (breadcrumbs removed; setup is reached via the Back link
+  // Flow chrome - none (breadcrumbs removed; setup is reached via the Back link
   // above the Results header or the Simulate Again button).
   const renderFlowChrome = () => null;
 
@@ -491,7 +491,7 @@ export function SimulationPanel({
       {renderFlowChrome()}
       {flowStep === 'setup' ? (
         <>
-          {/* Scrollable setup content — orders, workers, setup status
+          {/* Scrollable setup content - orders, workers, setup status
               summary, then the accent Simulate button inline at the end. */}
           <div className="flex-1 min-h-0 overflow-y-auto">
             {ordersWorkersBlock}

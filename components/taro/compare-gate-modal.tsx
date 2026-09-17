@@ -10,17 +10,17 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { GitCompareArrows, AlertTriangle } from 'lucide-react';
+import { GitCompareArrows, AlertTriangle, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type CompareGateState =
   | {
-      /** Single warehouse — user clicked Compare with nothing to compare against. */
+      /** Single warehouse - user clicked Compare with nothing to compare against. */
       mode: 'single';
       warehouseName: string;
     }
   | {
-      /** Duplicate warehouses — identical layouts, comparison is meaningless. */
+      /** Duplicate warehouses - identical layouts, comparison is meaningless. */
       mode: 'duplicates';
       groups: { id: string; name: string }[][];
     };
@@ -60,13 +60,13 @@ export function CompareGateModal({ state, onClose, onAddWarehouse, onNavigate }:
         <AlertDialogDescription className="space-y-3 text-sm leading-relaxed">
           {state?.mode === 'single' ? (
             <p>
-              You have only one warehouse — <span className="font-medium text-foreground">{state.warehouseName}</span>.
+              You have only one warehouse - <span className="font-medium text-foreground">{state.warehouseName}</span>.
               Comparison needs at least two different warehouses to be meaningful.
               Add another warehouse to compare against, or go back.
             </p>
           ) : state && (
             <>
-              <p>These warehouses are identical — comparing them would show no differences:</p>
+              <p>These warehouses are identical - comparing them would show no differences:</p>
               <ul className="space-y-1.5">
                 {state.groups.map((g, i) => (
                   <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -87,7 +87,7 @@ export function CompareGateModal({ state, onClose, onAddWarehouse, onNavigate }:
               </ul>
               <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">How to make them different</p>
-                <p>Click a warehouse above to go to it, then use <span className="font-medium text-foreground">Edit</span> in its bottom dock to change the layout or inventory — then Compare again.</p>
+                <p>Click a warehouse above to go to it, then use <span className="font-medium text-foreground"><Pencil className="mr-1 inline size-3" aria-hidden />Edit</span> in its bottom dock to change the layout or inventory, then Compare again.</p>
               </div>
             </>
           )}

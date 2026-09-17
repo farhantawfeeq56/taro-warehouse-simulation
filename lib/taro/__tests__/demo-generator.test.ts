@@ -198,7 +198,7 @@ describe('demo-generator', () => {
     });
   });
 
-  describe('generateRandomOrders — demand weighting', () => {
+  describe('generateRandomOrders - demand weighting', () => {
     it('returns empty array when warehouse has no items', () => {
       const w = createEmptyWarehouse(10, 10);
       expect(generateRandomOrders(w, 5, 3)).toHaveLength(0);
@@ -336,7 +336,7 @@ describe('demo-generator', () => {
     });
   });
 
-  describe('generateRandomOrders — affinity bias', () => {
+  describe('generateRandomOrders - affinity bias', () => {
     it('SKUs from the same affinity group co-occur more often than chance', () => {
       // 20 SKUs across 2 affinity groups (group 1 and group 2).
       // All have equal demand to isolate the affinity effect.

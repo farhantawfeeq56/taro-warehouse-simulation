@@ -10,7 +10,7 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-/* ── Timeline (seconds, loops) — like /animation/2, plus a pre-click zoom ── */
+/* ── Timeline (seconds, loops) - like /animation/2, plus a pre-click zoom ── */
 const TOTAL = 9;
 const ZOOM_T0 = 1.2;
 const ZOOM_T1 = 2.0;
@@ -38,7 +38,7 @@ export default function Animation5Page() {
       if (last.current == null) last.current = now;
       const dt = (now - last.current) / 1000;
       last.current = now;
-      // Button center in unscaled layout coordinates — immune to the
+      // Button center in unscaled layout coordinates - immune to the
       // button's own zoom/press scaling, so the cursor never shakes.
       const box = buttonBoxRef.current;
       if (box) {
@@ -66,7 +66,7 @@ export default function Animation5Page() {
   // Button zooms out a touch before the click, dips on press, settles after.
   const zoomP = easeOutCubic(clamp01((time - ZOOM_T0) / (ZOOM_T1 - ZOOM_T0)));
   const settleP = easeInOutCubic(clamp01((time - CLICK_T) / (SETTLE_T1 - CLICK_T)));
-  // Eased press envelope — dips in fast, releases soft. No snapping.
+  // Eased press envelope - dips in fast, releases soft. No snapping.
   const pressAmt =
     easeOutCubic(clamp01((time - CLICK_T) / 0.12)) *
     (1 - easeInOutCubic(clamp01((time - CLICK_T - 0.25) / 0.2)));
@@ -88,7 +88,7 @@ export default function Animation5Page() {
     <div className="flex h-screen items-center justify-center overflow-hidden bg-background px-4">
       <div ref={wrapRef} className="relative w-56 max-w-[calc(100vw-2rem)]">
         <div className="p-3">
-          {/* The genuine Generate button — same component as the app. */}
+          {/* The genuine Generate button - same component as the app. */}
           <div
             ref={buttonBoxRef}
             style={{ transform: `scale(${btnScale})`, filter: `brightness(${btnBright})` }}

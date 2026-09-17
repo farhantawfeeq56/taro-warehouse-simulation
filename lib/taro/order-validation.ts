@@ -15,7 +15,7 @@ export function validateItems(orders: Order[], warehouse: Warehouse, skuIndex?: 
   assertWarehouseInvariants(warehouse);
 
   // Build a SKU→bin index once so every item lookup is O(1) instead of
-  // O(width×height×bins).  This is the hot path — called from
+  // O(width×height×bins).  This is the hot path - called from
   // evaluateReadiness on every warehouse mutation.
   const index = skuIndex ?? buildSkuToBinIndex(warehouse);
 

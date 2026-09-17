@@ -1,4 +1,4 @@
-// TaroIntro — the intro film (single composition, 1280×720 @ 30fps).
+// TaroIntro - the intro film (single composition, 1280×720 @ 30fps).
 // Timeline (~32s):
 //  hero words rise + slow zoom WHILE 7 chat bubbles pop in scattered
 //  over the screen → bubbles leave in arrival order → thread draws below

@@ -179,7 +179,7 @@ describe('generateExperiment', () => {
 
   it('returns the no-change case when constraints block every mutation', () => {
     const rec = generateExperiment(insights, 'max 8 racks, max 1 cross aisle, max 0 category clustering');
-    // With the seed at rackCount 12, "max 8" forces a shrink — that's still a
+    // With the seed at rackCount 12, "max 8" forces a shrink - that's still a
     // change, so this shouldn't be no-change. For a true no-change, constrain
     // everything to the seed's exact values.
     const exact = generateExperiment(insights, 'exactly 12 racks, exactly 1 cross aisle, exactly 0 category clustering');

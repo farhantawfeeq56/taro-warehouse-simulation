@@ -1,4 +1,4 @@
-// Scene 1 — The Problem (0–10s)
+// Scene 1 - The Problem (0–10s)
 // A worker on a bare warehouse grid zigzags between scattered orders. The
 // route and distance counter grow, then the film states the problem.
 
@@ -109,7 +109,7 @@ const StatementLocal: React.FC<{ k: number; top: number; sub?: boolean; children
   </div>
 );
 
-/** which order sites the route has reached — returns 0/1 per site */
+/** which order sites the route has reached - returns 0/1 per site */
 function Rustle(sites: { x: number; y: number }[], pos: { x: number; y: number }) {
   return sites.map((s) => {
     const d = Math.abs(s.x - pos.x) + Math.abs(s.y - pos.y);

@@ -28,7 +28,7 @@ const CURSOR_OUT_T0 = 13.2;
 
 type Tab = 'geometry' | 'inventory' | 'placement';
 
-/* Every slider in a phase shares one window — they move together,
+/* Every slider in a phase shares one window - they move together,
    just in different directions / amounts. */
 interface SliderAnim {
   key: string;
@@ -51,16 +51,16 @@ const BASE: Record<string, number> = {
 };
 
 const ANIMS: SliderAnim[] = [
-  // Geometry — height up, racks down, aisles up
+  // Geometry - height up, racks down, aisles up
   { key: 'gridHeight', t0: GEO_T0, t1: GEO_T1, from: 12, to: 21 },
   { key: 'rackCount', t0: GEO_T0, t1: GEO_T1, from: 18, to: 10 },
   { key: 'crossAisle', t0: GEO_T0, t1: GEO_T1, from: 1, to: 3 },
-  // Inventory — sku up, demand up, affinity down, footprint up
+  // Inventory - sku up, demand up, affinity down, footprint up
   { key: 'sku', t0: INV_T0, t1: INV_T1, from: 750, to: 950 },
   { key: 'demand', t0: INV_T0, t1: INV_T1, from: 20, to: 78 },
   { key: 'affinity', t0: INV_T0, t1: INV_T1, from: 60, to: 25 },
   { key: 'footprint', t0: INV_T0, t1: INV_T1, from: 30, to: 58 },
-  // Placement — slotting up, clustering down
+  // Placement - slotting up, clustering down
   { key: 'slotting', t0: PLC_T0, t1: PLC_T1, from: 15, to: 85 },
   { key: 'clustering', t0: PLC_T0, t1: PLC_T1, from: 70, to: 35 },
 ];
@@ -128,8 +128,8 @@ function FauxSlider({
   );
 }
 
-/* Sliding tab bar with the indicator driven by the page timeline — never by
-   its own spring — so it glides exactly with the content switch. */
+/* Sliding tab bar with the indicator driven by the page timeline - never by
+   its own spring - so it glides exactly with the content switch. */
 const SWITCH_W = 0.45;
 const TAB_DEFS: { id: Tab; label: string }[] = [
   { id: 'geometry', label: 'Geometry' },
@@ -301,9 +301,9 @@ export default function LayoutVideoPage() {
 
   const tab = tabAt(time);
   // Uniform scale zoom (no stretch) that lands on exactly 1.0 and stays
-  // there — crisp for the whole second half, no zoom-out at the end.
+  // there - crisp for the whole second half, no zoom-out at the end.
   const zoomP = easeOutExpo(clamp01((time - ZOOM_T0) / (ZOOM_T1 - ZOOM_T0)));
-  // From nothing: grows out of a point, no fading — pure zoom.
+  // From nothing: grows out of a point, no fading - pure zoom.
   const scale = Math.round(zoomP * 1000) / 1000;
   scaleRef.current = scale * fit;
   const click = clickRef.current;
@@ -366,7 +366,7 @@ export default function LayoutVideoPage() {
   const heightsReady = groupH.every((h) => h > 0);
   const boxH = tp < 0 ? groupH[fromIdx] : groupH[fromIdx] + (groupH[toIdx] - groupH[fromIdx]) * tp;
 
-  // Winner: slide — outgoing slides left-out, incoming slides right-in.
+  // Winner: slide - outgoing slides left-out, incoming slides right-in.
   let outStyle: CSSProperties = {};
   let inStyle: CSSProperties = {};
   if (tp >= 0) {
@@ -387,7 +387,7 @@ export default function LayoutVideoPage() {
         <aside ref={asideRef} className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5">
           <div className="space-y-3 p-3">
             <SyncedTabs time={time} tab={tab} />
-            {/* Hidden measurer — group heights drive the smooth height ease. */}
+            {/* Hidden measurer - group heights drive the smooth height ease. */}
             <div aria-hidden className="invisible h-0 overflow-hidden">
               {groups.map((g, i) => (
                 <div
@@ -440,7 +440,7 @@ export default function LayoutVideoPage() {
               opacity: cursorOpacity,
             }}
           >
-            {/* Arrow pointer — offset so the tip sits exactly on the click point */}
+            {/* Arrow pointer - offset so the tip sits exactly on the click point */}
             <svg
               width="26"
               height="26"

@@ -1,4 +1,4 @@
-// Scene 4 — Configure a Scenario (28–40s)
+// Scene 4 - Configure a Scenario (28–40s)
 // The interface is being configured: Warehouse (geometry / inventory /
 // placement) then Workload (orders / order size / workers). Each slider
 // drives a visible change in the warehouse.

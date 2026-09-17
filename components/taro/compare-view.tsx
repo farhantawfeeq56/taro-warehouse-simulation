@@ -1,17 +1,17 @@
 'use client';
 
 /**
- * CompareView — a dedicated "special page" (in-app route) for comparing
+ * CompareView - a dedicated "special page" (in-app route) for comparing
  * warehouse simulations side by side.
  *
  * Flow (locked in):
  *   1. The user clicked "Compare" on a warehouse. Entering this page
  *      AUTOMATICALLY runs the simulation for EVERY warehouse (no selection,
- *      no Run button — all warehouses compete).
+ *      no Run button - all warehouses compete).
  *   2. The page shows the ranked results as a transposed TABLE: warehouses
  *      as columns (X axis, ranked by lowest Total Distance, #1 marked
  *      with a trophy), metrics as rows (Y axis), with deltas vs the base
- *      warehouse. Efficiency is intentionally NOT shown — the comparison
+ *      warehouse. Efficiency is intentionally NOT shown - the comparison
  *      ranks purely on travel distance.
  *
  * Below the rankings, AiSuggestion is a quiet nudge: a small line offering a
@@ -52,7 +52,7 @@ interface CompareViewProps {
   warehouses: WorkspaceWarehouse[];
   /** Orders for each warehouse id (per-warehouse order sets). */
   ordersByWarehouse: Record<string, Order[]>;
-  /** The warehouse the user clicked "Compare" on — fixed base column. */
+  /** The warehouse the user clicked "Compare" on - fixed base column. */
   baseWarehouseId: string | null;
   workerCount: number;
   warehouseProfile: WarehouseProfile;
@@ -142,7 +142,7 @@ export function CompareView({
           const entry = warehouses.find((w) => w.id === id);
           const orders = ordersByWarehouse[id] ?? [];
           if (!entry) continue;
-          // Hidden corrector — same as the main Simulate button: repair
+          // Hidden corrector - same as the main Simulate button: repair
           // anything broken before running so a clean run is guaranteed.
           const corrected = reconcile(entry.warehouse, orders);
           const results = runSimulation(corrected.warehouse, corrected.orders, workerCount, {
@@ -268,7 +268,7 @@ export function CompareView({
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-background">
-      {/* Header — back button + title. Same bg as the screen; only the table differs. */}
+      {/* Header - back button + title. Same bg as the screen; only the table differs. */}
       <div className="shrink-0 flex items-center gap-3 border-b border-border px-4 py-3">
         <Button variant="ghost" size="icon-sm" onClick={onExit} title="Back to workspace">
           <ArrowLeft className="h-4 w-4" />
@@ -285,7 +285,7 @@ export function CompareView({
 
       {statusBlock && <div className="mx-auto w-full max-w-5xl px-6 pt-4">{statusBlock}</div>}
 
-      {/* Rankings — transposed table: warehouses as columns, metrics as rows. */}
+      {/* Rankings - transposed table: warehouses as columns, metrics as rows. */}
       {scrollBody(
         <div className="space-y-6">
           {hasResults && (
@@ -321,7 +321,7 @@ export function CompareView({
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Total Distance row — first, so the ranked metric tops the table. */}
+                  {/* Total Distance row - first, so the ranked metric tops the table. */}
                   <tr className="border-b border-border/60">
                     <td className="px-3 py-3 align-middle whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60 pr-4">
                       Total Distance
@@ -370,7 +370,7 @@ export function CompareView({
             </div>
           )}
 
-          {/* AI suggestion — a quiet nudge below the rankings, expands downward. */}
+          {/* AI suggestion - a quiet nudge below the rankings, expands downward. */}
           {aiSuggestion}
         </div>,
       )}

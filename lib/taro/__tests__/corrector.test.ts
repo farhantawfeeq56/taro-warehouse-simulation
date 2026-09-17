@@ -80,7 +80,7 @@ describe('corrector', () => {
 
   describe('fixPrimaryBins', () => {
     it('keeps exactly one primary per multi-bin SKU, nearest dispatch', () => {
-      // SKU_X occupies (1,1) and (0,1) — (0,1) is nearest to start (0,0).
+      // SKU_X occupies (1,1) and (0,1) - (0,1) is nearest to start (0,0).
       const far = bin(1, 1, 1, 'SKU_X', 10, false);
       const near = bin(0, 1, 1, 'SKU_X', 10, false);
       const wh = buildWarehouse(3, 3, [
@@ -131,7 +131,7 @@ describe('corrector', () => {
         const wy = 2 + dy;
         if (wx >= 0 && wx < 5 && wy >= 0 && wy < 5) wh.grid[wy][wx] = shelfCell(wx, wy, []);
       }
-      // Put the trapped bin at (2,2) — it sits on a shelf cell with no walkable
+      // Put the trapped bin at (2,2) - it sits on a shelf cell with no walkable
       // escape, so A* cannot reach it from (0,0).
       wh.grid[2][2] = shelfCell(2, 2, [bin(2, 2, 1, 'SKU_TRAPPED', 10)]);
       wh.grid[0][0] = { x: 0, y: 0, type: 'worker-start', locations: [] };
@@ -197,7 +197,7 @@ describe('corrector', () => {
       const wh = buildWarehouse(3, 3, [[1, 1, [bin(1, 1, 1, 'SKU_A')]]]);
       const { orders, regenerated } = reconcileOrders([], wh);
       expect(regenerated).toBe(true);
-      expect(orders.length).toBe(0); // no count to preserve — stays empty
+      expect(orders.length).toBe(0); // no count to preserve - stays empty
     });
   });
 

@@ -1,5 +1,5 @@
 /**
- * Experiment recommendation — a deterministic, mock "AI" that studies the
+ * Experiment recommendation - a deterministic, mock "AI" that studies the
  * existing warehouses + their simulation results and proposes the single most
  * promising configuration to test next.
  *
@@ -19,7 +19,7 @@
  *
  * The output configuration is a fully valid `WarehouseConfiguration`, so the
  * existing `generateWarehouseSession` pipeline produces the experiment
- * warehouse — no new generation machinery.
+ * warehouse - no new generation machinery.
  */
 
 import type { SimulationResults, WarehouseProfile, LaborProfile } from './types';
@@ -40,7 +40,7 @@ export interface WarehouseInsight {
   bestTotalDistance: number;
   /** Cost per order ($) of the best strategy. */
   bestCostPerOrder: number;
-  /** Total distance across ALL strategies, averaged — a robust proxy for layout quality. */
+  /** Total distance across ALL strategies, averaged - a robust proxy for layout quality. */
   averageDistance: number;
   /** Estimated time across ALL strategies, averaged. */
   averageTime: number;
@@ -77,7 +77,7 @@ export type ExperimentAxis =
 export interface ExperimentRecommendation {
   /** One-line summary, e.g. "Test 15 racks at height 24 with zone-friendly aisles." */
   recommendation: string;
-  /** One short sentence — the headline rationale (no em dash). */
+  /** One short sentence - the headline rationale (no em dash). */
   shortSummary: string;
   /** Prose explanation of why this was chosen. */
   rationale: string;
@@ -97,7 +97,7 @@ export interface ExperimentRecommendation {
   /** Whether the user's constraints prevented any real change. */
   constrainedToNoChange: boolean;
   /**
-   * Structured "why" + "what changed / constraints" — so the UI can render
+   * Structured "why" + "what changed / constraints" - so the UI can render
    * the why and the change list as separate blocks instead of one blob.
    */
   why: string;
@@ -111,7 +111,7 @@ export interface ExperimentRecommendation {
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-/** Generator parameter ranges — mirrors the layout-config overlay sliders. */
+/** Generator parameter ranges - mirrors the layout-config overlay sliders. */
 export const CONFIG_LIMITS = {
   gridHeight: { min: 10, max: 60 },
   rackCount: { min: 4, max: 40 },
@@ -122,14 +122,14 @@ export const CONFIG_LIMITS = {
 
 const EXPERIMENT_NOTE =
   'This is an experiment, not a guarantee. The recommendation is a hypothesis ' +
-  'based on the warehouses you already tested — run the comparison after adding ' +
+  'based on the warehouses you already tested - run the comparison after adding ' +
   'it to see whether it actually improves. The best way to find out is to test.';
 
 // ── Insight extraction ────────────────────────────────────────────────────
 
 /**
  * Reduce a `SimulationResults` + configuration into a flat `WarehouseInsight`.
- * Absent configuration (legacy warehouses) yields null config — the seed
+ * Absent configuration (legacy warehouses) yields null config - the seed
  * selection skips them.
  */
 export function toWarehouseInsight(
@@ -187,7 +187,7 @@ export function pickSeedWarehouse(insights: WarehouseInsight[]): WarehouseInsigh
  *
  * Anything unrecognized becomes a `custom` constraint (carried through for
  * display; the heuristic can't machine-apply it, and says so in the rationale).
- * Empty input returns `[]` — "no constraints".
+ * Empty input returns `[]` - "no constraints".
  */
 export function parseConstraints(rawText: string): Constraint[] {
   const text = (rawText ?? '').trim();
@@ -281,7 +281,7 @@ export function clampToConstraints(
 }
 
 /**
- * Budget constraint — measured in simulated cost-per-order ($). The
+ * Budget constraint - measured in simulated cost-per-order ($). The
  * heuristic caps the SKU count (the main driver of pick volume and thus cost)
  * when the user gave a budget that the seed's cost exceeds.
  */
@@ -295,7 +295,7 @@ function applyBudgetConstraint(
     return seedConfig;
   }
   if (seedCostPerOrder <= budget.value) {
-    return seedConfig; // already within budget — no change needed
+    return seedConfig; // already within budget - no change needed
   }
   // Reduce SKU count as a proxy for lowering cost pressure.
   const scale = Math.min(1, budget.value / seedCostPerOrder);
@@ -342,7 +342,7 @@ export function chooseAxis(seed: WarehouseInsight): ExperimentAxis {
  * Generate the experiment recommendation from existing warehouses' insights
  * and the user's free-text constraints.
  *
- * Pure function — safe to unit test.
+ * Pure function - safe to unit test.
  */
 export function generateExperiment(
   insights: WarehouseInsight[],
@@ -364,7 +364,7 @@ export function generateExperiment(
       axis: 'capacity',
       changes: [],
       experimentNote: EXPERIMENT_NOTE,
-      seedWarehouseName: seed?.name ?? '—',
+      seedWarehouseName: seed?.name ?? '-',
       constrainedToNoChange: true,
     };
   }
@@ -380,7 +380,7 @@ export function generateExperiment(
   const c = (type: ConstraintType, proposed: number, limits: { min: number; max: number }) =>
     clampToConstraints(constraints, type, proposed, limits);
 
-  // How much the constraint layer shrank us (e.g. budget) — carry it forward.
+  // How much the constraint layer shrank us (e.g. budget) - carry it forward.
   const budgetShrank = base.inventory.skuCount !== seedConfig.inventory.skuCount;
 
   switch (axis) {
@@ -518,7 +518,7 @@ export function generateExperiment(
 
 // ── Validation ────────────────────────────────────────────────────────────
 
-/** Quick sanity check used by the unit test — the recommendation must be a
+/** Quick sanity check used by the unit test - the recommendation must be a
  *  valid configuration that the generator can consume. */
 export function isValidRecommendation(
   rec: ExperimentRecommendation,

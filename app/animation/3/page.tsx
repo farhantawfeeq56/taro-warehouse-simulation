@@ -51,7 +51,7 @@ const AVG_ORDER_SIZE = 3;
 const WORKERS = 5;
 
 
-/* One continuous 0→100% journey — each warehouse carries one quarter of it. */
+/* One continuous 0→100% journey - each warehouse carries one quarter of it. */
 const TOTAL = 3;
 const WIN_STARTS = [0, 0.6, 1.2, 1.8];
 const WIN_DUR = 0.6;
@@ -142,7 +142,7 @@ export default function Animation3Page() {
     };
   }, []);
 
-  // Master clock — loops every 3s once everything is built.
+  // Master clock - loops every 3s once everything is built.
   useEffect(() => {
     if (readyCount < SHOWCASES.length) return;
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
@@ -173,7 +173,7 @@ export default function Animation3Page() {
     };
   }, [readyCount]);
 
-  // Stage size — drives the fit scale.
+  // Stage size - drives the fit scale.
   useLayoutEffect(() => {
     const el = stageRef.current;
     if (!el) return;

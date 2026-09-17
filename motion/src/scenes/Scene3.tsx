@@ -1,6 +1,6 @@
-// Scene 3 — Meet Taro (20–28s)
-// The abstract warehouse dissolves into the real product frame — same grid,
-// same orders — and the intro statement lands on top.
+// Scene 3 - Meet Taro (20–28s)
+// The abstract warehouse dissolves into the real product frame - same grid,
+// same orders - and the intro statement lands on top.
 
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';

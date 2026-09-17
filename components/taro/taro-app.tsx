@@ -43,13 +43,13 @@ import { generateWarehouseSession } from '@/lib/taro/warehouse-generator';
 
 interface TaroAppProps {
   /**
-   * Legacy prop (dashboard era) — no longer used. The app always boots a
+   * Legacy prop (dashboard era) - no longer used. The app always boots a
    * fresh in-memory session; kept for callers that still pass it.
    */
   initialProjectId?: string;
 }
 
-/** Per-warehouse simulation state — a sim belongs to the warehouse it ran on. */
+/** Per-warehouse simulation state - a sim belongs to the warehouse it ran on. */
 interface WarehouseSimState {
   results: SimulationResults | null;
   activeStrategy: StrategyType | null;
@@ -66,7 +66,7 @@ const EMPTY_SIM: WarehouseSimState = {
 };
 
 export function TaroApp(_props: TaroAppProps) {
-  // Session-scoped id — every visit generates a brand-new warehouse. The
+  // Session-scoped id - every visit generates a brand-new warehouse. The
   // value is only used to name the entry and to key per-warehouse state;
   // nothing is ever persisted.
   const [activeProjectId, setActiveProjectId] = useState<string | null>(() =>
@@ -127,7 +127,7 @@ export function TaroApp(_props: TaroAppProps) {
   }, [activeWarehouseId]);
 
   const [isLoading, setIsLoading] = useState(true);
-  // Warehouse generation — shown in LayoutConfigOverlay Apply button
+  // Warehouse generation - shown in LayoutConfigOverlay Apply button
   const [isGenerating, setIsGenerating] = useState(false);
   // Demo orders generation
   const [isGeneratingOrders, setIsGeneratingOrders] = useState(false);
@@ -135,7 +135,7 @@ export function TaroApp(_props: TaroAppProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [selectedTool, setSelectedTool] = useState<ToolType>('select');
   const [zVisualizationMode, setZVisualizationMode] = useState<ZVisualizationMode>('all');
-  // Simulation state is keyed by warehouse id — running on one warehouse
+  // Simulation state is keyed by warehouse id - running on one warehouse
   // never leaks routes/results onto another when you scroll.
   const [simByWarehouse, setSimByWarehouse] = useState<Record<string, WarehouseSimState>>({});
   const [isSimulating, setIsSimulating] = useState(false);
@@ -192,7 +192,7 @@ export function TaroApp(_props: TaroAppProps) {
   }, []);
 
   const handleAddWarehouse = useCallback(() => {
-    // Don't append anything here — the new-warehouse overlay owns creation.
+    // Don't append anything here - the new-warehouse overlay owns creation.
     // Only open the overlay; onApply appends the brand-new warehouse.
     setShowNewWarehouseConfig(true);
   }, []);
@@ -202,7 +202,7 @@ export function TaroApp(_props: TaroAppProps) {
     const source = workspaceWarehousesRef.current.find((w) => w.id === sourceWarehouseId);
     if (!source) return;
 
-    // In-memory duplicate — deep copy the layout (grid is an array of cell
+    // In-memory duplicate - deep copy the layout (grid is an array of cell
     // objects; the corrector treats these as immutable, so a fresh array +
     // fresh cell objects keep the copies fully independent).
     const sourceWh = source.warehouse;
@@ -317,7 +317,7 @@ export function TaroApp(_props: TaroAppProps) {
     }
     // Jump to the comparison page with this warehouse pre-selected as the
     // base. The rest of the workspace state (warehouses, orders) stays in
-    // TaroApp memory — the compare view is an in-app route, not a Next
+    // TaroApp memory - the compare view is an in-app route, not a Next
     // navigation, so nothing is lost.
     setCompareBaseWarehouseId(warehouseId);
     setCompareViewOpen(true);
@@ -330,7 +330,7 @@ export function TaroApp(_props: TaroAppProps) {
   // the new experiment immediately.
   const handleGenerateExperiment = useCallback(
     async (constraintsRaw: string, recommendation: ExperimentRecommendation) => {
-      // Session-only: generate entirely in the browser — no database.
+      // Session-only: generate entirely in the browser - no database.
       const result = generateWarehouseSession(
         recommendation.configuration,
         orderCount,
@@ -341,9 +341,9 @@ export function TaroApp(_props: TaroAppProps) {
       const suffix = constraintsRaw
         ? ` · ${constraintsRaw.trim().slice(0, 24)}`
         : '';
-      const newName = `Experiment — ${recommendation.axis}${suffix}`;
+      const newName = `Experiment - ${recommendation.axis}${suffix}`;
 
-      // Hidden corrector — orders may reference unplaced SKUs; reconcile
+      // Hidden corrector - orders may reference unplaced SKUs; reconcile
       // against the new warehouse before commit (same as New Warehouse).
       const corrected = reconcile(result.warehouse, result.orders);
 
@@ -376,7 +376,7 @@ export function TaroApp(_props: TaroAppProps) {
       setHighlightedMissingSkuIds(null);
       resetAnimationState();
 
-      // Leave the compare page — the warehouse screen shows the new experiment.
+      // Leave the compare page - the warehouse screen shows the new experiment.
       setCompareViewOpen(false);
       setCompareBaseWarehouseId(null);
     },
@@ -394,7 +394,7 @@ export function TaroApp(_props: TaroAppProps) {
         ww.id === activeId ? { ...ww, warehouse: newWh } : ww,
       );
     });
-    // Edits invalidate this warehouse's simulation — clear only its own state.
+    // Edits invalidate this warehouse's simulation - clear only its own state.
     const editingId = activeWarehouseIdRef.current;
     if (editingId) setSimByWarehouse(prev => ({ ...prev, [editingId]: EMPTY_SIM }));
     setIsSimulating(false);
@@ -405,11 +405,11 @@ export function TaroApp(_props: TaroAppProps) {
     animationProgressRef.current = 0;
   }, []);
 
-  // Debounced (no-op) persistence of canvas edits — layout edits stay in
+  // Debounced (no-op) persistence of canvas edits - layout edits stay in
   // memory for the session; the timer keeps the reconcile (hidden corrector)
   // debounce behaviour identical to the persisted flow.
   const saveLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Deferred reconcile timer for the Generate/Update transition — lets the
+  // Deferred reconcile timer for the Generate/Update transition - lets the
   // canvas paint the raw warehouse before the (idempotent) hidden corrector
   // runs off the main paint path.
   const activeReconcileTimerRef = useRef<number | null>(null);
@@ -422,7 +422,7 @@ export function TaroApp(_props: TaroAppProps) {
         ww.id === whId ? { ...ww, warehouse: newWh } : ww,
       ),
     );
-    // Edits invalidate this warehouse's simulation — clear only its own state.
+    // Edits invalidate this warehouse's simulation - clear only its own state.
     setSimByWarehouse(prev => ({ ...prev, [whId]: EMPTY_SIM }));
     setIsSimulating(false);
     setValidationContext(null);
@@ -433,7 +433,7 @@ export function TaroApp(_props: TaroAppProps) {
 
     if (saveLayoutTimerRef.current) clearTimeout(saveLayoutTimerRef.current);
     saveLayoutTimerRef.current = setTimeout(() => {
-      // Hidden corrector — run ONCE after drawing pauses (debounced, not
+      // Hidden corrector - run ONCE after drawing pauses (debounced, not
       // per-cell) so readiness stays clean. Idempotent.
       const corrected = reconcile(newWh, ordersRef.current);
       const isActive = whId === activeWarehouseIdRef.current;
@@ -481,7 +481,7 @@ export function TaroApp(_props: TaroAppProps) {
     return parts.sort().join('|');
   }, [deferredWarehouse]);
 
-  // Expensive order-line validation — only re-runs when the SKU inventory
+  // Expensive order-line validation - only re-runs when the SKU inventory
   // OR the order list actually changes.
   const cachedOrderValidation = useMemo(
     () => deferredWarehouse ? validateItems(orders, deferredWarehouse) : null,
@@ -497,7 +497,7 @@ export function TaroApp(_props: TaroAppProps) {
   );
   const canSimulate = readiness.isReady;
 
-  // The active warehouse's OWN simulation state — never another warehouse's.
+  // The active warehouse's OWN simulation state - never another warehouse's.
   const activeSim = activeWarehouseId
     ? simByWarehouse[activeWarehouseId] ?? EMPTY_SIM
     : EMPTY_SIM;
@@ -569,7 +569,7 @@ export function TaroApp(_props: TaroAppProps) {
       if (!warehouse || !warehouse.workerStart || orders.length === 0) {
         return;
       }
-      // The simulation belongs to the warehouse that was active when clicked —
+      // The simulation belongs to the warehouse that was active when clicked -
       // results land in its own state even if the user scrolls away mid-run.
       const targetId = activeWarehouseIdRef.current;
       if (!targetId) return;
@@ -586,7 +586,7 @@ export function TaroApp(_props: TaroAppProps) {
 
       requestAnimationFrame(() => {
         try {
-          // Hidden corrector — fix everything before running, silently.
+          // Hidden corrector - fix everything before running, silently.
           const corrected = reconcile(warehouse, orders);
           const results = runSimulation(corrected.warehouse, corrected.orders, workerCount, {
             warehouseProfile,
@@ -645,7 +645,7 @@ export function TaroApp(_props: TaroAppProps) {
   const handleSimulateClick = useCallback(() => {
     if (!warehouse) return;
 
-    // Hidden corrector — fix everything silently BEFORE deciding whether the
+    // Hidden corrector - fix everything silently BEFORE deciding whether the
     // simulation can run. A blocked state (missing items, unreachable
     // locations) should never surface: the corrector resolves it first.
     const corrected = reconcile(warehouse, orders);
@@ -713,7 +713,7 @@ export function TaroApp(_props: TaroAppProps) {
     try {
       const csvText = await file.text();
       const { warehouse: importedWarehouse } = parseWarehouseCsv(csvText);
-      // Hidden corrector — CSV rows can collide on ids or land out of bounds;
+      // Hidden corrector - CSV rows can collide on ids or land out of bounds;
       // repair before commit so readiness + simulation are clean.
       const corrected = reconcile(importedWarehouse, []);
       updateActiveWarehouse(corrected.warehouse);
@@ -737,7 +737,7 @@ export function TaroApp(_props: TaroAppProps) {
     try {
       // Session-only: generate orders in the browser, never persist.
       const newOrders = generateRandomOrders(warehouse, orderCount, avgOrderSize);
-      // Hidden corrector — the generator may reference SKUs that placement
+      // Hidden corrector - the generator may reference SKUs that placement
       // couldn't slot; reconcile before committing so readiness stays clean.
       const corrected = reconcile(warehouse, newOrders);
       setOrders(corrected.orders);
@@ -764,7 +764,7 @@ export function TaroApp(_props: TaroAppProps) {
   // 4. Side Effects
   useEffect(() => {
     // Boot a fresh in-memory session. Every visit generates a brand-new
-    // warehouse — no database, no dashboard, no persistence.
+    // warehouse - no database, no dashboard, no persistence.
     let cancelled = false;
 
     setActiveProjectId(crypto.randomUUID());
@@ -848,7 +848,7 @@ export function TaroApp(_props: TaroAppProps) {
         />
       ) : (
       <div className="flex-1 flex overflow-hidden">
-        {/* Center — warehouse div + right sidebar div, side by side in a flex row. */}
+        {/* Center - warehouse div + right sidebar div, side by side in a flex row. */}
         <div className="flex-1 flex overflow-hidden relative">
           {workspaceWarehouses.length === 0 ? (
             <div className="flex-1 flex items-center justify-center bg-muted/20">
@@ -863,7 +863,7 @@ export function TaroApp(_props: TaroAppProps) {
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden gap-0 relative min-w-0">
-              {/* Multi-warehouse canvas — page-per-warehouse vertical scroll
+              {/* Multi-warehouse canvas - page-per-warehouse vertical scroll
                   (only one warehouse visible at a time). */}
               <MultiWarehouseScroll
                 warehouses={workspaceWarehouses}
@@ -885,7 +885,7 @@ export function TaroApp(_props: TaroAppProps) {
             </div>
           )}
 
-          {/* Right sidebar — in-flow div (tools + config + simulation), pushes the canvas left. */}
+          {/* Right sidebar - in-flow div (tools + config + simulation), pushes the canvas left. */}
           <RightSidebar
             orders={orders}
             onGenerateOrders={handleAddDemoOrders}
@@ -929,7 +929,7 @@ export function TaroApp(_props: TaroAppProps) {
         />
       )}
 
-      {/* Compare gate — single warehouse or duplicate layouts. */}
+      {/* Compare gate - single warehouse or duplicate layouts. */}
       <CompareGateModal
         state={compareGate}
         onClose={() => setCompareGate(null)}
@@ -977,7 +977,7 @@ export function TaroApp(_props: TaroAppProps) {
                 },
               };
 
-              // Session-only: generate entirely in the browser — no database.
+              // Session-only: generate entirely in the browser - no database.
               const result = generateWarehouseSession(configuration, orderCount, avgOrderSize);
               const warehouseId =
                 activeWarehouseIdRef.current ?? crypto.randomUUID();
@@ -985,7 +985,7 @@ export function TaroApp(_props: TaroAppProps) {
               // Update the workspace entry with new warehouse data and its own
               // configuration.
               // Commit the RAW generated warehouse + orders FIRST so the canvas
-              // paints immediately (the renderer only needs the grid/shelves —
+              // paints immediately (the renderer only needs the grid/shelves -
               // reconciliation adds no visible cells). Reconcile is deferred a
               // tick so the main thread isn't blocked on A* reachability before
               // the first paint; the hidden corrector still lands before the
@@ -1035,7 +1035,7 @@ export function TaroApp(_props: TaroAppProps) {
               setHighlightedMissingSkuIds(null);
               resetAnimationState();
 
-              // Deferred reconcile — after the canvas has painted the raw
+              // Deferred reconcile - after the canvas has painted the raw
               // warehouse, run the hidden corrector (idempotent; fixes stray
               // ids / unreachable bins) and commit the cleaned state. The
               // readiness memo reads the final state, so Simulate stays gated
@@ -1044,7 +1044,7 @@ export function TaroApp(_props: TaroAppProps) {
               const reconcileTimer = window.setTimeout(() => {
                 // Read the LATEST warehouse for this id (the user may have
                 // drawn on the canvas in the deferred gap) so reconciliation
-                // never clobbers manual edits — fall back to the generated
+                // never clobbers manual edits - fall back to the generated
                 // result if the entry no longer exists.
                 const latest = workspaceWarehousesRef.current.find((w) => w.id === warehouseId)?.warehouse ?? result.warehouse;
                 const corrected = reconcile(
@@ -1077,7 +1077,7 @@ export function TaroApp(_props: TaroAppProps) {
         />
       )}
 
-      {/* New-warehouse overlay — APPENDS a brand-new warehouse (never overwrites). */}
+      {/* New-warehouse overlay - APPENDS a brand-new warehouse (never overwrites). */}
       {showNewWarehouseConfig && activeProjectId && (
         <LayoutConfigOverlay
           onClose={() => setShowNewWarehouseConfig(false)}
@@ -1105,12 +1105,12 @@ export function TaroApp(_props: TaroAppProps) {
                 },
               };
 
-              // Session-only: generate entirely in the browser — no database.
+              // Session-only: generate entirely in the browser - no database.
               const result = generateWarehouseSession(configuration, orderCount, avgOrderSize);
               const newId = crypto.randomUUID();
               const newName = `Warehouse ${workspaceWarehousesRef.current.length + 1}`;
 
-              // Hidden corrector — orders may reference unplaced SKUs;
+              // Hidden corrector - orders may reference unplaced SKUs;
               // reconcile against the new warehouse before commit.
               const corrected = reconcile(result.warehouse, result.orders);
 

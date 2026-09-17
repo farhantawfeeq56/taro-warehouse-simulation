@@ -41,7 +41,7 @@ export type CellType = 'empty' | 'shelf' | 'worker-start';
  * `storageFootprint` is an optional, positive integer that expresses HOW
  * MANY storage locations a SKU requires. It is produced by the Storage
  * Footprint inventory-generation variable and is an INTRINSIC property of
- * the inventory (like demand, affinity, and category) — it does NOT perform
+ * the inventory (like demand, affinity, and category) - it does NOT perform
  * any placement itself. Inventory Placement consumes it to decide how many
  * (contiguous) bins each SKU occupies; Slotting Bias and Category Clustering
  * continue to decide WHERE those bins sit. A value of 1 (the default when
@@ -79,7 +79,7 @@ export interface Item {
  * Each bin carries exactly one SKU and its stock quantity.
  *
  * A SKU may now span MULTIPLE storage locations (its `storageFootprint`).
- * When it does, exactly one of its bins is marked `primary: true` — the bin
+ * When it does, exactly one of its bins is marked `primary: true` - the bin
  * that downstream code (order resolution, simulation, UI labels) treats as
  * the SKU's canonical pick location. Secondary bins hold additional capacity
  * but are never added to a pick list directly. The primary is chosen by
@@ -165,7 +165,7 @@ export interface Warehouse {
 }
 
 /**
- * Workspace model — pairs a warehouse layout with its DB metadata (name, position).
+ * Workspace model - pairs a warehouse layout with its DB metadata (name, position).
  * This is the canonical representation of a warehouse node on the React Flow canvas.
  */
 export interface WorkspaceWarehouse {

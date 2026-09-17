@@ -1,6 +1,6 @@
-// Scene 2 — The Decision Problem (10–20s)
+// Scene 2 - The Decision Problem (10–20s)
 // Same warehouse, one variable at a time: Layout, Inventory, Workload,
-// Workers. Then the strategy teaser — the same orders handled three ways —
+// Workers. Then the strategy teaser - the same orders handled three ways -
 // and the payoff line.
 
 import React from 'react';
@@ -12,7 +12,7 @@ import { WarehouseView, zoneBands, type Zone } from '../components/WarehouseView
 import { Chip } from '../components/Widgets';
 import { STRATEGY_COLORS, WORKER_COLORS } from '../tokens';
 
-// phase-1 layout: same as scene 1 (racks 6) — continuity
+// phase-1 layout: same as scene 1 (racks 6) - continuity
 const L1 = makeLayout(6, 12, 1, 0);
 // phase-2 layout: +3 racks, +2 cross aisles
 const L2 = makeLayout(9, 12, 1, 2);

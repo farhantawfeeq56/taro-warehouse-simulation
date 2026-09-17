@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Affinity preview — final (variant 10, Mono).
+ * Affinity preview - final (variant 10, Mono).
  *
  * The layout-config preview is affinity-only (layout & demand views were
  * removed). Shelves are solid squares colored by their affinity group;

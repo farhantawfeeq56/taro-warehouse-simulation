@@ -1,7 +1,7 @@
 import type { WorkspaceWarehouse } from './types';
 
 /**
- * Structural equality of two warehouses' layouts — grid cells (type + item
+ * Structural equality of two warehouses' layouts - grid cells (type + item
  * locations) and shelf coordinates. Two warehouses with identical layouts are
  * indistinguishable to the simulation, so comparing them is meaningless.
  */

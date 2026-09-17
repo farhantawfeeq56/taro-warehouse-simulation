@@ -15,9 +15,9 @@
 // These categories always exist; the affinity slider only controls how finely
 // each category is split into affinity sub-groups.
 //
-//   • Independent    (0)   — every SKU is its own singleton group. SKUs are
+//   • Independent    (0)   - every SKU is its own singleton group. SKUs are
 //                            unrelated; there is no co-purchase structure.
-//   • Highly Related (100) — each latent category becomes a single, large
+//   • Highly Related (100) - each latent category becomes a single, large
 //                            affinity group. There are several of these
 //                            groups (never one giant group), modelling the
 //                            fact that maximal affinity still respects
@@ -26,7 +26,7 @@
 // The number of groups interpolates from N (at 0% affinity) down to C (at
 // 100% affinity) using `K = C + (N - C) * (1 - t^2)`. The `(1 - t^2)` ramp is
 // flat near t = 0, so the slider's low end keeps the catalogue "almost all
-// independent" — small movements stay near all-singletons, and meaningful
+// independent" - small movements stay near all-singletons, and meaningful
 // grouping only emerges towards the upper half of the slider.
 //
 // Group sizes are drawn from a symmetric Dirichlet whose concentration
@@ -37,8 +37,8 @@
 // group plus noise.
 //
 // Affinity groups are the third Inventory Generation variable (after SKU
-// Count and Demand Distribution). Future stages — especially Order
-// Generation — consume the produced `affinityGroup` ids to bias which SKUs
+// Count and Demand Distribution). Future stages - especially Order
+// Generation - consume the produced `affinityGroup` ids to bias which SKUs
 // appear together in customer orders.
 //
 // This module does not depend on any UI or warehouse model, so it is
@@ -224,7 +224,7 @@ function largestRemainderApportion(
  * `evenness` controls the Dirichlet concentration (see `dirichletEvennessShape`):
  * uneven at low affinity (scattered small groups) and balanced at high
  * affinity (comparably-large latent categories). `minPerGroup` is kept at 1
- * so no group is ever empty — every group id produced downstream is real.
+ * so no group is ever empty - every group id produced downstream is real.
  */
 function sampleGroupSizes(
   count: number,

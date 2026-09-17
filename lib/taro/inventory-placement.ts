@@ -9,22 +9,22 @@
 // There are two Inventory Placement variables, and they answer two
 // structurally different questions:
 //
-//   1. Slotting Bias (0..100) — an ORDERING question:
+//   1. Slotting Bias (0..100) - an ORDERING question:
 //        "How strongly should product demand influence storage location?"
-//        • 0  (Random)        — SKUs are placed almost randomly (seeded).
-//        • 100 (Demand-Based) — high-demand SKUs are placed closest to the
+//        • 0  (Random)        - SKUs are placed almost randomly (seeded).
+//        • 100 (Demand-Based) - high-demand SKUs are placed closest to the
 //                               dispatch point (workerStart).
-//        • in between         — the two signals are blended smoothly.
+//        • in between         - the two signals are blended smoothly.
 //
-//   2. Category Clustering (0..100) — a SPATIAL PARTITIONING question:
+//   2. Category Clustering (0..100) - a SPATIAL PARTITIONING question:
 //        "How strongly should products of the same category be stored
 //         together (in contiguous zones)?"
-//        • 0   (Scattered)   — categories are mixed throughout the warehouse
+//        • 0   (Scattered)   - categories are mixed throughout the warehouse
 //                             (this is exactly the pure Slotting Bias plan).
-//        • 100 (Clustered)   — each category occupies a single contiguous
+//        • 100 (Clustered)   - each category occupies a single contiguous
 //                             zone; Slotting Bias decides WHERE those zones
 //                             and the SKUs within them sit.
-//        • in between         — a smooth transition between the two complete
+//        • in between         - a smooth transition between the two complete
 //                             placements (see below).
 //
 // The two variables are NOT applied as two sequential steps. Category
@@ -34,7 +34,7 @@
 // plans* into a single final ordering, which is then mapped onto the bins.
 // Because both endpoints are real, independent placements (an ordering
 // task for slotting vs. a partitioning task for clustering), the slider does
-// not collapse clustering into "just another ranking" — clustering only
+// not collapse clustering into "just another ranking" - clustering only
 // exists as a thing because it produces contiguous category zones in its own
 // plan, something a per-SKU rank can never express.
 //
@@ -87,14 +87,14 @@ export interface InventoryPlacementConfig {
    * Fallback total quantity per SKU used when an Item does not carry
    * an explicit `totalQuantity`. Defaults to 50 (backward compatible).
    * For single-bin SKUs this is the bin quantity; for multi-bin SKUs
-   * it is split across the footprint — see `Item.totalQuantity` docs.
+   * it is split across the footprint - see `Item.totalQuantity` docs.
    */
   defaultQuantity?: number;
   /**
    * Preview mode: when set (e.g., 20000) and `items.length` exceeds this
    * value, the items are randomly sampled to `previewMaxItems` before
    * computing the placement. This makes the live preview fast (~100ms)
-   * even at 200,000 SKUs. Results are approximate — the shelf pattern
+   * even at 200,000 SKUs. Results are approximate - the shelf pattern
    * (which shelves near dispatch get high-demand items) remains
    * representative, but overflow counts and exact bin assignments are
    * extrapolated.
@@ -108,7 +108,7 @@ export interface InventoryPlacementConfig {
 
 /**
  * Result of applying placement. The `warehouse` is the enriched warehouse;
- * `placement` describes where each SKU landed and — crucially — which SKUs
+ * `placement` describes where each SKU landed and - crucially - which SKUs
  * could not be placed when the total required bins exceed available capacity.
  */
 export interface InventoryPlacementResult {
@@ -153,7 +153,7 @@ function listShelves(warehouse: Warehouse): { x: number; y: number; cell: Cell }
 }
 
 /**
- * Deterministic PRNG (mulberry32) — same family as `lib/taro/demand.ts` so
+ * Deterministic PRNG (mulberry32) - same family as `lib/taro/demand.ts` so
  * placement randomness is reproducible per seed.
  */
 function mulberry32(seed: number): () => number {
@@ -237,7 +237,7 @@ interface Bin {
  * inventory spreads across the WHOLE floor instead of filling from one
  * corner. Without this, a warehouse whose capacity comfortably exceeds its
  * SKU count would concentrate every item in a dense wedge next to the
- * dispatch point and leave the rest of the floor empty — which reads as
+ * dispatch point and leave the rest of the floor empty - which reads as
  * "absurd" even though the data is internally consistent.
  *
  * With 8 bands the density still falls gently with distance (bands are
@@ -250,7 +250,7 @@ export const PROXIMITY_BANDS = 8;
  * Enumerate every placeable bin across the warehouse shelves and assign each
  * a proximity rank. The number of z-levels per shelf follows the same
  * deterministic 1..3 cycling used previously (this is *capacity*, not
- * inventory — it is not modified by slotting bias).
+ * inventory - it is not modified by slotting bias).
  *
  * The returned bins are ordered for an EVEN, floor-spreading fill:
  *   • Bins are grouped into `PROXIMITY_BANDS` distance bands (band 0 =
@@ -262,8 +262,8 @@ export const PROXIMITY_BANDS = 8;
  *     round by round instead of draining the nearest corner first.
  *
  * At small catalogues the walk naturally settles into the nearest bands
- * first, so the classic "high-demand near dispatch" signal is preserved —
- * the nearest band is still filled first — while large catalogues now
+ * first, so the classic "high-demand near dispatch" signal is preserved -
+ * the nearest band is still filled first - while large catalogues now
  * spread across the whole floor rather than wedging into one corner.
  */
 function enumerateBins(warehouse: Warehouse): Bin[] {
@@ -274,7 +274,7 @@ function enumerateBins(warehouse: Warehouse): Bin[] {
 
   const raw: { x: number; y: number; z: number; distance: number }[] = [];
   shelves.forEach((shelf, i) => {
-    const zLevels = (i % 3) + 1; // 1, 2, or 3 — bin capacity, unchanged.
+    const zLevels = (i % 3) + 1; // 1, 2, or 3 - bin capacity, unchanged.
     for (let z = 1; z <= zLevels; z++) {
       raw.push({
         x: shelf.x,
@@ -317,8 +317,8 @@ function enumerateBins(warehouse: Warehouse): Bin[] {
  * model.
  *
  * Each SKU receives two ranks in [0,1]:
- *   • demandRank   — 0 = highest demand, 1 = lowest demand.
- *   • randomRank   — a seeded, reproducible uniform rank.
+ *   • demandRank   - 0 = highest demand, 1 = lowest demand.
+ *   • randomRank   - a seeded, reproducible uniform rank.
  *
  * The blended priority is `P = (1 - t) * randomRank + t * demandRank` where
  * `t = slottingBias / 100`. SKUs are returned sorted by `P` ascending, so
@@ -370,20 +370,20 @@ function planSlottingBias(items: Item[], slottingBias: number, seed: number): It
  * (clustered) model. This is a COMPLETE, valid placement plan expressed as an
  * ordering of SKUs: because bins are filled in a fixed physical sequence
  * (`enumerateBins`), consecutive entries in this ordering occupy consecutive
- * bins — i.e. a contiguous zone. Same-category SKUs are kept in a single
+ * bins - i.e. a contiguous zone. Same-category SKUs are kept in a single
  * contiguous run, so at `categoryClustering = 100` each category occupies one
  * compact zone (a contiguous band of the dispatch-proximity sequence).
  *
  * Slotting Bias governs two ORDERING decisions on top of that partition:
- *   • WHICH zone is near dispatch — categories are ordered by mean demand
+ *   • WHICH zone is near dispatch - categories are ordered by mean demand
  *     (highest-mean-demand category first → nearest dispatch). At slotting 0
  *     the category order is a seeded random permutation instead.
- *   • WHICH SKU sits at the front of a zone — within a category, SKUs are
+ *   • WHICH SKU sits at the front of a zone - within a category, SKUs are
  *     ordered by demand (highest-demand first → front of the zone). At
  *     slotting 0 the within-zone order is seeded random instead.
  *
  * Both of those are pure ranking decisions (the thing Slotting Bias is), so
- * clustering never has to invent a spatial "score" — the spatial structure
+ * clustering never has to invent a spatial "score" - the spatial structure
  * comes solely from the zone partition, and Slotting Bias only reorders within
  * and across the already-contiguous zones.
  *
@@ -471,7 +471,7 @@ function planCategoryClustering(
   // Demand rank keyed per SKU, ranked WITHIN its own category, plus the same
   // seeded per-SKU random rank family used by the scatter plan (but drawn
   // from a stream seeded independently of the scatter draw so the two plans
-  // are decorrelated — the interpolation only needs the endpoints, not shared
+  // are decorrelated - the interpolation only needs the endpoints, not shared
   // randomness).
   const rng = mulberry32(seed ^ 0x1521d3f5);
   const itemRandomRank = new Map<string, number>();
@@ -518,7 +518,7 @@ export interface ShelfPlacementPreview {
   demand: number;
   /**
    * Normalized proximity to dispatch in [0,1]: 0 = closest shelf to
-   * dispatch, 1 = farthest. Independent of bias — purely geometric.
+   * dispatch, 1 = farthest. Independent of bias - purely geometric.
    */
   proximity: number;
   /** true if the shelf holds at least one placed SKU. */
@@ -539,7 +539,7 @@ export interface ShelfPlacementPreview {
   /**
    * Affinity-group id of the item placed on this shelf (undefined when no
    * item is assigned, or the item has no affinityGroup, or the placement
-   * engine runs without inventory). Independent of `category` — affinity
+   * engine runs without inventory). Independent of `category` - affinity
    * describes co-purchase behaviour, not product family membership.
    */
   affinityGroup?: number;
@@ -597,7 +597,7 @@ function buildPlan(
   const seed = config.seed ?? 42;
 
   // Preview mode: sample items for responsiveness at high SKU counts.
-  // Sampling happens HERE — before any sorting or grouping — so the
+  // Sampling happens HERE - before any sorting or grouping - so the
   // sampled set flows through the entire algorithm identically to the
   // full set (same code paths, same logic). The pattern (which shelves
   // near dispatch get high-demand items) remains representative.
@@ -622,7 +622,7 @@ function buildPlan(
   // in the clustered plan:
   //     p(sku) = (1 - t) * pScatter(sku) + t * pCluster(sku)
   // Sorting every SKU by this interpolated position yields a single final
-  // ordering — a new, valid placement in the same family, smoothly
+  // ordering - a new, valid placement in the same family, smoothly
   // transitioning between the two endpoints.
   //   • t = 0 ⇒ p = pScatter ⇒ the final ordering IS the scatter plan exactly.
   //   • t = 1 ⇒ p = pCluster ⇒ the final ordering IS the clustered plan exactly.
@@ -662,10 +662,10 @@ function buildPlan(
 
   // --- Footprint-aware, ORDER-PRESERVING bin allocation ------------------- //
   // Bins are enumerated in dispatch-proximity order (`enumerateBins`), so
-  // consecutive bins in `bins` are physically adjacent — the compactness
+  // consecutive bins in `bins` are physically adjacent - the compactness
   // order. We walk the ordered SKU list and hand each SKU the next
   // `storageFootprint` contiguous bins. The FIRST bin a SKU claims is its
-  // PRIMARY (nearest-to-dispatch of its group) — downstream resolution,
+  // PRIMARY (nearest-to-dispatch of its group) - downstream resolution,
   // simulation, and UI labels treat it as the canonical pick location.
   //
   // Overflow is ORDER-PRESERVING: the moment a SKU cannot fit in the
@@ -728,7 +728,7 @@ export function computePlacementPreview(
   // fill several bins, potentially on the same shelf.
   // NOTE: with banded enumeration the fill is even across the floor, so
   // overflow surfaces as "the far bands never fill" rather than a corner
-  // wedge — the same ordering the planner actually uses.
+  // wedge - the same ordering the planner actually uses.
   const occupiedBinsByShelf = new Map<string, number>();
   let placedBinCount = 0;
   for (const group of itemBins) {

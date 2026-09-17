@@ -20,7 +20,7 @@ export const In: React.FC<{ t: number; delay?: number; rise?: number; blur?: boo
     );
   };
 
-/** Out — fade + drift up */
+/** Out - fade + drift up */
 export const Out: React.FC<{ t: number; dur?: number; up?: number; children: React.ReactNode }> =
   ({ t, dur = 18, up = 22, children }) => {
     const k = clamp01(t / dur);
@@ -32,7 +32,7 @@ export const Out: React.FC<{ t: number; dur?: number; up?: number; children: Rea
     );
   };
 
-/** InOut — both gates, useful for statements that appear and leave */
+/** InOut - both gates, useful for statements that appear and leave */
 export const InOut: React.FC<{ t: number; inDur?: number; outAt?: number; rise?: number; children: React.ReactNode }> =
   ({ t, inDur = 22, outAt = Infinity, rise = 14, children }) => {
     const inK = EASE_OUT(clamp01(t / inDur));

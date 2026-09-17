@@ -3,12 +3,12 @@ import { Heart, MapPin, PackageCheck, Warehouse, HandHeart, PartyPopper } from '
 import { cn } from '@/lib/utils';
 
 /**
- * /letter — the farewell letter. Not linked anywhere in the app; only
+ * /letter - the farewell letter. Not linked anywhere in the app; only
  * reachable by typing the URL. Styled with the Taro design tokens
  * (warm paper background, olive accent) and a bit of warehouse flair.
  */
 
-/* A small shelf glyph drawn with divs — inline so the letter page has zero
+/* A small shelf glyph drawn with divs - inline so the letter page has zero
    SVG/dependency overhead. */
 function ShelfRow({ className }: { className?: string }) {
   return (
@@ -57,7 +57,7 @@ function Annotation({
 export default function LetterPage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-background font-sans">
-      {/* Faint blueprint grid — matches the app's paper background */}
+      {/* Faint blueprint grid - matches the app's paper background */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.5]"
@@ -178,7 +178,7 @@ export default function LetterPage() {
 
             {/* Signature block */}
             <div className="mt-2 border-t border-border-subtle pt-6">
-              <p className="text-sm text-text-secondary">— Farhan</p>
+              <p className="text-sm text-text-secondary">- Farhan</p>
               <p className="text-xs text-text-muted">
                 Signed from the dispatch office, <span className="text-text-secondary">last shift</span>.
               </p>
@@ -186,7 +186,7 @@ export default function LetterPage() {
           </div>
         </article>
 
-        {/* Warehouse flair — understated, just enough */}
+        {/* Warehouse flair - understated, just enough */}
         <ShelfRow className="mt-10 scale-[0.85] opacity-80 sm:scale-100" />
         <p className="mt-3 text-center text-[11px] uppercase tracking-[0.2em] text-text-muted">
           Aisles cleared · Inventory zeroed · Lights out
@@ -199,13 +199,13 @@ export default function LetterPage() {
         </div>
       </div>
 
-      {/* Handwritten margin annotations — desktop only */}
+      {/* Handwritten margin annotations - desktop only */}
       <Annotation className="left-[6%] top-40 rotate-[-3deg]">“the polish was the point”</Annotation>
       <Annotation className="right-[5%] top-[26rem] rotate-[2deg]">sign-off drafted, one last edit… none needed</Annotation>
-      <Annotation className="left-[4%] top-[52rem] rotate-[-2deg]">⚑ warehouse quiet — this is the calm part</Annotation>
+      <Annotation className="left-[4%] top-[52rem] rotate-[-2deg]">⚑ warehouse quiet - this is the calm part</Annotation>
       <Annotation className="right-[7%] bottom-24 rotate-[-1deg]">pickers off the clock. job done ✅</Annotation>
 
-      {/* Status card — the one thing that *is* empty now */}
+      {/* Status card - the one thing that *is* empty now */}
         <div className="relative mx-auto -mt-2 max-w-2xl px-4 pb-16 sm:px-6 md:pb-20">
         <div className="rounded-xl border border-dashed border-border-default bg-secondary/50 p-5 text-center sm:p-6">
           <p className="flex items-center justify-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-text-muted">

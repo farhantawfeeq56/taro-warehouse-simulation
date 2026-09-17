@@ -2,7 +2,7 @@
 //
 // The post-refactor model: a SKU lives in one or more StorageLocations
 // (bins) in the warehouse. When a SKU spans several bins, exactly one is
-// marked `primary: true` — the canonical pick location used by order
+// marked `primary: true` - the canonical pick location used by order
 // resolution, simulation, and UI labels. Secondary bins hold additional
 // capacity but are never added to a pick list directly. The primary is
 // chosen by Inventory Placement as the nearest-to-dispatch bin of the
@@ -138,7 +138,7 @@ export function collectSkuIds(warehouse: Pick<Warehouse, 'grid'>): string[] {
 export interface SkuMeta {
   skuId: string;
   /**
-   * Demand weight (defaults to 1 — uniform — when absent from the bin).
+   * Demand weight (defaults to 1 - uniform - when absent from the bin).
    * Guaranteed to be > 0 so it can always be used as a sampling weight.
    */
   demandScore: number;
@@ -220,7 +220,7 @@ export function assertWarehouseInvariants(warehouse: Pick<Warehouse, 'grid'>): v
     }
   }
 
-  // Exactly one primary per SKU — but only when the field is used at all.
+  // Exactly one primary per SKU - but only when the field is used at all.
   for (const [sku, info] of bySku) {
     if (info.primaryCount > 1) {
       throw new Error(
@@ -256,10 +256,10 @@ export interface QuantityInvariantViolation {
  * their total quantity split by the placement algorithm so the sum across
  * all of their bins matches the declared total. Manual edits or imported
  * warehouses may break this invariant, so this function returns violations
- * instead of throwing — the caller decides how to react.
+ * instead of throwing - the caller decides how to react.
  *
  * When `items` is not provided (e.g., warehouses built manually or via CSV
- * import), the function returns an empty array — there is no declared total
+ * import), the function returns an empty array - there is no declared total
  * to check against. Only call this when you have the original `Item[]` list
  * that was used during placement.
  */

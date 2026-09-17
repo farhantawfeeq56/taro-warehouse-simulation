@@ -71,7 +71,7 @@ export function generateWarehouseSession(
   const binCapacity = estimateBinCapacity(newWarehouse);
   const balancedSkuCount = balanceSkuCount(cfg.inventory.skuCount, binCapacity);
 
-  // 2. Inventory items — built with the same pipeline the setup overlay uses
+  // 2. Inventory items - built with the same pipeline the setup overlay uses
   //    (demand scores → affinity groups → product categories → footprints),
   //    so `configuration` alone fully determines the catalogue.
   const items = buildInventory({ ...cfg, inventory: { ...cfg.inventory, skuCount: balancedSkuCount } });
@@ -104,7 +104,7 @@ export function generateWarehouseSession(
  * Estimate how many storage bins a warehouse layout provides. Bins live on
  * shelf cells; the generator cycles 1..3 z-levels per shelf (capacity, not
  * inventory), so the expected capacity is `shelves * 2`. The exact count is
- * computed by placement's `enumerateBins` — this is only a cheap upper-bound
+ * computed by placement's `enumerateBins` - this is only a cheap upper-bound
  * estimate used to balance the catalogue before placement runs.
  */
 export function estimateBinCapacity(warehouse: Warehouse): number {
@@ -112,7 +112,7 @@ export function estimateBinCapacity(warehouse: Warehouse): number {
 }
 
 /**
- * Build the full Item catalogue for a configuration — the same enrichment
+ * Build the full Item catalogue for a configuration - the same enrichment
  * chain the layout-config overlay applies to its slider-driven inventory.
  */
 export function buildInventory(cfg: WarehouseConfiguration): Item[] {

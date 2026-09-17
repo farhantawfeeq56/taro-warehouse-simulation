@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * MultiWarehouseScroll — vertical, page-based warehouse canvas.
+ * MultiWarehouseScroll - vertical, page-based warehouse canvas.
  *
  * Re-introduces multiple warehouses in a "Canva pages" style: each warehouse
  * occupies a full-height page stacked vertically, and you scroll down to move
  * between them. Unlike the old React Flow canvas (arbitrary node positions),
- * the screen always shows exactly ONE warehouse at a time — the page currently
+ * the screen always shows exactly ONE warehouse at a time - the page currently
  * scrolled into view.
  *
  *   • The page nearest the scroll container's vertical centre becomes the
@@ -260,7 +260,7 @@ export function MultiWarehouseScroll({
   // that window we ignore scroll fires to avoid flip-flopping between pages.
   const settlingRef = useRef(false);
 
-  // Container size — drives the fit-to-page scale (all pages share dimensions).
+  // Container size - drives the fit-to-page scale (all pages share dimensions).
   const [size, setSize] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const el = scrollRef.current;
@@ -277,7 +277,7 @@ export function MultiWarehouseScroll({
    * scroll container's centre becomes active. Runs on scroll + resize.
    *
    * Reads the active id from a ref so this callback is referentially stable
-   * (deps: warehouses, onActiveChange) — the listener effect never re-attaches
+   * (deps: warehouses, onActiveChange) - the listener effect never re-attaches
    * on active changes and never fires the immediate re-detect that would chain
    * into an infinite update loop.
    */
@@ -387,7 +387,7 @@ export function MultiWarehouseScroll({
           >
             {/* Fit-to-page body: scale the warehouse card to fit, centre it both ways. */}
             <div className="relative flex-1 min-h-0 overflow-hidden">
-              {/* Full-size warehouse controls — floating pill at the bottom,
+              {/* Full-size warehouse controls - floating pill at the bottom,
                   never scaled, never occupying layout space. Active page only. */}
               {isActive && (
                 <div className="absolute bottom-3 left-1/2 z-30 max-w-[calc(100%-24px)] -translate-x-1/2">
@@ -414,7 +414,7 @@ export function MultiWarehouseScroll({
               )}
 
               <div className="absolute inset-0 flex items-center justify-center">
-                {/* Card — the warehouse renderer, scaled as one unit. */}
+                {/* Card - the warehouse renderer, scaled as one unit. */}
                 {/* shrink-0: the card is a flex item; without it flex shrinks the card
                     below its content width while the header keeps its full logicalW,
                     so the action buttons overflow the card's clip and get hidden. */}

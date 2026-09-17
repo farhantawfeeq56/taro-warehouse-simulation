@@ -6,8 +6,8 @@
 //
 // The slider smoothly interpolates between two extremes:
 //
-//   • Uniform  — every SKU receives (almost) the same demand score.
-//   • Pareto   — a handful of SKUs receive very high scores while the
+//   • Uniform  - every SKU receives (almost) the same demand score.
+//   • Pareto   - a handful of SKUs receive very high scores while the
 //                vast majority receive low scores.
 //
 // Other inventory-generation variables can build on top of the produced
@@ -89,7 +89,7 @@ export interface DemandGenerationConfig {
  * Properties of the returned scores:
  *   • length === count
  *   • every score > 0
- *   • mean score === 1   (total demand is conserved as the slider moves —
+ *   • mean score === 1   (total demand is conserved as the slider moves -
  *                         the slider only redistributes demand, it never
  *                         inflates or deflates the overall pool)
  *   • at distribution = 0  → all scores equal 1 (uniform)
@@ -105,7 +105,7 @@ export function generateDemandScores(config: DemandGenerationConfig): number[] {
 
   // Raw power-law weights: w_i = 1 / (i+1)^alpha, i = 0..count-1.
   // At alpha = 0 every weight is 1 (uniform). As alpha grows the head SKUs
-  // (small i) dominate — exactly the Pareto shape.
+  // (small i) dominate - exactly the Pareto shape.
   const raw: number[] = new Array(count);
   for (let i = 0; i < count; i++) {
     raw[i] = 1 / Math.pow(i + 1, alpha);
@@ -121,7 +121,7 @@ export function generateDemandScores(config: DemandGenerationConfig): number[] {
   // Shuffle which SKU id receives which score so that, on the Pareto end,
   // the handful of high-demand SKUs are not always SKU_001/SK_002/… but are
   // distributed across the catalogue. The shuffle preserves the distribution
-  // shape — only the assignment of scores to ids changes.
+  // shape - only the assignment of scores to ids changes.
   return seededShuffle(normalized, seed);
 }
 

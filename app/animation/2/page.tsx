@@ -9,7 +9,7 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-/* ── Timeline (seconds, loops) — same click choreography as /animation/1 ── */
+/* ── Timeline (seconds, loops) - same click choreography as /animation/1 ── */
 const TOTAL = 9;
 const FLY_T0 = 1.2;
 const CLICK_T = 2.25;
@@ -78,7 +78,7 @@ export default function Animation2Page() {
       {/* Narrower cut of the original: w-56 panel, p-3 inset, w-full button. */}
       <div ref={wrapRef} className="relative w-56 max-w-[calc(100vw-2rem)]">
         <div className="p-3">
-        {/* The genuine Simulate button — same component, size and animation
+        {/* The genuine Simulate button - same component, size and animation
             as the simulation tab. */}
         <div
           ref={buttonBoxRef}

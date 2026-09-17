@@ -3,18 +3,18 @@
 // This module is intentionally pure and self-contained: given a SKU count
 // and a "storage footprint" slider value (0 = Compact, 100 = Bulky), it
 // produces a deterministic, positive integer `storageFootprint` for every
-// SKU — the number of storage locations that SKU requires.
+// SKU - the number of storage locations that SKU requires.
 //
 // The slider smoothly interpolates between two extremes:
 //
-//   • Compact — almost every SKU occupies exactly one storage location.
-//   • Bulky   — many SKUs occupy several (contiguous) storage locations,
+//   • Compact - almost every SKU occupies exactly one storage location.
+//   • Bulky   - many SKUs occupy several (contiguous) storage locations,
 //               while a compact core of single-bin SKUs always remains
 //               (real warehouses always retain some small fast-movers).
 //
 // `storageFootprint` is an INTRINSIC property of the inventory, generated
 // alongside `demandScore`, `affinityGroup`, and `category`. It does NOT
-// perform any placement itself — Inventory Placement consumes it to decide
+// perform any placement itself - Inventory Placement consumes it to decide
 // HOW MANY bins each SKU occupies (and where, jointly with Slotting Bias /
 // Category Clustering). Generation never makes a spatial decision.
 //
@@ -35,7 +35,7 @@ export const FOOTPRINT_FMAX = 6;
 /**
  * Minimum "compactness reachability" probability at the far-right (Bulky)
  * end of the slider. This is the value of `p` at t = 1, so even at maximum
- * bulkiness a meaningful fraction of SKUs stay single-bin — modelling the
+ * bulkiness a meaningful fraction of SKUs stay single-bin - modelling the
  * compact fast-mover core that real warehouses always retain.
  *
  * At the maximum slider this yields a catalogue whose total footprint fills

@@ -1,4 +1,4 @@
-// Scene 8 — The Feedback Loop + Outro (78–88s)
+// Scene 8 - The Feedback Loop + Outro (78–88s)
 // Configure → Simulate → Compare → Experiment → Repeat. The loop builds,
 // runs a pass, configs orbit around it, the camera pulls back, and the film
 // closes on the wordmark.

@@ -7,7 +7,7 @@ import { generateWarehouseSession } from '@/lib/taro/warehouse-generator';
 import type { WarehouseConfiguration } from '@/lib/taro/warehouse-configuration';
 import { CELL_SIZE } from '@/lib/taro/constants';
 
-/* Same four warehouses as /animation/3 — no simulation, just the shells. */
+/* Same four warehouses as /animation/3 - no simulation, just the shells. */
 const SHOWCASES: { name: string; config: WarehouseConfiguration }[] = [
   {
     name: 'Single',
@@ -68,7 +68,7 @@ export default function Animation6Page() {
     return () => window.removeEventListener('keydown', onKey);
   }, [active]);
 
-  // Stage size — drives the fit scale.
+  // Stage size - drives the fit scale.
   useLayoutEffect(() => {
     const el = stageRef.current;
     if (!el) return;

@@ -1,4 +1,4 @@
-// Scene 6 — Compare Warehouse Decisions (52–65s)
+// Scene 6 - Compare Warehouse Decisions (52–65s)
 // Taro's compare page: warehouses as columns, metrics as rows, ranked by
 // total distance with the winner subtly highlighted.
 

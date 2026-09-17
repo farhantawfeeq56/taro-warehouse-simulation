@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AiSuggestion — the AI experiment suggestion as a quiet nudge placed BELOW
+ * AiSuggestion - the AI experiment suggestion as a quiet nudge placed BELOW
  * the rankings on the compare page. It is deliberately not a big card in the
  * flow: just a small line inviting the user to look at a recommended
  * experiment. Clicking it expands the full recommendation downward (axis +
@@ -58,11 +58,11 @@ export function AiSuggestion({ insights, isRunning, onGenerate }: AiSuggestionPr
     setError(null);
     setIsGenerating(true);
     try {
-      // Re-run the engine WITH the user's constraints — the recommendation
+      // Re-run the engine WITH the user's constraints - the recommendation
       // may change (e.g. a max-rack constraint clamps the suggestion).
       const withConstraints = generateExperiment(insights, constraints);
       await onGenerate(constraints, withConstraints);
-      setGeneratedName(`Experiment — ${withConstraints.axis}`);
+      setGeneratedName(`Experiment - ${withConstraints.axis}`);
     } catch (err) {
       console.error('Failed to generate experiment:', err);
       setError(err instanceof Error ? err.message : 'Generation failed. Please try again.');
@@ -74,7 +74,7 @@ export function AiSuggestion({ insights, isRunning, onGenerate }: AiSuggestionPr
   const axMeta = recommendation ? AXIS_META[recommendation.axis] : undefined;
   const hasResults = insights.length > 0;
 
-  // Nothing to suggest yet — render nothing (auto-run fills results quickly).
+  // Nothing to suggest yet - render nothing (auto-run fills results quickly).
   if (!hasResults || isRunning || !recommendation) return null;
 
   const close = () => {
@@ -85,7 +85,7 @@ export function AiSuggestion({ insights, isRunning, onGenerate }: AiSuggestionPr
 
   return (
     <div className="border-t border-border pt-4">
-      {/* The nudge — one quiet line. */}
+      {/* The nudge - one quiet line. */}
       {!open ? (
         <button
           type="button"
@@ -110,7 +110,7 @@ export function AiSuggestion({ insights, isRunning, onGenerate }: AiSuggestionPr
             <Badge
               variant="outline"
               className="text-[10px] text-muted-foreground"
-              title="No model or API call — a fixed rule-based heuristic over your comparison numbers."
+              title="No model or API call - a fixed rule-based heuristic over your comparison numbers."
             >
               Mock AI
             </Badge>
@@ -163,7 +163,7 @@ export function AiSuggestion({ insights, isRunning, onGenerate }: AiSuggestionPr
                   )}
                 </div>
 
-                {/* The experiment disclaimer — always present, non-negotiable. */}
+                {/* The experiment disclaimer - always present, non-negotiable. */}
                 <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning-soft/60 px-3 py-2">
                   <FlaskConical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                   <p className="text-[11px] leading-relaxed text-warning">
@@ -247,7 +247,7 @@ export function AiSuggestion({ insights, isRunning, onGenerate }: AiSuggestionPr
                     <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="text-xs">
                       <p className="font-medium text-foreground">
-                        Generated "{generatedName}" — it's in your workspace now.
+                        Generated "{generatedName}" - it's in your workspace now.
                       </p>
                       <p className="text-muted-foreground">
                         Run the comparison again to test it against the others.

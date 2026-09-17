@@ -164,7 +164,7 @@ export function generateSkeletonWarehouse(): Warehouse {
  * get during order generation. At 5×, a same-group SKU is 5× as likely to
  * be picked as a non-group SKU with the same demandScore, all else equal.
  *
- * This is a single fixed constant — not user-configurable. The Product
+ * This is a single fixed constant - not user-configurable. The Product
  * Affinity slider already controls the existence and size of groups, so
  * at affinity = 0% the boost never applies (all SKUs are singletons) and
  * at affinity = 100% it generates strong co-purchase patterns within large

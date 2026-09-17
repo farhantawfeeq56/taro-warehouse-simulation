@@ -1,4 +1,4 @@
-// Scene 7 — Experimentation (65–78s)
+// Scene 7 - Experimentation (65–78s)
 // The best warehouse sits in focus; a recommendation card proposes one
 // change: more racks. The grid morphs 9 → 11. A hypothesis, not an oracle.
 
@@ -153,7 +153,7 @@ export const Scene7: React.FC<{ start: number }> = ({ start }) => {
           fontFamily: FONT, fontSize: 13.5, fontWeight: 700, color: C.accentActive,
           background: C.accentSoft, border: `1px solid ${C.accentSoft}`, borderRadius: 999, padding: '8px 16px',
         }}>
-          Generated · Warehouse B·2 — racks 11
+          Generated · Warehouse B·2 - racks 11
         </div>
       </div>
 

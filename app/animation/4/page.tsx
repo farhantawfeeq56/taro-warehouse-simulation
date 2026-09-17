@@ -7,7 +7,7 @@ import { AiSuggestion } from '@/components/taro/experiment-recommendation-card';
 import type { WarehouseInsight } from '@/lib/taro/experiment-recommendation';
 import { cn } from '@/lib/utils';
 
-/* Baked table numbers — same run as /animation/5. Animation only. */
+/* Baked table numbers - same run as /animation/5. Animation only. */
 interface Baked {
   name: string;
   estimatedTime: number;
@@ -99,7 +99,7 @@ export default function Animation4Page() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Master clock — plays once per R.
+  // Master clock - plays once per R.
   useEffect(() => {
     const tick = (now: number) => {
       if (last.current == null) last.current = now;
@@ -136,7 +136,7 @@ export default function Animation4Page() {
         const r = el.getBoundingClientRect();
         return { el, x: r.left + r.width / 2 - sr.left, y: r.top + r.height / 2 - sr.top };
       };
-      // Re-measure every frame until fired — cached anchors go stale
+      // Re-measure every frame until fired - cached anchors go stale
       // the moment the card shifts.
       if (i === 0) {
         const spans = ai.querySelectorAll('span');
@@ -167,7 +167,7 @@ export default function Animation4Page() {
       } else if (a && time >= at && time - lastTry.current[i] > 0.4) {
         lastTry.current[i] = time;
         const el = a.el as HTMLElement;
-        // Same press as /animation/2 — squash + dim, no ring.
+        // Same press as /animation/2 - squash + dim, no ring.
         el.animate(
           [
             { transform: 'scale(1)', filter: 'brightness(1)' },
@@ -201,7 +201,7 @@ export default function Animation4Page() {
     prevTime.current = time;
   }, [time]);
 
-  // Stack height never changes (both acts share one grid cell) — one fit.
+  // Stack height never changes (both acts share one grid cell) - one fit.
   useEffect(() => {
     const compute = () => {
       const h = cardRef.current?.offsetHeight ?? 0;
@@ -240,7 +240,7 @@ export default function Animation4Page() {
     };
   })();
 
-  // AI enters after the table is gone and stays — the finale is the
+  // AI enters after the table is gone and stays - the finale is the
   // genuine Generate result painting on screen.
   const aiShow = (() => {
     if (time < AI_IN_T) return { opacity: 0, visibility: 'hidden' as const };
@@ -275,7 +275,7 @@ export default function Animation4Page() {
   } else if (time < CLICK_TS[1]) {
     leg(CLICK_TS[0], CLICK_TS[1], A0.x, A0.y, A1.x, A1.y);
   } else {
-    // Cursor's job ends on the Generate experiment click — typing and the
+    // Cursor's job ends on the Generate experiment click - typing and the
     // final Generate happen on their own.
     cx = A1.x;
     cy = A1.y;
@@ -285,7 +285,7 @@ export default function Animation4Page() {
 
   return (
     <div ref={stageRef} className="relative flex h-screen items-center justify-center overflow-hidden bg-background px-4">
-      {/* Both acts share one grid cell — the size never moves. */}
+      {/* Both acts share one grid cell - the size never moves. */}
       <div ref={cardRef} style={{ transform: `scale(${fit})` }} className="grid w-full max-w-4xl place-items-center">
         <div className="col-start-1 row-start-1 w-full" style={tableClose}>
           <div className="overflow-hidden rounded-xl border border-border bg-surface">
@@ -362,7 +362,7 @@ export default function Animation4Page() {
           </div>
 
         <div key={runId} ref={aiRef} style={aiShow} className="col-start-1 row-start-1 mt-3 w-full">
-          {/* Confirmation paints after the last click — after we're gone. */}
+          {/* Confirmation paints after the last click - after we're gone. */}
           <AiSuggestion insights={INSIGHTS} isRunning={false} onGenerate={() => new Promise<void>((r) => setTimeout(r, 600))} />
         </div>
       </div>

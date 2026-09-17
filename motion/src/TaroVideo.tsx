@@ -1,4 +1,4 @@
-// TaroMotion — the full film.
+// TaroMotion - the full film.
 // 8 scenes, 1280×720 @ 30fps, 88s (2640 frames). Each scene fades in/out
 // over its neighbours so every cut is a smooth dissolve.
 
@@ -15,7 +15,7 @@ import { Scene6 } from './scenes/Scene6';
 import { Scene7 } from './scenes/Scene7';
 import { Scene8 } from './scenes/Scene8';
 
-// scene timeline (frames) — 88s total at 30fps
+// scene timeline (frames) - 88s total at 30fps
 const TIMELINE: { scene: React.FC<{ start: number }>; from: number; dur: number }[] = [
   { scene: Scene1, from: 0, dur: 300 },      // The Problem
   { scene: Scene2, from: 300, dur: 300 },    // The Decision Problem
@@ -39,7 +39,7 @@ const WAIT = (): Promise<void> => {
         document.fonts.add(face);
         fontLoaded = true;
       } catch {
-        console.warn('font load failed — falling back to sans-serif');
+        console.warn('font load failed - falling back to sans-serif');
       }
       continueRender(handle);
       resolve();

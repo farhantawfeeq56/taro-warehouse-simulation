@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
-// Motion personality: Corporate (calm-sharp) — one easing vocabulary for the whole piece.
+// Motion personality: Corporate (calm-sharp) - one easing vocabulary for the whole piece.
 const ENTER: [number, number, number, number] = [0.22, 1, 0.36, 1]; // enters: fast start, soft landing
 const EXIT: [number, number, number, number] = [0.7, 0, 0.84, 0]; // exits: accelerate away
 const MOVE: [number, number, number, number] = [0.65, 0, 0.35, 1]; // camera: symmetric ease-in-out
@@ -17,7 +17,7 @@ const LINE = "#DDDAD9";
 // Base unit 0.4s: enters 0.4s, camera 1.6–2.0s (big move), holds breathe on zoom.
 const PAN_T = { duration: 1.9, ease: MOVE };
 const SCRIBBLE_T = { duration: 2.0, ease: MOVE };
-// Single slow push-in over the hold — one direction only, never zooms back out.
+// Single slow push-in over the hold - one direction only, never zooms back out.
 const BREATHE_T = { duration: 7, ease: "easeOut" as const };
 
 const BUBBLES = [
@@ -30,7 +30,7 @@ const BUBBLES = [
   "Would zone picking work better?",
 ];
 
-// top + bottom bands only — center stays clear for the hero text
+// top + bottom bands only - center stays clear for the hero text
 const BPOS = [
   { l: "4%", t: "6%", r: -3 },
   { l: "39%", t: "5%", r: 2 },
@@ -51,7 +51,7 @@ const RECTS = [
   "Hard to compare scenarios",
 ];
 
-// vertical list layout — stacked top→bottom, no scatter, no rotation
+// vertical list layout - stacked top→bottom, no scatter, no rotation
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -173,7 +173,7 @@ export default function IntroPage() {
         if (dead) return;
         setRects(i);
       }
-      // list stays put — camera glides down to Taro with text + list riding together
+      // list stays put - camera glides down to Taro with text + list riding together
       await wait(1600 * k);
       if (dead) return;
       setStage("scribble");
@@ -230,7 +230,7 @@ export default function IntroPage() {
           </AnimatePresence>
         </section>
 
-        {/* panel 2 · sim (right of hero — revealed by the camera, no intro) */}
+        {/* panel 2 · sim (right of hero - revealed by the camera, no intro) */}
         <section className="absolute left-[100vw] top-0 flex h-svh w-screen flex-col items-center justify-center gap-6 px-6">
           {/* text + list ride as one unit: no awkward split when the camera moves on */}
           <motion.div

@@ -1,4 +1,4 @@
-// TaroFrame — the product interface shell. Mirrors the real app's bones:
+// TaroFrame - the product interface shell. Mirrors the real app's bones:
 // warm paper bg, white surface, `0.625rem` radius, subtle borders, a topbar
 // with TARO + tabs, an orders/simulation dock on the left and a config dock
 // on the right. Docks are swappable per scene.

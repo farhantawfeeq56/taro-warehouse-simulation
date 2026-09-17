@@ -148,7 +148,7 @@ describe('validateOrderItemLocations', () => {
     );
   });
 
-  it('accepts a SKU spanning multiple bins (no primary markers — legacy)', () => {
+  it('accepts a SKU spanning multiple bins (no primary markers - legacy)', () => {
     // A SKU may now legitimately occupy multiple storage locations (its
     // storageFootprint). Without any `primary` marker the resolver falls
     // back to the first-encountered bin, so the order still resolves.

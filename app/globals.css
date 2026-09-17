@@ -37,7 +37,7 @@
   --border-default: #DDDAD9;
   --border-strong: #C9C5C4;
 
-  /* Semantic — main + soft */
+  /* Semantic - main + soft */
   --positive: #159A6F;
   --positive-soft: #DCF7EA;
   --warning: #B7791F;
@@ -224,7 +224,7 @@
     @apply bg-background text-foreground;
   }
 
-  /* Pointer affordance — every clickable control shows a hand cursor. */
+  /* Pointer affordance - every clickable control shows a hand cursor. */
   button:not(:disabled),
   [role='button']:not(:disabled),
   a:not([disabled]),
@@ -245,7 +245,7 @@
     cursor: not-allowed;
   }
 
-  /* Text selection — accent background with a readable foreground. */
+  /* Text selection - accent background with a readable foreground. */
   ::selection {
     background-color: var(--accent);
     color: var(--accent-soft);
@@ -257,7 +257,7 @@
 }
 
 /* ────────────────────────────────────────────────────────────────────────
-   vartest5 — native range sliders used by the layout-config variants
+   vartest5 - native range sliders used by the layout-config variants
    ──────────────────────────────────────────────────────────────────────── */
 .layout-variant-range {
   -webkit-appearance: none;

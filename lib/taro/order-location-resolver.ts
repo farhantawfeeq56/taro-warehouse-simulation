@@ -16,7 +16,7 @@ export interface ResolvedOrder {
 /**
  * Resolve every line of an order to its unique StorageLocation by SKU.
  * Missing SKUs are returned in `missingSkuIds` (the resolver never throws on
- * missing SKUs — callers decide whether to abort or run partial).
+ * missing SKUs - callers decide whether to abort or run partial).
  */
 export function resolveOrderToLocations(
   order: Order,

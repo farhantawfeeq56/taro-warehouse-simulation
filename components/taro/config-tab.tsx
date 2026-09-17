@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Config tab — read-only view of the saved warehouse configuration.
+ * Config tab - read-only view of the saved warehouse configuration.
  *
  * Renders the three option groups (Geometry / Inventory / Placement) stacked
  * vertically inside the right sidebar.

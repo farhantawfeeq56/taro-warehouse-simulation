@@ -1,7 +1,7 @@
-// Hidden corrector — silently repairs state that would otherwise lead to
+// Hidden corrector - silently repairs state that would otherwise lead to
 // edge cases (missing items, duplicate ids, unreachable bins, …). Runs ONLY
 // at explicit user actions (loading a project, running the simulation,
-// switching the active warehouse) — never on a timer, so it adds no memory
+// switching the active warehouse) - never on a timer, so it adds no memory
 // pressure.
 //
 // Every function is pure and idempotent: applying it repeatedly converges to
@@ -52,7 +52,7 @@ export function emptyReport(): CorrectorReport {
  * The first occurrence wins; colliding duplicates get a deterministic
  * regenerated id (`sku@x,y,z#n`) so every id is unique again. Duplicate
  * SKUs within the same cell keep their own entries (they occupy different
- * z-levels / slots) — only the id string is repaired.
+ * z-levels / slots) - only the id string is repaired.
  */
 export function dedupeBinIds(warehouse: Warehouse): { warehouse: Warehouse; fixed: number } {
   let fixed = 0;
@@ -146,7 +146,7 @@ interface StorageLocationLike {
 
 /**
  * Fix bins whose coordinates are out of the grid bounds or sit on a cell
- * not typed `shelf` (ghost inventory — the resolver finds them but the
+ * not typed `shelf` (ghost inventory - the resolver finds them but the
  * renderer cannot draw them). Out-of-bounds bins are relocated to the
  * nearest shelf cell; bins on non-shelf cells promote the cell to `shelf`.
  * The worker-start cell is never demoted to a storage cell (it keeps its
@@ -207,7 +207,7 @@ export function fixOutOfBoundsBins(warehouse: Warehouse): { warehouse: Warehouse
       break;
     }
     if (!placed) {
-      // No room anywhere — drop it (order reconciliation will prune its SKU).
+      // No room anywhere - drop it (order reconciliation will prune its SKU).
       fixed++;
     }
   }
@@ -221,7 +221,7 @@ export function fixOutOfBoundsBins(warehouse: Warehouse): { warehouse: Warehouse
         cell.type = 'shelf';
         fixed++;
       } else if (cell.locations.length === 0 && cell.type === 'shelf') {
-        // Empty shelf stays a shelf — legitimate (a rack with no stock).
+        // Empty shelf stays a shelf - legitimate (a rack with no stock).
       }
     }
   }
@@ -516,7 +516,7 @@ export function reconcile(
     report.unreachableCleared = u.cleared;
     w = u.warehouse;
     if (u.relocated > 0 || u.cleared > 0) {
-      // Relocation changed the catalog — rebuild metadata once more.
+      // Relocation changed the catalog - rebuild metadata once more.
       const m2 = rebuildMetadata(w);
       report.metadataRebuilt = m2.rebuilt;
       w = m2.warehouse;

@@ -66,7 +66,7 @@ describe('affinityToGroupCount', () => {
 
   it('keeps the low end almost all-independent (gentle ramp)', () => {
     // (1 - t^2) is flat near t = 0, so small affinity values still produce
-    // (almost) the full singleton set — only a handful of merges.
+    // (almost) the full singleton set - only a handful of merges.
     const n = 200;
     expect(affinityToGroupCount(n, 5)).toBeGreaterThan(n - 5);
     expect(affinityToGroupCount(n, 25)).toBeGreaterThan(n - 30);
@@ -136,7 +136,7 @@ describe('generateAffinityGroups', () => {
     expect(s.groupCount).toBe(latentCategoryCount(n));
     expect(s.groupCount).toBeGreaterThanOrEqual(2);
 
-    // And those groups are large and reasonably balanced — no single group
+    // And those groups are large and reasonably balanced - no single group
     // dominates the catalogue.
     expect(s.groupedShare).toBeGreaterThan(0.95);
     expect(s.nonSingletonCount).toBe(s.groupCount);

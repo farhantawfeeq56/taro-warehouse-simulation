@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Variant C — SVG renderer experiment.
+ * Variant C - SVG renderer experiment.
  *
  * Renders the warehouse as pure vector SVG. The SVG is positioned at the
  * logical size (width×CELL_SIZE × height×CELL_SIZE) and the browser re-vectors
@@ -13,7 +13,7 @@
  * cell-from-mouse math; drawing tools mutate the same warehouse via
  * `onWarehouseChange`.
  *
- * This is intentionally NOT pixel-perfect with the canvas — it's the
+ * This is intentionally NOT pixel-perfect with the canvas - it's the
  * "does vector fundamentally solve sharpness?" experiment.
  */
 
@@ -74,7 +74,7 @@ function WarehouseSvgRendererInner({
 
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
   // True while the user holds the left button down with a drawing tool
-  // selected — lets shelf/worker/erase paint across cells on drag.
+  // selected - lets shelf/worker/erase paint across cells on drag.
   const [isDrawing, setIsDrawing] = useState(false);
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
@@ -314,7 +314,7 @@ function WarehouseSvgRendererInner({
   }, [warehouse]);
 
   // Worker route polylines + animated dots.
-  // NOTE: deliberately NOT memoized on [activeRoute, animationProgressRef] —
+  // NOTE: deliberately NOT memoized on [activeRoute, animationProgressRef] -
   // animationProgressRef is a stable ref object and its .current is read here,
   // so a memo would freeze the path at the initial progress (the RAF tick
   // re-renders the component but the memo never recomputes). Reading it on
@@ -422,7 +422,7 @@ function WarehouseSvgRendererInner({
           </text>
         )}
 
-        {/* No inner border rect — the card's border is the single frame. */}
+        {/* No inner border rect - the card's border is the single frame. */}
       </svg>
 
       {/* Hover Tooltip */}

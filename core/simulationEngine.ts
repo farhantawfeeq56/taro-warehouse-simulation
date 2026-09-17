@@ -393,7 +393,7 @@ function simulateBatchStrategy(
       }
 
       if (allResolvedLines.length === 0) {
-        // All SKUs in this batch are missing — every order in the batch
+        // All SKUs in this batch are missing - every order in the batch
         // is skipped.
         skippedOrdersCount += batch.orders.length;
         continue;
@@ -411,7 +411,7 @@ function simulateBatchStrategy(
         { x: number; y: number; z: number; sku: string; locationKey: string; pickCount: number; orderIds: Set<string> }
       >();
       for (const line of allResolvedLines) {
-        // Key: bin coordinates + SKU — unique pick location.
+        // Key: bin coordinates + SKU - unique pick location.
         const key = `${line.x},${line.y},${line.z}-${line.skuId}`;
         const existing = mergedPicks.get(key);
         if (existing) {
@@ -559,7 +559,7 @@ interface WarehouseZone {
  * a valid (possibly empty) zone, unlike the old `Math.ceil + break` approach
  * which silently dropped workers when height was not evenly divisible.
  *
- * A zone with zero shelves is a legitimate simulation outcome — it reflects
+ * A zone with zero shelves is a legitimate simulation outcome - it reflects
  * the warehouse layout rather than artificially balancing workload.
  *
  * When height < workerCount, zones beyond the last available row use an
@@ -584,7 +584,7 @@ function defineZones(warehouse: Warehouse, workerCount: number): WarehouseZone[]
     let yMax: number;
 
     if (zoneRows === 0) {
-      // No rows remain for this zone — use an inverted sentinel range
+      // No rows remain for this zone - use an inverted sentinel range
       // that findZoneForLocation can never match.
       yMin = height - 1;
       yMax = height - 2;
@@ -638,7 +638,7 @@ function findZoneForLocation(
  *  - Workers start and end at the configured worker-start position.
  *
  * Unlike Single / Batch, zone-picked orders are NOT completed atomically
- * by one worker — each order may be fulfilled piecemeal by several workers
+ * by one worker - each order may be fulfilled piecemeal by several workers
  * across different zones.
  */
 function simulateZoneStrategy(
@@ -682,7 +682,7 @@ function simulateZoneStrategy(
     for (const line of resolved.lines) {
       const zoneId = findZoneForLocation(line.bin.x, line.bin.y, zones);
       if (zoneId < 0 || zoneId >= effectiveWorkers) {
-        // Location outside all defined zones — shouldn't happen but guard
+        // Location outside all defined zones - shouldn't happen but guard
         continue;
       }
 
@@ -713,7 +713,7 @@ function simulateZoneStrategy(
     const picks = zonePickTargets[z];
 
     if (picks.length === 0) {
-      // Idle worker — no storage locations in this zone range
+      // Idle worker - no storage locations in this zone range
       allWorkerRoutes.push({
         workerId,
         route: [],
@@ -779,7 +779,7 @@ function simulateZoneStrategy(
       // A* path from current position to the target shelf cell
       const pathSegment = findPath(warehouse, currentPos, target, { neighborGraph });
       if (pathSegment.length === 0) {
-        // No walkable route — count and skip this pick
+        // No walkable route - count and skip this pick
         totalUnreachablePicks++;
         continue;
       }
