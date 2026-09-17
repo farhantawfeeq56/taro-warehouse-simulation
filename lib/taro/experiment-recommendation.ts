@@ -1,5 +1,5 @@
 /**
- * Experiment recommendation — a deterministic, mock "AI" that studies the
+ * Experiment recommendation — a deterministic, rule-based engine that studies the
  * existing warehouses + their simulation results and proposes the single most
  * promising configuration to test next.
  *

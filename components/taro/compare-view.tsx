@@ -14,8 +14,8 @@
  *      warehouse. Efficiency is intentionally NOT shown — the comparison
  *      ranks purely on travel distance.
  *
- * Below the rankings, AiSuggestion is a quiet nudge: a small line offering a
- * recommended AI experiment that expands downward on click.
+ * Below the rankings, ExperimentSuggestion is a quiet nudge: a small line offering a
+ * recommended experiment that expands downward on click.
  *
  * All state lives in TaroApp memory, so leaving the page loses nothing.
  */
@@ -27,7 +27,7 @@ import {
   Loader2,
   Trophy,
 } from 'lucide-react';
-import { AiSuggestion } from './experiment-recommendation-card';
+import { ExperimentSuggestion } from './experiment-recommendation-card';
 import {
   toWarehouseInsight,
   type ExperimentRecommendation,
@@ -178,7 +178,7 @@ export function CompareView({
     return () => clearTimeout(t);
   }, [baseEntry?.id, warehouses]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── AI experiment insights ─────────────────────────────────────────────
+  // ── Experiment suggestion insights ───────────────────────────────────────
   const insights = useMemo(() => {
     return Object.values(resultsByWarehouse)
       .map((whRes) => {
@@ -252,8 +252,8 @@ export function CompareView({
     </>
   );
 
-  const aiSuggestion = hasResults ? (
-    <AiSuggestion
+  const experimentSuggestion = hasResults ? (
+    <ExperimentSuggestion
       insights={insights}
       isRunning={isRunning}
       onGenerate={onGenerateExperiment}
@@ -370,8 +370,8 @@ export function CompareView({
             </div>
           )}
 
-          {/* AI suggestion — a quiet nudge below the rankings, expands downward. */}
-          {aiSuggestion}
+          {/* Experiment suggestion — a quiet nudge below the rankings, expands downward. */}
+          {experimentSuggestion}
         </div>,
       )}
     </div>
