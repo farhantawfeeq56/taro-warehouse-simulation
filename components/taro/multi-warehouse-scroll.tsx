@@ -200,7 +200,6 @@ function PageHeader({
 
       {isActive && (
         <div className="flex shrink-0 items-center gap-0.5">
-          <ActionButton onClick={onAdd} title="Add a new warehouse" label="Add" icon={Plus} />
           <ActionButton onClick={onDuplicate} title="Duplicate this warehouse" label="Duplicate" icon={Copy} />
           {onEdit && (
             <ActionButton onClick={onEdit} title="Edit this warehouse" label="Edit" icon={Pencil} />
@@ -222,6 +221,7 @@ function PageHeader({
           {onDelete && (
             <ActionButton onClick={onDelete} title="Delete this warehouse" label="Delete" icon={Trash2} danger />
           )}
+          <ActionButton onClick={onAdd} title="Add a new warehouse" label="Add" icon={Plus} accent={!canCompare} showLabel />
           <ActionButton onClick={onCompare} title="Compare all warehouses" label="Compare" icon={GitCompareArrows} accent disabled={!canCompare} showLabel />
         </div>
       )}
