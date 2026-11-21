@@ -12,9 +12,10 @@ const SHOTS = [
   { n: '5', label: 'AI suggestion' },
   { n: '6', label: 'Everything' },
   { n: '7', label: 'Flow' },
+  { n: '8', label: 'Film' },
 ];
 
-/** Floating switcher — keys 1–5 jump between versions. */
+/** Floating switcher — keys 1–8 jump between versions. */
 export function StageNav() {
   const pathname = usePathname();
   const router = useRouter();

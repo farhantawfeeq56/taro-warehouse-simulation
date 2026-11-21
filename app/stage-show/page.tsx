@@ -9,6 +9,7 @@ const SHOTS = [
   { n: '5', title: 'AI suggestion', blurb: 'The real experiment recommendation card against the warehouse it reasons about.' },
   { n: '6', title: 'Everything, one page', blurb: 'Config, canvas, results, ranking and AI output stacked on a single page — the whole loop at once.' },
   { n: '7', title: 'The flow, as a film', blurb: 'Configure → generate → simulate → rank → experiment in a 34-second looping run with a cursor that presses the real controls.' },
+  { n: '8', title: 'The ordered film', blurb: 'Config → four warehouses → Simulate → route → ranked → experiment → Taro in a 28-second loop. Cuts land on the press.' },
 ];
 
 export default function StageShowIndex() {
@@ -18,10 +19,10 @@ export default function StageShowIndex() {
         <StageNav />
         <div className="shot-copy">
           <div className="shot-kicker">Taro · product shots</div>
-          <h1 className="shot-title">Five ways to show the product.</h1>
+          <h1 className="shot-title">Eight ways to show the product.</h1>
           <p className="shot-sub">
             Every version renders the original Taro components against real generated sessions —
-            the same pipeline the app runs. Press 1–5 to switch.
+            the same pipeline the app runs. Press 1–8 to switch.
           </p>
         </div>
         <div className="shot-index-grid">
