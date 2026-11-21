@@ -43,6 +43,33 @@ const WARM: Record<number, number[]> = { 0: [1], 1: [3], 2: [3], 3: [4] };
 
 const SCREENS = [A1, A6, A2, A3, A4, A5, A7];
 
+/* Video rail metadata — exact ranges + keyframe ticks for precise notes. */
+const BEATS = ['/1 · Config', '/6 · Warehouses', '/2 · Simulate', '/3 · Routes', '/4 · Table → AI', '/5 · Generate', '/7 · Taro'];
+const TICKS: Record<number, { t: number; label: string }[]> = {
+  0: [{ t: 12.2, label: 'Generate press (CLICK_T) → cut @12.35' }],
+  1: [
+    { t: 1.2, label: 'ArrowRight → warehouse 2' },
+    { t: 2.4, label: 'ArrowRight → warehouse 3' },
+    { t: 3.6, label: 'ArrowRight → warehouse 4' },
+  ],
+  2: [{ t: 2.25, label: 'Simulate press → cut @2.4' }],
+  3: [{ t: 0.2, label: 'R (auto) · run 3.0s' }],
+  4: [{ t: 0.2, label: 'R (auto) · run 8.5s' }],
+  5: [{ t: 2.25, label: 'Generate press → cut @2.4' }],
+  6: [],
+};
+const STARTS: number[] = [];
+let TOTAL = 0;
+for (const d of DUR) {
+  STARTS.push(TOTAL);
+  TOTAL += d;
+}
+const fmt = (s: number) => {
+  const m = Math.floor(s / 60);
+  const sec = s - m * 60;
+  return `${m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
+};
+
 const EXPO_OUT = 'cubic-bezier(.22,1,.36,1)';
 const EASE_IN = 'cubic-bezier(.55,.06,.68,.19)';
 
@@ -192,7 +219,13 @@ export default function StageShow8() {
   const [leavingStep, setLeavingStep] = useState(0);
   const [reduced, setReduced] = useState(true);
   const [variant, setVariant] = useState(0);
+  const [chrome, setChrome] = useState(true);
   const nodes = useRef(new Map<string, HTMLElement>());
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const mountRef = useRef(0);
+  const playheadRef = useRef<HTMLDivElement>(null);
+  const timecodeRef = useRef<HTMLSpanElement>(null);
   const phase = step % 7;
   const cycle = Math.floor(step / 7);
   const t = TRANSITIONS[variant];
@@ -235,7 +268,12 @@ export default function StageShow8() {
   const leavingKey = leaving?.key;
   useLayoutEffect(() => {
     if (reduced || !leavingKey) return;
-    nodes.current.get(leavingKey)?.animate(t.exitKf, {
+    const el = nodes.current.get(leavingKey);
+    if (!el) {
+      setLeaving(null);
+      return;
+    }
+    el.animate(t.exitKf, {
       duration: t.exitDur,
       easing: t.exitEase,
       fill: 'both',
@@ -253,13 +291,42 @@ export default function StageShow8() {
       if (k >= '1' && k <= '9') idx = Number(k) - 1;
       else if (k === '0') idx = 9;
       if (idx >= 0 && idx < TRANSITIONS.length) setVariant(idx);
+      if (k === 'h' || k === 'H') setChrome((c) => !c);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  /* Playhead + timecode — direct DOM writes, no re-renders. */
+  useEffect(() => {
+    let raf = 0;
+    let last = 0;
+    const loop = (now: number) => {
+      const s = stepRef.current;
+      const ph = s % 7;
+      const tIn = Math.min(Math.max((now - mountRef.current) / 1000, 0), DUR[ph]);
+      const el = STARTS[ph] + tIn;
+      if (playheadRef.current) playheadRef.current.style.left = `${(el / TOTAL) * 100}%`;
+      if (now - last > 120 && timecodeRef.current) {
+        last = now;
+        timecodeRef.current.textContent = `${fmt(el)} / ${fmt(TOTAL)} · ${BEATS[ph]}`;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const seek = (idx: number) => {
+    const s = stepRef.current;
+    let target = Math.floor(s / 7) * 7 + idx;
+    if (target <= s) target += 7;
+    setStep(target);
+  };
+
   /* Drive each screen's own keys, then advance. Timed from reveal. */
   useEffect(() => {
+    mountRef.current = performance.now();
     const timers: number[] = [];
     const press = (key: string, at: number) => {
       timers.push(
@@ -316,8 +383,80 @@ export default function StageShow8() {
         );
       })}
 
+      {/* Video rail — beats, keyframe ticks, playhead, click-to-seek. */}
+      {chrome && (
+        <div className="fixed inset-x-4 bottom-4 z-[90]">
+          <div className="rounded-2xl border border-border bg-card/95 px-3 pb-2.5 pt-2 shadow-xl backdrop-blur">
+            <div className="flex items-center justify-between gap-3 pb-1.5">
+              <span ref={timecodeRef} className="text-[11px] font-semibold tabular-nums text-foreground">
+                0:00.0 / {fmt(TOTAL)} · {BEATS[0]}
+              </span>
+              <span className="hidden text-[11px] tabular-nums text-muted-foreground sm:block">
+                loop {cycle + 1} · T{variant + 1} {t.name} · click a beat to seek
+              </span>
+              <button
+                onClick={() => setChrome(false)}
+                title="Hide chrome (H)"
+                className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                Hide (H)
+              </button>
+            </div>
+            <div className="relative flex gap-[3px]">
+              {BEATS.map((b, i) => {
+                const on = i === phase;
+                return (
+                  <button
+                    key={b}
+                    onClick={() => seek(i)}
+                    title={`${b} · ${fmt(STARTS[i])}–${fmt(STARTS[i] + DUR[i])}${(TICKS[i] ?? []).map((tk) => `\n@${fmt(tk.t)} ${tk.label}`).join('')}`}
+                    className={`relative h-11 min-w-0 overflow-hidden rounded-lg border px-2 text-left transition-colors ${
+                      on
+                        ? 'border-primary/60 bg-primary/10'
+                        : 'border-border hover:border-foreground/30 hover:bg-muted'
+                    }`}
+                    style={{ flexGrow: DUR[i], flexBasis: 0 }}
+                  >
+                    <span className="block truncate text-[11px] font-bold leading-tight text-foreground">
+                      {b}
+                    </span>
+                    <span className="block text-[10px] tabular-nums leading-tight text-muted-foreground">
+                      {fmt(STARTS[i])}–{fmt(STARTS[i] + DUR[i])}
+                    </span>
+                    {(TICKS[i] ?? []).map((tk) => (
+                      <span
+                        key={tk.t}
+                        title={`@${fmt(tk.t)} ${tk.label}`}
+                        className="absolute bottom-1 h-2 w-[2px] rounded-full bg-amber-500"
+                        style={{ left: `${(tk.t / DUR[i]) * 100}%` }}
+                      />
+                    ))}
+                  </button>
+                );
+              })}
+              <div
+                ref={playheadRef}
+                aria-hidden
+                className="pointer-events-none absolute -bottom-1 -top-1 w-[2px] rounded-full bg-primary"
+                style={{ left: '0%' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {!chrome && (
+        <button
+          onClick={() => setChrome(true)}
+          title="Show chrome (H)"
+          className="fixed bottom-4 right-4 z-[100] rounded-full border border-border bg-card/95 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground shadow-xl backdrop-blur hover:text-foreground"
+        >
+          Rail (H)
+        </button>
+      )}
+
       {/* Variant toolbar — floating segmented control, bottom-right. */}
-      <div className="fixed bottom-4 right-4 z-[100] rounded-2xl border border-border bg-card/95 p-2 shadow-xl backdrop-blur">
+      {chrome && (
+      <div className="fixed bottom-[118px] right-4 z-[100] rounded-2xl border border-border bg-card/95 p-2 shadow-xl backdrop-blur">
         <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Transition
@@ -349,6 +488,7 @@ export default function StageShow8() {
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

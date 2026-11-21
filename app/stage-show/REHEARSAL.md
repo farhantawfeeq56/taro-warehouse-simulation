@@ -14,7 +14,7 @@ corrector → `runSimulation` → readiness, all in-browser). No fixtures.
 | 5 | AI suggestion | Real `AiSuggestion` card beside the warehouse it reasons about |
 | 6 | Everything, one page | `ConfigTab` + hero canvas + `SimulationPanel` + readiness + live ranking + `AiSuggestion` with a working experiment output, stacked on one page |
 | 7 | Flow film, 34s loop | Splash → real `LayoutConfigOverlay` (cursor clicks Placement, then Generate) → canvas → cursor clicks Simulate (live `runSimulation`) → route sweep → live-ranked strip → cursor drives the AI card (`Generate experiment` → `No constraints`) → experiment canvas lands |
-| 8 | Ordered film | The /animation/1–7 screens rendered untouched, in order /1 → /6 → /2 → /3 → /4 → /5 → /7. Cut timers use each screen's own constants (CLICK_T / TOTAL); /6 is walked with its own ArrowRight keys, /3 + /4 started with their own R key. No restyle, no labels | |
+| 8 | Ordered film + vartest rig | The /animation/1–7 screens rendered untouched, in order /1 → /6 → /2 → /3 → /4 → /5 → /7. Cut timers use each screen's own constants; /6 walked with ArrowRight, /3 + /4 started with R. 10 WAAPI transition variants (toolbar bottom-right, keys 1–9/0, picking one replays the entrance). Video rail (bottom): proportional beats with exact ranges, press-frame ticks, live playhead + timecode, click-to-seek; H hides all chrome | |
 
 Shared: `layout.tsx` (loads `shots.css`), `nav.tsx` (segmented 1–5 switcher,
 keys 1–8 jump versions), `run.ts` (live pipeline), index page linking all eight.
