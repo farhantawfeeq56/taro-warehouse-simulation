@@ -9,7 +9,7 @@ const SHOTS = [
   { n: '5', title: 'AI suggestion', blurb: 'The real experiment recommendation card against the warehouse it reasons about.' },
   { n: '6', title: 'Everything, one page', blurb: 'Config, canvas, results, ranking and AI output stacked on a single page — the whole loop at once.' },
   { n: '7', title: 'The flow, as a film', blurb: 'Configure → generate → simulate → rank → experiment in a 34-second looping run with a cursor that presses the real controls.' },
-  { n: '8', title: 'The ordered film', blurb: 'Config → four warehouses → Simulate → route → ranked → experiment → Taro in a 28-second loop. Cuts land on the press.' },
+  { n: '8', title: 'The ordered film', blurb: 'The /animation screens untouched and in order: /1 → /6 → /2 → /3 → /4 → /5 → /7. Cuts land inside the button-press frame.' },
 ];
 
 export default function StageShowIndex() {
