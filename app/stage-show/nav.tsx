@@ -10,6 +10,8 @@ const SHOTS = [
   { n: '3', label: 'Compare' },
   { n: '4', label: 'Layouts' },
   { n: '5', label: 'AI suggestion' },
+  { n: '6', label: 'Everything' },
+  { n: '7', label: 'Flow' },
 ];
 
 /** Floating switcher — keys 1–5 jump between versions. */

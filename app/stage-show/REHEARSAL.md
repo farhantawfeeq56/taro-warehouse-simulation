@@ -1,4 +1,4 @@
-# REHEARSAL — /stage-show/1–5
+# REHEARSAL — /stage-show/1–7
 
 Five product shots built from the **original Taro UI**, not mockups. Every
 version renders real components against real sessions from
@@ -12,9 +12,11 @@ corrector → `runSimulation` → readiness, all in-browser). No fixtures.
 | 3 | Compare | The original `CompareView`, auto-simulating all three warehouses on entry |
 | 4 | Layouts | Row of three real warehouses, each with its winning route |
 | 5 | AI suggestion | Real `AiSuggestion` card beside the warehouse it reasons about |
+| 6 | Everything, one page | `ConfigTab` + hero canvas + `SimulationPanel` + readiness + live ranking + `AiSuggestion` with a working experiment output, stacked on one page |
+| 7 | Flow film, 34s loop | Splash → real `LayoutConfigOverlay` (cursor clicks Placement, then Generate) → canvas → cursor clicks Simulate (live `runSimulation`) → route sweep → live-ranked strip → cursor drives the AI card (`Generate experiment` → `No constraints`) → experiment canvas lands | |
 
 Shared: `layout.tsx` (loads `shots.css`), `nav.tsx` (segmented 1–5 switcher,
-keys 1–5 jump versions), index page linking all five.
+keys 1–7 jump versions), `run.ts` (live pipeline), index page linking all seven.
 
 ## Not checked
 

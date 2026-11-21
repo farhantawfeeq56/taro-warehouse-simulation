@@ -7,6 +7,8 @@ const SHOTS = [
   { n: '3', title: 'Compare', blurb: 'The real Compare view: every warehouse auto-simulated, ranked by travel distance.' },
   { n: '4', title: 'Layouts', blurb: 'Three real generated layouts side by side, each with its winning route.' },
   { n: '5', title: 'AI suggestion', blurb: 'The real experiment recommendation card against the warehouse it reasons about.' },
+  { n: '6', title: 'Everything, one page', blurb: 'Config, canvas, results, ranking and AI output stacked on a single page — the whole loop at once.' },
+  { n: '7', title: 'The flow, as a film', blurb: 'Configure → generate → simulate → rank → experiment in a 34-second looping run with a cursor that presses the real controls.' },
 ];
 
 export default function StageShowIndex() {
