@@ -10,18 +10,24 @@
  * press) → /3 → (plays once) → /4 → (plays once) → /5 → (Generate press)
  * → /7 → loop.
  *
- * Two things keep it smooth instead of rigid:
- * - Cuts land inside the press frame (the button is seen going small, then
- *   the next screen is already dissolving in) with a ~650ms cross-dissolve,
- *   never a hard snap. The outgoing screen keeps its live DOM node while it
- *   fades, so nothing jumps or restarts mid-fade.
- * - The next idle screen (the /6 shells, /3 and /4 players) mounts hidden
- *   ahead of time, so its "Preparing…" / empty build frame never flashes —
- *   it dissolves in already complete. Auto-playing screens (/1 /2 /5 /7)
- *   always mount fresh at reveal so their clocks start on time.
+ * Transition design (wrapper-level keyframes, Web Animations API):
+ * - Spatial model: the story moves forward, so screens push left. The
+ *   outgoing screen accelerates out (ease-in, drifts -64px, settles back
+ *   0.985 with a whisper of blur) while the incoming screen is already
+ *   staged off-right.
+ * - Stagger: the incoming screen holds 90ms, then decelerates in over
+ *   650ms (ease-out-expo). Opacity lands at 62% of the move while scale
+ *   and blur keep settling to 100% — layered timing, so the arrival reads
+ *   as one gesture with a soft settle instead of a rigid fade.
+ * - The outgoing screen keeps its live DOM node through the whole exit —
+ *   nothing jumps or restarts mid-fade.
+ * - Build frames never flash: the idle screens (/6 shells, /3 + /4 players)
+ *   mount hidden ahead of time and dissolve in already complete.
+ *   Auto-playing screens (/1 /2 /5 /7) always mount fresh at reveal so
+ *   their clocks start on time.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import A1 from '@/app/animation/1/page';
 import A6 from '@/app/animation/6/page';
 import A2 from '@/app/animation/2/page';
@@ -39,22 +45,73 @@ const WARM: Record<number, number[]> = { 0: [1], 1: [3], 2: [3], 3: [4] };
 
 const SCREENS = [A1, A6, A2, A3, A4, A5, A7];
 
+const ENTER_KEYFRAMES: Keyframe[] = [
+  { opacity: '0', transform: 'translateX(72px) scale(1.025)', filter: 'blur(6px)', offset: 0 },
+  { opacity: '1', transform: 'translateX(0px) scale(1.008)', filter: 'blur(0px)', offset: 0.62 },
+  { opacity: '1', transform: 'translateX(0px) scale(1)', filter: 'blur(0px)', offset: 1 },
+];
+const EXIT_KEYFRAMES: Keyframe[] = [
+  { opacity: '1', transform: 'translateX(0px) scale(1)', filter: 'blur(0px)', offset: 0 },
+  { opacity: '0', transform: 'translateX(-64px) scale(0.985)', filter: 'blur(3px)', offset: 1 },
+];
+
 export default function StageShow8() {
   const [step, setStep] = useState(0);
-  /* Outgoing screen + the exact key its live instance was mounted with. */
   const [leaving, setLeaving] = useState<{ idx: number; key: string } | null>(null);
+  const [leavingStep, setLeavingStep] = useState(0);
+  const [reduced, setReduced] = useState(true);
+  const nodes = useRef(new Map<string, HTMLElement>());
   const phase = step % 7;
   const cycle = Math.floor(step / 7);
 
-  /* Dissolve the outgoing screen over the incoming one. */
+  /* Retain the outgoing screen in the same commit as the cut, under its
+     exact live key — otherwise its node unmounts before it can exit. */
+  if (leavingStep !== step) {
+    setLeavingStep(step);
+    if (step > 0) {
+      const prev = (step - 1) % 7;
+      setLeaving({ idx: prev, key: `${Math.floor((step - 1) / 7)}-${prev}` });
+    } else {
+      setLeaving(null);
+    }
+  }
+
   useEffect(() => {
-    if (step === 0) return;
-    const prev = (step - 1) % 7;
-    if (prev === phase) return;
-    setLeaving({ idx: prev, key: `${Math.floor((step - 1) / 7)}-${prev}` });
-    const t = window.setTimeout(() => setLeaving(null), 650);
+    setReduced(
+      !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+    );
+  }, []);
+
+  /* Release the outgoing node once its exit has played through. */
+  useEffect(() => {
+    if (!leaving) return;
+    const t = window.setTimeout(() => setLeaving(null), reduced ? 60 : 700);
     return () => window.clearTimeout(t);
-  }, [step, phase]);
+  }, [leaving, reduced]);
+
+  /* Enter: staged off-right, holds 90ms, decelerates in with a settle. */
+  useLayoutEffect(() => {
+    if (reduced) return;
+    nodes.current
+      .get(`${cycle}-${phase}`)
+      ?.animate(ENTER_KEYFRAMES, {
+        duration: 650,
+        delay: 90,
+        easing: 'cubic-bezier(.22,1,.36,1)',
+        fill: 'both',
+      });
+  }, [step, phase, cycle, reduced]);
+
+  /* Exit: accelerates out left the moment the cut lands. */
+  const leavingKey = leaving?.key;
+  useLayoutEffect(() => {
+    if (reduced || !leavingKey) return;
+    nodes.current.get(leavingKey)?.animate(EXIT_KEYFRAMES, {
+      duration: 430,
+      easing: 'cubic-bezier(.55,.06,.68,.19)',
+      fill: 'both',
+    });
+  }, [leavingKey, reduced]);
 
   /* Drive each screen's own keys, then advance. Timed from reveal. */
   useEffect(() => {
@@ -92,18 +149,22 @@ export default function StageShow8() {
         const isLeaving = leaving?.idx === idx;
         if (!isVis && !isWarm && !isLeaving) return null;
         const C = SCREENS[idx];
+        const renderKey = isLeaving && leaving ? leaving.key : `${cycle}-${idx}`;
         return (
           <div
-            key={isLeaving && leaving ? leaving.key : `${cycle}-${idx}`}
+            key={renderKey}
+            ref={(el) => {
+              if (el) nodes.current.set(renderKey, el);
+              else nodes.current.delete(renderKey);
+            }}
             aria-hidden={!isVis}
-            style={{ zIndex: isVis ? 20 : isLeaving ? 10 : 0 }}
-            className={`absolute inset-0 transition-[opacity,transform] ease-out ${
-              isVis
-                ? 'scale-100 opacity-100 duration-700'
-                : isLeaving
-                  ? 'pointer-events-none scale-[1.01] opacity-0 duration-500'
-                  : 'invisible pointer-events-none scale-[1.015] opacity-0'
-            }`}
+            className="absolute inset-0"
+            style={{
+              zIndex: isVis ? 20 : isLeaving ? 10 : 0,
+              opacity: reduced && isVis ? 1 : 0,
+              visibility: isVis || isLeaving ? 'visible' : 'hidden',
+              pointerEvents: isVis ? 'auto' : 'none',
+            }}
           >
             <C />
           </div>
