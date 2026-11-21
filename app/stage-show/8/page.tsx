@@ -10,21 +10,19 @@
  * press) → /3 → (plays once) → /4 → (plays once) → /5 → (Generate press)
  * → /7 → loop.
  *
+ * Variant rig (vartest): 10 transition styles in TRANSITIONS, switched from
+ * the floating toolbar (bottom-right) or keys 1–9 / 0. The film keeps
+ * looping; picking a variant replays the current screen's entrance with it.
+ *
  * Transition design (wrapper-level keyframes, Web Animations API):
- * - Spatial model: the story moves forward, so screens push left. The
- *   outgoing screen accelerates out (ease-in, drifts -64px, settles back
- *   0.985 with a whisper of blur) while the incoming screen is already
- *   staged off-right.
- * - Stagger: the incoming screen holds 90ms, then decelerates in over
- *   650ms (ease-out-expo). Opacity lands at 62% of the move while scale
- *   and blur keep settling to 100% — layered timing, so the arrival reads
- *   as one gesture with a soft settle instead of a rigid fade.
- * - The outgoing screen keeps its live DOM node through the whole exit —
- *   nothing jumps or restarts mid-fade.
- * - Build frames never flash: the idle screens (/6 shells, /3 + /4 players)
- *   mount hidden ahead of time and dissolve in already complete.
- *   Auto-playing screens (/1 /2 /5 /7) always mount fresh at reveal so
- *   their clocks start on time.
+ * - Spatial model: the story moves forward, so most variants push left.
+ *   The outgoing screen accelerates out (ease-in) while the incoming screen
+ *   is staged off-canvas, holds, then decelerates in (ease-out-expo).
+ * - Layered timing: opacity lands around 62% of the move while scale and
+ *   blur keep settling to 100% — one gesture with a soft settle.
+ * - The outgoing screen keeps its live DOM node through the whole exit.
+ * - Build frames never flash: idle screens (/6, /3, /4) mount hidden ahead
+ *   of time; auto-playing screens (/1 /2 /5 /7) mount fresh at reveal.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -45,14 +43,147 @@ const WARM: Record<number, number[]> = { 0: [1], 1: [3], 2: [3], 3: [4] };
 
 const SCREENS = [A1, A6, A2, A3, A4, A5, A7];
 
-const ENTER_KEYFRAMES: Keyframe[] = [
-  { opacity: '0', transform: 'translateX(72px) scale(1.025)', filter: 'blur(6px)', offset: 0 },
-  { opacity: '1', transform: 'translateX(0px) scale(1.008)', filter: 'blur(0px)', offset: 0.62 },
-  { opacity: '1', transform: 'translateX(0px) scale(1)', filter: 'blur(0px)', offset: 1 },
-];
-const EXIT_KEYFRAMES: Keyframe[] = [
-  { opacity: '1', transform: 'translateX(0px) scale(1)', filter: 'blur(0px)', offset: 0 },
-  { opacity: '0', transform: 'translateX(-64px) scale(0.985)', filter: 'blur(3px)', offset: 1 },
+const EXPO_OUT = 'cubic-bezier(.22,1,.36,1)';
+const EASE_IN = 'cubic-bezier(.55,.06,.68,.19)';
+
+interface Transition {
+  name: string;
+  enterKf: Keyframe[];
+  enterDur: number;
+  enterDelay: number;
+  enterEase: string;
+  exitKf: Keyframe[];
+  exitDur: number;
+  exitEase: string;
+  hold: number;
+}
+
+const TRANSITIONS: Transition[] = [
+  {
+    name: 'Push left',
+    enterKf: [
+      { opacity: '0', transform: 'translateX(72px) scale(1.025)', filter: 'blur(6px)', offset: 0 },
+      { opacity: '1', transform: 'translateX(0px) scale(1.008)', filter: 'blur(0px)', offset: 0.62 },
+      { opacity: '1', transform: 'translateX(0px) scale(1)', filter: 'blur(0px)', offset: 1 },
+    ],
+    enterDur: 650, enterDelay: 90, enterEase: EXPO_OUT,
+    exitKf: [
+      { opacity: '1', transform: 'translateX(0px) scale(1)', filter: 'blur(0px)', offset: 0 },
+      { opacity: '0', transform: 'translateX(-64px) scale(0.985)', filter: 'blur(3px)', offset: 1 },
+    ],
+    exitDur: 430, exitEase: EASE_IN, hold: 700,
+  },
+  {
+    name: 'Push up',
+    enterKf: [
+      { opacity: '0', transform: 'translateY(64px) scale(1.02)', filter: 'blur(5px)', offset: 0 },
+      { opacity: '1', transform: 'translateY(0px) scale(1.006)', filter: 'blur(0px)', offset: 0.62 },
+      { opacity: '1', transform: 'translateY(0px) scale(1)', filter: 'blur(0px)', offset: 1 },
+    ],
+    enterDur: 650, enterDelay: 90, enterEase: EXPO_OUT,
+    exitKf: [
+      { opacity: '1', transform: 'translateY(0px) scale(1)', filter: 'blur(0px)', offset: 0 },
+      { opacity: '0', transform: 'translateY(-56px) scale(0.985)', filter: 'blur(3px)', offset: 1 },
+    ],
+    exitDur: 430, exitEase: EASE_IN, hold: 700,
+  },
+  {
+    name: 'Soft dissolve',
+    enterKf: [
+      { opacity: '0', transform: 'scale(1.03)', filter: 'blur(5px)', offset: 0 },
+      { opacity: '1', transform: 'scale(1.006)', filter: 'blur(0px)', offset: 0.62 },
+      { opacity: '1', transform: 'scale(1)', filter: 'blur(0px)', offset: 1 },
+    ],
+    enterDur: 600, enterDelay: 60, enterEase: EXPO_OUT,
+    exitKf: [{ opacity: '1', offset: 0 }, { opacity: '0', offset: 1 }],
+    exitDur: 400, exitEase: 'ease-out', hold: 650,
+  },
+  {
+    name: 'Swift slide',
+    enterKf: [
+      { opacity: '0', transform: 'translateX(220px)', offset: 0 },
+      { opacity: '1', transform: 'translateX(0px)', offset: 1 },
+    ],
+    enterDur: 480, enterDelay: 60, enterEase: EXPO_OUT,
+    exitKf: [
+      { opacity: '1', transform: 'translateX(0px)', offset: 0 },
+      { opacity: '0', transform: 'translateX(-160px)', offset: 1 },
+    ],
+    exitDur: 380, exitEase: EASE_IN, hold: 620,
+  },
+  {
+    name: 'Dolly in',
+    enterKf: [
+      { opacity: '0', transform: 'translateY(24px) scale(0.93)', offset: 0 },
+      { opacity: '1', transform: 'translateY(0px) scale(1.004)', offset: 0.62 },
+      { opacity: '1', transform: 'translateY(0px) scale(1)', offset: 1 },
+    ],
+    enterDur: 600, enterDelay: 80, enterEase: EXPO_OUT,
+    exitKf: [
+      { opacity: '1', transform: 'scale(1)', offset: 0 },
+      { opacity: '0', transform: 'scale(1.07)', offset: 1 },
+    ],
+    exitDur: 400, exitEase: EASE_IN, hold: 660,
+  },
+  {
+    name: 'Pull back',
+    enterKf: [
+      { opacity: '0', transform: 'scale(1.06)', filter: 'blur(4px)', offset: 0 },
+      { opacity: '1', transform: 'scale(1.008)', filter: 'blur(0px)', offset: 0.62 },
+      { opacity: '1', transform: 'scale(1)', filter: 'blur(0px)', offset: 1 },
+    ],
+    enterDur: 650, enterDelay: 90, enterEase: EXPO_OUT,
+    exitKf: [
+      { opacity: '1', transform: 'scale(1)', offset: 0 },
+      { opacity: '0', transform: 'scale(0.92)', offset: 1 },
+    ],
+    exitDur: 450, exitEase: EASE_IN, hold: 700,
+  },
+  {
+    name: 'Blur melt',
+    enterKf: [
+      { opacity: '0', transform: 'scale(1.01)', filter: 'blur(10px)', offset: 0 },
+      { opacity: '1', transform: 'scale(1.002)', filter: 'blur(0px)', offset: 0.62 },
+      { opacity: '1', transform: 'scale(1)', filter: 'blur(0px)', offset: 1 },
+    ],
+    enterDur: 600, enterDelay: 70, enterEase: EXPO_OUT,
+    exitKf: [
+      { opacity: '1', filter: 'blur(0px)', offset: 0 },
+      { opacity: '0', filter: 'blur(8px)', offset: 1 },
+    ],
+    exitDur: 500, exitEase: 'ease-in', hold: 700,
+  },
+  {
+    name: 'Dip to black',
+    enterKf: [
+      { opacity: '0', transform: 'scale(1.015)', offset: 0 },
+      { opacity: '1', transform: 'scale(1)', offset: 1 },
+    ],
+    enterDur: 500, enterDelay: 200, enterEase: EXPO_OUT,
+    exitKf: [{ opacity: '1', offset: 0 }, { opacity: '0', offset: 1 }],
+    exitDur: 200, exitEase: EASE_IN, hold: 760,
+  },
+  {
+    name: 'Cover push',
+    enterKf: [
+      { opacity: '1', transform: 'translateX(100%)', offset: 0 },
+      { opacity: '1', transform: 'translateX(0%)', offset: 1 },
+    ],
+    enterDur: 620, enterDelay: 0, enterEase: EXPO_OUT,
+    exitKf: [
+      { opacity: '1', offset: 0 },
+      { opacity: '1', offset: 0.65 },
+      { opacity: '0', offset: 1 },
+    ],
+    exitDur: 650, exitEase: 'linear', hold: 700,
+  },
+  {
+    name: 'Hard cut',
+    enterKf: [{ opacity: '1', offset: 0 }],
+    enterDur: 1, enterDelay: 0, enterEase: 'linear',
+    exitKf: [{ opacity: '0', offset: 0 }],
+    exitDur: 1, exitEase: 'linear', hold: 60,
+  },
 ];
 
 export default function StageShow8() {
@@ -60,9 +191,11 @@ export default function StageShow8() {
   const [leaving, setLeaving] = useState<{ idx: number; key: string } | null>(null);
   const [leavingStep, setLeavingStep] = useState(0);
   const [reduced, setReduced] = useState(true);
+  const [variant, setVariant] = useState(0);
   const nodes = useRef(new Map<string, HTMLElement>());
   const phase = step % 7;
   const cycle = Math.floor(step / 7);
+  const t = TRANSITIONS[variant];
 
   /* Retain the outgoing screen in the same commit as the cut, under its
      exact live key — otherwise its node unmounts before it can exit. */
@@ -77,41 +210,53 @@ export default function StageShow8() {
   }
 
   useEffect(() => {
-    setReduced(
-      !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
-    );
+    setReduced(!!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   }, []);
 
   /* Release the outgoing node once its exit has played through. */
   useEffect(() => {
     if (!leaving) return;
-    const t = window.setTimeout(() => setLeaving(null), reduced ? 60 : 700);
-    return () => window.clearTimeout(t);
-  }, [leaving, reduced]);
+    const timer = window.setTimeout(() => setLeaving(null), reduced ? 60 : t.hold);
+    return () => window.clearTimeout(timer);
+  }, [leaving, reduced, t]);
 
-  /* Enter: staged off-right, holds 90ms, decelerates in with a settle. */
+  /* Enter: staged off-canvas, holds, decelerates in with a settle. */
   useLayoutEffect(() => {
     if (reduced) return;
-    nodes.current
-      .get(`${cycle}-${phase}`)
-      ?.animate(ENTER_KEYFRAMES, {
-        duration: 650,
-        delay: 90,
-        easing: 'cubic-bezier(.22,1,.36,1)',
-        fill: 'both',
-      });
-  }, [step, phase, cycle, reduced]);
+    nodes.current.get(`${cycle}-${phase}`)?.animate(t.enterKf, {
+      duration: t.enterDur,
+      delay: t.enterDelay,
+      easing: t.enterEase,
+      fill: 'both',
+    });
+  }, [step, phase, cycle, reduced, t]);
 
-  /* Exit: accelerates out left the moment the cut lands. */
+  /* Exit: accelerates out the moment the cut lands. */
   const leavingKey = leaving?.key;
   useLayoutEffect(() => {
     if (reduced || !leavingKey) return;
-    nodes.current.get(leavingKey)?.animate(EXIT_KEYFRAMES, {
-      duration: 430,
-      easing: 'cubic-bezier(.55,.06,.68,.19)',
+    nodes.current.get(leavingKey)?.animate(t.exitKf, {
+      duration: t.exitDur,
+      easing: t.exitEase,
       fill: 'both',
     });
-  }, [leavingKey, reduced]);
+  }, [leavingKey, reduced, t]);
+
+  /* Variant picker: toolbar + keys 1–9, 0. Replays the current entrance. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key;
+      let idx = -1;
+      if (k >= '1' && k <= '9') idx = Number(k) - 1;
+      else if (k === '0') idx = 9;
+      if (idx >= 0 && idx < TRANSITIONS.length) setVariant(idx);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   /* Drive each screen's own keys, then advance. Timed from reveal. */
   useEffect(() => {
@@ -135,7 +280,7 @@ export default function StageShow8() {
     if (phase === 4) press('r', 0.2);
     timers.push(window.setTimeout(() => setStep((s) => s + 1), DUR[phase] * 1000));
     return () => {
-      timers.forEach((t) => window.clearTimeout(t));
+      timers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [step, phase]);
 
@@ -170,6 +315,40 @@ export default function StageShow8() {
           </div>
         );
       })}
+
+      {/* Variant toolbar — floating segmented control, bottom-right. */}
+      <div className="fixed bottom-4 right-4 z-[100] rounded-2xl border border-border bg-card/95 p-2 shadow-xl backdrop-blur">
+        <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Transition
+          </span>
+          <span className="max-w-[140px] truncate text-[11px] font-semibold text-foreground">
+            {variant + 1} · {t.name}
+          </span>
+        </div>
+        <div className="flex gap-1" role="tablist" aria-label="Transition variants">
+          {TRANSITIONS.map((v, i) => {
+            const label = i < 9 ? `${i + 1}` : '0';
+            const on = i === variant;
+            return (
+              <button
+                key={v.name}
+                role="tab"
+                aria-selected={on}
+                title={`${label} · ${v.name}`}
+                onClick={() => setVariant(i)}
+                className={`h-8 w-8 rounded-lg text-xs font-bold tabular-nums transition-colors ${
+                  on
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
