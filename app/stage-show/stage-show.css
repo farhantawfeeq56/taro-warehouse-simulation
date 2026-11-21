@@ -1,0 +1,214 @@
+/* /stage-show — scoped to .taro-stage-page. One hero window + one corner chip.
+   Wide-hero layout: window fills the stage, runs off the bottom; chip straddles
+   the top-right corner, half outside, over chrome only. */
+
+.taro-stage-page {
+  min-height: 100vh;
+  background: #fbf6f6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 56px 24px 72px;
+  font-family: var(--font-instrument-sans), system-ui, sans-serif;
+}
+
+.taro-stage-copy { width: min(960px, 100%); margin-bottom: 20px; }
+.taro-stage-eyebrow {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+  color: #4c5c2d; margin-bottom: 10px;
+}
+.taro-stage-title {
+  font-size: clamp(26px, 4vw, 40px); font-weight: 650; letter-spacing: -0.02em;
+  color: #111; line-height: 1.1; margin: 0 0 8px;
+}
+.taro-stage-sub { font-size: 14.5px; line-height: 1.5; color: #666; margin: 0 0 14px; max-width: 560px; }
+.taro-stage-replay {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: #fff;
+  background: #4c5c2d; border: none; border-radius: 8px; padding: 8px 14px;
+}
+.taro-stage-replay:hover { background: #3f4d25; }
+
+/* The shot */
+.taro-stage {
+  position: relative;
+  width: min(960px, 100%);
+  height: 480px;
+  overflow: hidden;
+  border-radius: 14px;
+  /* page is the ground: no plate, window sits straight on it */
+  background: transparent;
+}
+
+/* Hero window: inset top/left, off the bottom (corner bleed), ≥2/3 of stage */
+.taro-window {
+  position: absolute;
+  left: 4%; top: 24px;
+  width: 92%; height: 560px;
+  background: #fff;
+  border: 1px solid #e9e7e6;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px -24px rgba(20, 20, 20, 0.28), 0 2px 6px rgba(20, 20, 20, 0.06);
+  overflow: visible;
+}
+
+.taro-chrome {
+  display: flex; align-items: center; gap: 12px;
+  height: 38px; padding: 0 14px;
+  border-bottom: 1px solid #e9e7e6;
+  background: #fff; border-radius: 12px 12px 0 0;
+}
+.taro-lights { display: inline-flex; gap: 6px; }
+.taro-lights i { width: 10px; height: 10px; border-radius: 50%; background: #ddd9d8; display: block; }
+.taro-lights i:first-child { background: #e0a49b; }
+.taro-url {
+  font-size: 12px; color: #666; background: #f4f4f3;
+  border-radius: 999px; padding: 3px 14px;
+}
+
+.taro-body { display: grid; grid-template-columns: 150px 1fr 210px; min-height: 300px; }
+
+/* Sidebar */
+.taro-side { border-right: 1px solid #e9e7e6; padding: 14px 12px; display: flex; flex-direction: column; gap: 4px; }
+.taro-wordmark { font-size: 13px; font-weight: 700; color: #111; padding: 0 4px 8px; }
+.taro-nav {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 500; color: #666;
+  padding: 6px 8px; border-radius: 7px; line-height: 1.3;
+}
+.taro-nav[data-on] { background: #f2f4ea; color: #111; font-weight: 650; }
+.taro-nav-dot { width: 7px; height: 7px; border-radius: 50%; background: #c9c5c4; flex: none; }
+.taro-nav[data-on] .taro-nav-dot { background: #4c5c2d; }
+.taro-bar { display: block; height: 6px; border-radius: 3px; background: #edecea; margin: 7px 4px 0; }
+
+/* Main */
+.taro-main { padding: 14px 16px 16px; min-width: 0; }
+.taro-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.taro-head-who { display: flex; flex-direction: column; gap: 2px; }
+.taro-head-title { font-size: 14.5px; font-weight: 650; color: #111; line-height: 1.3; }
+.taro-head-meta { font-size: 12px; color: #666; line-height: 1.3; }
+.taro-sim-btn {
+  flex: none; font-size: 13px; font-weight: 650; color: #fff;
+  background: #4c5c2d; border-radius: 8px; padding: 8px 16px; line-height: 1;
+  transform-origin: 80% 60%;
+  animation: taro-press 14s ease forwards;
+}
+
+.taro-map {
+  position: relative; height: 248px;
+  background: #f7f7f6; border: 1px solid #e9e7e6; border-radius: 10px;
+  overflow: hidden;
+}
+.taro-racks {
+  position: absolute; inset: 16px;
+  display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(5, 1fr);
+  gap: 10px 14px;
+}
+.taro-rack { background: #e4e1e0; border-radius: 3px; display: block; }
+.taro-racks i:nth-child(3n) { background: #d8d4d3; }
+.taro-routes { position: absolute; inset: 0; width: 100%; height: 100%; }
+.taro-route { fill: none; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.r-single { stroke: #b5b5b5; stroke-dasharray: 0.06 0.05; stroke-dashoffset: 0; opacity: 0; animation: taro-fade 0.5s ease 3.4s forwards; }
+.r-batch { stroke: #2563a8; animation: taro-draw 1.6s cubic-bezier(0.45, 0, 0.1, 1) 3.8s forwards; }
+.r-zone { stroke: #159a6f; stroke-width: 3.6; animation: taro-draw 1.8s cubic-bezier(0.45, 0, 0.1, 1) 4.6s forwards; }
+.taro-start, .taro-end { fill: #111; opacity: 0; animation: taro-fade 0.4s ease 3.2s forwards; }
+.taro-start { fill: #4c5c2d; }
+.taro-route-label {
+  position: absolute; left: 46%; top: 30%;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11.5px; font-weight: 700; color: #159a6f;
+  background: rgba(255, 255, 255, 0.94); border: 1px solid #dcf7ea;
+  border-radius: 999px; padding: 3px 9px;
+  opacity: 0; transform: translateY(4px);
+  animation: taro-rise 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) 6.2s forwards;
+}
+
+/* Results — payoff column */
+.taro-results { border-left: 1px solid #e9e7e6; padding: 14px 14px 16px; display: flex; flex-direction: column; }
+.taro-results-kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #929292; margin-bottom: 6px; }
+.taro-big { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; color: #111; line-height: 1; font-variant-numeric: tabular-nums; }
+.taro-big-sub { font-size: 12px; color: #666; margin: 4px 0 10px; line-height: 1.3; }
+.taro-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.taro-row {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid #e9e7e6; border-radius: 8px; padding: 8px 10px;
+  opacity: 0; transform: translateY(6px);
+}
+.taro-row[data-row="zone"] { animation: taro-rise 0.55s cubic-bezier(0.25, 0.8, 0.25, 1) 5.2s forwards; }
+.taro-row[data-row="batch"] { animation: taro-rise 0.55s cubic-bezier(0.25, 0.8, 0.25, 1) 5.6s forwards; }
+.taro-row[data-row="single"] { animation: taro-rise 0.55s cubic-bezier(0.25, 0.8, 0.25, 1) 6s forwards; }
+.taro-row.is-best { border-color: #159a6f; background: #dcf7ea55; }
+.taro-row.is-faint { opacity: 0; }
+.taro-row[data-row="single"].taro-row.is-faint { animation-name: taro-rise-faint; }
+.taro-row-name { font-size: 12.5px; font-weight: 650; color: #111; }
+.taro-row.is-faint .taro-row-name { color: #666; font-weight: 500; }
+.taro-row-val { margin-left: auto; font-size: 12.5px; font-weight: 600; color: #111; font-variant-numeric: tabular-nums; }
+.taro-best {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700; color: #159a6f;
+  background: #dcf7ea; border-radius: 999px; padding: 2px 8px;
+}
+
+/* Corner chip: centered on the window's top-right corner, half outside, over chrome */
+.taro-chip {
+  position: absolute; top: -15px; right: 56px;
+  font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap;
+  background: #159a6f; border-radius: 999px; padding: 6px 13px;
+  box-shadow: 0 8px 20px -8px rgba(21, 154, 111, 0.7);
+  opacity: 0; transform: scale(0.8);
+  animation: taro-chip 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) 6.6s forwards;
+}
+
+/* Authored cursor */
+.taro-cursor {
+  position: absolute; left: 0; top: 0; z-index: 5;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+  offset-rotate: 0deg;
+  animation: taro-cursor 14s cubic-bezier(0.45, 0, 0.1, 1) forwards;
+}
+
+.taro-stage-note { margin-top: 14px; font-size: 12.5px; color: #929292; }
+
+@keyframes taro-cursor {
+  0% { transform: translate(800px, 360px); }
+  12% { transform: translate(800px, 360px); }
+  22% { transform: translate(620px, 92px); }
+  26% { transform: translate(620px, 92px) scale(0.86); }
+  30% { transform: translate(620px, 92px); }
+  55% { transform: translate(800px, 300px); }
+  100% { transform: translate(800px, 300px); }
+}
+@keyframes taro-press {
+  0%, 24% { transform: scale(1); }
+  26%, 28% { transform: scale(0.93); }
+  32%, 100% { transform: scale(1); background: #3f4d25; }
+}
+@keyframes taro-draw { to { stroke-dashoffset: 0; } }
+@keyframes taro-fade { to { opacity: 1; } }
+@keyframes taro-rise { to { opacity: 1; transform: translateY(0); } }
+@keyframes taro-rise-faint { to { opacity: 0.72; transform: translateY(0); } }
+@keyframes taro-chip { to { opacity: 1; transform: scale(1); } }
+
+/* Compact: second design, not a squeeze — map on top, results below */
+@media (max-width: 640px) {
+  .taro-stage { height: 640px; }
+  .taro-window { left: 3%; width: 94%; height: 720px; }
+  .taro-body { grid-template-columns: 1fr; }
+  .taro-side { flex-direction: row; align-items: center; border-right: none; border-bottom: 1px solid #e9e7e6; }
+  .taro-side .taro-bar { display: none; }
+  .taro-results { border-left: none; border-top: 1px solid #e9e7e6; }
+  .taro-cursor { display: none; }
+  @keyframes taro-cursor { 0%, 100% { transform: translate(0, 0); } }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taro-sim-btn, .taro-route, .taro-row, .taro-chip,
+  .taro-cursor, .taro-start, .taro-end, .taro-route-label { animation: none !important; }
+  .r-single { opacity: 0.8; stroke-dashoffset: 0; }
+  .r-batch, .r-zone { stroke-dashoffset: 0; }
+  .taro-row { opacity: 1; transform: none; }
+  .taro-row.is-faint { opacity: 0.72; }
+  .taro-chip, .taro-start, .taro-end, .taro-route-label { opacity: 1; transform: none; }
+  .taro-cursor { display: none; }
+}
